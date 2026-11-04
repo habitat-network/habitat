@@ -62,6 +62,7 @@ type App struct {
 	// use their own hive KEM key instead). See spacecommit.KEMKeys.
 	HostKEMKey      *atcrypto.PrivateKeyP256
 	NotifyStore     notify.Store
+	Notifier        *notify.Deliverer
 	BlobBucket      *blob.Bucket
 	BlobStore       spaces.BlobStore
 	SpacesStore     spaces.Store
@@ -105,6 +106,7 @@ func New(
 	hostKey atcrypto.PrivateKey,
 	hostKEMKey *atcrypto.PrivateKeyP256,
 	notifyStore notify.Store,
+	notifier *notify.Deliverer,
 	blobBucket *blob.Bucket,
 	blobStore spaces.BlobStore,
 	spacesStore spaces.Store,
@@ -143,6 +145,7 @@ func New(
 		HostKey:             hostKey,
 		HostKEMKey:          hostKEMKey,
 		NotifyStore:         notifyStore,
+		Notifier:            notifier,
 		BlobBucket:          blobBucket,
 		BlobStore:           blobStore,
 		SpacesStore:         spacesStore,

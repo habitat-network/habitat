@@ -22,23 +22,18 @@ func testPublicKeyMultibase(t *testing.T) string {
 	return pub.Multibase()
 }
 
-func TestSupportsSpaces_AdvertisedServiceOrKey(t *testing.T) {
-	// These identities advertise support directly in their DID document, so
-	// SupportsSpaces must not need to reach their PDS at all: give it a nil
-	// client to prove the network path is never taken.
-	t.Run("advertises an atproto_space_host service", func(t *testing.T) {
-		ident := did.New(syntax.DID("did:web:alice.example.com")).
-			ATProtoSpaceHost("https://space-host.example.com").
-			Build()
-		require.True(t, SupportsSpaces(t.Context(), nil, ident))
-	})
-
-	t.Run("advertises an atproto_space verification key", func(t *testing.T) {
-		ident := did.New(syntax.DID("did:web:alice.example.com")).
-			ATProtoSpaceKey(testPublicKeyMultibase(t)).
-			Build()
-		require.True(t, SupportsSpaces(t.Context(), nil, ident))
-	})
+func TestSupportsSpaces_IgnoresLegacySpaceEntries(t *testing.T) {
+	// The spaces alpha dropped the dedicated #atproto_space key and
+	// #atproto_space_host service, so a DID document still carrying them is
+	// probed like any other: here its PDS doesn't implement spaces.
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	ident := did.New(syntax.DID("did:web:alice.example.com")).
+		ATProtoPDS(srv.URL).
+		Service("atproto_space_host", "AtprotoSpaceHost", "https://space-host.example.com").
+		VerificationMethod("atproto_space", "Multikey", testPublicKeyMultibase(t)).
+		Build()
+	require.False(t, SupportsSpaces(t.Context(), http.DefaultClient, ident))
 }
 
 func TestSupportsSpaces_ProbesPDS(t *testing.T) {

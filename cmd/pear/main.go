@@ -262,12 +262,14 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to get host kem public key: %w", err)
 	}
 	mux.Handle("/.well-known/did.json", did.NewHandler(
+		// The host resolves like any other space authority: #atproto signs
+		// its space credentials and #atproto_pds is where its spaces are served.
 		did.Web(app.Domain).
-			ATProtoSpaceKey(hostPublicKey.Multibase()).
+			AtprotoKey(hostPublicKey.Multibase()).
 			ATProtoKEMKey(hostKEMPublicKey.Multibase()).
 			HabitatKey(hostPublicKey.Multibase()).
 			Habitat("https://"+app.Domain).
-			ATProtoSpaceHost("https://"+app.Domain).
+			ATProtoPDS("https://"+app.Domain).
 			Build(),
 	))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
@@ -363,6 +365,10 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	eg, egCtx := errgroup.WithContext(startupCtx)
+	// Retries the notifySpaceDeleted deliveries that haven't succeeded yet.
+	eg.Go(func() error {
+		return app.Notifier.Run(egCtx, app.SpacesStore)
+	})
 	if app.SearchIndexer != nil {
 		eg.Go(func() error {
 			return app.SearchIndexer.Run(egCtx, app.SpacesStore, app.PermStore)

@@ -40,12 +40,12 @@ func credToken(t *testing.T, m *Manager, space habitat_syntax.SpaceURI) string {
 }
 
 // dirWithSpaceHost builds an identity.MockDirectory with a single identity
-// whose atproto_space_host service points at host.
+// whose atproto_pds service (its space host) points at host.
 func dirWithSpaceHost(did syntax.DID, host string) *identity.MockDirectory {
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      did,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: host}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: host}},
 	})
 	return dir
 }
@@ -154,11 +154,11 @@ func TestManagerResolvesHostPerSpace(t *testing.T) {
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      ownerA,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: srvA.URL}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: srvA.URL}},
 	})
 	dir.Insert(identity.Identity{
 		DID:      ownerB,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: srvB.URL}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: srvB.URL}},
 	})
 	m := NewManager(
 		dir,
@@ -194,6 +194,42 @@ func TestManagerCredential(t *testing.T) {
 	cred, err := m.Credential(t.Context(), space)
 	require.NoError(t, err)
 	require.Equal(t, Credential{Token: "space-cred", Host: srv.URL}, cred)
+}
+
+// TestManagerReportsDeletedSpace verifies a host answering SpaceDeleted is
+// reported through OnSpaceDeleted and ErrSpaceDeleted, and that any other
+// failure says nothing about the space.
+func TestManagerReportsDeletedSpace(t *testing.T) {
+	errName := "SpaceDeleted"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": errName})
+	}))
+	t.Cleanup(srv.Close)
+
+	owner := syntax.DID("did:web:org")
+	space := habitat_syntax.SpaceURI("at://did:web:org/space/network.habitat.group/s1")
+	m := NewManager(
+		dirWithSpaceHost(owner, srv.URL),
+		http.DefaultClient,
+		stubDelegator{},
+		testAttester(t, "https://sap.example.com"),
+	)
+	var reported []habitat_syntax.SpaceURI
+	m.OnSpaceDeleted(func(_ context.Context, s habitat_syntax.SpaceURI) {
+		reported = append(reported, s)
+	})
+
+	_, err := m.Credential(t.Context(), space)
+	require.ErrorIs(t, err, ErrSpaceDeleted)
+	require.Equal(t, []habitat_syntax.SpaceURI{space}, reported)
+
+	errName = "NotAuthorized"
+	_, err = m.Credential(t.Context(), space)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrSpaceDeleted)
+	require.Len(t, reported, 1)
 }
 
 // TestManagerAttachesClientAttestation verifies mint signs a

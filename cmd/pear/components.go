@@ -402,6 +402,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		hostKey,
 		hostKEMKey,
 		notifyStore,
+		notifier,
 		blobBucket,
 		blobStore,
 		spacesStore,

@@ -45,7 +45,10 @@ interface Target {
   readonly method: Query | Procedure;
   /** Repo DID for repo calls, authority DID for space-host calls. */
   readonly audience: DidString;
-  /** "repo" → audience's PDS; "space" → audience's space host. */
+  /**
+   * Both resolve to the audience's PDS; "space" marks a call answered by the
+   * authority's space host, the only host that speaks for the space.
+   */
   readonly hostOf: "repo" | "space";
   /**
    * Set on a MAC-bearing repo call: the request carries an
@@ -199,18 +202,15 @@ export class SpaceClient extends Context.Service<
           return owner.kemKey;
         });
 
-      /** The host a target's request goes to, given its audience's identity. */
-      const hostFor = (target: Target, resolved: ResolvedIdentity) => {
-        // The authority's own repo lives on its space host when it has no
-        // PDS: a single service is both repo host and space host.
-        const ownRepo =
-          !resolved.pds && target.audience === target.space.spaceDid;
-        return target.hostOf === "repo" && !ownRepo
-          ? requirePds(resolved).pipe(
-              Effect.mapError((e) => identityError(target, e.message)),
-            )
-          : Effect.succeed(resolved.spaceHost);
-      };
+      /**
+       * The host a target's request goes to. Repo hosts and space hosts are
+       * both the audience's PDS: a space authority resolves like any other
+       * account.
+       */
+      const hostFor = (target: Target, resolved: ResolvedIdentity) =>
+        requirePds(resolved).pipe(
+          Effect.mapError((e) => identityError(target, e.message)),
+        );
 
       /**
        * One signed request to the target's host. `run` throws an xrpc failure

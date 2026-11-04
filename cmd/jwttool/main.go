@@ -6,7 +6,7 @@
 // Usage:
 //
 //	jwttool service-auth --key <multibase> --iss <did> --aud <aud> [--lxm <nsid>] [--ttl <duration>]
-//	jwttool space-credential --key <multibase> [--kid <kid>] --space <space-uri>
+//	jwttool space-credential --key <multibase> --space <space-uri>
 //	jwttool delegation --key <multibase> --iss <did> [--kid <kid>] --space <space-uri>
 package main
 
@@ -121,7 +121,6 @@ func runSpaceCredential(args []string) error {
 		"",
 		"multibase-encoded private key (parsable by atcrypto.ParsePrivateMultibase)",
 	)
-	kid := fs.String("kid", "#atproto", "key ID for the JWT header")
 	spaceStr := fs.String(
 		"space",
 		"",
@@ -143,7 +142,7 @@ func runSpaceCredential(args []string) error {
 		return fmt.Errorf("parse --space as space URI: %w", err)
 	}
 
-	token, err := utils.SpaceCredential(key, *kid, space)
+	token, err := utils.SpaceCredential(key, space)
 	if err != nil {
 		return fmt.Errorf("sign space credential: %w", err)
 	}
@@ -203,7 +202,7 @@ func usage() {
 
 usage:
   jwttool service-auth --key <multibase> --iss <did> --aud <aud> [--lxm <nsid>] [--ttl <duration>]
-  jwttool space-credential --key <multibase> [--kid <kid>] --space <space-uri>
+  jwttool space-credential --key <multibase> --space <space-uri>
   jwttool delegation --key <multibase> --iss <did> [--kid <kid>] --space <space-uri>
 `,
 	)

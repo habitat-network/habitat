@@ -28,14 +28,38 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 	hostPubKey, _ := hostKey.PublicKey()
 	dir := identity.NewMockDirectory()
 	dir.Insert(
-		*did.Web("pear.com").AtprotoKey(hostPubKey.Multibase()).ATProtoSpaceKey(hostPubKey.Multibase()).Build(),
+		*did.Web("pear.com").AtprotoKey(hostPubKey.Multibase()).Build(),
 	)
 	method := authn.NewSpaceCredentialAuthMethod(dir)
 
-	t.Run("atproto_space", func(t *testing.T) {
+	t.Run("rejects the legacy #atproto_space kid", func(t *testing.T) {
+		dir := identity.NewMockDirectory()
+		dir.Insert(*did.Web("pear.com").
+			AtprotoKey(hostPubKey.Multibase()).
+			VerificationMethod("atproto_space", "Multikey", hostPubKey.Multibase()).
+			Build())
+		token, err := new(jwt.Token{
+			Method: jwt.GetSigningMethod("ES256K"),
+			Claims: jwt.MapClaims{
+				"iss": "did:web:pear.com",
+				"sub": "at://did:web:pear.com/space/com.test.space/abc",
+				"iat": jwt.NewNumericDate(time.Now()),
+				"exp": jwt.NewNumericDate(time.Now().Add(time.Minute)),
+			},
+			Header: map[string]any{
+				"typ": "atproto-space-credential+jwt", "kid": "#atproto_space", "alg": "ES256K",
+			},
+		}).SignedString(hostKey)
+		require.NoError(t, err)
+		credInfo, ok := authn.NewSpaceCredentialAuthMethod(dir).
+			Validate(httptest.NewRecorder(), newAuthenticatedRequest(token))
+		require.False(t, ok)
+		require.Nil(t, credInfo)
+	})
+
+	t.Run("atproto", func(t *testing.T) {
 		token, err := utils.SpaceCredential(
 			hostKey,
-			"#atproto_space",
 			"at://did:web:pear.com/space/com.test.space/abc",
 		)
 		require.NoError(t, err)
@@ -46,21 +70,6 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 		require.Equal(t, credInfo.Space.String(), "at://did:web:pear.com/space/com.test.space/abc")
 		require.Empty(t, credInfo.Subject)
 		require.Equal(t, authn.ValidatorMethodSpaceCredential, credInfo.Method)
-	})
-
-	t.Run("atproto", func(t *testing.T) {
-		token, err := utils.SpaceCredential(
-			hostKey,
-			"#atproto",
-			"at://did:web:pear.com/space/com.test.space/abc",
-		)
-		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
-		require.True(t, method.CanHandle(r))
-		credInfo, ok := method.Validate(httptest.NewRecorder(), r)
-		require.True(t, ok)
-		require.Equal(t, credInfo.Space.String(), "at://did:web:pear.com/space/com.test.space/abc")
-		require.Empty(t, credInfo.Subject)
 	})
 
 	t.Run("no token", func(t *testing.T) {
@@ -75,7 +84,6 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 		otherKey, _ := atcrypto.GeneratePrivateKeyK256()
 		token, _ := utils.SpaceCredential(
 			otherKey,
-			"#atproto",
 			"at://did:web:pear.com/space/com.test.space/abc",
 		)
 		r := newAuthenticatedRequest(token)
@@ -115,9 +123,9 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 			require.NoError(t, err)
 			return claims
 		}
-		a, err := utils.SpaceCredential(hostKey, "#atproto_space", space)
+		a, err := utils.SpaceCredential(hostKey, space)
 		require.NoError(t, err)
-		b, err := utils.SpaceCredential(hostKey, "#atproto_space", space)
+		b, err := utils.SpaceCredential(hostKey, space)
 		require.NoError(t, err)
 		ca, cb := claimsOf(a), claimsOf(b)
 		require.InDelta(t, ca["iat"], ca["exp"].(float64)-600, 0)
@@ -137,7 +145,7 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 				"jti": "legacy",
 			},
 			Header: map[string]any{
-				"typ": "atproto-space-credential+jwt", "kid": "#atproto_space", "alg": "ES256K",
+				"typ": "atproto-space-credential+jwt", "kid": "#atproto", "alg": "ES256K",
 			},
 		}).SignedString(hostKey)
 		require.NoError(t, err)
@@ -151,7 +159,7 @@ func TestSpaceCredentialAuthMethod_KeyBinding(t *testing.T) {
 	hostPubKey, _ := hostKey.PublicKey()
 	dir := identity.NewMockDirectory()
 	dir.Insert(
-		*did.Web("pear.com").AtprotoKey(hostPubKey.Multibase()).ATProtoSpaceKey(hostPubKey.Multibase()).Build(),
+		*did.Web("pear.com").AtprotoKey(hostPubKey.Multibase()).Build(),
 	)
 	method := authn.NewSpaceCredentialAuthMethod(dir)
 	space := habitat_syntax.SpaceURI("at://did:web:pear.com/space/com.test.space/abc")
@@ -161,7 +169,7 @@ func TestSpaceCredentialAuthMethod_KeyBinding(t *testing.T) {
 	syncerPub, err := syncerKey.PublicKey()
 	require.NoError(t, err)
 	bound, err := utils.SpaceCredential(
-		hostKey, "#atproto_space", space, utils.WithConfirmationKey(syncerPub.DIDKey()),
+		hostKey, space, utils.WithConfirmationKey(syncerPub.DIDKey()),
 	)
 	require.NoError(t, err)
 

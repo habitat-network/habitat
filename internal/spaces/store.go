@@ -38,6 +38,18 @@ type space struct {
 	CreatedAt time.Time
 }
 
+// deletedSpace is a deleted space's tombstone. It outlives the space so that
+// getSpaceCredential keeps answering SpaceDeleted to syncers that missed the
+// notifySpaceDeleted, and so pending notifySpaceDeleted retries can tell a
+// space that is still deleted from one recreated since. Recreating the space
+// removes it.
+type deletedSpace struct {
+	Owner     syntax.DID              `gorm:"primaryKey"`
+	Type      syntax.NSID             `gorm:"primaryKey"`
+	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
+	DeletedAt time.Time
+}
+
 type spaceRecord struct {
 	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
@@ -146,6 +158,9 @@ type Store interface {
 		filterType *syntax.NSID,
 	) ([]habitat_syntax.SpaceURI, error)
 	CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
+	// IsSpaceDeleted reports whether the space was deleted and hasn't been
+	// recreated since. A space that never existed is not deleted.
+	IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
 
 	// Member operations
 	ListRepos(
@@ -435,13 +450,25 @@ func (s *store) CreateSpace(
 
 	uri := habitat_syntax.ConstructSpaceURI(authority, spaceType, skey)
 	span.SetAttributes(telemetry.Space(uri))
-	err = s.db.WithContext(ctx).Create(&space{
-		Owner: authority,
-		Type:  spaceType,
-		Skey:  skey,
-	}).Error
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&space{
+			Owner: authority,
+			Type:  spaceType,
+			Skey:  skey,
+		}).Error; err != nil {
+			return err
+		}
+		// Recreating a deleted space makes it a new space: it no longer
+		// answers SpaceDeleted, and pending deletion notices for the old one
+		// stop rather than purge syncers' copies of this one.
+		return tx.
+			Where("owner = ? AND type = ? AND skey = ?", authority, spaceType, skey).
+			Delete(&deletedSpace{}).Error
+	})
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return "", ErrSpaceAlreadyExists
+	} else if err != nil {
+		return "", err
 	}
 
 	return uri, nil
@@ -487,6 +514,19 @@ func (s *store) CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceUR
 	}
 
 	return true, nil
+}
+
+// IsSpaceDeleted implements [Store].
+func (s *store) IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).
+		Model(&deletedSpace{}).
+		Where("owner = ? AND type = ? AND skey = ?", uri.SpaceOwner(), uri.SpaceType(), uri.Skey()).
+		Count(&count).Error
+	if err != nil {
+		return false, fmt.Errorf("check space deleted: %w", err)
+	}
+	return count > 0, nil
 }
 
 // spaceURIPattern builds a LIKE pattern matching the stored space URIs with the
@@ -1105,12 +1145,24 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 			return ErrSpaceNotFound
 		}
 
-		return nil
+		// Keep a tombstone so the space answers SpaceDeleted from now on.
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "owner"}, {Name: "type"}, {Name: "skey"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{"deleted_at"}),
+		}).Create(&deletedSpace{
+			Owner:     uri.SpaceOwner(),
+			Type:      uri.SpaceType(),
+			Skey:      uri.Skey(),
+			DeletedAt: time.Now(),
+		}).Error
 	})
 	if err != nil {
 		return err
 	}
-	// Best-effort: tell registered syncers the space is gone.
+	// Tell registered syncers the space is gone. The notifier persists and
+	// retries the deliveries; see notify.Deliverer.
 	s.notifier.NotifySpaceDeleted(ctx, uri)
 	return nil
 }
@@ -1575,5 +1627,5 @@ func (s *store) ApplyWrites(
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}}
+	return []any{&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}, &deletedSpace{}}
 }

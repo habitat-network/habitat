@@ -37,25 +37,21 @@ export async function resolveDidToHandle(
 }
 
 // resolveSpaceHost resolves the host that serves a space's records and blobs
-// (network.habitat.space.* — see bluesky-social/proposals#0016): the
-// `atproto_space_host` service on the space owner's DID document when it
-// declares one, falling back to its PDS endpoint. Throws if the DID can't be
-// resolved or declares neither service.
+// (network.habitat.space.* — see bluesky-social/proposals#0016). A space
+// authority resolves like any other account, so this is the `atproto_pds`
+// service on the space owner's DID document. Throws if the DID can't be
+// resolved or declares no PDS.
 export async function resolveSpaceHost(spaceOwnerDid: string): Promise<string> {
   const doc = await didResolver.resolve(spaceOwnerDid);
   if (!doc) {
     throw new Error(`DID not found: ${spaceOwnerDid}`);
-  }
-  const spaceHost = getServiceEndpoint(doc, { id: "#atproto_space_host" });
-  if (spaceHost) {
-    return spaceHost;
   }
   const pds = getServiceEndpoint(doc, {
     id: "#atproto_pds",
     type: "AtprotoPersonalDataServer",
   });
   if (!pds) {
-    throw new Error(`No space host or PDS found for DID: ${spaceOwnerDid}`);
+    throw new Error(`No PDS found for DID: ${spaceOwnerDid}`);
   }
   return pds;
 }

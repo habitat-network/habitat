@@ -1,6 +1,8 @@
 // Package notify persists syncer registrations (network.habitat.space.registerNotify)
 // and delivers notifyWrite events to the registered endpoints when a repo in a
-// space advances, per the permissioned-data sync proposal.
+// space advances, per the permissioned-data sync proposal. notifySpaceDeleted
+// deliveries are persisted and retried until they succeed or the syncer's
+// registration expires.
 package notify
 
 import (
@@ -100,6 +102,61 @@ type Store interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 	) ([]Registration, error)
+
+	// QueueSpaceDeleted persists a pending notifySpaceDeleted delivery to each
+	// of regs, one per audience, due at retryAt (unix milliseconds). A
+	// delivery already pending for the same (space, audience) restarts from
+	// its first attempt, so a space deleted again re-notifies its syncers.
+	QueueSpaceDeleted(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		regs []Registration,
+		retryAt int64,
+	) ([]PendingDeletion, error)
+	// DueSpaceDeleted returns up to limit pending deliveries due at or before
+	// now (unix milliseconds), earliest first.
+	DueSpaceDeleted(ctx context.Context, now int64, limit int) ([]PendingDeletion, error)
+	// RescheduleSpaceDeleted moves p to retryAt with its attempt count set to
+	// attempts, but only if p is still due at p.RetryAt: a caller that loses
+	// the race to another worker, or to a later deletion re-queueing p, gets
+	// false and leaves the row alone. Claiming a due delivery is a reschedule
+	// to a lease that keeps the attempt count.
+	RescheduleSpaceDeleted(
+		ctx context.Context,
+		p PendingDeletion,
+		attempts int,
+		retryAt int64,
+	) (bool, error)
+	// ClearSpaceDeleted drops p once it is delivered or abandoned, under the
+	// same p.RetryAt guard as RescheduleSpaceDeleted.
+	ClearSpaceDeleted(ctx context.Context, p PendingDeletion) error
+}
+
+// spaceDeletedDelivery is the GORM model for a notifySpaceDeleted delivery
+// that hasn't succeeded yet. It copies the registration it is delivered to,
+// since registrations outlive neither their expiry nor, in future, the space.
+//
+// RetryAt is unix milliseconds rather than a timestamp so it compares exactly
+// in the guarded updates on every dialect.
+type spaceDeletedDelivery struct {
+	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Audience  string                  `gorm:"primaryKey"`
+	Endpoint  string
+	Namespace Namespace
+	// ExpiresAt is the registration's expiry: past it the syncer must renew
+	// its credential, which answers SpaceDeleted, so delivery stops.
+	ExpiresAt time.Time
+	Attempts  int
+	RetryAt   int64 `gorm:"index"`
+}
+
+// PendingDeletion is the public view of a pending notifySpaceDeleted delivery.
+type PendingDeletion struct {
+	Registration
+	// Attempts counts the failed deliveries so far.
+	Attempts int
+	// RetryAt is when the delivery is next due, in unix milliseconds.
+	RetryAt int64
 }
 
 type store struct {
@@ -180,8 +237,122 @@ func (s *store) list(query *gorm.DB) ([]Registration, error) {
 	return regs, nil
 }
 
+func (s *store) QueueSpaceDeleted(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	regs []Registration,
+	retryAt int64,
+) ([]PendingDeletion, error) {
+	// A syncer registered for several repos in the space is one audience and
+	// gets one notification; keep the registration that lasts longest.
+	byAudience := make(map[string]Registration, len(regs))
+	var order []string
+	for _, reg := range regs {
+		prev, ok := byAudience[reg.Audience]
+		if !ok {
+			order = append(order, reg.Audience)
+		}
+		if !ok || reg.ExpiresAt.After(prev.ExpiresAt) {
+			byAudience[reg.Audience] = reg
+		}
+	}
+	if len(order) == 0 {
+		return nil, nil
+	}
+
+	rows := make([]spaceDeletedDelivery, len(order))
+	pending := make([]PendingDeletion, len(order))
+	for i, audience := range order {
+		reg := byAudience[audience]
+		reg.Space = space
+		reg.Repo = ""
+		rows[i] = spaceDeletedDelivery{
+			Space:     space,
+			Audience:  audience,
+			Endpoint:  reg.Endpoint,
+			Namespace: reg.Namespace,
+			ExpiresAt: reg.ExpiresAt,
+			RetryAt:   retryAt,
+		}
+		pending[i] = PendingDeletion{Registration: reg, RetryAt: retryAt}
+	}
+	err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "space"}, {Name: "audience"}},
+		DoUpdates: clause.AssignmentColumns(
+			[]string{"endpoint", "namespace", "expires_at", "attempts", "retry_at"},
+		),
+	}).Create(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("queue space deleted deliveries: %w", err)
+	}
+	return pending, nil
+}
+
+func (s *store) DueSpaceDeleted(
+	ctx context.Context,
+	now int64,
+	limit int,
+) ([]PendingDeletion, error) {
+	var rows []spaceDeletedDelivery
+	err := s.db.WithContext(ctx).
+		Where("retry_at <= ?", now).
+		Order("retry_at ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("list due space deleted deliveries: %w", err)
+	}
+	pending := make([]PendingDeletion, len(rows))
+	for i, row := range rows {
+		pending[i] = PendingDeletion{
+			Registration: Registration{
+				Space:     row.Space,
+				Audience:  row.Audience,
+				Endpoint:  row.Endpoint,
+				Namespace: row.Namespace,
+				ExpiresAt: row.ExpiresAt,
+			},
+			Attempts: row.Attempts,
+			RetryAt:  row.RetryAt,
+		}
+	}
+	return pending, nil
+}
+
+func (s *store) RescheduleSpaceDeleted(
+	ctx context.Context,
+	p PendingDeletion,
+	attempts int,
+	retryAt int64,
+) (bool, error) {
+	res := s.pendingDeletion(ctx, p).Updates(map[string]any{
+		"attempts": attempts,
+		"retry_at": retryAt,
+	})
+	if res.Error != nil {
+		return false, fmt.Errorf("reschedule space deleted delivery: %w", res.Error)
+	}
+	return res.RowsAffected == 1, nil
+}
+
+func (s *store) ClearSpaceDeleted(ctx context.Context, p PendingDeletion) error {
+	if err := s.pendingDeletion(ctx, p).Delete(&spaceDeletedDelivery{}).Error; err != nil {
+		return fmt.Errorf("clear space deleted delivery: %w", err)
+	}
+	return nil
+}
+
+// pendingDeletion scopes a query to p's row, as long as it is still due at the
+// time p was read: matching retry_at leaves alone a row another worker claimed
+// or a later deletion re-queued.
+func (s *store) pendingDeletion(ctx context.Context, p PendingDeletion) *gorm.DB {
+	return s.db.WithContext(ctx).
+		Model(&spaceDeletedDelivery{}).
+		Where("space = ? AND audience = ? AND retry_at = ?", p.Space, p.Audience, p.RetryAt)
+}
+
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&registration{}}
+	return []any{&registration{}, &spaceDeletedDelivery{}}
 }

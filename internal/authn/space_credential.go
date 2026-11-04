@@ -2,6 +2,7 @@ package authn
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +13,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// spaceCredentialKid is the only key ID a space credential may be signed with.
+const spaceCredentialKid = "#atproto"
 
 type SpaceCredentialAuthMethod struct {
 	dir identity.Directory
@@ -52,6 +56,14 @@ func (s *SpaceCredentialAuthMethod) Validate(
 	)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse token", err)
+		return nil, false
+	}
+	// A space authority always signs credentials with its #atproto key.
+	if kid := token.Header["kid"]; kid != spaceCredentialKid {
+		httpx.WriteInvalidRequest(
+			ctx, w, "invalid token kid",
+			fmt.Errorf("expected %q, got %v", spaceCredentialKid, kid),
+		)
 		return nil, false
 	}
 	space, err := getSpaceSubj(token.Claims)

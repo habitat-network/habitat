@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 var errSign = errors.New("sign failed")
@@ -121,7 +123,8 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 	t.Cleanup(subscriber.Close)
 
 	future := time.Now().Add(time.Hour)
-	// Both a whole-space and a repo-specific registration should be notified.
+	// A syncer registered for the whole space and for one repo in it is one
+	// audience, and hears of the deletion once.
 	require.NoError(
 		t,
 		s.Register(
@@ -151,13 +154,16 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 	notifier := NewNotifier(s, subscriber.Client(), signer)
 	notifier.NotifySpaceDeleted(t.Context(), space)
 
-	for range 2 {
-		select {
-		case in := <-received:
-			require.Equal(t, space.String(), in.Space)
-		case <-time.After(2 * time.Second):
-			t.Fatal("timed out waiting for notifySpaceDeleted delivery")
-		}
+	select {
+	case in := <-received:
+		require.Equal(t, space.String(), in.Space)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for notifySpaceDeleted delivery")
+	}
+	select {
+	case <-received:
+		t.Fatal("notified the same syncer twice")
+	case <-time.After(200 * time.Millisecond):
 	}
 }
 
@@ -368,4 +374,148 @@ func TestNotifierDeliversAtprotoNamespace(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for notifyWrite delivery")
 	}
+}
+
+// fakeDeletedSpaces is a [DeletedSpaces] reporting deleted for every space in
+// it.
+type fakeDeletedSpaces map[habitat_syntax.SpaceURI]bool
+
+func (f fakeDeletedSpaces) IsSpaceDeleted(
+	_ context.Context,
+	uri habitat_syntax.SpaceURI,
+) (bool, error) {
+	return f[uri], nil
+}
+
+// setupDeletion registers a syncer whose endpoint answers each delivery with
+// the next of statuses (200 once they run out), and queues a pending
+// notifySpaceDeleted to it the way NotifySpaceDeleted does. It returns the
+// deliverer, on a clock the test moves, and the pending delivery.
+func setupDeletion(
+	t *testing.T,
+	expiresIn time.Duration,
+	statuses ...int,
+) (*Deliverer, PendingDeletion, *int) {
+	t.Helper()
+	s := newTestStore(t)
+	delivered := 0
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		status := http.StatusOK
+		if delivered < len(statuses) {
+			status = statuses[delivered]
+		}
+		delivered++
+		w.WriteHeader(status)
+	}))
+	t.Cleanup(subscriber.Close)
+
+	now := time.Now()
+	require.NoError(t, s.Register(
+		t.Context(), NamespaceHabitat, space, "", subscriber.URL, subscriber.URL,
+		now.Add(expiresIn),
+	))
+	d := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
+	d.now = func() time.Time { return now }
+
+	regs, err := s.ListForSpace(t.Context(), space)
+	require.NoError(t, err)
+	pending, err := s.QueueSpaceDeleted(t.Context(), space, regs, d.leaseUntil())
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
+	return d, pending[0], &delivered
+}
+
+// advance moves d's clock forward by by.
+func advance(d *Deliverer, by time.Duration) {
+	at := d.now().Add(by)
+	d.now = func() time.Time { return at }
+}
+
+func pendingDeletions(t *testing.T, d *Deliverer) []PendingDeletion {
+	t.Helper()
+	due, err := d.store.DueSpaceDeleted(t.Context(), math.MaxInt64, 100)
+	require.NoError(t, err)
+	return due
+}
+
+func TestNotifierRetriesSpaceDeletedUntilDelivered(t *testing.T) {
+	d, p, delivered := setupDeletion(
+		t, 24*time.Hour, http.StatusServiceUnavailable, http.StatusTooManyRequests,
+	)
+	deleted := fakeDeletedSpaces{space: true}
+
+	// The first attempt fails transiently, so the delivery stays queued with
+	// a backoff of 30s to 1m.
+	d.attemptSpaceDeleted(t.Context(), p, nil)
+	require.Equal(t, 1, *delivered)
+	pending := pendingDeletions(t, d)
+	require.Len(t, pending, 1)
+	require.Equal(t, 1, pending[0].Attempts)
+	require.Greater(t, pending[0].RetryAt, d.now().Add(29*time.Second).UnixMilli())
+
+	// Nothing is due before the backoff elapses.
+	d.retryDue(t.Context(), deleted)
+	require.Equal(t, 1, *delivered)
+
+	// The second fails transiently too and backs off further (1-2m).
+	advance(d, time.Minute)
+	d.retryDue(t.Context(), deleted)
+	require.Equal(t, 2, *delivered)
+	pending = pendingDeletions(t, d)
+	require.Len(t, pending, 1)
+	require.Equal(t, 2, pending[0].Attempts)
+	require.Greater(t, pending[0].RetryAt, d.now().Add(59*time.Second).UnixMilli())
+
+	// The third succeeds and the delivery is done.
+	advance(d, 2*time.Minute)
+	d.retryDue(t.Context(), deleted)
+	require.Equal(t, 3, *delivered)
+	require.Empty(t, pendingDeletions(t, d))
+}
+
+func TestNotifierStopsSpaceDeletedOnPermanentError(t *testing.T) {
+	d, p, delivered := setupDeletion(t, 24*time.Hour, http.StatusNotFound)
+
+	d.attemptSpaceDeleted(t.Context(), p, nil)
+	require.Equal(t, 1, *delivered)
+	require.Empty(t, pendingDeletions(t, d))
+}
+
+func TestNotifierStopsSpaceDeletedWhenRegistrationExpires(t *testing.T) {
+	d, p, delivered := setupDeletion(t, 90*time.Second, http.StatusBadGateway)
+	deleted := fakeDeletedSpaces{space: true}
+
+	d.attemptSpaceDeleted(t.Context(), p, nil)
+	require.Equal(t, 1, *delivered)
+	pending := pendingDeletions(t, d)
+	require.Len(t, pending, 1)
+	// The backoff never runs past the registration's expiry.
+	require.LessOrEqual(t, pending[0].RetryAt, pending[0].ExpiresAt.UnixMilli())
+
+	// Once the registration lapses the delivery is dropped unsent.
+	advance(d, 2*time.Minute)
+	d.retryDue(t.Context(), deleted)
+	require.Equal(t, 1, *delivered)
+	require.Empty(t, pendingDeletions(t, d))
+}
+
+func TestNotifierStopsSpaceDeletedWhenSpaceRecreated(t *testing.T) {
+	d, p, delivered := setupDeletion(t, 24*time.Hour, http.StatusServiceUnavailable)
+
+	d.attemptSpaceDeleted(t.Context(), p, nil)
+	require.Equal(t, 1, *delivered)
+
+	// The space is no longer deleted: delivering now would purge the
+	// syncer's copy of the new one.
+	advance(d, time.Hour)
+	d.retryDue(t.Context(), fakeDeletedSpaces{})
+	require.Equal(t, 1, *delivered)
+	require.Empty(t, pendingDeletions(t, d))
+}
+
+func TestNotifierRunStopsWithContext(t *testing.T) {
+	d, _, _ := setupDeletion(t, 24*time.Hour)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	require.ErrorIs(t, d.Run(ctx, fakeDeletedSpaces{}), context.Canceled)
 }
