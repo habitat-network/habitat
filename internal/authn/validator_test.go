@@ -66,20 +66,21 @@ func TestValidator(t *testing.T) {
 	v := authn.NewValidator(
 		oauth,
 		nil,
-		authn.NewSpaceCredentialAuthMethod(dir),
+		authn.NewSpaceCredentialAuthMethod(dir, newRevocations(t)),
 		ps,
 	)
 
 	t.Run("space credential", func(t *testing.T) {
+		key, kid := newBindingKey(t)
 		token, err := utils.SpaceCredential(
 			hostKey,
 			"at://did:web:alice/space/test.space.type/abc",
+			utils.WithConfirmationKey(kid),
 		)
 		require.NoError(t, err)
 		t.Run("matching space", func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("GET", "/", http.NoBody)
-			r.Header.Set("Authorization", "Bearer "+token)
+			r := presentCredential(t, "/", token, key, "did:web:alice")
 			cred, ok := v.Request(
 				authn.WithMethods(authn.ValidatorMethodSpaceCredential),
 				authn.WithSpace(
@@ -92,8 +93,7 @@ func TestValidator(t *testing.T) {
 		})
 		t.Run("other space", func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("GET", "/", http.NoBody)
-			r.Header.Set("Authorization", "Bearer "+token)
+			r := presentCredential(t, "/", token, key, "did:web:alice")
 			cred, ok := v.Request(
 				authn.WithMethods(authn.ValidatorMethodSpaceCredential),
 				authn.WithSpace(

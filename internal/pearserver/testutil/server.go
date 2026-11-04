@@ -45,14 +45,16 @@ import (
 type TestServer struct {
 	Server *pearserver.PearServer
 
-	Validator       authn.RequestValidator
-	PermStore       perms.Store
-	SpaceStore      spaces.Store
-	OpenSocialStore *opensocial.Store
-	SimpleStore     *simplespace.Store
-	NotifyStore     notify.Store
-	Hive            hive.Hive
-	HostKey         atcrypto.PrivateKey
+	Validator authn.RequestValidator
+	PermStore perms.Store
+	// CredentialRevocations is where notifyCredentialRevoked stores jtis.
+	CredentialRevocations *authn.CredentialRevocations
+	SpaceStore            spaces.Store
+	OpenSocialStore       *opensocial.Store
+	SimpleStore           *simplespace.Store
+	NotifyStore           notify.Store
+	Hive                  hive.Hive
+	HostKey               atcrypto.PrivateKey
 	// HostKEMKey keys commit MACs for repo owners hive does not manage;
 	// derived from HostKey unless set.
 	HostKEMKey       *atcrypto.PrivateKeyP256
@@ -265,11 +267,16 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		)
 	}
 
+	ts.CredentialRevocations = authn.NewCredentialRevocations(
+		kv.Namespace("space_credential_revoked"),
+	)
 	// Only the fields PearServer reads; the rest of pear's App isn't needed here.
 	ts.Server = pearserver.New(&pearapp.App{
-		Domain:     "pear.example.com",
-		Validator:  ts.Validator,
-		DefaultDir: ts.Directory,
+		Domain:                "pear.example.com",
+		Validator:             ts.Validator,
+		CredentialRevocations: ts.CredentialRevocations,
+		DelegationTokensSpent: kv.Namespace("space_delegation_spent"),
+		DefaultDir:            ts.Directory,
 		// Like pear's own, resolving managed identities through the hive first.
 		HiveDir:          habitat_identity.NewWrappedDirectory(ts.Hive, ts.Directory),
 		Hive:             ts.Hive,

@@ -2,14 +2,17 @@ package authn_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -89,7 +92,9 @@ func newTestDelegator(t *testing.T, opts ...Option) *authn.DelegationTokenVerifi
 	for _, o := range opts {
 		o(options)
 	}
-	return authn.NewDelegationTokenVerifier(options.dir, options.srv, options.hostKey)
+	return authn.NewDelegationTokenVerifier(
+		options.dir, options.srv, options.hostKey, keyval_testutil.New(t).Namespace("spent"),
+	)
 }
 
 func TestDelegationTokenVerifier(t *testing.T) {
@@ -114,6 +119,59 @@ func TestDelegationTokenVerifier(t *testing.T) {
 			Verify(t.Context(), token, space)
 		require.NoError(t, err)
 		require.Equal(t, user, issuer)
+	})
+
+	t.Run("is single-use", func(t *testing.T) {
+		store, sp := newTestPermsStore(t)
+		newTestSpace(t, sp, space)
+		_, err := store.SetUserRelation(t.Context(), user, space, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
+		require.NoError(t, err)
+		v := newTestDelegator(t, WithDirectory(dir), WithSpaceRoleValidator(store))
+		_, err = v.Verify(t.Context(), token, space)
+		require.NoError(t, err)
+		_, err = v.Verify(t.Context(), token, space)
+		require.ErrorIs(t, err, authn.ErrInvalidDelegationToken)
+	})
+
+	// sign builds a delegation token for space from user, with the given aud
+	// and kid, signed by userKey.
+	sign := func(t *testing.T, aud, kid string) string {
+		t.Helper()
+		token, err := new(jwt.Token{
+			Method: jwt.GetSigningMethod("ES256K"),
+			Claims: jwt.MapClaims{
+				"iss": user.String(),
+				"sub": space.String(),
+				"aud": aud,
+				"iat": time.Now().Unix(),
+				"exp": time.Now().Add(time.Minute).Unix(),
+				"jti": utils.RandomNonce(16),
+			},
+			Header: map[string]any{
+				"typ": "atproto-space-delegation+jwt", "kid": kid, "alg": "ES256K",
+			},
+		}).SignedString(userKey)
+		require.NoError(t, err)
+		return token
+	}
+
+	t.Run("addressed to another space host", func(t *testing.T) {
+		token := sign(t, "did:web:elsewhere.com#atproto_pds", "#atproto")
+		_, err := newTestDelegator(t, WithDirectory(dir)).Verify(t.Context(), token, space)
+		require.ErrorIs(t, err, authn.ErrInvalidDelegationToken)
+	})
+
+	t.Run("signed with a key other than #atproto", func(t *testing.T) {
+		dir := identity.NewMockDirectory()
+		dir.Insert(*did.Web("pear.com").
+			AtprotoKey(userPubKey.Multibase()).
+			VerificationMethod("atproto_other", "Multikey", userPubKey.Multibase()).
+			Build())
+		token := sign(t, space.SpaceOwner().String()+"#atproto_pds", "#atproto_other")
+		_, err := newTestDelegator(t, WithDirectory(dir)).Verify(t.Context(), token, space)
+		require.ErrorIs(t, err, authn.ErrInvalidDelegationToken)
 	})
 
 	t.Run("no permission", func(t *testing.T) {

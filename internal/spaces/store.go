@@ -185,6 +185,8 @@ type Store interface {
 	// never learn about it. hash is the repo's reported commit digest (not a
 	// raw LtHash state, since this host never computed it). Forwards the
 	// notification to any syncers registered for repo, same as a local write.
+	// A rev at or behind the repo's tracked rev is ignored: nothing is saved
+	// or forwarded.
 	RegisterRemoteWrite(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -739,11 +741,22 @@ func (s *store) RegisterRemoteWrite(
 	}
 
 	var prevSpaceRev, spaceRev syntax.TID
+	stale := false
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
 		}
-		var err error
+		// Revs are TIDs, which sort lexically in time order. A notification
+		// at or behind the repo's tracked rev is late or replayed: ignore it
+		// rather than roll the repo back, per the spaces proposal.
+		var current spaceRepo
+		err := tx.Where("space = ? AND repo = ?", uri, repo).First(&current).Error
+		if err == nil && current.Rev >= rev {
+			stale = true
+			return nil
+		} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("load repo: %w", err)
+		}
 		prevSpaceRev, spaceRev, err = s.advanceSpaceRev(tx, uri)
 		if err != nil {
 			return err
@@ -752,6 +765,9 @@ func (s *store) RegisterRemoteWrite(
 	})
 	if err != nil {
 		return fmt.Errorf("register remote write: %w", err)
+	}
+	if stale {
+		return nil
 	}
 
 	// Best-effort: forward to registered syncers, same as a local write.

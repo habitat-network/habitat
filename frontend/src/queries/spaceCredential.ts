@@ -18,8 +18,8 @@ export interface SpaceCredential {
   // com.atproto.space.* read for this space is served here, per
   // bluesky-social/proposals#0016.
   host: string;
-  // The space authority's DID, signed as the audience on every request that
-  // presents the credential.
+  // The space authority's DID: the audience signed on requests to the space
+  // host. Repo methods address the repo owner instead (see requestAudience).
   audience: string;
 }
 
@@ -95,20 +95,29 @@ function plainAgent(host: string): Agent {
   };
 }
 
+// requestAudience is the DID a space credential request addresses, per the
+// spaces proposal: the repo owner for repo methods, which name it in the
+// `repo` parameter, and otherwise the space authority (`authority`).
+export function requestAudience(path: string, authority: string): string {
+  const repo = new URL(path, "http://localhost").searchParams.get("repo");
+  return repo || authority;
+}
+
 // signedAgent is an xrpc Agent that sends requests to `host` presenting
-// `credential`, adding a fresh space signature over it and `audience` per
-// request instead of using the caller's own OAuth session.
+// `credential`, adding a fresh space signature over it and the audience the
+// request addresses (see requestAudience) instead of using the caller's own
+// OAuth session.
 function signedAgent(
   host: string,
   credential: string,
-  audience: string,
+  authority: string,
 ): Agent {
   return {
     fetchHandler: async (path, init) => {
       const headers = new Headers(init.headers);
       const sigHeaders = await createSpaceSignatureHeaders(
         `Atproto-Space-Credential ${credential}`,
-        audience,
+        requestAudience(path, authority),
       );
       for (const [key, value] of Object.entries(sigHeaders)) {
         headers.set(key, value);

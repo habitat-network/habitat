@@ -347,7 +347,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	}
 
 	permStore := perms.NewStore(database, spacesStore, fgaStore, opensocialStore)
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
+	credentialRevocations := authn.NewCredentialRevocations(
+		kv.Namespace("space_credential_revoked"),
+	)
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, credentialRevocations)
 	validator := authn.NewValidator(
 		oauthServer,
 		serviceAuth,
@@ -421,6 +424,8 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		cliqueStore,
 		permStore,
 		validator,
+		credentialRevocations,
+		kv.Namespace("space_delegation_spent"),
 		simpleStore,
 		nangoClient,
 		mcpGatewayStore,

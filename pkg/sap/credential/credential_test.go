@@ -363,6 +363,13 @@ func TestManagerSignsRequestsWithBindingKey(t *testing.T) {
 			))
 			require.Equal(t, "did:web:org", r.Header.Get(httpsig.AudienceHeader))
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{})
+		case "/xrpc/network.habitat.space.getLatestCommit":
+			// A repo method addresses the repo owner, not the authority.
+			require.NoError(t, httpsig.VerifyBound(
+				r, credentialKid, "authorization", "atproto-space-audience",
+			))
+			require.Equal(t, "did:plc:alice", r.Header.Get(httpsig.AudienceHeader))
+			_ = json.NewEncoder(w).Encode(map[string]any{})
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
@@ -384,4 +391,9 @@ func TestManagerSignsRequestsWithBindingKey(t *testing.T) {
 		map[string]any{"space": space.String()}, &out,
 	))
 	require.NotEmpty(t, credentialKid)
+	var commit map[string]any
+	require.NoError(t, client.Get(
+		t.Context(), "network.habitat.space.getLatestCommit",
+		map[string]any{"space": space.String(), "repo": "did:plc:alice"}, &commit,
+	))
 }

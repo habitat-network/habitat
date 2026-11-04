@@ -440,6 +440,32 @@ func TestListRepos_RemoteWrite(t *testing.T) {
 	require.NotEqual(t, digest, byDID[owner].Hash)
 }
 
+// TestRegisterRemoteWrite_IgnoresStaleRev verifies a notification at or
+// behind the tracked rev doesn't roll the repo back or advance the space rev.
+func TestRegisterRemoteWrite_IgnoresStaleRev(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	newer := []byte(strings.Repeat("n", 32))
+	require.NoError(t, s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev2", newer))
+	spaceRev, _, err := s.ListReposSince(t.Context(), uri, "")
+	require.NoError(t, err)
+
+	for _, rev := range []syntax.TID{"3lrev1", "3lrev2"} {
+		err = s.RegisterRemoteWrite(t.Context(), uri, alice, rev, []byte(strings.Repeat("o", 32)))
+		require.NoError(t, err)
+	}
+
+	gotSpaceRev, repos, err := s.ListReposSince(t.Context(), uri, "")
+	require.NoError(t, err)
+	require.Equal(t, spaceRev, gotSpaceRev)
+	require.Len(t, repos, 1)
+	require.Equal(t, "3lrev2", repos[0].Rev)
+	require.Equal(t, newer, repos[0].Hash)
+}
+
 func TestRegisterRemoteWrite_SpaceNotFound(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
@@ -1592,7 +1618,7 @@ func TestSpaceRevSequencesWrites(t *testing.T) {
 	put(owner, "a")
 	put(alice, "b")
 	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "a"))
-	require.NoError(t, s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev", []byte("d")))
+	require.NoError(t, s.RegisterRemoteWrite(t.Context(), uri, alice, syntax.NewTIDNow(0), []byte("d")))
 
 	// Each write advances the space revision, and names the revision it
 	// replaced as its previous one, so a receiver can spot a gap.

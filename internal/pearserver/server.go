@@ -39,6 +39,9 @@ type PearServer struct {
 	// delegations verifies the delegation tokens getSpaceCredential takes in
 	// its request body.
 	delegations *authn.DelegationTokenVerifier
+	// credentialRevocations stores the credential jtis space authorities
+	// revoke through notifyCredentialRevoked.
+	credentialRevocations *authn.CredentialRevocations
 
 	// dir resolves identities named by the service identifiers
 	// registerNotify accepts, to find the endpoint to deliver to.
@@ -87,25 +90,26 @@ func New(app *pearapp.App) *PearServer {
 		validator: app.Validator,
 		decoder:   schema.NewDecoder(),
 		delegations: authn.NewDelegationTokenVerifier(
-			app.HiveDir, app.PermStore, app.HostKey,
+			app.HiveDir, app.PermStore, app.HostKey, app.DelegationTokensSpent,
 		),
-		dir:              app.DefaultDir,
-		hive:             app.Hive,
-		hostKey:          app.HostKey,
-		kemKeys:          spacecommit.NewKEMKeys(app.HostKEMKey, app.Hive),
-		blobStore:        app.BlobStore,
-		spacesStore:      app.SpacesStore,
-		opensocialStore:  app.OpensocialStore,
-		permStore:        app.PermStore,
-		simpleStore:      app.SimpleStore,
-		notifyStore:      app.NotifyStore,
-		clientMeta:       app.ClientMetadata,
-		mcpGatewayStore:  app.MCPGatewayStore,
-		llmStore:         app.LLMStore,
-		pdsForwarding:    app.PDSForwarding,
-		emailDomainStore: app.EmailDomainStore,
-		searcher:         app.Searcher,
-		searchConfig:     app.SearchConfig,
+		credentialRevocations: app.CredentialRevocations,
+		dir:                   app.DefaultDir,
+		hive:                  app.Hive,
+		hostKey:               app.HostKey,
+		kemKeys:               spacecommit.NewKEMKeys(app.HostKEMKey, app.Hive),
+		blobStore:             app.BlobStore,
+		spacesStore:           app.SpacesStore,
+		opensocialStore:       app.OpensocialStore,
+		permStore:             app.PermStore,
+		simpleStore:           app.SimpleStore,
+		notifyStore:           app.NotifyStore,
+		clientMeta:            app.ClientMetadata,
+		mcpGatewayStore:       app.MCPGatewayStore,
+		llmStore:              app.LLMStore,
+		pdsForwarding:         app.PDSForwarding,
+		emailDomainStore:      app.EmailDomainStore,
+		searcher:              app.Searcher,
+		searchConfig:          app.SearchConfig,
 	}
 	ps.registerRoutes()
 	return ps

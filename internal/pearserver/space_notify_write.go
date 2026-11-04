@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -14,6 +15,10 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
+
+// maxRevClockSkew is how far ahead of this host's clock a notifyWrite rev may
+// be before it is rejected as a future timestamp.
+const maxRevClockSkew = 5 * time.Minute
 
 // NotifyWrite implements the space-host side of network.habitat.space.notifyWrite:
 // a repo host whose PDS holds a space member's records directly (rather than
@@ -47,13 +52,20 @@ func (p *PearServer) NotifyWrite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "can't notify for other repo", fmt.Errorf("wrong repo"))
 		return
 	}
-	if input.Rev == "" {
-		httpx.WriteInvalidRequest(ctx, w, "rev is required", nil)
+	rev, err := syntax.ParseTID(input.Rev)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "rev must be a TID", err)
+		return
+	}
+	// A rev must not be a future timestamp beyond a short clock skew window,
+	// per the spaces proposal; one that is would win every later comparison.
+	if rev.Time().After(time.Now().Add(maxRevClockSkew)) {
+		httpx.WriteInvalidRequest(ctx, w, "rev is in the future", nil)
 		return
 	}
 
-	err := p.spacesStore.RegisterRemoteWrite(
-		ctx, spaceURI, repo, syntax.TID(input.Rev), []byte(input.Data),
+	err = p.spacesStore.RegisterRemoteWrite(
+		ctx, spaceURI, repo, rev, []byte(input.Data),
 	)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)

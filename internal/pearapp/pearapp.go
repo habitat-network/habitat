@@ -18,6 +18,7 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
@@ -74,12 +75,18 @@ type App struct {
 	CliqueStore     clique.Store
 	PermStore       perms.Store
 	Validator       authn.RequestValidator
-	SimpleStore     *simplespace.Store
-	NangoClient     *nango.Client
-	MCPGatewayStore mcpgateway.Store
-	LLMStore        *llmgateway.Store
-	PDSForwarding   *forwarding.PDSForwarding
-	ClientMetadata  *clientmetadata.Resolver
+	// CredentialRevocations holds the space credentials authorities revoked
+	// through notifyCredentialRevoked; the validator refuses them.
+	CredentialRevocations *authn.CredentialRevocations
+	// DelegationTokensSpent records used delegation token jtis, so each is
+	// accepted by getSpaceCredential only once.
+	DelegationTokensSpent keyval.Store
+	SimpleStore           *simplespace.Store
+	NangoClient           *nango.Client
+	MCPGatewayStore       mcpgateway.Store
+	LLMStore              *llmgateway.Store
+	PDSForwarding         *forwarding.PDSForwarding
+	ClientMetadata        *clientmetadata.Resolver
 	// SearchIndex is nil when search (--meilisearch_url) is off.
 	SearchIndex search.Index
 	// SearchIndexer is nil when search (--meilisearch_url) is off.
@@ -119,6 +126,8 @@ func New(
 	cliqueStore clique.Store,
 	permStore perms.Store,
 	validator authn.RequestValidator,
+	credentialRevocations *authn.CredentialRevocations,
+	delegationTokensSpent keyval.Store,
 	simpleStore *simplespace.Store,
 	nangoClient *nango.Client,
 	mcpGatewayStore mcpgateway.Store,
@@ -131,44 +140,46 @@ func New(
 	searchConfigStore *searchconfig.Store,
 ) *App {
 	return &App{
-		DB:                  database,
-		InstanceAdminStore:  instanceAdminStore,
-		InstanceAdminServer: instanceAdminServer,
-		Domain:              domain,
-		HiveDomain:          hiveDomain,
-		MCPOrigin:           mcpOrigin,
-		OAuthClient:         oauthClient,
-		Hive:                hive,
-		DefaultDir:          defaultDir,
-		HiveDir:             hiveDir,
-		PDSClientFactory:    pdsClientFactory,
-		PasswordProvider:    passwordProvider,
-		OrgStore:            orgStore,
-		EmailDomainStore:    emailDomainStore,
-		HostKey:             hostKey,
-		HostKEMKey:          hostKEMKey,
-		NotifyStore:         notifyStore,
-		Notifier:            notifier,
-		BlobBucket:          blobBucket,
-		BlobStore:           blobStore,
-		SpacesStore:         spacesStore,
-		OpensocialStore:     opensocialStore,
-		EmailResolver:       emailResolver,
-		OAuthServer:         oauthServer,
-		ServiceAuth:         serviceAuth,
-		CliqueStore:         cliqueStore,
-		PermStore:           permStore,
-		Validator:           validator,
-		SimpleStore:         simpleStore,
-		NangoClient:         nangoClient,
-		MCPGatewayStore:     mcpGatewayStore,
-		LLMStore:            llmStore,
-		PDSForwarding:       pdsForwarding,
-		ClientMetadata:      clientMetadata,
-		SearchIndex:         searchIndex,
-		SearchIndexer:       searchIndexer,
-		Searcher:            searcher,
-		SearchConfig:        searchConfigStore,
+		DB:                    database,
+		InstanceAdminStore:    instanceAdminStore,
+		InstanceAdminServer:   instanceAdminServer,
+		Domain:                domain,
+		HiveDomain:            hiveDomain,
+		MCPOrigin:             mcpOrigin,
+		OAuthClient:           oauthClient,
+		Hive:                  hive,
+		DefaultDir:            defaultDir,
+		HiveDir:               hiveDir,
+		PDSClientFactory:      pdsClientFactory,
+		PasswordProvider:      passwordProvider,
+		OrgStore:              orgStore,
+		EmailDomainStore:      emailDomainStore,
+		HostKey:               hostKey,
+		HostKEMKey:            hostKEMKey,
+		NotifyStore:           notifyStore,
+		Notifier:              notifier,
+		BlobBucket:            blobBucket,
+		BlobStore:             blobStore,
+		SpacesStore:           spacesStore,
+		OpensocialStore:       opensocialStore,
+		EmailResolver:         emailResolver,
+		OAuthServer:           oauthServer,
+		ServiceAuth:           serviceAuth,
+		CliqueStore:           cliqueStore,
+		PermStore:             permStore,
+		Validator:             validator,
+		CredentialRevocations: credentialRevocations,
+		DelegationTokensSpent: delegationTokensSpent,
+		SimpleStore:           simpleStore,
+		NangoClient:           nangoClient,
+		MCPGatewayStore:       mcpGatewayStore,
+		LLMStore:              llmStore,
+		PDSForwarding:         pdsForwarding,
+		ClientMetadata:        clientMetadata,
+		SearchIndex:           searchIndex,
+		SearchIndexer:         searchIndexer,
+		Searcher:              searcher,
+		SearchConfig:          searchConfigStore,
 	}
 }
 

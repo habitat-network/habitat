@@ -62,18 +62,23 @@ type spaceCred struct {
 }
 
 // signingTransport signs every outgoing request per RFC 9421 with key, over
-// its credential and the Atproto-Space-Audience header, which it sets to
-// audience.
+// its credential and the Atproto-Space-Audience header, which it sets to the
+// DID the request addresses: the repo owner for repo methods, which name it in
+// the repo parameter, and otherwise the space authority.
 type signingTransport struct {
-	base     http.RoundTripper
-	key      atcrypto.PrivateKey
-	audience syntax.DID
+	base      http.RoundTripper
+	key       atcrypto.PrivateKey
+	authority syntax.DID
 }
 
 func (t signingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// RoundTrippers must not modify the caller's request.
 	req = req.Clone(req.Context())
-	req.Header.Set(httpsig.AudienceHeader, t.audience.String())
+	audience := t.authority.String()
+	if repo := req.URL.Query().Get("repo"); repo != "" {
+		audience = repo
+	}
+	req.Header.Set(httpsig.AudienceHeader, audience)
 	if err := httpsig.Sign(req, t.key, "authorization", "atproto-space-audience"); err != nil {
 		return nil, fmt.Errorf("sign request: %w", err)
 	}
@@ -338,7 +343,7 @@ func (m *Manager) ClientForSpace(
 	}
 	// The refresh transport sits above the signing one so a retried request,
 	// carrying a new credential, is signed again.
-	signed := signingTransport{base: m.httpc.Transport, key: key, audience: space.SpaceOwner()}
+	signed := signingTransport{base: m.httpc.Transport, key: key, authority: space.SpaceOwner()}
 	httpc := *m.httpc
 	httpc.Transport = &refreshTransport{m: m, space: space, next: signed}
 	return &atclient.APIClient{

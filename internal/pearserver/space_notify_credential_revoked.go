@@ -2,6 +2,7 @@ package pearserver
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -14,10 +15,9 @@ import (
 // identified by jti, as revoked. Authenticated with service auth from the space
 // authority, so only the space's owner can revoke its credentials.
 //
-// Habitat does not store revoked jtis: credentials are short-lived (10 minutes
-// by default), and expiry is the revocation mechanism. The endpoint validates
-// and acknowledges the notification so authorities can call it, but a revoked
-// credential stays valid until it expires.
+// Each jti is remembered for an hour, the longest a credential can live, and
+// the validator refuses credentials presenting one. Revoking is idempotent, so
+// an authority may safely retry.
 func (p *PearServer) NotifyCredentialRevoked(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var input habitat.NetworkHabitatSpaceNotifyCredentialRevokedInput
@@ -41,6 +41,10 @@ func (p *PearServer) NotifyCredentialRevoked(w http.ResponseWriter, r *http.Requ
 	}
 	if len(input.Credentials) == 0 {
 		httpx.WriteInvalidRequest(ctx, w, "jtis is required", nil)
+		return
+	}
+	if err := p.credentialRevocations.Revoke(ctx, spaceURI, input.Credentials); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("revoke credentials: %w", err))
 		return
 	}
 }

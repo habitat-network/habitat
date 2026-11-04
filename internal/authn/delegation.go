@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/habitat-network/habitat/internal/keyval"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -31,17 +32,26 @@ type DelegationTokenVerifier struct {
 	dir     identity.Directory
 	hostKey atcrypto.PrivateKey
 	srv     SpaceRoleValidator
+	spent   keyval.Store
 }
 
+// delegationTokenLeeway is the clock skew a delegation token's iat and exp are
+// checked with.
+const delegationTokenLeeway = 10 * time.Second
+
+// NewDelegationTokenVerifier verifies delegation tokens, recording each
+// token's jti in spent so it can be presented only once.
 func NewDelegationTokenVerifier(
 	directory identity.Directory,
 	srv SpaceRoleValidator,
 	hostKey atcrypto.PrivateKey,
+	spent keyval.Store,
 ) *DelegationTokenVerifier {
 	return &DelegationTokenVerifier{
 		dir:     directory,
 		hostKey: hostKey,
 		srv:     srv,
+		spent:   spent,
 	}
 }
 
@@ -59,13 +69,21 @@ func (d *DelegationTokenVerifier) Verify(
 		fetchIssuerKeyFunc(ctx, d.dir, d.hostKey),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(),
-		jwt.WithLeeway(time.Second*10),
+		jwt.WithLeeway(delegationTokenLeeway),
+		// The token is addressed to the space host: the authority's
+		// #atproto_pds service.
+		jwt.WithAudience(space.SpaceOwner().String()+"#atproto_pds"),
 	)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrInvalidDelegationToken, err)
 	}
 	if typ := parsed.Header["typ"]; typ != "atproto-space-delegation+jwt" {
 		return "", fmt.Errorf("%w: unexpected typ %v", ErrInvalidDelegationToken, typ)
+	}
+	// The proposal requires #atproto. #habitat is this host's own key, which
+	// it signs with for users whose identity it doesn't manage.
+	if kid := parsed.Header["kid"]; kid != "#atproto" && kid != "#habitat" {
+		return "", fmt.Errorf("%w: unexpected kid %v", ErrInvalidDelegationToken, kid)
 	}
 	subj, err := getSpaceSubj(parsed.Claims)
 	if err != nil {
@@ -75,6 +93,9 @@ func (d *DelegationTokenVerifier) Verify(
 		return "", fmt.Errorf("%w: token is for another space", ErrInvalidDelegationToken)
 	}
 	issuer, _ /* issuer must exist from verification */ := parsed.Claims.GetIssuer()
+	if err := d.spend(ctx, issuer, parsed.Claims); err != nil {
+		return "", err
+	}
 	allowed, err := d.srv.CheckUserHasSpaceRole(
 		ctx,
 		syntax.DID(issuer),
@@ -88,4 +109,26 @@ func (d *DelegationTokenVerifier) Verify(
 		return "", ErrUserNotAuthorized
 	}
 	return syntax.DID(issuer), nil
+}
+
+// spend records the token's jti so a replay of it is refused: a delegation
+// token is single-use. The jti is remembered until the token expires.
+func (d *DelegationTokenVerifier) spend(ctx context.Context, issuer string, claims jwt.Claims) error {
+	mc, _ := claims.(jwt.MapClaims)
+	jti, _ := mc["jti"].(string)
+	if jti == "" {
+		return fmt.Errorf("%w: missing jti", ErrInvalidDelegationToken)
+	}
+	exp, err := claims.GetExpirationTime()
+	if err != nil || exp == nil {
+		return fmt.Errorf("%w: missing exp", ErrInvalidDelegationToken)
+	}
+	ttl := time.Until(exp.Time) + delegationTokenLeeway
+	err = d.spent.PutIfAbsent(ctx, issuer+" "+jti, true, ttl)
+	if errors.Is(err, keyval.ErrAlreadyExists) {
+		return fmt.Errorf("%w: token already used", ErrInvalidDelegationToken)
+	} else if err != nil {
+		return fmt.Errorf("record delegation token: %w", err)
+	}
+	return nil
 }
