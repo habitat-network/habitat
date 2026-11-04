@@ -262,7 +262,7 @@ export class SpaceClient extends Context.Service<
           const credential = yield* credentials.get(target.space);
           const agent = signedAgent(host, () =>
             createSpaceSigHeaders(credential.key, {
-              authorization: `Atproto-Space ${credential.token}`,
+              authorization: `Atproto-Space-Credential ${credential.token}`,
               audience: target.audience,
             }),
           );

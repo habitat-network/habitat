@@ -36,6 +36,10 @@ type PearServer struct {
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
 
+	// delegations verifies the delegation tokens getSpaceCredential takes in
+	// its request body.
+	delegations *authn.DelegationTokenVerifier
+
 	// dir resolves identities named by the service identifiers
 	// registerNotify accepts, to find the endpoint to deliver to.
 	dir identity.Directory
@@ -78,10 +82,13 @@ type PearServer struct {
 // an internal router for future handler registration.
 func New(app *pearapp.App) *PearServer {
 	ps := &PearServer{
-		router:           mux.NewRouter(),
-		domain:           app.Domain,
-		validator:        app.Validator,
-		decoder:          schema.NewDecoder(),
+		router:    mux.NewRouter(),
+		domain:    app.Domain,
+		validator: app.Validator,
+		decoder:   schema.NewDecoder(),
+		delegations: authn.NewDelegationTokenVerifier(
+			app.HiveDir, app.PermStore, app.HostKey,
+		),
 		dir:              app.DefaultDir,
 		hive:             app.Hive,
 		hostKey:          app.HostKey,

@@ -41,10 +41,33 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteError(ctx, w, "SpaceDeleted", "space was deleted", http.StatusBadRequest)
 		return
 	}
-	if _, ok = p.validator.Request(
-		authn.WithMethods(authn.ValidatorMethodDelegationToken),
-		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
-	).Validate(w, r); !ok {
+	// The credential is bound to credentialKid: every request presenting it
+	// must be signed by that key.
+	if !httpsig.IsP256DIDKey(input.CredentialKid) {
+		httpx.WriteInvalidRequest(
+			ctx, w, "credentialKid must be a P-256 did:key",
+			fmt.Errorf("bad credentialKid %q", input.CredentialKid),
+		)
+		return
+	}
+	// Habitat has no public spaces: every space gates on the user, so a
+	// request without a delegation token answers SpaceNotFound, which
+	// doesn't reveal whether the space exists.
+	if input.DelegationToken == "" {
+		httpx.WriteSpaceNotFound(ctx, w, errors.New("delegation token required"))
+		return
+	}
+	if _, err := p.delegations.Verify(ctx, input.DelegationToken, spaceURI); err != nil {
+		switch {
+		case errors.Is(err, authn.ErrInvalidDelegationToken):
+			httpx.WriteError(
+				ctx, w, "InvalidDelegationToken", err.Error(), http.StatusBadRequest,
+			)
+		case errors.Is(err, authn.ErrUserNotAuthorized):
+			httpx.WriteError(ctx, w, "UserNotAuthorized", "", http.StatusBadRequest)
+		default:
+			httpx.WriteServerError(ctx, w, err)
+		}
 		return
 	}
 	if !p.verifyClientAttestation(ctx, w, spaceURI, input.ClientAttestation) {
@@ -59,19 +82,9 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
 		return
 	}
-	var opts []utils.SpaceCredentialOpt
-	if httpsig.HasSignature(r) {
-		// The syncer opted in to key binding: it must prove it holds the key
-		// by signing the delegation token it is exchanging, and the credential
-		// is then bound to that key.
-		signer, err := httpsig.Verify(r, "authorization")
-		if err != nil {
-			httpx.WriteInvalidRequest(ctx, w, "invalid request signature", err)
-			return
-		}
-		opts = append(opts, utils.WithConfirmationKey(signer))
-	}
-	token, err := utils.SpaceCredential(privKey, spaceURI, opts...)
+	token, err := utils.SpaceCredential(
+		privKey, spaceURI, utils.WithConfirmationKey(input.CredentialKid),
+	)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
 		return

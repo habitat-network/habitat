@@ -32,6 +32,7 @@ export {
 } from "./atprotoDirectory";
 export {
   createSpaceSignatureHeaders,
+  spaceCredentialKid,
   wantCommitMacHeaders,
 } from "./spaceSignature";
 export {
