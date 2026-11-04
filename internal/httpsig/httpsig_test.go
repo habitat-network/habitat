@@ -123,14 +123,20 @@ func TestVerifyReferenceClient(t *testing.T) {
 
 	t.Run("missing tag", func(t *testing.T) {
 		r := use()
-		r.Header.Set("Signature-Input", strings.TrimSuffix(refInput, `;tag="atproto-space-credential"`))
+		r.Header.Set(
+			"Signature-Input",
+			strings.TrimSuffix(refInput, `;tag="atproto-space-credential"`),
+		)
 		err := httpsig.VerifyBound(r, refKey, comps...)
 		require.ErrorContains(t, err, "tag")
 	})
 
 	t.Run("wrong tag", func(t *testing.T) {
 		r := use()
-		r.Header.Set("Signature-Input", strings.Replace(refInput, `tag="atproto-space-credential"`, `tag="other"`, 1))
+		r.Header.Set(
+			"Signature-Input",
+			strings.Replace(refInput, `tag="atproto-space-credential"`, `tag="other"`, 1),
+		)
 		err := httpsig.VerifyBound(r, refKey, comps...)
 		require.ErrorContains(t, err, "tag")
 	})
@@ -145,7 +151,10 @@ func TestVerifyReferenceClient(t *testing.T) {
 	t.Run("old label", func(t *testing.T) {
 		r := use()
 		r.Header.Set("Signature-Input", `atproto-space=("authorization" "atproto-space-audience")`)
-		r.Header.Set("Signature", strings.Replace(refSig, "atproto-space-credential=", "atproto-space=", 1))
+		r.Header.Set(
+			"Signature",
+			strings.Replace(refSig, "atproto-space-credential=", "atproto-space=", 1),
+		)
 		err := httpsig.VerifyBound(r, refKey, comps...)
 		require.ErrorIs(t, err, httpsig.ErrNoSignature)
 	})
