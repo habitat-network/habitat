@@ -1,7 +1,7 @@
 // Package syncer keeps sap's copy of every tracked repo in sync with its host.
 // Repos are discovered via Track (backfill crawl or notifications) and advance
 // through a small state machine: pending/error repos are synced incrementally
-// with listRepoOps and verified against the host's signed commit; repos whose
+// with listRepoOps and verified against the host's MAC-authenticated commit; repos whose
 // verification fails are marked desynced and rebuilt from a full getRepo STAR
 // snapshot. Synced records are handed to an Emitter (the outbox).
 package syncer
@@ -39,7 +39,7 @@ const (
 
 // repo is the sync state of one repo within one space. Hash is the repo's
 // LtHash state (spacecommit.LtHashStateBytes) as of Rev, verified against the
-// host's signed commit.
+// host's MAC-authenticated commit.
 type repo struct {
 	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	DID   syntax.DID              `gorm:"column:did;primaryKey"`

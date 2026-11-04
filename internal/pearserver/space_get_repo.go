@@ -8,6 +8,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -24,7 +25,7 @@ func (p *PearServer) GetRepo(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_, ok = p.validator.Request(
+	cred, ok := p.validator.Request(
 		authn.WithMethods(
 			authn.ValidatorMethodOAuth,
 			authn.ValidatorMethodServiceAuth,
@@ -36,6 +37,10 @@ func (p *PearServer) GetRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	mac, ok := p.requestMAC(w, r, cred, repoDID, spacecommit.CommitMACType)
 	if !ok {
 		return
 	}
@@ -58,6 +63,10 @@ func (p *PearServer) GetRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := mac.setCommit(w, *commit); err != nil {
+		httpx.WriteServerError(ctx, w, err)
+		return
+	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	if _, err := w.Write(starBytes); err != nil {
 		utils.LogAndHTTPError(ctx, w, err, "write star", http.StatusInternalServerError)

@@ -53,7 +53,7 @@ func (p *PearServer) NotifyWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := p.spacesStore.RegisterRemoteWrite(
-		ctx, spaceURI, repo, syntax.TID(input.Rev), []byte(input.Hash),
+		ctx, spaceURI, repo, syntax.TID(input.Rev), []byte(input.Data),
 	)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)

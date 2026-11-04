@@ -1,5 +1,10 @@
 import { P256Keypair } from "@atproto/crypto";
-import { createSpaceSigHeaders } from "@atproto/space";
+import {
+  COMMIT_MAC_TYPE,
+  WANT_MAC_HEADER,
+  createSpaceSigHeaders,
+  formatWantMacHeader,
+} from "@atproto/space";
 
 // One ephemeral P-256 keypair per page load. Space credentials are bound to a
 // did:key confirmation key the caller controls — nothing depends on this key
@@ -34,4 +39,18 @@ export async function createSpaceSignatureHeaders(
     authorization,
     audience: audience as `did:${string}:${string}` | undefined,
   });
+}
+
+// wantCommitMacHeaders builds the Atproto-Space-Want-Mac header a repo host
+// requires on commit reads made with a space credential (getLatestCommit,
+// listRepoOps, getRepo). The key share is a fresh ephemeral P-256 public key
+// whose private half is discarded: this is for displaying a commit, not
+// syncing it, so the response's MAC is never checked. A syncer verifying the
+// commit encapsulates against the author's #atproto_kem key instead (see
+// spaceSync's SpaceClient).
+export async function wantCommitMacHeaders(): Promise<Record<string, string>> {
+  const ephemeral = await P256Keypair.create();
+  return {
+    [WANT_MAC_HEADER]: formatWantMacHeader(COMMIT_MAC_TYPE, ephemeral.did()),
+  };
 }

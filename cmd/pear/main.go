@@ -113,9 +113,11 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 			"Signature",
 			"Signature-Input",
 			"atproto-space-audience",
+			"atproto-space-want-mac",
 		}),
 		handlers.MaxAge(86400),
-		handlers.ExposedHeaders([]string{"DPoP-Nonce"}),
+		// Browser syncers can only verify a commit or record MAC they can read.
+		handlers.ExposedHeaders([]string{"DPoP-Nonce", "Atproto-Space-Mac"}),
 	))
 	if cmd.Bool(fDebug) {
 		mux.Use(func(next http.Handler) http.Handler {
@@ -255,11 +257,16 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to get host public key: %w", err)
 	}
+	hostKEMPublicKey, err := app.HostKEMKey.PublicKey()
+	if err != nil {
+		return fmt.Errorf("failed to get host kem public key: %w", err)
+	}
 	mux.Handle("/.well-known/did.json", did.NewHandler(
 		// The host resolves like any other space authority: #atproto signs
 		// its space credentials and #atproto_pds is where its spaces are served.
 		did.Web(app.Domain).
 			AtprotoKey(hostPublicKey.Multibase()).
+			ATProtoKEMKey(hostKEMPublicKey.Multibase()).
 			HabitatKey(hostPublicKey.Multibase()).
 			Habitat("https://"+app.Domain).
 			ATProtoPDS("https://"+app.Domain).

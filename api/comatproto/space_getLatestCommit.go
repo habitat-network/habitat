@@ -10,5 +10,5 @@ type ComAtprotoSpaceGetLatestCommitParams struct {
 
 // ComAtprotoSpaceGetLatestCommitOutput represents the output for com.atproto.space.getLatestCommit
 type ComAtprotoSpaceGetLatestCommitOutput struct {
-	Commit ComAtprotoSpaceDefsSignedCommit `json:"commit"`
+	Commit ComAtprotoSpaceDefsCommit `json:"commit"`
 }

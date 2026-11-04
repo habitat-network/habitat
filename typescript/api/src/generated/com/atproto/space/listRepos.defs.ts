@@ -34,7 +34,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** List the known repos that hold data in a space (the writer set), with each repo's current repoRev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth. */
+/** List the known repos that hold data in a space (the writer set), with each repo's current repoRev and commit data. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output, ['SpaceNotFound'])
 
 export { main }
@@ -59,9 +59,9 @@ type Repo = {
   repoRev: l.TidString
 
   /**
-   * The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority.
+   * The repo's current commit data (sha256 of the LtHash state), as last reported to the authority.
    */
-  hash: Uint8Array
+  data: Uint8Array
 
   /**
    * The space revision at which this repo was last updated.
@@ -77,7 +77,7 @@ const repo = /*#__PURE__*/ l.typedObject<Repo>(
   /*#__PURE__*/ l.object({
     did: /*#__PURE__*/ l.string({ format: 'did' }),
     repoRev: /*#__PURE__*/ l.string({ format: 'tid' }),
-    hash: /*#__PURE__*/ l.bytes(),
+    data: /*#__PURE__*/ l.bytes(),
     spaceRev: /*#__PURE__*/ l.string({ format: 'tid' }),
   }),
 )

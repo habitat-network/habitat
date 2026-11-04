@@ -30,7 +30,10 @@ export {
   resolveSpaceHost,
   resolveDidService,
 } from "./atprotoDirectory";
-export { createSpaceSignatureHeaders } from "./spaceSignature";
+export {
+  createSpaceSignatureHeaders,
+  wantCommitMacHeaders,
+} from "./spaceSignature";
 export {
   SidebarGroup,
   SidebarGroupLabel,

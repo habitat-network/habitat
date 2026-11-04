@@ -54,6 +54,12 @@ func (b *Builder) AtprotoKey(multibase string) *Builder {
 	return b.VerificationMethod("atproto", "Multikey", multibase)
 }
 
+// ATProtoKEMKey registers the P-256 key that space commit MACs are keyed
+// against as a Multikey verification method at <did>#atproto_kem.
+func (b *Builder) ATProtoKEMKey(multibase string) *Builder {
+	return b.VerificationMethod("atproto_kem", "Multikey", multibase)
+}
+
 // HabitatKey registers the Habitat host signing key as a Multikey verification
 // method at <did>#habitat.
 func (b *Builder) HabitatKey(multibase string) *Builder {

@@ -115,3 +115,61 @@ func TestPrivateKey_DIDNotFound(t *testing.T) {
 	_, err := h.PrivateKeyForDID(t.Context(), syntax.DID("did:web:nonexist.example.com"))
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
+
+// TestKEMKeyForDID covers the #atproto_kem key: KEMKeyForDID returns the
+// private half of the key the identity's DID doc publishes.
+func TestKEMKeyForDID(t *testing.T) {
+	h := newTestHive(t, "example.com", "pear.example.com")
+	id, err := h.MintIdentity(context.Background(), "alice", "org")
+	require.NoError(t, err)
+
+	kem, err := h.KEMKeyForDID(context.Background(), id.DID)
+	require.NoError(t, err)
+	pub, err := kem.PublicKey()
+	require.NoError(t, err)
+
+	published, err := id.GetPublicKey("atproto_kem")
+	require.NoError(t, err)
+	require.Equal(t, published.Multibase(), pub.Multibase())
+}
+
+func TestKEMKeyForDID_NotFound(t *testing.T) {
+	h := newTestHive(t, "example.com", "pear.example.com")
+
+	_, err := h.KEMKeyForDID(context.Background(), "did:web:nobody.example.com")
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+	_, err = h.KEMKeyForDID(context.Background(), "did:plc:abc123")
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+}
+
+// TestKEMKeyBackfill covers an identity minted before hive generated KEM
+// keys: the first lookup backfills one, and later lookups and KEMKeyForDID
+// agree on it.
+func TestKEMKeyBackfill(t *testing.T) {
+	db := testutil.NewDB(t, Models())
+	h, err := NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	id, err := h.MintIdentity(context.Background(), "alice", "org")
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&ident{}).Where("1 = 1").Updates(map[string]any{
+		"kem_public_key":      "",
+		"kem_private_key_enc": "",
+	}).Error)
+
+	looked, err := h.LookupDID(context.Background(), id.DID)
+	require.NoError(t, err)
+	published, err := looked.GetPublicKey("atproto_kem")
+	require.NoError(t, err)
+
+	again, err := h.LookupHandle(context.Background(), id.Handle)
+	require.NoError(t, err)
+	againKey, err := again.GetPublicKey("atproto_kem")
+	require.NoError(t, err)
+	require.Equal(t, published.Multibase(), againKey.Multibase())
+
+	kem, err := h.KEMKeyForDID(context.Background(), id.DID)
+	require.NoError(t, err)
+	pub, err := kem.PublicKey()
+	require.NoError(t, err)
+	require.Equal(t, published.Multibase(), pub.Multibase())
+}

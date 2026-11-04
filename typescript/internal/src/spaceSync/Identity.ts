@@ -1,3 +1,4 @@
+import { getVerificationMaterial } from "@atproto/common-web";
 import type { DidString } from "@atproto/syntax";
 import {
   DOC_PATH,
@@ -7,6 +8,7 @@ import {
   IdResolver,
   PoorlyFormattedDidError,
   UnsupportedDidWebPathError,
+  getDidKeyFromMultibase,
   getKey,
   getPds,
 } from "@atproto/identity";
@@ -31,7 +33,23 @@ export interface ResolvedIdentity {
    * for a space authority, the credentials it issues.
    */
   readonly signingKey?: string;
+  /**
+   * `#atproto_kem` key as a did:key: the key a syncer encapsulates each
+   * request's MAC secret against (see `SpaceClient`).
+   */
+  readonly kemKey?: string;
 }
+
+/** The `#atproto_kem` key as a did:key, or undefined if absent or malformed. */
+const kemKeyOf = (doc: DidDocument): string | undefined => {
+  const material = getVerificationMaterial(doc, "atproto_kem");
+  if (!material) return undefined;
+  try {
+    return getDidKeyFromMultibase(material) ?? undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * Every entry is optional on its own, so a caller that needs the PDS or the
@@ -41,7 +59,12 @@ export interface ResolvedIdentity {
 export const identityFromDoc = (
   did: DidString,
   doc: DidDocument,
-): ResolvedIdentity => ({ did, pds: getPds(doc), signingKey: getKey(doc) });
+): ResolvedIdentity => ({
+  did,
+  pds: getPds(doc),
+  signingKey: getKey(doc),
+  kemKey: kemKeyOf(doc),
+});
 
 /**
  * The DID's repo host, for fetching its space repos, and its space host when

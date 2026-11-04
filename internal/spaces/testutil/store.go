@@ -1,12 +1,8 @@
 package testutil
 
 import (
-	"context"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
-	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -15,7 +11,6 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/notify/testutil"
-	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
@@ -31,8 +26,6 @@ func NewTestBlobStore(t *testing.T) spaces.BlobStore {
 type testOptions struct {
 	fga      fgastore.Store
 	db       *gorm.DB
-	hostKey  atcrypto.PrivateKey
-	signer   spacecommit.MemberSigner
 	notifier spaces.Notifier
 }
 
@@ -50,18 +43,6 @@ func WithDB(db *gorm.DB) Option {
 	}
 }
 
-func WithHostKey(key atcrypto.PrivateKey) Option {
-	return func(o *testOptions) {
-		o.hostKey = key
-	}
-}
-
-func WithMemberSigner(signer spacecommit.MemberSigner) Option {
-	return func(o *testOptions) {
-		o.signer = signer
-	}
-}
-
 func WithNotifier(notifier spaces.Notifier) Option {
 	return func(o *testOptions) {
 		o.notifier = notifier
@@ -74,14 +55,9 @@ func NewTestStore(t *testing.T, opts ...Option) spaces.Store {
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 
-	key, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-
 	options := &testOptions{
 		fga:      fga,
 		db:       db_testutil.NewDB(t, spaces.Models()),
-		hostKey:  key,
-		signer:   noMemberSigner{},
 		notifier: &testutil.TestNotifier{},
 	}
 
@@ -89,11 +65,7 @@ func NewTestStore(t *testing.T, opts ...Option) spaces.Store {
 		o(options)
 	}
 
-	s, err := spaces.NewStore(
-		options.db,
-		options.notifier,
-		spacecommit.NewAuthority(options.hostKey, options.signer),
-	)
+	s, err := spaces.NewStore(options.db, options.notifier)
 	require.NoError(t, err)
 	return s
 }
@@ -105,14 +77,4 @@ func MustMarshalRecord(t *testing.T, value any) spaces.MarshaledRecord {
 	record, err := spaces.MarshalRecord(value)
 	require.NoError(t, err)
 	return record
-}
-
-// noMemberSigner never resolves a habitat-managed signer, so Authority.Build
-// always falls back to the host key.
-type noMemberSigner struct{}
-
-func (noMemberSigner) PrivateKeyForDID(
-	context.Context, syntax.DID,
-) (atcrypto.PrivateKey, error) {
-	return nil, identity.ErrDIDNotFound
 }

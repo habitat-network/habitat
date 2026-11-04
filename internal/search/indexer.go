@@ -30,7 +30,7 @@ type RepoSource interface {
 		repo syntax.DID,
 		since string,
 		limit int,
-	) ([]spaces.Record, *spacecommit.SignedCommit, error)
+	) ([]spaces.Record, *spacecommit.Commit, error)
 	ListRepoHeads(ctx context.Context) ([]spaces.RepoHead, error)
 	CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
 	GetRecord(

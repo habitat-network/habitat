@@ -17,7 +17,6 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -25,7 +24,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -97,13 +95,10 @@ func TestEngineSyncRepoVerifiesAndSettles(t *testing.T) {
 	var lt spacecommit.LtHash
 	lt.Add(spacecommit.RecordElement("network.habitat.test", "k1", "bafyaaa"))
 	lt.Add(spacecommit.RecordElement("network.habitat.test", "k2", "bafybbb"))
-	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+	commit := habitat.NetworkHabitatSpaceDefsCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: atdata.Bytes(lt.Sum()),
-		Ikm:  atdata.Bytes{},
-		Mac:  atdata.Bytes{},
-		Sig:  atdata.Bytes{},
+		Data: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -279,61 +274,6 @@ func TestEngineNotifyWriteAlreadyBehindHash(t *testing.T) {
 	require.Equal(t, statePending, r.State)
 }
 
-// TestVerifierNilDir verifies hash-only mode when the verifier has no identity
-// directory.
-func TestVerifierNilDir(t *testing.T) {
-	t.Parallel()
-
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	var lt spacecommit.LtHash
-	lt.Add(spacecommit.RecordElement("net.test", "r1", "cid1"))
-	commit := spacecommit.SignedCommit{
-		Ver:  spacecommit.Version,
-		Hash: lt.Sum(),
-		Rev:  "3kzl6abcde02k",
-	}
-
-	v := NewVerifier(nil)
-	require.NoError(t, v.Verify(t.Context(), space, "did:plc:alice", commit, &lt))
-}
-
-// TestVerifierNilDirMismatch verifies that a hash mismatch is caught in
-// hash-only mode.
-func TestVerifierNilDirMismatch(t *testing.T) {
-	t.Parallel()
-
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	var lt spacecommit.LtHash
-	lt.Add(spacecommit.RecordElement("net.test", "r1", "cid1"))
-	commit := spacecommit.SignedCommit{
-		Ver:  spacecommit.Version,
-		Hash: []byte{0xff, 0xfe},
-		Rev:  "3kzl6abcde02k",
-	}
-
-	v := NewVerifier(nil)
-	err := v.Verify(t.Context(), space, "did:plc:alice", commit, &lt)
-	require.Error(t, err)
-	require.ErrorIs(t, err, spacecommit.ErrInvalidCommit)
-}
-
-// TestVerifierNilPointer tests that a nil Verifier falls back to hash-only.
-func TestVerifierNilPointer(t *testing.T) {
-	t.Parallel()
-
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	var lt spacecommit.LtHash
-	lt.Add(spacecommit.RecordElement("net.test", "r1", "cid1"))
-	commit := spacecommit.SignedCommit{
-		Ver:  spacecommit.Version,
-		Hash: lt.Sum(),
-		Rev:  "3kzl6abcde02k",
-	}
-
-	var v *Verifier
-	require.NoError(t, v.Verify(t.Context(), space, "did:plc:alice", commit, &lt))
-}
-
 // TestEngineScheduleRetry covers the retry backoff path.
 func TestEngineScheduleRetry(t *testing.T) {
 	t.Parallel()
@@ -479,219 +419,6 @@ func (failClients) ClientForSpace(
 	context.Context, habitat_syntax.SpaceURI,
 ) (*atclient.APIClient, error) {
 	return nil, fmt.Errorf("no client")
-}
-
-// TestVerifierSignerWebAuthor covers the signer path for did:web authors.
-func TestVerifierSignerWebAuthor(t *testing.T) {
-	t.Parallel()
-
-	priv, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-	pub, err := priv.PublicKey()
-	require.NoError(t, err)
-
-	authorDID := syntax.DID("did:web:alice.example.com")
-	ident := did.New(authorDID).AtprotoKey(pub.Multibase()).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ident)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	var lt spacecommit.LtHash
-	_ = spacecommit.SignedCommit{
-		Ver:  spacecommit.Version,
-		Hash: lt.Sum(),
-		Rev:  "3kzl6abcde02k",
-	}
-
-	got, err := v.signer(t.Context(), space, authorDID, false)
-	require.NoError(t, err)
-	require.Equal(t, pub.Multibase(), got.Multibase())
-}
-
-// TestVerifierSignerWebAuthorIgnoresAtprotoSpace covers a did:web author that
-// still publishes only the dropped "#atproto_space" key: since the spaces
-// alpha, "#atproto" is the only key commits are verified against.
-func TestVerifierSignerWebAuthorIgnoresAtprotoSpace(t *testing.T) {
-	t.Parallel()
-
-	priv, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-	pub, err := priv.PublicKey()
-	require.NoError(t, err)
-
-	authorDID := syntax.DID("did:web:pear.example.com")
-	ident := did.New(authorDID).
-		VerificationMethod("atproto_space", "Multikey", pub.Multibase()).
-		Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ident)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err = v.signer(t.Context(), space, authorDID, false)
-	require.ErrorContains(t, err, "author signing key")
-}
-
-// TestVerifierSignerExternalAuthor covers the signer path for external
-// (non-did:web) authors where the host signs the commit.
-func TestVerifierSignerExternalAuthor(t *testing.T) {
-	t.Parallel()
-
-	priv, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-	pub, err := priv.PublicKey()
-	require.NoError(t, err)
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := did.New(spaceOwner).ATProtoPDS("https://host.example.com").Build()
-	hostIdent := did.New(hostDID).AtprotoKey(pub.Multibase()).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	dir.Insert(*hostIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	got, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.NoError(t, err)
-	require.Equal(t, pub.Multibase(), got.Multibase())
-}
-
-// TestVerifierSignerExternalAuthorIgnoresLegacyEntries covers a space owner
-// and host still publishing the dropped "#atproto_space_host" service and
-// "#atproto_space" key: neither is consulted any more.
-func TestVerifierSignerExternalAuthorIgnoresLegacyEntries(t *testing.T) {
-	t.Parallel()
-
-	priv, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-	pub, err := priv.PublicKey()
-	require.NoError(t, err)
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := did.New(spaceOwner).
-		ATProtoPDS("https://host.example.com").
-		Service("atproto_space_host", "AtprotoSpaceHost", "https://other.example.com").
-		Build()
-	hostIdent := did.New(hostDID).
-		VerificationMethod("atproto_space", "Multikey", pub.Multibase()).
-		Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	dir.Insert(*hostIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err = v.signer(t.Context(), space, "did:plc:external", true)
-	require.ErrorContains(t, err, "host signing key")
-}
-
-// TestVerifierSignerAuthorLookupError covers the error path when author
-// DID lookup fails.
-func TestVerifierSignerAuthorLookupError(t *testing.T) {
-	t.Parallel()
-
-	dir := identity.NewMockDirectory()
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:web:missing.example.com", false)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "lookup author")
-}
-
-// TestVerifierSignerAuthorNoKey covers the error path when the author's
-// identity has no public key.
-func TestVerifierSignerAuthorNoKey(t *testing.T) {
-	t.Parallel()
-
-	authorDID := syntax.DID("did:web:alice.example.com")
-	ident := did.New(authorDID).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ident)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, authorDID, false)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "author signing key")
-}
-
-// TestVerifierSignerExternalOwnerLookupError covers the error path when
-// external author's space owner lookup fails.
-func TestVerifierSignerExternalOwnerLookupError(t *testing.T) {
-	t.Parallel()
-
-	dir := identity.NewMockDirectory()
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "lookup space owner")
-}
-
-// TestVerifierSignerExternalNoHabitatService covers the error path when the
-// space owner has no atproto_pds service endpoint.
-func TestVerifierSignerExternalNoHabitatService(t *testing.T) {
-	t.Parallel()
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	ownerIdent := did.New(spaceOwner).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no atproto_pds service")
-}
-
-// TestVerifierSignerExternalHostLookupError covers the error path when the
-// host DID lookup fails.
-func TestVerifierSignerExternalHostLookupError(t *testing.T) {
-	t.Parallel()
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	ownerIdent := did.New(spaceOwner).ATProtoPDS("https://host.example.com").Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "lookup host")
-}
-
-// TestVerifierSignerExternalHostNoKey covers the error path when the host
-// has no atproto verification method.
-func TestVerifierSignerExternalHostNoKey(t *testing.T) {
-	t.Parallel()
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := did.New(spaceOwner).ATProtoPDS("https://host.example.com").Build()
-	hostIdent := did.New(hostDID).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	dir.Insert(*hostIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "host signing key")
 }
 
 // TestEngineDispatchClaimsPendingAndErrorRepos verifies that dispatch claims
@@ -1079,7 +806,13 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 	rev := syntax.NewTIDClock(0).Next().String()
 
 	// The host holds three records; sap's index is current for two of them.
-	hostCids := map[syntax.RecordKey]string{"k1": "bafyaaa", "k2": "bafybbb", "k3": "bafyccc"}
+	// Fetched values are checked against their CIDs, so these are real.
+	hostCids := map[syntax.RecordKey]string{}
+	for _, rkey := range []syntax.RecordKey{"k1", "k2", "k3"} {
+		c, err := recordCID(map[string]any{"k": rkey.String()})
+		require.NoError(t, err)
+		hostCids[rkey] = c.String()
+	}
 	var lt spacecommit.LtHash
 	for rkey, c := range hostCids {
 		lt.Add(spacecommit.RecordElement(coll, rkey, c))
@@ -1092,13 +825,10 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 		func(w http.ResponseWriter, _ *http.Request) {
 			commitCalls.Add(1)
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetLatestCommitOutput{
-				Commit: &habitat.NetworkHabitatSpaceDefsSignedCommit{
+				Commit: &habitat.NetworkHabitatSpaceDefsCommit{
 					Ver:  int64(spacecommit.Version),
 					Rev:  rev,
-					Hash: atdata.Bytes(lt.Sum()),
-					Ikm:  atdata.Bytes{},
-					Mac:  atdata.Bytes{},
-					Sig:  atdata.Bytes{},
+					Data: atdata.Bytes(lt.Sum()),
 				},
 			})
 		})
@@ -1119,6 +849,8 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 			rkey := r.URL.Query().Get("rkey")
 			fetched.Store(rkey, true)
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetRecordOutput{
+				Uri: habitat_syntax.ConstructSpaceRecordURI(
+					space, repoDID, coll, syntax.RecordKey(rkey)).String(),
 				Cid: hostCids[syntax.RecordKey(rkey)], Value: map[string]any{"k": rkey},
 			})
 		})
@@ -1128,7 +860,7 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 	e, emitter, db := newTestEngine(t, srv.URL)
 	require.NoError(t, e.Track(t.Context(), space, repoDID))
 	// k1 is current, k2 is stale, k3 is unknown to sap.
-	for rkey, c := range map[syntax.RecordKey]string{"k1": "bafyaaa", "k2": "bafyOLD"} {
+	for rkey, c := range map[syntax.RecordKey]string{"k1": hostCids["k1"], "k2": "bafyOLD"} {
 		require.NoError(t, indexRecord(t.Context(), db, space, repoDID, coll, rkey, c))
 	}
 
@@ -1153,9 +885,9 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 	index, err := recordIndex(t.Context(), db, space, repoDID)
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{
-		"network.habitat.test/k1": "bafyaaa",
-		"network.habitat.test/k2": "bafybbb",
-		"network.habitat.test/k3": "bafyccc",
+		"network.habitat.test/k1": hostCids["k1"],
+		"network.habitat.test/k2": hostCids["k2"],
+		"network.habitat.test/k3": hostCids["k3"],
 	}, index)
 }
 
@@ -1177,13 +909,10 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	// The host now holds only k1; k2 was deleted since sap last saw it.
 	var lt spacecommit.LtHash
 	lt.Add(spacecommit.RecordElement(coll, "k1", "bafyaaa"))
-	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+	commit := habitat.NetworkHabitatSpaceDefsCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev,
-		Hash: atdata.Bytes(lt.Sum()),
-		Ikm:  atdata.Bytes{},
-		Mac:  atdata.Bytes{},
-		Sig:  atdata.Bytes{},
+		Data: atdata.Bytes(lt.Sum()),
 	}
 
 	mux := http.NewServeMux()
@@ -1321,13 +1050,10 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 		{Rev: rev2, Collection: "network.habitat.test", Rkey: "k1", Prev: "bafyaaa"},
 	}
 	var lt spacecommit.LtHash
-	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+	commit := habitat.NetworkHabitatSpaceDefsCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: atdata.Bytes(lt.Sum()),
-		Ikm:  atdata.Bytes{},
-		Mac:  atdata.Bytes{},
-		Sig:  atdata.Bytes{},
+		Data: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1508,7 +1234,7 @@ func TestEngineCatchUpListsSince(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 			Cursor: "3l000000000e2",
 			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-				{Did: "did:plc:missed", RepoRev: "3l000000000d2", Hash: atdata.Bytes("hash")},
+				{Did: "did:plc:missed", RepoRev: "3l000000000d2", Data: atdata.Bytes("hash")},
 			},
 		})
 	}))
@@ -1571,7 +1297,7 @@ func TestEngineCatchUpFallsBackToFullListing(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 			Cursor: "3l000000000e2",
 			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-				{Did: "did:plc:a", RepoRev: "aaa", Hash: atdata.Bytes("hash")},
+				{Did: "did:plc:a", RepoRev: "aaa", Data: atdata.Bytes("hash")},
 			},
 		})
 	}))
