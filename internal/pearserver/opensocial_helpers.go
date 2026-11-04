@@ -8,12 +8,26 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
+
+// annotateAuthz records on the request's span the org a community endpoint
+// acts on, what the caller had to hold, and whether they did, so traces can
+// be found by org and denied requests told apart from failed ones.
+func annotateAuthz(ctx context.Context, org syntax.DID, required string, authorized bool) {
+	trace.SpanFromContext(ctx).SetAttributes(
+		telemetry.Org(org),
+		attribute.String("habitat.opensocial.required", required),
+		attribute.Bool("habitat.opensocial.authorized", authorized),
+	)
+}
 
 func inviteToView(invite opensocial.Invite) opensocial_api.CommunityOpensocialDefsInviteView {
 	return opensocial_api.CommunityOpensocialDefsInviteView{
@@ -38,7 +52,9 @@ func (p *PearServer) requireAdmin(
 		httpx.WriteServerError(ctx, w, fmt.Errorf("get user roles: %w", err))
 		return false
 	}
-	if !slices.Contains(roles, opensocial.AdminRoleRkey) {
+	authorized := slices.Contains(roles, opensocial.AdminRoleRkey)
+	annotateAuthz(ctx, org, "role:"+opensocial.AdminRoleRkey, authorized)
+	if !authorized {
 		httpx.WriteUnauthorized(ctx, w, "caller is not an admin of this community", nil)
 		return false
 	}
@@ -58,6 +74,7 @@ func (p *PearServer) requireMember(
 		httpx.WriteServerError(ctx, w, fmt.Errorf("get user roles: %w", err))
 		return false
 	}
+	annotateAuthz(ctx, org, "member", len(roles) > 0)
 	if len(roles) == 0 {
 		httpx.WriteUnauthorized(ctx, w, "caller is not a member of this community", nil)
 		return false
@@ -79,6 +96,7 @@ func (p *PearServer) requireSpaceAuthority(
 	credInfo *authn.CredentialInfo,
 ) bool {
 	if credInfo.Method == authn.ValidatorMethodOAuth {
+		annotateAuthz(ctx, org, "org_credential", credInfo.Subject == org)
 		if credInfo.Subject != org {
 			httpx.WriteUnauthorized(
 				ctx, w, "only the organization's own OAuth credential may do this", nil,
@@ -106,6 +124,7 @@ func (p *PearServer) requireAction(
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check action: %w", err))
 		return false
 	}
+	annotateAuthz(ctx, org, "action:"+string(action), ok)
 	if !ok {
 		httpx.WriteUnauthorized(
 			ctx, w,

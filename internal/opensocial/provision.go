@@ -7,10 +7,13 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"go.opentelemetry.io/otel/trace"
+	"gorm.io/gorm"
+
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"gorm.io/gorm"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 // ProvisionMember adds memberDID to orgDID by writing its membership record
@@ -30,7 +33,11 @@ import (
 // The membership grant is first-sign-in only: memberDID that already has a
 // membership record keeps it, and any roles on it, as written. The acceptance
 // record is rewritten every call (it has a fixed rkey, so this is idempotent).
-func (s *Store) ProvisionMember(ctx context.Context, orgDID, memberDID syntax.DID) error {
+func (s *Store) ProvisionMember(ctx context.Context, orgDID, memberDID syntax.DID) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.ProvisionMember", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(memberDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
 		membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")

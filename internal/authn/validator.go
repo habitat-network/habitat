@@ -6,8 +6,12 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -22,6 +26,21 @@ const (
 	ValidatorMethodSpaceCredential
 	ValidatorMethodDelegationToken
 )
+
+// String names the method, as recorded on request spans.
+func (m ValidatorMethod) String() string {
+	switch m {
+	case ValidatorMethodOAuth:
+		return "oauth"
+	case ValidatorMethodServiceAuth:
+		return "service_auth"
+	case ValidatorMethodSpaceCredential:
+		return "space_credential"
+	case ValidatorMethodDelegationToken:
+		return "delegation_token"
+	}
+	return "none"
+}
 
 type RequestValidator interface {
 	Request(options ...utils.Opt[EndpointOptions]) Validator
@@ -146,8 +165,22 @@ func (rv *EndpointOptions) Validate(
 				}
 			}
 		}
+		annotateSpan(trace.SpanFromContext(ctx), credInfo)
 		return credInfo, true
 	}
 	httpx.WriteUnauthorized(ctx, w, "no supported auth method", nil)
 	return nil, false
+}
+
+// annotateSpan records who a request authenticated as on its span, so its
+// trace can be found by the calling user or space credential.
+func annotateSpan(span trace.Span, cred *CredentialInfo) {
+	attrs := []attribute.KeyValue{telemetry.AuthMethodKey.String(cred.Method.String())}
+	if cred.Subject != "" {
+		attrs = append(attrs, telemetry.EndUser(cred.Subject))
+	}
+	if cred.Space != "" {
+		attrs = append(attrs, telemetry.Space(cred.Space))
+	}
+	span.SetAttributes(attrs...)
 }

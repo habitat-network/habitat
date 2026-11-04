@@ -2,9 +2,8 @@
 // key) pairs with a mandatory TTL, so features that only need to stash a value
 // for a few minutes stop needing a table per feature.
 //
-// Every entry expires: ttl is a required parameter of Put, so there is no
-// "forever" path. Durable state — credentials, registered clients — keeps its
-// own tables.
+// Every entry has an explicit lifetime: ttl is a required parameter of Put, and
+// callers that really want durable state must say so by passing [NoExpiry].
 //
 // Expiry is enforced on the read path, so Get, Consume and Delete treat an
 // expired entry exactly like one that was never written: both are ErrNotFound.
@@ -20,6 +19,10 @@ import (
 	"time"
 )
 
+// NoExpiry is the ttl that stores an entry indefinitely. Negative ttls are not
+// special: they store an entry that is already expired.
+const NoExpiry time.Duration = 0
+
 // ErrNotFound is returned when a key is absent from the store or its entry has
 // expired. The two are indistinguishable, because a caller cannot act on them
 // differently.
@@ -32,8 +35,8 @@ var ErrAlreadyExists = errors.New("keyval: entry already exists")
 // KV is the narrow store surface a consumer that only writes and reads its own
 // state depends on.
 type KV interface {
-	// Put stores value under key, encoded as JSON, and expires it ttl from now.
-	// Writing the same key again replaces both the value and the expiry.
+	// Put stores value under key, encoded as JSON, and expires it ttl from now,
+	// or never if ttl is [NoExpiry]. Writing the same key again replaces both the value and the expiry.
 	Put(ctx context.Context, key string, value any, ttl time.Duration) error
 	// Get decodes the value stored under key into dst, which must be a non-nil
 	// pointer. It returns [ErrNotFound] if the key was never written or has

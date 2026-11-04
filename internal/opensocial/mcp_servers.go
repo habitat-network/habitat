@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"go.opentelemetry.io/otel/trace"
 
 	habitat_api "github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 // McpServerCollection is the collection MCP server records are written to,
@@ -62,7 +64,11 @@ func (s *Store) PutMcpServer(
 	ctx context.Context,
 	orgDID syntax.DID,
 	server *McpServer,
-) (*McpServer, error) {
+) (_ *McpServer, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.PutMcpServer", trace.WithAttributes(
+		telemetry.Org(orgDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	record := habitat_api.NetworkHabitatMcpServer{
 		Name:        server.Name,
 		Description: server.Description,
@@ -94,7 +100,11 @@ func (s *Store) GetMcpServer(
 	ctx context.Context,
 	orgDID syntax.DID,
 	id syntax.RecordKey,
-) (*McpServer, error) {
+) (_ *McpServer, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.GetMcpServer", trace.WithAttributes(
+		telemetry.Org(orgDID), mcpServerKey.String(id.String()),
+	))
+	defer func() { telemetry.End(span, err) }()
 	record, err := s.spacesStore.GetRecord(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
@@ -115,7 +125,11 @@ func (s *Store) GetMcpServer(
 }
 
 // ListMcpServers lists the MCP servers configured for orgDID.
-func (s *Store) ListMcpServers(ctx context.Context, orgDID syntax.DID) ([]*McpServer, error) {
+func (s *Store) ListMcpServers(ctx context.Context, orgDID syntax.DID) (_ []*McpServer, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.ListMcpServers", trace.WithAttributes(
+		telemetry.Org(orgDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	collection := syntax.NSID(McpServerCollection)
 	records, err := s.spacesStore.ListRecords(
 		ctx,
@@ -145,7 +159,11 @@ func (s *Store) UpdateMcpServer(
 	orgDID syntax.DID,
 	id syntax.RecordKey,
 	description, serverURL *string,
-) (*McpServer, error) {
+) (_ *McpServer, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.UpdateMcpServer", trace.WithAttributes(
+		telemetry.Org(orgDID), mcpServerKey.String(id.String()),
+	))
+	defer func() { telemetry.End(span, err) }()
 	existing, err := s.GetMcpServer(ctx, orgDID, id)
 	if err != nil {
 		return nil, err
@@ -160,7 +178,15 @@ func (s *Store) UpdateMcpServer(
 }
 
 // RemoveMcpServer deletes an org's MCP server record.
-func (s *Store) RemoveMcpServer(ctx context.Context, orgDID syntax.DID, id syntax.RecordKey) error {
+func (s *Store) RemoveMcpServer(
+	ctx context.Context,
+	orgDID syntax.DID,
+	id syntax.RecordKey,
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.RemoveMcpServer", trace.WithAttributes(
+		telemetry.Org(orgDID), mcpServerKey.String(id.String()),
+	))
+	defer func() { telemetry.End(span, err) }()
 	if _, err := s.GetMcpServer(ctx, orgDID, id); err != nil {
 		return err
 	}

@@ -18,14 +18,16 @@ tasks:
       HABITAT_SERVICE_NAME: "habitat_local"
       HABITAT_DOMAIN: pear.local.habitat.network
       HABITAT_PRETTY_LOGS: 'true'
-      HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
       # Reverse-proxy /ui/ to the pear-pages dev server instead of serving the
       # embedded build, so UI changes are picked up live.
       HABITAT_UI_DEV_PROXY: 'http://localhost:6010'
       HABITAT_ADMIN_PASSWORD: 'password'
       HABITAT_SPACE_SIGNING_KEY: 'z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd'
+      HABITAT_PDS_CRED_ENCRYPT_KEY: 'WRlpsucNQl8AVO1qNN+T+hzbVtYjdoF21QfF+0uDJSM='
+      HABITAT_OAUTH_SERVER_SECRET: 'KFLA79A/GPPsxz+y5kk7dLX2Nxxe7RM9Ik96rD2tO4c='
+      HABITAT_OAUTH_CLIENT_SECRET: 'RL4fcDJiumyAEMJ5US0WWu/QKDallQAZ/2GJHz99d4Y='
       # Served by root:meilisearch, which runs without a master key.
-      HABITAT_MEILISEARCH_URL: 'http://localhost:7700'
+      # HABITAT_MEILISEARCH_URL: 'http://localhost:7700'
       HABITAT_MCP_TEXT_OVERRIDES: 'true'
     options:
       runFromWorkspaceRoot: true

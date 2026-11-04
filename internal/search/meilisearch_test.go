@@ -8,6 +8,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/search/searchtest"
@@ -401,4 +402,27 @@ func TestMeilisearchReadsALegacyIndex(t *testing.T) {
 		search.ErrLegacyIndex,
 	)
 	require.ErrorIs(t, idx.Delete(ctx, "at://old"), search.ErrLegacyIndex)
+}
+
+func TestMeilisearchTagsWritesWithTheirTrace(t *testing.T) {
+	uid := searchtest.NewUID(t)
+	idx := searchtest.OpenIndex(t, uid)
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{0xab},
+		SpanID:     trace.SpanID{0xcd},
+		TraceFlags: trace.FlagsSampled,
+	})
+	ctx := trace.ContextWithSpanContext(t.Context(), sc)
+	require.NoError(t, idx.Put(ctx, doc(spaceA, "1", "3kaaaaaaaaaa2", "traced write")))
+
+	client := meilisearch.New(searchtest.URL(t))
+	tasks, err := client.GetTasksWithContext(t.Context(), &meilisearch.TasksQuery{
+		IndexUIDS: []string{uid},
+		Types:     []meilisearch.TaskType{meilisearch.TaskTypeDocumentAdditionOrUpdate},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, tasks.Results)
+	// The span id is the write's own span, when spans are recorded.
+	require.True(t, strings.HasPrefix(tasks.Results[0].CustomMetadata,
+		"00-"+sc.TraceID().String()+"-"), tasks.Results[0].CustomMetadata)
 }

@@ -1,4 +1,4 @@
-h1:cRCM8GaQJbxnsYwUt9xdTtJ/AWQBQeyWDUsSuyyabjU=
+h1:VUlfutvr0dlf9I5e2xcOhBEb7/hG4FawRVB4qjYN0g4=
 20260522005939_init.sql h1:KUJYrNB1nXExOKZnn9/cDQw4vjS53DzmQZCuhaZYmNw=
 20260925150000_baseline.sql h1:RGgjF3jiIujGjOvwEajH4/GIDqcmsgCZ+bVO2BQRtrw=
 20261005235000_space_revisions.sql h1:yeI4Eqsb4IdEWLjXk8MPuv6b1dVx2lGMMZmR3lX/GiM=
@@ -7,3 +7,4 @@ h1:cRCM8GaQJbxnsYwUt9xdTtJ/AWQBQeyWDUsSuyyabjU=
 20261013000000_add_blob_refs.sql h1:HpXNMZfLSVmohUqfVOPAU1jMfn+2F4jhz12W+hdUGhw=
 20261014232436_add_key_values.sql h1:gRWQ6hkvsRLT4bVoz8EqRINiBD1JVf1gos5N1BACAmk=
 20261015215724_drop_ephemeral_tables.sql h1:PNCWkH6YZqVjcqRWEvVFKgRuzE1OENvoIaU6wttQKxk=
+20261022170000_drop_credential_tables.sql h1:0Y2lKxznTZRHhTeYDTmw+Ks/FQ6/9VjS+aKdzB9f+O4=

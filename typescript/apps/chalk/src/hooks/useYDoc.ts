@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
+import { Awareness } from "y-protocols/awareness";
 import { useQueryClient } from "@tanstack/react-query";
 import { computeTitle } from "@/render";
 import type { DocSummary } from "@/db";
@@ -17,7 +18,16 @@ import type { DocSummary } from "@/db";
 // initialState, when given, seeds the Y.Doc synchronously on creation (see
 // $uri.tsx's loader) so the editor renders with real content immediately
 // instead of blank until the WebsocketProvider's own handshake completes.
-export function useYDoc(docId: string, initialState?: Uint8Array): Y.Doc {
+//
+// It also returns the doc's Awareness (cursor/presence state). That is created
+// here, alongside the Y.Doc, and handed to the WebsocketProvider rather than
+// letting the provider make its own: the editor's collaboration-caret
+// extension needs the awareness at editor-construction time, while the
+// provider itself only exists after the connect effect below runs.
+export function useYDoc(
+  docId: string,
+  initialState?: Uint8Array,
+): { ydoc: Y.Doc; awareness: Awareness } {
   // docId isn't referenced in the factory itself — it's deliberately a reset
   // key, not a real dependency: a fresh Y.Doc per doc, discarding the
   const queryClient = useQueryClient();
@@ -28,6 +38,8 @@ export function useYDoc(docId: string, initialState?: Uint8Array): Y.Doc {
     return doc;
   }, [docId, initialState]);
 
+  const awareness = useMemo(() => new Awareness(ydoc), [ydoc]);
+
   useEffect(() => {
     // wss:// (not ws://) whenever the page itself is https — a mixed-scheme
     // WebSocket from an https origin is blocked by the browser outright.
@@ -36,11 +48,12 @@ export function useYDoc(docId: string, initialState?: Uint8Array): Y.Doc {
       `${wsProtocol}//${location.host}/ws`,
       encodeURIComponent(docId),
       ydoc,
+      { awareness },
     );
     return () => {
       provider.destroy();
     };
-  }, [docId, ydoc]);
+  }, [docId, ydoc, awareness]);
 
   useEffect(() => {
     // Keep the sidebar/home page title optimistically in sync as the user
@@ -72,5 +85,5 @@ export function useYDoc(docId: string, initialState?: Uint8Array): Y.Doc {
     };
   }, [ydoc, docId, queryClient]);
 
-  return ydoc;
+  return { ydoc, awareness };
 }

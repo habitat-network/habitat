@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.opentelemetry.io/otel/trace"
+
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 // RequestJoin implements community.opensocial.requestJoin.
@@ -30,6 +33,7 @@ func (p *PearServer) RequestJoin(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	trace.SpanFromContext(ctx).SetAttributes(telemetry.Org(org))
 	roles, err := p.opensocialStore.RequestJoin(ctx, org, credInfo.Subject)
 	if errors.Is(err, opensocial.ErrInviteNotFound) {
 		httpx.WriteError(

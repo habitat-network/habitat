@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.brain.message",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "One message in a Brain chat session, stored in that session's space. Only the message's text is kept; tool calls the assistant made along the way are not.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["role", "content", "createdAt"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "knownValues": ["user", "assistant"],
+            "description": "Who wrote the message."
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 100000,
+            "description": "The message's text."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

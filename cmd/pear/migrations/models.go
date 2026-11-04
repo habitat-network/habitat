@@ -11,7 +11,6 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -37,7 +36,6 @@ func Models() []any {
 		oauthserver.Models(),
 		opensocial.Models(),
 		org.Models(),
-		pdscred.Models(),
 		permissions.Models(),
 		repo.Models(),
 		spaces.Models(),

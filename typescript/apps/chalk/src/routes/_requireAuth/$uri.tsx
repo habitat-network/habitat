@@ -1,6 +1,7 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   queryOptions,
@@ -61,6 +62,14 @@ const identityResolverUrl = import.meta.env.VITE_HABITAT_DOMAIN
   ? `https://${import.meta.env.VITE_HABITAT_DOMAIN}`
   : undefined;
 
+// caretColor derives a stable per-user cursor color from the DID, so a given
+// person looks the same to everyone without any coordination.
+function caretColor(did: string): string {
+  let hash = 0;
+  for (const ch of did) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return `hsl(${hash % 360} 70% 45%)`;
+}
+
 export const Route = createFileRoute("/_requireAuth/$uri")({
   loader: async ({ context, params }) => {
     const [role, initialState] = await Promise.all([
@@ -75,8 +84,8 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { uri } = Route.useParams();
     const { did: currentUserDid } = Route.useRouteContext();
     const { role, initialState } = Route.useLoaderData();
-    const { currentOrg } = RequireAuthRoute.useLoaderData();
-    const ydoc = useYDoc(uri, initialState);
+    const { actor: self, currentOrg } = RequireAuthRoute.useLoaderData();
+    const { ydoc, awareness } = useYDoc(uri, initialState);
     // Editors and commenters may write comments; a viewer may only read
     // them. Mirrors canComment in functions.ts, which is what actually
     // rejects a viewer's createComment — this only decides what the UI
@@ -162,6 +171,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       queryFn: () => listComments({ data: { docId: uri } }),
     });
 
+    const caretName = self.displayName ?? self.handle ?? currentUserDid;
+    const caretUser = useMemo(
+      () => ({ name: caretName, color: caretColor(currentUserDid) }),
+      [caretName, currentUserDid],
+    );
+
     const editor = useEditor(
       {
         // The doc's real content comes from ydoc over the WebSocket, not
@@ -178,6 +193,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         extensions: [
           StarterKit.configure({ undoRedo: false }),
           Collaboration.configure({ document: ydoc }),
+          // Remote users' cursors/selections, labelled with their name.
+          // Awareness is relayed between sockets by DocRoom.
+          CollaborationCaret.configure({
+            provider: { awareness },
+            user: caretUser,
+          }),
           CommentHighlight,
         ],
         editorProps: {
@@ -190,7 +211,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           setHasSelection(!editor.state.selection.empty);
         },
       },
-      [ydoc, role],
+      [ydoc, awareness, role, caretUser],
     );
 
     // Keep the editor's comment-range highlights in sync with the current

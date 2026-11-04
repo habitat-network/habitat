@@ -8,8 +8,12 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"gocloud.dev/blob"
 	"gocloud.dev/gcerrors"
+
+	"github.com/habitat-network/habitat/internal/telemetry"
 
 	// Registered blob drivers, selected by the bucket connection string scheme:
 	// s3:// , gs:// , azblob:// , file:// , mem:// . Credentials are supplied
@@ -56,12 +60,18 @@ func (b *bucketBlobStore) PutBlob(
 	ctx context.Context,
 	mimeType string,
 	data []byte,
-) (cid.Cid, int64, error) {
+) (_ cid.Cid, _ int64, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.PutBlob", trace.WithAttributes(
+		blobMimeTypeKey.String(mimeType),
+		attribute.Int("habitat.blob.size", len(data)),
+	))
+	defer func() { telemetry.End(span, err) }()
 	// "blessed" blob CID: CIDv1, raw codec, sha-256. https://atproto.com/specs/blob
 	c, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
 	if err != nil {
 		return cid.Undef, 0, fmt.Errorf("compute blob cid: %w", err)
 	}
+	span.SetAttributes(blobCIDKey.String(c.String()))
 
 	w, err := b.bucket.NewWriter(ctx, c.String(), &blob.WriterOptions{ContentType: mimeType})
 	if err != nil {
@@ -80,7 +90,19 @@ func (b *bucketBlobStore) PutBlob(
 func (b *bucketBlobStore) GetBlob(
 	ctx context.Context,
 	c cid.Cid,
-) (string, []byte, error) {
+) (_ string, _ []byte, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.GetBlob", trace.WithAttributes(
+		blobCIDKey.String(c.String()),
+	))
+	defer func() {
+		// A missing blob is an answer, not a failure.
+		if errors.Is(err, ErrBlobNotFound) {
+			span.SetAttributes(attribute.Bool("habitat.blob.found", false))
+			span.End()
+			return
+		}
+		telemetry.End(span, err)
+	}()
 	r, err := b.bucket.NewReader(ctx, c.String(), nil)
 	if err != nil {
 		if gcerrors.Code(err) == gcerrors.NotFound {
@@ -94,5 +116,15 @@ func (b *bucketBlobStore) GetBlob(
 	if err != nil {
 		return "", nil, fmt.Errorf("read blob: %w", err)
 	}
+	span.SetAttributes(
+		blobMimeTypeKey.String(r.ContentType()),
+		attribute.Int("habitat.blob.size", len(data)),
+	)
 	return r.ContentType(), data, nil
 }
+
+// Blob span attributes.
+const (
+	blobCIDKey      = attribute.Key("habitat.blob.cid")
+	blobMimeTypeKey = attribute.Key("habitat.blob.mime_type")
+)

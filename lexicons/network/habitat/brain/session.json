@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.brain.session",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A chat session in Brain. Each session is its own space (type 'network.habitat.brain'); this record names it and lives under the literal key 'self'.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["title", "createdAt"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "The session's title, taken from the first message."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

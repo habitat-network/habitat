@@ -10,9 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
-	"gorm.io/gorm"
 
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -26,10 +24,9 @@ type Credentials struct {
 }
 
 type googleProvider struct {
-	oauthCfg      *oauth2.Config
-	db            *gorm.DB
-	encryptionKey []byte
-	kv            keyval.Store
+	oauthCfg *oauth2.Config
+	creds    keyval.EncryptedStore
+	kv       keyval.Store
 }
 
 // loginStateTTL bounds how long a provider's flow state stays redeemable. It
@@ -44,13 +41,9 @@ type googleProviderState struct {
 
 func NewGoogleProvider(
 	clientID, clientSecret, redirectURL string,
-	db *gorm.DB,
-	encryptionKey []byte,
+	creds keyval.EncryptedStore,
 	kv keyval.Store,
 ) (Provider, error) {
-	if encryptionKey == nil {
-		return nil, fmt.Errorf("encryption key is required")
-	}
 	return &googleProvider{
 		oauthCfg: &oauth2.Config{
 			ClientID:     clientID,
@@ -62,9 +55,8 @@ func NewGoogleProvider(
 				TokenURL: "https://oauth2.googleapis.com/token",
 			},
 		},
-		db:            db,
-		encryptionKey: encryptionKey,
-		kv:            kv,
+		creds: creds,
+		kv:    kv,
 	}, nil
 }
 
@@ -137,35 +129,12 @@ func (p *googleProvider) Exchange(
 	return claims.Email, Profile{Name: claims.Name, Picture: claims.Picture}, nil
 }
 
-type googleCredentialsModel struct {
-	Email        string `gorm:"primaryKey"`
-	AccessToken  string // encrypted
-	RefreshToken string // encrypted
-	Expiry       time.Time
-	IDToken      string // encrypted
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-}
-
 func (p *googleProvider) upsertCredentials(
 	ctx context.Context,
 	email string,
 	creds *Credentials,
 ) error {
-	m := &googleCredentialsModel{Email: email}
-	var err error
-	if m.AccessToken, err = encrypt.EncryptCBOR(creds.AccessToken, p.encryptionKey); err != nil {
-		return fmt.Errorf("encrypt access token: %w", err)
-	}
-	if m.RefreshToken, err = encrypt.EncryptCBOR(creds.RefreshToken, p.encryptionKey); err != nil {
-		return fmt.Errorf("encrypt refresh token: %w", err)
-	}
-	if m.IDToken, err = encrypt.EncryptCBOR(creds.IDToken, p.encryptionKey); err != nil {
-		return fmt.Errorf("encrypt id token: %w", err)
-	}
-	m.Expiry = creds.Expiry
-	m.Email = creds.Email
-	if err := p.db.WithContext(ctx).Save(m).Error; err != nil {
+	if err := p.creds.PutEncrypted(ctx, email, creds, keyval.NoExpiry); err != nil {
 		return fmt.Errorf("save google credentials: %w", err)
 	}
 	return nil
@@ -175,27 +144,11 @@ func (p *googleProvider) GetCredentials(
 	ctx context.Context,
 	email string,
 ) (*Credentials, error) {
-	var m googleCredentialsModel
-	if err := p.db.WithContext(ctx).Where("email = ?", email).First(&m).Error; err != nil {
+	var creds Credentials
+	if err := p.creds.GetEncrypted(ctx, email, &creds); err != nil {
 		return nil, fmt.Errorf("google credentials not found: %w", err)
 	}
-	var accessToken, refreshToken, idToken string
-	if err := encrypt.DecryptCBOR(m.AccessToken, p.encryptionKey, &accessToken); err != nil {
-		return nil, fmt.Errorf("decrypt access token: %w", err)
-	}
-	if err := encrypt.DecryptCBOR(m.RefreshToken, p.encryptionKey, &refreshToken); err != nil {
-		return nil, fmt.Errorf("decrypt refresh token: %w", err)
-	}
-	if err := encrypt.DecryptCBOR(m.IDToken, p.encryptionKey, &idToken); err != nil {
-		return nil, fmt.Errorf("decrypt id token: %w", err)
-	}
-	return &Credentials{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		Expiry:       m.Expiry,
-		IDToken:      idToken,
-		Email:        m.Email,
-	}, nil
+	return &creds, nil
 }
 
 // googleIDTokenLeeway is the clock-skew allowance applied to iat/exp

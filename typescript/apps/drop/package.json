@@ -24,6 +24,7 @@
     "drizzle-orm": "0.45.4",
     "effect": "^4.0.2",
     "internal": "workspace:*",
+    "iron-session": "^9.0.1",
     "lucide-react": "catalog:",
     "posthog-js": "^1.418.10",
     "react": "catalog:",
@@ -45,6 +46,6 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "^4.1.11",
-    "wrangler": "^4.125.0"
+    "wrangler": "^4.151.0"
   }
 }

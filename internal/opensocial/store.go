@@ -12,12 +12,16 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"gorm.io/gorm"
+
 	"github.com/habitat-network/habitat/api/habitat"
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"gorm.io/gorm"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 const (
@@ -62,7 +66,15 @@ func NewStore(
 	}, nil
 }
 
-func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (string, error) {
+func (s *Store) NewOrg(
+	ctx context.Context,
+	handle string,
+	creator syntax.DID,
+) (_ string, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.NewOrg", trace.WithAttributes(
+		attribute.String("habitat.opensocial.handle", handle), memberAttr(creator),
+	))
+	defer func() { telemetry.End(span, err) }()
 	var orgDID syntax.DID
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		orgID, err := s.createOrgShell(ctx, tx, handle)
@@ -87,7 +99,11 @@ func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 // permissions records exactly like NewOrg, but writes no initial membership
 // — used when the org will be populated by domain-based auto-provisioning
 // (see ProvisionMember) rather than by an existing DID creating it directly.
-func (s *Store) NewOrgWithoutCreator(ctx context.Context, handle string) (string, error) {
+func (s *Store) NewOrgWithoutCreator(ctx context.Context, handle string) (_ string, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.NewOrgWithoutCreator", trace.WithAttributes(
+		attribute.String("habitat.opensocial.handle", handle),
+	))
+	defer func() { telemetry.End(span, err) }()
 	var orgDID syntax.DID
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		orgID, err := s.createOrgShell(ctx, tx, handle)
@@ -270,9 +286,14 @@ func (s *Store) CreateSpace(
 	roles []string,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
-) (habitat_syntax.SpaceURI, error) {
+) (_ habitat_syntax.SpaceURI, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.CreateSpace", trace.WithAttributes(
+		telemetry.Org(orgDID),
+		rolesKey.StringSlice(roles),
+		attribute.String("habitat.space.type", spaceType.String()),
+	))
+	defer func() { telemetry.End(span, err) }()
 	var spaceURI habitat_syntax.SpaceURI
-	var err error
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
 		spaceURI, err = spacesStoreTx.CreateSpace(ctx, orgDID, spaceType, skey)
@@ -319,7 +340,11 @@ func (s *Store) UpdateSpace(
 	ctx context.Context,
 	spaceURI habitat_syntax.SpaceURI,
 	roles []string,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.UpdateSpace", trace.WithAttributes(
+		telemetry.Space(spaceURI), rolesKey.StringSlice(roles),
+	))
+	defer func() { telemetry.End(span, err) }()
 	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
 		Roles:     roles,
 		UpdatedAt: time.Now().Format(time.RFC3339),
@@ -341,7 +366,15 @@ func (s *Store) UploadImage(
 	orgDID syntax.DID,
 	mimeType string,
 	image []byte,
-) (atdata.Blob, error) {
+) (_ atdata.Blob, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.UploadImage", trace.WithAttributes(
+		telemetry.Org(
+			orgDID,
+		),
+		attribute.String("habitat.blob.mime_type", mimeType),
+		attribute.Int("habitat.blob.size", len(image)),
+	))
+	defer func() { telemetry.End(span, err) }()
 	var blob atdata.Blob
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
@@ -384,7 +417,11 @@ func (s *Store) UpdateProfile(
 	name string,
 	description string,
 	joinPolicy string,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.UpdateProfile", trace.WithAttributes(
+		telemetry.Org(orgDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	aboutSpace := habitat_syntax.ConstructSpaceURI(orgDID, AboutSpaceType, "self")
 	existingRecord, err := s.spacesStore.GetRecord(
 		ctx, aboutSpace, orgDID, "community.opensocial.profile", "self",
@@ -419,7 +456,11 @@ func (s *Store) AssignRoles(
 	orgDID syntax.DID,
 	user syntax.DID,
 	roles []string,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.AssignRoles", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(user), rolesKey.StringSlice(roles),
+	))
+	defer func() { telemetry.End(span, err) }()
 	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMembership{
 		Roles:     roles,
 		UpdatedAt: time.Now().Format(time.RFC3339),
@@ -442,7 +483,14 @@ func (s *Store) CheckPermission(
 	ctx context.Context,
 	user syntax.DID,
 	space habitat_syntax.SpaceURI,
-) (bool, error) {
+) (ok bool, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.CheckPermission", trace.WithAttributes(
+		memberAttr(user), telemetry.Space(space),
+	))
+	defer func() {
+		span.SetAttributes(allowedKey.Bool(ok))
+		telemetry.End(span, err)
+	}()
 	if space.SpaceType() == AboutSpaceType {
 		return true, nil
 	}
@@ -481,7 +529,11 @@ func (s *Store) CheckPermission(
 func (s *Store) ListMemberSpaces(
 	ctx context.Context,
 	user syntax.DID,
-) ([]habitat_syntax.SpaceURI, error) {
+) (_ []habitat_syntax.SpaceURI, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.ListMemberSpaces", trace.WithAttributes(
+		memberAttr(user),
+	))
+	defer func() { telemetry.End(span, err) }()
 	membersType := syntax.NSID(MembersSpaceType)
 	return s.spacesStore.ListSpaces(ctx, user, nil, &membersType)
 }
@@ -490,7 +542,14 @@ func (s *Store) GetUserRoles(
 	ctx context.Context,
 	orgDID syntax.DID,
 	user syntax.DID,
-) ([]string, error) {
+) (roles []string, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.GetUserRoles", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(user),
+	))
+	defer func() {
+		span.SetAttributes(rolesKey.StringSlice(roles))
+		telemetry.End(span, err)
+	}()
 	membershipRecord, err := s.spacesStore.GetRecord(
 		ctx, habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
 		orgDID,
@@ -527,7 +586,14 @@ func (s *Store) CheckAppAccess(
 	ctx context.Context,
 	spaceURI habitat_syntax.SpaceURI,
 	clientID string,
-) (bool, error) {
+) (ok bool, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.CheckAppAccess", trace.WithAttributes(
+		telemetry.Space(spaceURI), clientIDKey.String(clientID),
+	))
+	defer func() {
+		span.SetAttributes(allowedKey.Bool(ok))
+		telemetry.End(span, err)
+	}()
 	orgDID := spaceURI.SpaceOwner()
 	// any app can access the members and about spaces
 	if spaceURI.SpaceType() == MembersSpaceType || spaceURI.SpaceType() == AboutSpaceType {
@@ -554,7 +620,14 @@ func (s *Store) CheckAppAccess(
 	return true, nil
 }
 
-func (s *Store) IsOrg(ctx context.Context, orgDID syntax.DID) (bool, error) {
+func (s *Store) IsOrg(ctx context.Context, orgDID syntax.DID) (ok bool, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.IsOrg", trace.WithAttributes(
+		telemetry.Org(orgDID),
+	))
+	defer func() {
+		span.SetAttributes(allowedKey.Bool(ok))
+		telemetry.End(span, err)
+	}()
 	exists, err := s.spacesStore.CheckSpaceExists(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
@@ -575,7 +648,11 @@ func (s *Store) GrantAppAccess(
 	orgDID syntax.DID,
 	clientID string,
 	scopes []string,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.GrantAppAccess", trace.WithAttributes(
+		telemetry.Org(orgDID), clientIDKey.String(clientID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	rkey, err := habitat_syntax.AppAccessRkey(clientID)
 	if err != nil {
 		return fmt.Errorf("construct app access rkey: %w", err)
@@ -608,7 +685,11 @@ func (s *Store) GrantAppAccess(
 func (s *Store) GetProfile(
 	ctx context.Context,
 	orgDID syntax.DID,
-) (opensocial_api.CommunityOpensocialProfile, error) {
+) (_ opensocial_api.CommunityOpensocialProfile, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.GetProfile", trace.WithAttributes(
+		telemetry.Org(orgDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	profileRecord, err := s.spacesStore.GetRecord(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, AboutSpaceType, "self"),
@@ -641,7 +722,11 @@ func (s *Store) GetProfile(
 func (s *Store) GetMemberProfile(
 	ctx context.Context,
 	orgDID, memberDID syntax.DID,
-) (opensocial_api.CommunityOpensocialMemberProfile, error) {
+) (_ opensocial_api.CommunityOpensocialMemberProfile, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.GetMemberProfile", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(memberDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	profileRecord, err := s.spacesStore.GetRecord(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
@@ -676,7 +761,11 @@ func (s *Store) GetMemberProfiles(
 	ctx context.Context,
 	orgDID syntax.DID,
 	memberDIDs []syntax.DID,
-) (map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile, error) {
+) (_ map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.GetMemberProfiles", trace.WithAttributes(
+		telemetry.Org(orgDID), attribute.Int("habitat.opensocial.members", len(memberDIDs)),
+	))
+	defer func() { telemetry.End(span, err) }()
 	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")
 	uris := make([]habitat_syntax.SpaceRecordURI, len(memberDIDs))
 	for i, memberDID := range memberDIDs {
@@ -711,7 +800,11 @@ func (s *Store) SeedMemberProfile(
 	ctx context.Context,
 	orgDID, memberDID syntax.DID,
 	displayName, avatarUrl string,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.SeedMemberProfile", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(memberDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	if displayName == "" && avatarUrl == "" {
 		return nil
 	}

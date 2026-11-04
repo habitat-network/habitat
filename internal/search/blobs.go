@@ -40,18 +40,53 @@ const (
 // blobExtractors maps the mime types whose blob content is indexed to the
 // function turning their bytes into text. The record's blob refs are matched
 // against these by their media type alone, ignoring parameters like charset.
+// See [extractorFor] for the types matched beyond this list.
 var blobExtractors = map[string]func(context.Context, []byte) string{
-	"text/plain":       textFromPlain,
-	"text/markdown":    textFromPlain,
-	"text/html":        textFromHTML,
-	"application/json": textFromJSON,
-	"application/pdf":  textFromPDF,
+	"text/html":             textFromHTML,
+	"application/xhtml+xml": textFromHTML,
+	"application/json":      textFromJSON,
+	"application/pdf":       textFromPDF,
+	// Markup is indexed by its text nodes, not its tags.
+	"application/xml": textFromHTML,
+	"text/xml":        textFromHTML,
+	// Text formats that aren't under text/ but are plain text on the wire.
+	"application/x-yaml":       textFromPlain,
+	"application/yaml":         textFromPlain,
+	"application/toml":         textFromPlain,
+	"application/sql":          textFromPlain,
+	"application/x-sh":         textFromPlain,
+	"application/javascript":   textFromPlain,
+	"application/typescript":   textFromPlain,
+	"application/x-ndjson":     textFromPlain,
+	"application/x-httpd-php":  textFromPlain,
+	"application/x-python":     textFromPlain,
+	"application/x-javascript": textFromPlain,
+}
+
+// extractorFor returns the extractor for a blob of the given mime type, if its
+// content is indexed. Beyond [blobExtractors], any other text/* type (plain,
+// markdown, csv, yaml, css, source code, logs, ...) is indexed as plain text,
+// and any +json structured-syntax suffix type is indexed like JSON.
+func extractorFor(mimeType string) (func(context.Context, []byte) string, bool) {
+	mt := mediaType(mimeType)
+	if f, ok := blobExtractors[mt]; ok {
+		return f, true
+	}
+	switch {
+	case strings.HasPrefix(mt, "text/"):
+		return textFromPlain, true
+	case strings.HasSuffix(mt, "+json"):
+		return textFromJSON, true
+	case strings.HasSuffix(mt, "+xml"):
+		return textFromHTML, true
+	}
+	return nil, false
 }
 
 // blobTypeSupported reports whether the content of blobs of mimeType is
 // indexed.
 func blobTypeSupported(mimeType string) bool {
-	_, ok := blobExtractors[mediaType(mimeType)]
+	_, ok := extractorFor(mimeType)
 	return ok
 }
 
@@ -97,7 +132,7 @@ func (x *Indexer) blobTexts(ctx context.Context, record map[string]any) []BlobTe
 			continue
 		}
 		// The stored type and size are authoritative, not the record's claim.
-		extract, ok := blobExtractors[mediaType(mimeType)]
+		extract, ok := extractorFor(mimeType)
 		if !ok || len(data) > maxBlobBytes {
 			continue
 		}

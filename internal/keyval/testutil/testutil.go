@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/keyval"
 )
 
@@ -18,4 +19,13 @@ func New(t *testing.T) keyval.Store {
 	kv, err := keyval.New(t.Context(), testutil.NewDB(t, keyval.Models()))
 	require.NoError(t, err)
 	return kv
+}
+
+// NewEncrypted returns an encrypted store over its own throwaway database,
+// keyed with [encrypt.TestKey]. Like [New], it is not namespaced.
+func NewEncrypted(t *testing.T) keyval.EncryptedStore {
+	t.Helper()
+	es, err := keyval.NewEncrypted(New(t), encrypt.TestKey)
+	require.NoError(t, err)
+	return es
 }

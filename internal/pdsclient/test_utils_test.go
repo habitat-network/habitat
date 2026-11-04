@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/sessions"
 	db "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -265,12 +266,15 @@ func testPdsCredStore(
 ) pdscred.PDSCredentialStore {
 	// This file is in-package, so it can't use internal/db/testutil: that would
 	// close a cycle through internal/db/testutil -> login -> pdsclient. A
-	// throwaway pdscred-only database is all these tests need.
+	// throwaway keyval-only database is all these tests need.
 	d, err := db.New("sqlite://" + filepath.Join(t.TempDir(), "test.db"))
 	require.NoError(t, err)
-	require.NoError(t, db.Migrate(t.Context(), d, nil, pdscred.Models()))
-	store, err := pdscred.NewPDSCredentialStore(d, encrypt.TestKey)
-	require.NoError(t, err, "failed to create pds cred store")
+	require.NoError(t, db.Migrate(t.Context(), d, nil, keyval.Models()))
+	kv, err := keyval.New(t.Context(), d)
+	require.NoError(t, err)
+	encKV, err := keyval.NewEncrypted(kv, encrypt.TestKey)
+	require.NoError(t, err, "failed to create encrypted keyval")
+	store := pdscred.NewPDSCredentialStore(encKV)
 	// Create test key
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
