@@ -23,14 +23,14 @@ func (p *PearServer) ListMembers(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	credInfo, ok := p.validator.Request(
+	_, ok = p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
 	}
-	dids, err := p.simpleStore.ListMembers(ctx, credInfo.Org.DID(), spaceURI)
+	dids, err := p.simpleStore.ListMembers(ctx, spaceURI)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list members: %w", err))
 		return

@@ -12,19 +12,16 @@ import (
 
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
-	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
-	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
@@ -53,8 +50,6 @@ type App struct {
 	DefaultDir          identity.Directory
 	HiveDir             identity.Directory
 	PDSClientFactory    pdsclient.HttpClientFactory
-	PasswordProvider    *login.PasswordLoginProvider
-	OrgStore            org.Store
 	EmailDomainStore    *emaildomain.Store
 	HostKey             atcrypto.PrivateKey
 	NotifyStore         notify.Store
@@ -65,7 +60,6 @@ type App struct {
 	EmailResolver       *habitat_identity.EmailResolver
 	OAuthServer         *oauthserver.OAuthServer
 	ServiceAuth         *authn.AtprotoServiceAuthMethod
-	CliqueStore         clique.Store
 	PermStore           perms.Store
 	Validator           authn.RequestValidator
 	SimpleStore         *simplespace.Store
@@ -95,8 +89,6 @@ func New(
 	defaultDir identity.Directory,
 	hiveDir identity.Directory,
 	pdsClientFactory pdsclient.HttpClientFactory,
-	passwordProvider *login.PasswordLoginProvider,
-	orgStore org.Store,
 	emailDomainStore *emaildomain.Store,
 	hostKey atcrypto.PrivateKey,
 	notifyStore notify.Store,
@@ -107,7 +99,6 @@ func New(
 	emailResolver *habitat_identity.EmailResolver,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuth *authn.AtprotoServiceAuthMethod,
-	cliqueStore clique.Store,
 	permStore perms.Store,
 	validator authn.RequestValidator,
 	simpleStore *simplespace.Store,
@@ -132,8 +123,6 @@ func New(
 		DefaultDir:          defaultDir,
 		HiveDir:             hiveDir,
 		PDSClientFactory:    pdsClientFactory,
-		PasswordProvider:    passwordProvider,
-		OrgStore:            orgStore,
 		EmailDomainStore:    emailDomainStore,
 		HostKey:             hostKey,
 		NotifyStore:         notifyStore,
@@ -144,7 +133,6 @@ func New(
 		EmailResolver:       emailResolver,
 		OAuthServer:         oauthServer,
 		ServiceAuth:         serviceAuth,
-		CliqueStore:         cliqueStore,
 		PermStore:           permStore,
 		Validator:           validator,
 		SimpleStore:         simpleStore,

@@ -31,7 +31,7 @@ func TestServer_Simplespace(t *testing.T) {
 	createGroupSpace := func(t *testing.T, skey string) habitat_syntax.SpaceURI {
 		t.Helper()
 		uri, err := ts.SimpleStore.CreateSpace(
-			t.Context(), org, owner, groupTp, habitat_syntax.SpaceKey(skey),
+			t.Context(), owner, groupTp, habitat_syntax.SpaceKey(skey),
 		)
 		require.NoError(t, err)
 		return uri
@@ -53,7 +53,7 @@ func TestServer_Simplespace(t *testing.T) {
 			)
 		})
 
-		t.Run("accepts only caller did or org as the did param", func(t *testing.T) {
+		t.Run("accepts only the caller did as the did param", func(t *testing.T) {
 			tests := []struct {
 				name    string
 				did     string
@@ -61,12 +61,17 @@ func TestServer_Simplespace(t *testing.T) {
 				wantErr string
 			}{
 				{name: "caller did", did: owner.String(), want: http.StatusOK},
-				{name: "caller org", did: org.String(), want: http.StatusOK},
+				{
+					name:    "org did",
+					did:     org.String(),
+					want:    http.StatusBadRequest,
+					wantErr: "only the caller did is allowed",
+				},
 				{
 					name:    "other did",
 					did:     alice.String(),
 					want:    http.StatusBadRequest,
-					wantErr: "only caller did or caller org are allowed",
+					wantErr: "only the caller did is allowed",
 				},
 			}
 			for _, tt := range tests {
@@ -96,7 +101,7 @@ func TestServer_Simplespace(t *testing.T) {
 		// spaces.ErrSpaceAlreadyExists into the local ErrSpaceAlreadyExists that
 		// this handler's errors.Is check actually matches against.
 		t.Run("reports a duplicate as SpaceAlreadyExists", func(t *testing.T) {
-			_, err := ts.SimpleStore.CreateSpace(t.Context(), org, owner, groupTp, "dup")
+			_, err := ts.SimpleStore.CreateSpace(t.Context(), owner, groupTp, "dup")
 			require.NoError(t, err)
 
 			var apiErr atclient.ErrorBody
