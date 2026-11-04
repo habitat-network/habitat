@@ -40,12 +40,12 @@ func credToken(t *testing.T, m *Manager, space habitat_syntax.SpaceURI) string {
 }
 
 // dirWithSpaceHost builds an identity.MockDirectory with a single identity
-// whose atproto_space_host service points at host.
+// whose atproto_pds service (its space host) points at host.
 func dirWithSpaceHost(did syntax.DID, host string) *identity.MockDirectory {
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      did,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: host}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: host}},
 	})
 	return dir
 }
@@ -154,11 +154,11 @@ func TestManagerResolvesHostPerSpace(t *testing.T) {
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      ownerA,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: srvA.URL}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: srvA.URL}},
 	})
 	dir.Insert(identity.Identity{
 		DID:      ownerB,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: srvB.URL}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: srvB.URL}},
 	})
 	m := NewManager(
 		dir,

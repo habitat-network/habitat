@@ -9,21 +9,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 )
 
-func SpaceHostEndpoint(ident *identity.Identity) string {
-	if spaceHost := ident.GetServiceEndpoint("atproto_space_host"); spaceHost != "" {
-		return spaceHost
-	}
-	return ident.PDSEndpoint()
-}
-
 // SupportsSpaces reports whether the PDS at pdsEndpoint implements the atproto
 // permissioned-data ("spaces") protocol — com.atproto.simplespace — per the
 // alpha proposal (github.com/bluesky-social/proposals, 0016-permissioned-data).
-// An identity is not required to advertise a dedicated #atproto_space or
-// #atproto_space_host service to support spaces: the proposal lets a PDS serve
-// the protocol at its ordinary #atproto_pds endpoint with no separate
-// advertisement. So capability is detected empirically instead of by reading
-// the DID document: probe getSpace with no params, a call every implementation
+// A space authority resolves like any other account (#atproto_pds is its space
+// host, #atproto signs its credentials), so the DID document carries no
+// spaces-specific advertisement to read. Capability is detected empirically
+// instead: probe getSpace with no params, a call every implementation
 // recognizes, and only treat it as supported when the response is one only a
 // real implementation would give — a successful result, or the XRPC
 // "InvalidRequest" a lexicon-validating server returns for the missing
@@ -33,12 +25,6 @@ func SpaceHostEndpoint(ident *identity.Identity) string {
 // router error, or some other error name entirely — is treated as
 // unsupported, since it isn't a signal a spaces implementation must produce.
 func SupportsSpaces(ctx context.Context, client *http.Client, ident *identity.Identity) bool {
-	if ident.GetServiceEndpoint("atproto_space_host") != "" {
-		return true
-	}
-	if publicKey, err := ident.GetPublicKey("atproto_space"); err == nil && publicKey != nil {
-		return true
-	}
 	pdsEndpoint := ident.PDSEndpoint()
 	for _, knownSpaceHost := range []string{
 		"spaces-alpha.host.bsky.network",

@@ -59,7 +59,7 @@ func SignAttestation(
 	claims := &jwt.RegisteredClaims{
 		Issuer:    clientID,
 		Subject:   clientID,
-		Audience:  jwt.ClaimStrings{spaceOwner.String() + "#atproto_space_host"},
+		Audience:  jwt.ClaimStrings{spaceOwner.String() + "#atproto_pds"},
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * time.Second)),
 		ID:        "test-nonce",

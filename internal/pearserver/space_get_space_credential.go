@@ -38,11 +38,11 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 	if !p.verifyClientAttestation(ctx, w, spaceURI, input.ClientAttestation) {
 		return
 	}
-	kid := "#atproto"
 	privKey, err := p.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
 	if errors.Is(err, identity.ErrDIDNotFound) {
+		// Spaces owned by the pear host itself are signed with the host key,
+		// which the host's DID document publishes as #atproto.
 		privKey = p.hostKey
-		kid = "#atproto_space"
 	} else if err != nil {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
 		return
@@ -59,7 +59,7 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 		}
 		opts = append(opts, utils.WithConfirmationKey(signer))
 	}
-	token, err := utils.SpaceCredential(privKey, kid, spaceURI, opts...)
+	token, err := utils.SpaceCredential(privKey, spaceURI, opts...)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
 		return

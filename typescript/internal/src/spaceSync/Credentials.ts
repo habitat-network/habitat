@@ -20,7 +20,7 @@ import {
 } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { CredentialError, errorMessage } from "./errors";
-import { Identity } from "./Identity";
+import { Identity, requirePds } from "./Identity";
 import { signedAgent } from "./wire";
 
 export interface SpaceCredential {
@@ -119,7 +119,9 @@ export class Credentials extends Context.Service<
         id: space,
       }: SpaceKey) {
         const authority = ref.spaceDid;
+        // The space host is the authority's PDS, like any other account.
         const host = yield* identity.resolve(authority).pipe(
+          Effect.flatMap(requirePds),
           Effect.mapError(
             (e) =>
               new CredentialError({
@@ -135,7 +137,7 @@ export class Credentials extends Context.Service<
           : undefined;
         // A new keypair per credential, per the proposal.
         const key = yield* Effect.promise(() => P256Keypair.create());
-        const agent = signedAgent(host.spaceHost, () =>
+        const agent = signedAgent(host, () =>
           createSpaceSigHeaders(key, { authorization: `Bearer ${token}` }),
         );
         const result = yield* Effect.tryPromise({

@@ -13,7 +13,6 @@ import (
 
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // Verifier authenticates a repo's signed commit against a locally recomputed
@@ -65,46 +64,38 @@ func (v *Verifier) signer(
 	habitatSigned bool,
 ) (atcrypto.PublicKey, error) {
 	// Habitat-managed authors sign their own commits with the key the hive
-	// holds. Most hive-minted identities publish that key under "#atproto"
-	// (see internal/hive's idTemplateBuilder), but the pear host's own
-	// identity — which authors commits for the "everyone" org (see
-	// [EveryoneOrg] Use pear did (#709)) — is built by cmd/pear/main.go with
-	// ATProtoSpaceKey/HabitatKey instead, so it only ever declares
-	// "#atproto_space"/"#habitat". Fall back to "#atproto_space" so both
-	// shapes of habitat-managed identity resolve.
+	// holds, published under "#atproto" (see internal/hive's
+	// idTemplateBuilder). The pear host's own identity — which authors
+	// commits for the "everyone" org (see [EveryoneOrg] Use pear did (#709))
+	// — publishes its host key under "#atproto" too (cmd/pear/main.go).
 	if !habitatSigned {
 		ident, err := v.dir.LookupDID(ctx, author)
 		if err != nil {
 			return nil, fmt.Errorf("lookup author: %w", err)
 		}
-		pub, err := ident.GetPublicKey("atproto_space")
-		if err != nil {
-			pub, err = ident.PublicKey()
-		}
+		pub, err := ident.PublicKey()
 		if err != nil {
 			return nil, fmt.Errorf("author signing key: %w", err)
 		}
 		return pub, nil
 	}
 
-	// Host-signed: the space host signed with its own key. Per the
-	// proposal's space-authority resolution, discover the host through the
-	// space owner's DID doc "#atproto_space_host" service, then read the
-	// signing key from the host DID doc's "#atproto_space" verification
-	// method, falling back to "#atproto" when the host publishes no dedicated
-	// space key.
+	// Host-signed: the space host signed with its own key. A space
+	// authority resolves like any other account, so discover the host
+	// through the space owner's DID doc "#atproto_pds" service, then read
+	// the signing key from the host DID doc's "#atproto" verification method.
 	owner := space.SpaceOwner()
 	ownerIdent, err := v.dir.LookupDID(ctx, owner)
 	if err != nil {
 		return nil, fmt.Errorf("lookup space owner: %w", err)
 	}
-	endpoint := utils.SpaceHostEndpoint(ownerIdent)
+	endpoint := ownerIdent.PDSEndpoint()
 	if endpoint == "" {
-		return nil, fmt.Errorf("space owner %s has no atproto_space_host service", owner)
+		return nil, fmt.Errorf("space owner %s has no atproto_pds service", owner)
 	}
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("parse atproto_space_host service url: %w", err)
+		return nil, fmt.Errorf("parse atproto_pds service url: %w", err)
 	}
 	// did:web encodes a port's colon as %3A.
 	hostDID := syntax.DID("did:web:" + strings.ReplaceAll(u.Host, ":", "%3A"))
@@ -112,10 +103,7 @@ func (v *Verifier) signer(
 	if err != nil {
 		return nil, fmt.Errorf("lookup host %s: %w", hostDID, err)
 	}
-	pub, err := hostIdent.GetPublicKey("atproto_space")
-	if err != nil {
-		pub, err = hostIdent.GetPublicKey("atproto")
-	}
+	pub, err := hostIdent.PublicKey()
 	if err != nil {
 		return nil, fmt.Errorf("host signing key: %w", err)
 	}

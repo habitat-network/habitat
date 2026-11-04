@@ -54,10 +54,6 @@ func (b *Builder) AtprotoKey(multibase string) *Builder {
 	return b.VerificationMethod("atproto", "Multikey", multibase)
 }
 
-func (b *Builder) ATProtoSpaceKey(multibase string) *Builder {
-	return b.VerificationMethod("atproto_space", "Multikey", multibase)
-}
-
 // HabitatKey registers the Habitat host signing key as a Multikey verification
 // method at <did>#habitat.
 func (b *Builder) HabitatKey(multibase string) *Builder {
@@ -72,10 +68,6 @@ func (b *Builder) Habitat(endpoint string) *Builder {
 // ATProtoPDS adds the #atproto_pds AtprotoPersonalDataServer service.
 func (b *Builder) ATProtoPDS(endpoint string) *Builder {
 	return b.Service("atproto_pds", "AtprotoPersonalDataServer", endpoint)
-}
-
-func (b *Builder) ATProtoSpaceHost(endpoint string) *Builder {
-	return b.Service("atproto_space_host", "AtprotoSpaceHost", endpoint)
 }
 
 // Syncer adds a space syncer service under the given fragment, without the

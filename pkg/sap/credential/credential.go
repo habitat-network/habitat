@@ -25,7 +25,6 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpsig"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // renewalLead is how far before a credential's expiry it is renewed. Hosts
@@ -202,7 +201,7 @@ func (m *Manager) mint(
 		return spaceCred{}, fmt.Errorf("get delegation token: %w", err)
 	}
 	attestation, err := m.attester.NewClientAssertion(
-		space.SpaceOwner().String() + "#atproto_space_host",
+		space.SpaceOwner().String() + "#atproto_pds",
 	)
 	if err != nil {
 		return spaceCred{}, fmt.Errorf("sign client attestation: %w", err)
@@ -306,9 +305,11 @@ func (m *Manager) hostForSpace(ctx context.Context, space habitat_syntax.SpaceUR
 	if err != nil {
 		return "", fmt.Errorf("lookup space owner %s: %w", owner, err)
 	}
-	host := utils.SpaceHostEndpoint(ident)
+	// A space authority resolves like any other account: its PDS is the
+	// space host.
+	host := ident.PDSEndpoint()
 	if host == "" {
-		return "", fmt.Errorf("space owner %s has no space host service", owner)
+		return "", fmt.Errorf("space owner %s has no atproto_pds service", owner)
 	}
 	return host, nil
 }
