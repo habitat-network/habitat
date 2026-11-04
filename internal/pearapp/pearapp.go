@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
+	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/notify"
@@ -65,6 +66,7 @@ type App struct {
 	SimpleStore         *simplespace.Store
 	NangoClient         *nango.Client
 	MCPGatewayStore     mcpgateway.Store
+	LLMStore            *llmgateway.Store
 	PDSForwarding       *forwarding.PDSForwarding
 	ClientMetadata      *clientmetadata.Resolver
 	// SearchIndex is nil when search (--meilisearch_url) is off.
@@ -104,6 +106,7 @@ func New(
 	simpleStore *simplespace.Store,
 	nangoClient *nango.Client,
 	mcpGatewayStore mcpgateway.Store,
+	llmStore *llmgateway.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	clientMetadata *clientmetadata.Resolver,
 	searchIndex search.Index,
@@ -138,6 +141,7 @@ func New(
 		SimpleStore:         simpleStore,
 		NangoClient:         nangoClient,
 		MCPGatewayStore:     mcpGatewayStore,
+		LLMStore:            llmStore,
 		PDSForwarding:       pdsForwarding,
 		ClientMetadata:      clientMetadata,
 		SearchIndex:         searchIndex,

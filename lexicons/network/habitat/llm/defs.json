@@ -1,0 +1,55 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.llm.defs",
+  "defs": {
+    "connection": {
+      "type": "object",
+      "description": "An LLM model connection configured for an org.",
+      "required": [
+        "id",
+        "name",
+        "provider",
+        "model",
+        "hasApiKey"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The connection's identifier, unique within the org. Equal to name."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The model ID clients request through the org's OpenAI-compatible API."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "provider": {
+          "type": "string",
+          "knownValues": [
+            "openai",
+            "anthropic",
+            "google",
+            "ollama"
+          ],
+          "description": "The provider API pear calls the model through. openai: OpenAI or any OpenAI-compatible API, such as OpenRouter, with baseUrl. anthropic: Anthropic's Messages API. google: the Gemini API. ollama: an Ollama server at baseUrl."
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "The provider's identifier for the model."
+        },
+        "baseUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "hasApiKey": {
+          "type": "boolean",
+          "description": "Whether an API key is stored for this connection. The key itself is never returned."
+        }
+      }
+    }
+  }
+}
