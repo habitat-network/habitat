@@ -56,7 +56,7 @@ func (s *SapServer) HandleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.s.NotifyWrite(
-		ctx, space.URI(), repo, rev, input.Hash, spaceRev, prevSpaceRev,
+		ctx, space.URI(), repo, rev, input.Data, spaceRev, prevSpaceRev,
 	); err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return

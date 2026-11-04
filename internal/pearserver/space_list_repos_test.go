@@ -41,7 +41,7 @@ func TestServer_ListRepos(t *testing.T) {
 	require.Len(t, output.Repos, 1)
 	require.Equal(t, "did:plc:owner", output.Repos[0].Did)
 	require.NotEmpty(t, output.Repos[0].Rev)
-	require.NotEmpty(t, output.Repos[0].Hash)
+	require.NotEmpty(t, output.Repos[0].Data)
 }
 
 func TestServer_ListRepos_CursorIsSpaceRev(t *testing.T) {

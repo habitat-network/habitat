@@ -89,7 +89,7 @@ func (d *Deliverer) NotifyWrite(
 		Space:   space.String(),
 		Repo:    repo.String(),
 		Rev:     rev.String(),
-		Hash:    atdata.Bytes(hash),
+		Data:    atdata.Bytes(hash),
 		RepoRev: rev.String(),
 		// The space host sequences writes with its own revision; sending the
 		// previous one too lets a syncer see a gap and catch up.

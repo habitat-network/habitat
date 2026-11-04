@@ -28,6 +28,9 @@ type Hive interface {
 	// Minting new identities for members
 	MintIdentity(ctx context.Context, handle string, subdomain string) (*identity.Identity, error)
 	PrivateKeyForDID(ctx context.Context, did syntax.DID) (atcrypto.PrivateKey, error)
+	// KEMKeyForDID returns the private half of the identity's #atproto_kem
+	// key, which keys space commit MACs (see spacecommit.KEMKeys).
+	KEMKeyForDID(ctx context.Context, did syntax.DID) (*atcrypto.PrivateKeyP256, error)
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -55,14 +58,17 @@ var _ Hive = &hive{}
 
 // toIdentity builds an identity.Identity from a stored IdentPublic and its known DID.
 func idTemplateBuilder(memberDomain, pearDomain string) idTemplate {
-	return func(handleInternal, opaqueID, signingPublicKey string) *identity.Identity {
+	return func(handleInternal, opaqueID, signingPublicKey, kemPublicKey string) *identity.Identity {
 		handle := syntax.Handle(handleInternal + "." + memberDomain)
-		return did.Web(opaqueID + "." + memberDomain).
+		b := did.Web(opaqueID + "." + memberDomain).
 			Handle(handle).
 			AtprotoKey(signingPublicKey).
 			Habitat("https://" + pearDomain).
-			ATProtoPDS("https://" + pearDomain).
-			Build()
+			ATProtoPDS("https://" + pearDomain)
+		if kemPublicKey != "" {
+			b = b.ATProtoKEMKey(kemPublicKey)
+		}
+		return b.Build()
 	}
 }
 
@@ -140,6 +146,19 @@ func (h *hive) PrivateKeyForDID(
 		return nil, fmt.Errorf("failed to get signing private key: %w", err)
 	}
 	return priv, nil
+}
+
+// KEMKeyForDID implements Hive.
+func (h *hive) KEMKeyForDID(
+	ctx context.Context,
+	did syntax.DID,
+) (*atcrypto.PrivateKeyP256, error) {
+	content := strings.TrimPrefix(did.String(), "did:web:")
+	opaqueID, after, ok := strings.Cut(content, ".")
+	if !ok || after != h.memberDomain {
+		return nil, identity.ErrDIDNotFound
+	}
+	return h.store.getKEMPrivateKeyByID(ctx, opaqueID)
 }
 
 // MintOrgIdentity implements [Hive].

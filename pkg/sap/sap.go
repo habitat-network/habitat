@@ -4,7 +4,7 @@
 // keeps notify registrations with the spaces' hosts fresh, and — when the
 // caller relays a host notification via NotifyWrite / NotifySpaceDeleted —
 // incrementally syncs the affected repo with listRepoOps, verifying each
-// repo's LtHash against the host's signed commit. Repos that fail verification
+// repo's LtHash against the host's MAC-authenticated commit. Repos that fail verification
 // are rebuilt from a full getRepo snapshot. Synced records are delivered
 // through an acknowledged outbox.
 package sap

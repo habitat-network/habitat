@@ -100,7 +100,7 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 			require.NoError(t, json.Unmarshal(body, &out))
 			require.NotEmpty(t, out.Ops)
 			require.Equal(t, ns+".space.listRepoOps#opEntry", out.Ops[0].Type)
-			require.Equal(t, ns+".space.defs#signedCommit", out.Commit.Type)
+			require.Equal(t, ns+".space.defs#commit", out.Commit.Type)
 		}
 	})
 
@@ -111,7 +111,7 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 			}
 			body := query(t, ts.Server.GetLatestCommit, ns+".space.getLatestCommit", spaceParams)
 			require.NoError(t, json.Unmarshal(body, &out))
-			require.Equal(t, ns+".space.defs#signedCommit", out.Commit.Type)
+			require.Equal(t, ns+".space.defs#commit", out.Commit.Type)
 		}
 	})
 

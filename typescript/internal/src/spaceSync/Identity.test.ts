@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
 import type { IdentityResolver } from "@atproto-labs/identity-resolver";
-import { Secp256k1Keypair } from "@atproto/crypto";
+import { P256Keypair, Secp256k1Keypair } from "@atproto/crypto";
 import type { DidDocument } from "@atproto/identity";
 import { Effect, Exit, Layer } from "effect";
 import { HttpResponse, http } from "msw";
@@ -89,6 +89,51 @@ describe("identityFromDoc", () => {
       expect(
         Exit.isFailure(yield* Effect.exit(requireVerificationKey(id))),
       ).toBe(true);
+    }),
+  );
+});
+
+describe("identityFromDoc #atproto_kem", () => {
+  const withKem = async (method: Record<string, unknown>) => {
+    const base = await docWith();
+    return {
+      ...base,
+      verificationMethod: [...(base.verificationMethod ?? []), method],
+    } as DidDocument;
+  };
+
+  it.effect("resolves a published #atproto_kem key", () =>
+    Effect.gen(function* () {
+      const key = yield* Effect.promise(() => P256Keypair.create());
+      const doc = yield* Effect.promise(() =>
+        withKem({
+          id: `${DID}#atproto_kem`,
+          type: "Multikey",
+          controller: DID,
+          publicKeyMultibase: key.did().slice("did:key:".length),
+        }),
+      );
+      expect(identityFromDoc(DID, doc).kemKey).toBe(key.did());
+    }),
+  );
+
+  it.effect("leaves kemKey unset when none is published", () =>
+    Effect.gen(function* () {
+      const doc = yield* Effect.promise(() => docWith());
+      expect(identityFromDoc(DID, doc).kemKey).toBeUndefined();
+    }),
+  );
+
+  it.effect("leaves kemKey unset when #atproto_kem is malformed", () =>
+    Effect.gen(function* () {
+      const doc = yield* Effect.promise(() =>
+        withKem({
+          id: `${DID}#atproto_kem`,
+          type: "Multikey",
+          controller: DID,
+        }),
+      );
+      expect(identityFromDoc(DID, doc).kemKey).toBeUndefined();
     }),
   );
 });

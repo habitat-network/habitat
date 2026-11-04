@@ -57,23 +57,27 @@ type App struct {
 	OrgStore            org.Store
 	EmailDomainStore    *emaildomain.Store
 	HostKey             atcrypto.PrivateKey
-	NotifyStore         notify.Store
-	Notifier            *notify.Deliverer
-	BlobBucket          *blob.Bucket
-	BlobStore           spaces.BlobStore
-	SpacesStore         spaces.Store
-	OpensocialStore     *opensocial.Store
-	EmailResolver       *habitat_identity.EmailResolver
-	OAuthServer         *oauthserver.OAuthServer
-	ServiceAuth         *authn.AtprotoServiceAuthMethod
-	CliqueStore         clique.Store
-	PermStore           perms.Store
-	Validator           authn.RequestValidator
-	SimpleStore         *simplespace.Store
-	NangoClient         *nango.Client
-	MCPGatewayStore     mcpgateway.Store
-	PDSForwarding       *forwarding.PDSForwarding
-	ClientMetadata      *clientmetadata.Resolver
+	// HostKEMKey is the host's #atproto_kem key: space commit MACs for repo
+	// owners on external PDSes are keyed against it (habitat-managed owners
+	// use their own hive KEM key instead). See spacecommit.KEMKeys.
+	HostKEMKey      *atcrypto.PrivateKeyP256
+	NotifyStore     notify.Store
+	Notifier        *notify.Deliverer
+	BlobBucket      *blob.Bucket
+	BlobStore       spaces.BlobStore
+	SpacesStore     spaces.Store
+	OpensocialStore *opensocial.Store
+	EmailResolver   *habitat_identity.EmailResolver
+	OAuthServer     *oauthserver.OAuthServer
+	ServiceAuth     *authn.AtprotoServiceAuthMethod
+	CliqueStore     clique.Store
+	PermStore       perms.Store
+	Validator       authn.RequestValidator
+	SimpleStore     *simplespace.Store
+	NangoClient     *nango.Client
+	MCPGatewayStore mcpgateway.Store
+	PDSForwarding   *forwarding.PDSForwarding
+	ClientMetadata  *clientmetadata.Resolver
 	// SearchIndex is nil when search (--meilisearch_url) is off.
 	SearchIndex search.Index
 	// SearchIndexer is nil when search (--meilisearch_url) is off.
@@ -100,6 +104,7 @@ func New(
 	orgStore org.Store,
 	emailDomainStore *emaildomain.Store,
 	hostKey atcrypto.PrivateKey,
+	hostKEMKey *atcrypto.PrivateKeyP256,
 	notifyStore notify.Store,
 	notifier *notify.Deliverer,
 	blobBucket *blob.Bucket,
@@ -138,6 +143,7 @@ func New(
 		OrgStore:            orgStore,
 		EmailDomainStore:    emailDomainStore,
 		HostKey:             hostKey,
+		HostKEMKey:          hostKEMKey,
 		NotifyStore:         notifyStore,
 		Notifier:            notifier,
 		BlobBucket:          blobBucket,

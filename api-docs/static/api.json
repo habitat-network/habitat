@@ -8418,7 +8418,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getLatestCommit",
-        "description": "Get the current signed commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        "description": "Get the current commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the commit's MAC is returned in the Atproto-Space-Mac response header.",
         "operationId": "network.habitat.space.getLatestCommit",
         "security": [
           {
@@ -8458,7 +8458,7 @@
                   "type": "object",
                   "properties": {
                     "commit": {
-                      "$ref": "#/components/schemas/network.habitat.space.defs.signedCommit"
+                      "$ref": "#/components/schemas/network.habitat.space.defs.commit"
                     }
                   }
                 }
@@ -8502,6 +8502,9 @@
                         },
                         {
                           "const": "RepoDeactivated"
+                        },
+                        {
+                          "const": "BadSpaceMac"
                         }
                       ]
                     },
@@ -8544,7 +8547,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRecord",
-        "description": "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        "description": "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the record's MAC is returned in the Atproto-Space-Mac response header.",
         "operationId": "network.habitat.space.getRecord",
         "security": [
           {
@@ -8661,6 +8664,9 @@
                         },
                         {
                           "const": "RepoDeactivated"
+                        },
+                        {
+                          "const": "BadSpaceMac"
                         }
                       ]
                     },
@@ -8703,7 +8709,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRepo",
-        "description": "Download an account's permissioned repo within a space as a STAR file, for full-state recovery. The archive's metadata is the repo's commit; each key/value pair is a record path ('{collection}/{rkey}') and the record's DRISL encoding, in strict lexicographic order of the path. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        "description": "Download an account's permissioned repo within a space as a STAR file, for full-state recovery. The archive's metadata is the repo's commit; each key/value pair is a record path ('{collection}/{rkey}') and the record's DRISL encoding, in strict lexicographic order of the path. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the MAC of the archive's commit is returned in the Atproto-Space-Mac response header.",
         "operationId": "network.habitat.space.getRepo",
         "security": [
           {
@@ -8778,6 +8784,9 @@
                         },
                         {
                           "const": "RepoDeactivated"
+                        },
+                        {
+                          "const": "BadSpaceMac"
                         }
                       ]
                     },
@@ -9148,7 +9157,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.listRepoOps",
-        "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and a response that includes the commit carries its MAC in the Atproto-Space-Mac response header.",
         "operationId": "network.habitat.space.listRepoOps",
         "security": [
           {
@@ -9240,7 +9249,7 @@
                       }
                     },
                     "commit": {
-                      "$ref": "#/components/schemas/network.habitat.space.defs.signedCommit"
+                      "$ref": "#/components/schemas/network.habitat.space.defs.commit"
                     },
                     "cursor": {
                       "type": "string"
@@ -9284,6 +9293,9 @@
                         },
                         {
                           "const": "RepoDeactivated"
+                        },
+                        {
+                          "const": "BadSpaceMac"
                         }
                       ]
                     },
@@ -9326,7 +9338,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.listRepos",
-        "description": "List the known repos that hold data in a space (the writer set), with each repo's current repoRev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth.",
+        "description": "List the known repos that hold data in a space (the writer set), with each repo's current repoRev and commit data. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth.",
         "operationId": "network.habitat.space.listRepos",
         "security": [
           {
@@ -9820,7 +9832,7 @@
                   "space",
                   "repo",
                   "repoRev",
-                  "hash"
+                  "data"
                 ],
                 "properties": {
                   "space": {
@@ -9843,10 +9855,10 @@
                     "description": "The repo revision after the write.",
                     "format": "tid"
                   },
-                  "hash": {
+                  "data": {
                     "type": "string",
                     "format": "byte",
-                    "description": "The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos."
+                    "description": "The repo's current commit data (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's commit data for listRepos."
                   },
                   "spaceRev": {
                     "type": "string",
@@ -11633,48 +11645,39 @@
         "required": [],
         "properties": {}
       },
-      "network.habitat.space.defs.signedCommit": {
+      "network.habitat.space.defs.commit": {
         "type": "object",
-        "description": "A signed commit over the current state of a permissioned repo.",
+        "description": "A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header.",
         "required": [
           "ver",
-          "hash",
-          "mac",
-          "ikm",
-          "sig",
-          "rev"
+          "repo",
+          "space",
+          "rev",
+          "data"
         ],
         "properties": {
           "ver": {
             "type": "integer"
           },
-          "habitatSigned": {
-            "type": "boolean",
-            "description": "True if sig was produced by the space host's key rather than the author's own key."
-          },
-          "hash": {
+          "repo": {
             "type": "string",
-            "format": "byte",
-            "description": "sha256 digest of the LtHash state (32 bytes)."
+            "description": "The author DID of the repo.",
+            "format": "did"
           },
-          "ikm": {
+          "space": {
             "type": "string",
-            "format": "byte",
-            "description": "Per-signature input keying material (32 random bytes)"
-          },
-          "sig": {
-            "type": "string",
-            "format": "byte",
-            "description": "Signature over ctx (space, author DID, rev, ikm) by the user's atproto signing key. Does not cover the repo hash."
-          },
-          "mac": {
-            "type": "string",
-            "format": "byte",
-            "description": "HMAC-SHA256 over hash, keyed by HKDF-SHA256(ikm, info=ctx). Binds the repo hash to this commit's context."
+            "description": "Reference to the space.",
+            "format": "space-ref"
           },
           "rev": {
             "type": "string",
-            "description": "Commit revision (TID), also bound into ctx."
+            "description": "Commit revision (TID).",
+            "format": "tid"
+          },
+          "data": {
+            "type": "string",
+            "format": "byte",
+            "description": "sha256 digest of the LtHash state (32 bytes)."
           }
         }
       },
@@ -11740,7 +11743,7 @@
         "required": [
           "did",
           "repoRev",
-          "hash",
+          "data",
           "spaceRev"
         ],
         "properties": {
@@ -11757,10 +11760,10 @@
             "type": "string",
             "description": "The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth."
           },
-          "hash": {
+          "data": {
             "type": "string",
             "format": "byte",
-            "description": "The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority."
+            "description": "The repo's current commit data (sha256 of the LtHash state), as last reported to the authority."
           },
           "spaceRev": {
             "type": "string",

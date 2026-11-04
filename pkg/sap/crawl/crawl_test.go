@@ -148,8 +148,8 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 		case "/xrpc/network.habitat.space.listRepos":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-					{Did: "did:plc:alice", Hash: atdata.Bytes("hash")},
-					{Did: "did:plc:bob", Hash: atdata.Bytes("hash")},
+					{Did: "did:plc:alice", Data: atdata.Bytes("hash")},
+					{Did: "did:plc:bob", Data: atdata.Bytes("hash")},
 				},
 			})
 		default:
@@ -404,7 +404,7 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 		case "/xrpc/network.habitat.space.listRepos":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-					{Did: repoDID.String(), RepoRev: "3lrev2", Hash: atdata.Bytes("hash")},
+					{Did: repoDID.String(), RepoRev: "3lrev2", Data: atdata.Bytes("hash")},
 				},
 			})
 		}
@@ -441,7 +441,7 @@ func TestCrawlerChecksDeprecatedRev(t *testing.T) {
 		case "/xrpc/network.habitat.space.listRepos":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-					{Did: repoDID.String(), Rev: "3loldrev", Hash: atdata.Bytes("hash")},
+					{Did: repoDID.String(), Rev: "3loldrev", Data: atdata.Bytes("hash")},
 				},
 			})
 		}
@@ -475,7 +475,7 @@ func TestCrawlerTrackSpace(t *testing.T) {
 		case "/xrpc/network.habitat.space.listRepos":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-					{Did: repoDID.String(), RepoRev: "3lrev2", Hash: atdata.Bytes("hash")},
+					{Did: repoDID.String(), RepoRev: "3lrev2", Data: atdata.Bytes("hash")},
 				},
 			})
 		default:

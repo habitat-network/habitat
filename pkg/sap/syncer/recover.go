@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
@@ -20,7 +19,7 @@ import (
 //
 // When sap already holds a path index for the repo it takes the narrow path
 // (recoverByDiff): enumerate the host's paths with values excluded, verify
-// that listing against the host's signed commit, then fetch and emit only the
+// that listing against the host's MAC-authenticated commit, then fetch and emit only the
 // records that actually differ. That keeps both the transfer and the outbox
 // traffic proportional to the damage rather than to the repo. A repo sap holds
 // nothing for, or one whose narrow recovery cannot proceed, falls back to the
@@ -53,7 +52,7 @@ func (e *Engine) recoverRepo(
 
 // recoverFromStar rebuilds a repo from a full network.habitat.space.getRepo STAR
 // snapshot: it fetches the archive, recomputes the repo's LtHash from the
-// recovered record set, verifies the archive's signed commit, then emits the
+// recovered record set, verifies the archive's commit by its MAC, then emits the
 // records and settles the repo active in a single transaction. held is
 // whatever sap's index holds for the repo going in (empty if none): paths it
 // names that are absent from the recovered snapshot were deleted and get a
@@ -70,28 +69,39 @@ func (e *Engine) recoverFromStar(
 			fmt.Errorf("client for space: %w", err))
 	}
 
-	var buf bytes.Buffer
-	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.getRepo",
-		map[string]any{"space": space.String(), "repo": repoDID.String()}, nil, &buf,
-	); err != nil {
-		return e.scheduleRetry(ctx, space, repoDID, stateDesynced,
-			fmt.Errorf("getRepo: %w", err))
-	}
-
-	recovered, err := parseRepoStar(&buf, space, repoDID)
+	// The archive's commit is authenticated by the response's MAC, then its
+	// data checked against the records the archive actually held.
+	var recovered recoveredRepo
+	err = e.verifier.withMAC(ctx, client.Host, repoDID, spacecommit.CommitMACType,
+		func(x *macExchange) error {
+			var buf bytes.Buffer
+			h, err := getXRPC(ctx, client, "network.habitat.space.getRepo",
+				map[string]any{"space": space.String(), "repo": repoDID.String()},
+				x.wantMAC(), &buf,
+			)
+			if err != nil {
+				return fmt.Errorf("getRepo: %w", err)
+			}
+			recovered, err = parseRepoStar(&buf, space, repoDID)
+			if err != nil {
+				return fmt.Errorf("parse repo star: %w", err)
+			}
+			return x.verifyCommit(h, recovered.Commit, space, repoDID)
+		})
 	if err != nil {
+		if isMACFailure(err) {
+			e.metrics.verified(ctx, "invalid")
+		}
 		return e.scheduleRetry(ctx, space, repoDID, stateDesynced,
-			fmt.Errorf("parse repo star: %w", err))
+			fmt.Errorf("recover repo: %w", err))
 	}
 
 	var lt spacecommit.LtHash
 	for _, rec := range recovered.Records {
 		lt.Add(spacecommit.RecordElement(rec.Collection, rec.Rkey, rec.Cid.String()))
 	}
-	if err := e.verifier.Verify(ctx, space, repoDID, recovered.Commit, &lt); err != nil {
-		if errors.Is(err, spacecommit.ErrInvalidCommit) {
-			e.metrics.verified(ctx, "invalid")
-		}
+	if err := checkData(recovered.Commit, &lt); err != nil {
+		e.metrics.verified(ctx, "invalid")
 		return e.scheduleRetry(ctx, space, repoDID, stateDesynced,
 			fmt.Errorf("verify recovered repo: %w", err))
 	}
@@ -170,14 +180,16 @@ func (e *Engine) recoverByDiff(
 		return fmt.Errorf("client for space: %w", err)
 	}
 
-	headCommit, err := getLatestCommit(ctx, client, space, repoDID)
+	commit, err := e.getLatestCommit(ctx, client, space, repoDID)
 	if err != nil {
+		if isMACFailure(err) {
+			e.metrics.verified(ctx, "invalid")
+		}
 		return fmt.Errorf("get latest commit: %w", err)
 	}
-	if headCommit == nil {
-		return errors.New("host returned no signed commit")
+	if commit == nil {
+		return errors.New("host returned no commit")
 	}
-	commit := spacecommit.FromXRPC(*headCommit)
 
 	paths, err := listRepoPaths(ctx, client, space, repoDID)
 	if err != nil {
@@ -196,10 +208,8 @@ func (e *Engine) recoverByDiff(
 		}
 		lt.Add(spacecommit.RecordElement(collection, rkey, p.Cid))
 	}
-	if err := e.verifier.Verify(ctx, space, repoDID, commit, &lt); err != nil {
-		if errors.Is(err, spacecommit.ErrInvalidCommit) {
-			e.metrics.verified(ctx, "invalid")
-		}
+	if err := checkData(*commit, &lt); err != nil {
+		e.metrics.verified(ctx, "invalid")
 		return fmt.Errorf("verify listed paths: %w", err)
 	}
 	e.metrics.verified(ctx, "verified")
@@ -236,7 +246,7 @@ func (e *Engine) recoverByDiff(
 
 	values := make(map[string][]byte, len(changed))
 	for _, c := range changed {
-		out, err := getRecord(ctx, client, space, repoDID, c.collection, c.rkey)
+		out, err := e.getRecord(ctx, client, space, repoDID, c.collection, c.rkey, c.cid)
 		if err != nil {
 			return err
 		}

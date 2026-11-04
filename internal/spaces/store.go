@@ -228,7 +228,7 @@ type Store interface {
 		repo syntax.DID,
 		collection *syntax.NSID,
 	) ([]Record, error)
-	// RepoSnapshot returns a repo's signed head commit together with its record
+	// RepoSnapshot returns a repo's head commit together with its record
 	// blocks, read as of the same point: on Postgres both reads happen inside
 	// the same advisory-locked transaction PutRecord/DeleteRecord use, so a
 	// concurrent write cannot land between them, and the commit is built from
@@ -238,7 +238,7 @@ type Store interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
-	) (commit *spacecommit.SignedCommit, blocks []recordBlock, err error)
+	) (commit *spacecommit.Commit, blocks []recordBlock, err error)
 	DeleteRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -273,18 +273,18 @@ type Store interface {
 	//
 	// ListRepoOps returns a repo's operations within a space after a given
 	// revision, ordered by revision ascending, for incremental sync. When this
-	// page reaches the head of the oplog, commit is the signed commit over
+	// page reaches the head of the oplog, commit is the commit over
 	// exactly the state these ops leave the caller at — the head is read inside
 	// the same locked transaction as the ops, so it can never describe a write
 	// that landed between the two reads. commit is nil when the page does not
-	// reach the head, or the repo has no records to sign a commit over.
+	// reach the head, or the repo has no records to commit over.
 	ListRepoOps(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
 		since string,
 		limit int,
-	) (ops []Record, commit *spacecommit.SignedCommit, err error)
+	) (ops []Record, commit *spacecommit.Commit, err error)
 
 	// RepoHead returns a repo's current head revision and LtHash commit hash.
 	// found is false when the repo holds no records in the space.
@@ -301,13 +301,13 @@ type Store interface {
 	// compare it with their own cursor to find repos they are behind on.
 	ListRepoHeads(ctx context.Context) ([]RepoHead, error)
 
-	// RepoHeadCommit returns the signed commit over a repo's current head
+	// RepoHeadCommit returns the commit over a repo's current head
 	// state. commit is nil when the repo holds no records in the space.
 	RepoHeadCommit(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
-	) (commit *spacecommit.SignedCommit, err error)
+	) (commit *spacecommit.Commit, err error)
 
 	// WithTx returns a copy of the store scoped to the given transaction, so its
 	// DB writes participate in a caller-managed transaction. FGA writes are not
@@ -406,24 +406,20 @@ type store struct {
 	db       *gorm.DB
 	clock    *syntax.TIDClock
 	notifier Notifier
-	commit   *spacecommit.Authority
 }
 
 var _ Store = &store{}
 
 // NewStore creates a spaces store. notifier may be nil to disable notifyWrite
-// delivery. commit signs the repo-head commits RepoSnapshot, ListRepoOps, and
-// RepoHeadCommit build.
+// delivery.
 func NewStore(
 	db *gorm.DB,
 	notifier Notifier,
-	commit *spacecommit.Authority,
 ) (*store, error) {
 	return &store{
 		db:       db,
 		clock:    syntax.NewTIDClock(0),
 		notifier: notifier,
-		commit:   commit,
 	}, nil
 }
 
@@ -433,7 +429,6 @@ func (s *store) WithTx(tx *gorm.DB) Store {
 		db:       tx,
 		clock:    s.clock,
 		notifier: s.notifier,
-		commit:   s.commit,
 	}
 }
 
@@ -1049,7 +1044,7 @@ func (s *store) RepoSnapshot(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
-) (commit *spacecommit.SignedCommit, blocks []recordBlock, err error) {
+) (commit *spacecommit.Commit, blocks []recordBlock, err error) {
 	ctx, span := tracer.Start(ctx, "spaces.RepoSnapshot", trace.WithAttributes(
 		telemetry.Space(uri),
 		telemetry.Repo(repo),
@@ -1106,11 +1101,8 @@ func (s *store) RepoSnapshot(
 	if revision == "" {
 		return nil, nil, nil
 	}
-	signed, err := s.commit.Build(ctx, uri, repo, revision, hash)
-	if err != nil {
-		return nil, nil, fmt.Errorf("build commit: %w", err)
-	}
-	return &signed, blocks, nil
+	commit = new(spacecommit.New(uri, repo, revision, hash))
+	return commit, blocks, nil
 }
 
 func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (err error) {
@@ -1181,7 +1173,7 @@ func (s *store) ListRepoOps(
 	repo syntax.DID,
 	since string,
 	limit int,
-) (records []Record, commit *spacecommit.SignedCommit, err error) {
+) (records []Record, commit *spacecommit.Commit, err error) {
 	ctx, span := tracer.Start(ctx, "spaces.ListRepoOps", trace.WithAttributes(
 		telemetry.Space(uri),
 		telemetry.Repo(repo),
@@ -1254,11 +1246,7 @@ func (s *store) ListRepoOps(
 		}
 	}
 	if len(rows) < limit && headFound {
-		signed, err := s.commit.Build(ctx, uri, repo, headRev.String(), headHash)
-		if err != nil {
-			return nil, nil, fmt.Errorf("build commit: %w", err)
-		}
-		commit = &signed
+		commit = new(spacecommit.New(uri, repo, headRev.String(), headHash))
 	}
 	return records, commit, nil
 }
@@ -1299,7 +1287,7 @@ func (s *store) RepoHeadCommit(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
-) (commit *spacecommit.SignedCommit, err error) {
+) (commit *spacecommit.Commit, err error) {
 	rev, hash, found, err := s.RepoHead(ctx, uri, repo)
 	if err != nil {
 		return nil, err
@@ -1307,11 +1295,7 @@ func (s *store) RepoHeadCommit(
 	if !found {
 		return nil, nil
 	}
-	signed, err := s.commit.Build(ctx, uri, repo, rev, hash)
-	if err != nil {
-		return nil, fmt.Errorf("build commit: %w", err)
-	}
-	return &signed, nil
+	return new(spacecommit.New(uri, repo, rev, hash)), nil
 }
 
 func (s *store) DeleteRecord(

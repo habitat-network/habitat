@@ -33,6 +33,7 @@ export {
 export {
   createSpaceSignatureHeaders,
   spaceCredentialKid,
+  wantCommitMacHeaders,
 } from "./spaceSignature";
 export {
   SidebarGroup,

@@ -338,7 +338,7 @@ func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 		Repo    string       `json:"repo"`
 		Rev     string       `json:"rev"`
 		RepoRev string       `json:"repoRev"`
-		Hash    atdata.Bytes `json:"hash"`
+		Data    atdata.Bytes `json:"data"`
 		// SpaceRev and PrevSpaceRev are the space host's revision sequence;
 		// absent from hosts that predate it.
 		SpaceRev     string `json:"spaceRev"`
@@ -384,7 +384,7 @@ func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.sap.NotifyWrite(
-		r.Context(), spaceURI, repoDID, rev, req.Hash, spaceRev, prevSpaceRev,
+		r.Context(), spaceURI, repoDID, rev, req.Data, spaceRev, prevSpaceRev,
 	); err != nil {
 		http.Error(w, fmt.Sprintf("notify write: %s", err), http.StatusInternalServerError)
 		return

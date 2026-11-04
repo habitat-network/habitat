@@ -30,44 +30,32 @@ func recordPath(collection syntax.NSID, rkey syntax.RecordKey) string {
 }
 
 // repoStarMeta builds the archive's metadata: the repo's commit, typed by the
-// atproto-space-repo profile. ver, repo, space, rev and data (the commit's set
-// hash) are the profile's fields; ikm, sig, mac and habitatSigned carry the
-// rest of network.habitat.space.defs#signedCommit, which readers that only
-// know the profile ignore.
+// atproto-space-repo profile. The commit's MAC is not part of it; getRepo
+// returns that in the Atproto-Space-Mac response header.
 func repoStarMeta(
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
-	c spacecommit.SignedCommit,
+	c spacecommit.Commit,
 ) map[string]any {
-	meta := map[string]any{
-		"$type":         RepoStarType,
-		"ver":           int64(c.Ver),
-		"repo":          repo.String(),
-		"space":         space.String(),
-		"rev":           c.Rev,
-		"data":          atdata.Bytes(c.Hash),
-		"habitatSigned": c.HabitatSigned,
+	return map[string]any{
+		"$type": RepoStarType,
+		"ver":   int64(c.Ver),
+		"repo":  repo.String(),
+		"space": space.String(),
+		"rev":   c.Rev,
+		"data":  atdata.Bytes(c.Data),
 	}
-	// Empty optional fields are omitted rather than written: atdata encodes a
-	// nil Bytes as CBOR null, and decodes an empty byte string back to nil, so
-	// neither would survive the reader's canonical-encoding check.
-	for key, value := range map[string][]byte{"ikm": c.Ikm, "sig": c.Sig, "mac": c.Mac} {
-		if len(value) > 0 {
-			meta[key] = atdata.Bytes(value)
-		}
-	}
-	return meta
 }
 
 // SerializeRepoStar serializes a permissioned repo to a STAR archive per
-// com.atproto.space.getRepo. commit is the repo's signed head commit and
+// com.atproto.space.getRepo. commit is the repo's head commit and
 // becomes the archive's metadata; blocks are its current records, written as
 // one "{collection}/{rkey}" → DRISL record pair each, in strict bytewise order
 // of the path.
 func SerializeRepoStar(
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
-	commit spacecommit.SignedCommit,
+	commit spacecommit.Commit,
 	blocks []recordBlock,
 ) ([]byte, error) {
 	sorted := slices.Clone(blocks)

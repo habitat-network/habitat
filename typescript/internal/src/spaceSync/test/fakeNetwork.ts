@@ -1,11 +1,24 @@
 import { TID } from "@atproto/common-web";
-import { Secp256k1Keypair } from "@atproto/crypto";
-import { type LexMap, type LexValue, lexToJson, toBase64 } from "@atproto/lex";
+import { P256Keypair, Secp256k1Keypair } from "@atproto/crypto";
 import {
+  type Cid,
+  type LexMap,
+  type LexValue,
+  lexToJson,
+  toBase64,
+} from "@atproto/lex";
+import {
+  COMMIT_MAC_TYPE,
+  type Commit,
+  MAC_HEADER,
   RepoCommit,
   type SerializedRecord,
-  type SignedCommit,
+  WANT_MAC_HEADER,
+  computeCommitMac,
   createSpaceToken,
+  decapsulate,
+  formatMacHeader,
+  parseWantMacHeader,
   parseSpaceToken,
   serializeRecord,
   serializeRepo,
@@ -33,10 +46,15 @@ export const SPACE_TYPE = "com.example.board";
 export interface FakeAccount {
   readonly did: DidString;
   readonly keypair: Secp256k1Keypair;
+  /** `#atproto_kem` keypair; its host MACs responses about its repos with it. */
+  kem: P256Keypair;
+  /** Set to publish a different `#atproto_kem` than the host keys MACs with. */
+  publishedKem?: P256Keypair;
   readonly pds: string;
 }
 
 interface StoredRecord extends SerializedRecord {
+  readonly cid: Cid;
   readonly record: LexMap;
 }
 
@@ -98,6 +116,7 @@ export class FakeSpace {
   readonly forgedValues = new Set<string>();
   /** Repos whose host pages listRepoOps forever with the same cursor. */
   readonly loopingOps = new Set<string>();
+  /** Repos whose host MACs a different rev than the listRepoOps commit reports. */
   readonly corruptOpsCommits = new Set<string>();
   readonly deniedUsers = new Set<string>();
   readonly registrations: string[] = [];
@@ -203,7 +222,7 @@ export class FakeSpace {
       space: this.id,
       repo: did,
       repoRev: repo.rev,
-      hash: repo.commit.setHash.digest(),
+      data: repo.commit.setHash.digest(),
       spaceRev: repo.spaceRev,
       ...(prevSpaceRev ? { prevSpaceRev } : {}),
     } as LexValue);
@@ -216,14 +235,16 @@ export class FakeNetwork {
 
   async createAccount(name: string): Promise<FakeAccount> {
     const keypair = await Secp256k1Keypair.create();
+    const kem = await P256Keypair.create();
     const id = (
       name.toLowerCase().replace(/[^a-z]/g, "") + "a".repeat(24)
     ).slice(0, 24);
     const account = {
       did: `did:plc:${id}` as DidString,
       keypair,
+      kem,
       pds: `https://${name.toLowerCase()}.pds.test`,
-    };
+    } as FakeAccount;
     this.accounts.set(account.did, account);
     return account;
   }
@@ -291,6 +312,14 @@ export class FakeNetwork {
           controller: account.did,
           publicKeyMultibase: account.keypair.did().slice("did:key:".length),
         },
+        {
+          id: `${account.did}#atproto_kem`,
+          type: "Multikey",
+          controller: account.did,
+          publicKeyMultibase: (account.publishedKem ?? account.kem)
+            .did()
+            .slice("did:key:".length),
+        },
       ],
       service: [
         {
@@ -302,20 +331,43 @@ export class FakeNetwork {
     };
   }
 
-  private async signCommit(
+  /**
+   * The repo's current commit, MACed under the shared secret the request's
+   * Atproto-Space-Want-Mac negotiates with the author's KEM key. Returns an
+   * error response for a missing or malformed key share.
+   */
+  private macCommit(
+    request: Request,
     space: FakeSpace,
     did: string,
     opts: { corrupt: boolean },
-  ): Promise<SignedCommit> {
+  ): { commit: Commit; macHeader: string } | Response {
     const repo = space.repos.get(did)!;
     const author = this.accounts.get(did)!;
-    // A corrupt commit signs a different rev into the ctx than the one it reports.
-    const ctxRev = opts.corrupt ? TID.nextStr(repo.rev) : repo.rev;
-    const commit = await repo.commit.sign(
-      { space: space.id, author: did, rev: ctxRev },
-      author.keypair,
+    let sharedSecret: Uint8Array;
+    try {
+      const keyShare = parseWantMacHeader(
+        request.headers.get(WANT_MAC_HEADER) ?? undefined,
+        COMMIT_MAC_TYPE,
+      );
+      sharedSecret = decapsulate(author.kem, keyShare);
+    } catch {
+      return xrpcError(400, "BadSpaceMac");
+    }
+    const commit = repo.commit.toCommit({
+      space: space.id,
+      repo: did as DidString,
+      rev: repo.rev,
+    });
+    // A corrupt commit MACs a different rev than the one it reports.
+    const maced = opts.corrupt
+      ? { ...commit, rev: TID.nextStr(repo.rev) }
+      : commit;
+    const macHeader = formatMacHeader(
+      COMMIT_MAC_TYPE,
+      computeCommitMac(sharedSecret, maced),
     );
-    return { ...commit, rev: repo.rev };
+    return { commit, macHeader };
   }
 
   /** Verifies `Atproto-Space-Credential` credential + HTTP signature. Returns an error response, or undefined if authorized. */
@@ -515,12 +567,14 @@ export class FakeNetwork {
         );
         const page = ops.slice(start, start + limit);
         const last = start + limit >= ops.length;
-        const commit = last
-          ? await this.signCommit(space, did, {
+        const maced = last
+          ? this.macCommit(request, space, did, {
               corrupt: space.corruptOpsCommits.has(did),
             })
           : undefined;
-        return json({
+        if (maced instanceof Response) return maced;
+        const commit = maced?.commit;
+        const response = json({
           ops: page.map((op) => {
             const current = repo.records.get(`${op.collection}/${op.rkey}`);
             // Only the current value for a path is inlined; stale ones are omitted.
@@ -537,6 +591,8 @@ export class FakeNetwork {
           ...(commit ? { commit } : {}),
           ...(last ? {} : { cursor: String(start + limit) }),
         });
+        if (maced) response.headers.set(MAC_HEADER, maced.macHeader);
+        return response;
       }),
 
       http.get("*/xrpc/com.atproto.space.getRepo", async ({ request }) => {
@@ -555,14 +611,18 @@ export class FakeNetwork {
           return xrpcError(500, "InternalServerError");
         const hostError = space.repoHostErrors.get(did);
         if (hostError) return xrpcError(400, hostError);
-        const commit = await this.signCommit(space, did, { corrupt: false });
+        const maced = this.macCommit(request, space, did, { corrupt: false });
+        if (maced instanceof Response) return maced;
         // A STAR archive requires its records in strict path order.
         const records = [...repo.records.entries()]
           .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
           .map(([, record]) => record);
-        const star = serializeRepo(commit, records);
+        const star = serializeRepo(maced.commit, records);
         return new HttpResponse(streamFrom(star), {
-          headers: { "content-type": "application/octet-stream" },
+          headers: {
+            "content-type": "application/octet-stream",
+            [MAC_HEADER]: maced.macHeader,
+          },
         });
       }),
     ];

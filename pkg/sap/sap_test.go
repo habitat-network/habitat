@@ -132,7 +132,7 @@ func TestSap(t *testing.T) {
 				habitat_syntax.SpaceURI(input.Space).URI(),
 				syntax.DID(input.Repo),
 				syntax.TID(input.RepoRev),
-				input.Hash,
+				input.Data,
 				syntax.TID(input.SpaceRev),
 				syntax.TID(input.PrevSpaceRev),
 			))
@@ -593,8 +593,7 @@ func setupPear(t *testing.T) *pearHost {
 	notifyStore, err := notify.NewStore(db)
 	require.NoError(t, err)
 
-	// Managed authors sign with their own hive keys.
-	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.WithMemberSigner(orgHive))
+	spacesStore := spaces_testutil.NewTestStore(t)
 
 	require.NoError(t, err)
 
@@ -608,8 +607,8 @@ func setupPear(t *testing.T) *pearHost {
 	// tests publish sap's service into.
 	dir := identity.NewMockDirectory()
 	// The pear host serves its spaces surface through the consolidated
-	// PearServer (via its test util), sharing the member-signer store and
-	// orgHive so managed authors sign with their own hive keys.
+	// PearServer (via its test util), sharing orgHive so managed authors'
+	// commit MACs are keyed by their own hive KEM keys.
 	ts := pearserver_testutil.NewTestServer(t,
 		pearserver_testutil.WithDB(db),
 		pearserver_testutil.WithSpaceStore(spacesStore),
