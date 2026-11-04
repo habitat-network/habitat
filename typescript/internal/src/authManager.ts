@@ -7,6 +7,7 @@ import {
 } from "@atproto/oauth-client-browser";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import clientMetadata from "./clientMetadata";
+import { forgetRememberedLogin } from "./rememberedLogin";
 
 export class AuthManager implements Agent {
   private client: BrowserOAuthClient;
@@ -88,11 +89,18 @@ export class AuthManager implements Agent {
     });
   }
 
+  // logout is an explicit sign-out, so it also forgets the remembered login
+  // (the next sign-in, here or in any sibling app, asks for a handle again).
   logout = (error?: string) => {
+    forgetRememberedLogin();
+    this.endSession(error);
+  };
+
+  private endSession(error?: string) {
     void this.session?.signOut();
     this.session = undefined;
     this.onUnauthenticated(error);
-  };
+  }
 
   async fetch(
     path: string,
@@ -118,8 +126,10 @@ export class AuthManager implements Agent {
     return response;
   }
 
+  // An expired or revoked session isn't a sign-out: keep the remembered login
+  // so signing back in is one click.
   private handleUnauthenticated(): Response {
-    this.logout();
+    this.endSession();
     throw new UnauthenticatedError();
   }
 }

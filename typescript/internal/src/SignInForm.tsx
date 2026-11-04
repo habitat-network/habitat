@@ -11,6 +11,7 @@ import {
 } from "./components/ui";
 import { Field, FieldGroup, FieldLabel } from "./components/ui/field";
 import { truthy } from "./utils/arrays";
+import { readRememberedLogin } from "./rememberedLogin";
 
 // Shown when a work email's domain isn't mapped to any org, so there's no
 // identity to sign in as. Callers map their own "not found" failure to it.
@@ -42,6 +43,9 @@ export default function SignInForm({
     handleSubmit,
     formState: { errors },
   } = useForm<SignInFormData>();
+  // Fall back to whoever last signed in through pear on this domain, so a
+  // returning user only has to press Sign In.
+  const remembered = defaultHandle ? undefined : readRememberedLogin();
   const {
     mutate: login,
     isPending,
@@ -65,7 +69,9 @@ export default function SignInForm({
                     {...register("loginHint", {
                       required: "Handle or email is required",
                     })}
-                    defaultValue={defaultHandle}
+                    defaultValue={
+                      defaultHandle ?? remembered?.handle ?? remembered?.did
+                    }
                     placeholder="alice.bsky.social or you@company.com"
                   />
                   <FieldError

@@ -26,6 +26,7 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/keyval"
+	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/nango"
@@ -327,6 +328,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		),
 		opensocialStore,
 		emailResolver,
+		oauthserver.CookieDomain(cmd.String(fLoginHintCookieDomain)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("setup oauth server: %w", err)
@@ -366,6 +368,13 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if err != nil {
 		return nil, fmt.Errorf("setup mcp gateway store: %w", err)
 	}
+
+	llmStore := llmgateway.NewStore(
+		spacesStore,
+		encryptedKV.Namespace(llmgateway.CredentialsNamespace),
+		kv.Namespace(llmgateway.CredentialsNamespace),
+		llmgateway.NewModelFactory(httpx.NewClient()),
+	)
 
 	pdsForwarding := forwarding.NewPDSForwarding(
 		pdsCredStore,
@@ -416,6 +425,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		simpleStore,
 		nangoClient,
 		mcpGatewayStore,
+		llmStore,
 		pdsForwarding,
 		clientmetadata.NewResolver(),
 		searchIndex,

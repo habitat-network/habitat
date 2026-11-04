@@ -53,3 +53,14 @@ Finally, it responds to the App with the Habitat Token.
 
 Whenever Habitat receieves a request for some resource, it can validate the attached Habitat Token and decode it to get the PDS Token.
 Habitat can then use the PDS Token in its handlers to make authenticated requests to the PDS.
+
+## Remembered login (login-hint cookie)
+
+Once the PDS OAuth Flow completes in `/callback`, Habitat sets a `habitat_login_hint` cookie naming the user who just signed in (their DID, plus their handle for display).
+It is a hint of who to sign in as, never a credential: it holds no tokens, and every use of it still sends the user through their real login.
+
+- **Scope**: `--login_hint_cookie_domain` (env `HABITAT_LOGIN_HINT_COOKIE_DOMAIN`) sets its `Domain`, e.g. `habitat.network` so every `*.habitat.network` app sees it. It must cover Habitat's own host. Unset, the cookie is host-only.
+- **Attributes**: `Secure`, `SameSite=Lax`, 30-day `Max-Age` refreshed on every sign-in, and deliberately not `HttpOnly` so sibling apps can read it from JavaScript (`readRememberedLogin` in `typescript/internal`). Any script on the cookie's domain can therefore see who last signed in.
+- **Signing**: the value is `base64url(JSON).base64url(HMAC-SHA256)`, keyed off the OAuth server secret. JavaScript readers ignore the signature; Habitat only acts on a cookie it signed, so a sibling subdomain can't plant one that steers the next sign-in.
+- **Use in Habitat**: an `/authorize` request with no login hint signs in as the remembered DID instead of redirecting to the handle prompt, unless it carries `prompt=login` or `prompt=select_account`. If that DID can no longer sign in, the cookie is cleared and the prompt is shown. The MCP handle prompt is prefilled with it.
+- **Forgetting**: `POST /oauth/forget-login` clears it, and so can any app on its domain from JavaScript (`forgetRememberedLogin`, which `AuthManager.logout` calls).

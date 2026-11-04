@@ -291,6 +291,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/consent", app.OAuthServer.HandleConsent)
 	mux.HandleFunc("/oauth/opensocial", app.OAuthServer.HandleOpensocial)
 	mux.HandleFunc("/oauth/token", app.OAuthServer.HandleToken)
+	mux.HandleFunc("/oauth/forget-login", app.OAuthServer.HandleForgetLogin).Methods("POST")
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", app.OAuthServer.ListConnectedApps)
 	mux.HandleFunc(
 		"/xrpc/network.habitat.org.loginMember",

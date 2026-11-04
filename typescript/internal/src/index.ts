@@ -61,6 +61,12 @@ export { Input } from "./components/ui/input";
 // "internal/auth" entry point instead.
 export type { AuthManager } from "./authManager";
 export {
+  LOGIN_HINT_COOKIE_NAME,
+  readRememberedLogin,
+  forgetRememberedLogin,
+} from "./rememberedLogin";
+export type { RememberedLogin } from "./rememberedLogin";
+export {
   anonymousAgentFor,
   castRecord,
   listPrivateRecords,

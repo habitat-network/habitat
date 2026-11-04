@@ -143,6 +143,10 @@ type OAuthServer struct {
 
 	// emailResolver, if set, lets login hints be work emails.
 	emailResolver EmailIdentityResolver
+
+	// loginHint remembers who last signed in, so a later authorize request
+	// without a login hint can skip the handle prompt (see HandleAuthorize).
+	loginHint *loginHintCookie
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -165,6 +169,9 @@ type OAuthServer struct {
 //     which the endpoint URLs in the discovery metadata and the token endpoint
 //     URL (used to validate the "aud" claim of JWT Bearer assertions) are built
 //   - emailResolver: resolves work-email login hints; nil disables them
+//   - loginHintDomain: the Domain the signed-in user's login-hint cookie is
+//     scoped to so sibling apps can read it (see LoginHintCookieName); empty
+//     keeps it host-only
 //
 // loginRouter also drives the sign-in step for the MCP endpoints' handle
 // prompt (see HandleMCPAuthorizeSubmit): both endpoint sets authenticate the
@@ -183,6 +190,7 @@ func NewOAuthServer(
 	approvedJwtBearerClients ApprovedClientStore,
 	opensocialStore *opensocial.Store,
 	emailResolver EmailIdentityResolver,
+	loginHintDomain CookieDomain,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
@@ -214,6 +222,11 @@ func NewOAuthServer(
 	}
 
 	oauthMetrics, err := newMetrics(meter)
+	if err != nil {
+		return nil, err
+	}
+
+	loginHint, err := newLoginHintCookie(secret, loginHintDomain, issuer)
 	if err != nil {
 		return nil, err
 	}
@@ -252,6 +265,7 @@ func NewOAuthServer(
 		issuer:          issuer,
 		opensocialStore: opensocialStore,
 		emailResolver:   emailResolver,
+		loginHint:       loginHint,
 	}, nil
 }
 
@@ -290,6 +304,18 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	did := syntax.DID(requester.GetSession().GetSubject())
+	// No login hint: sign in as whoever last signed in through pear, unless the
+	// client asked for the account prompt.
+	usingRemembered := false
+	if remembered, ok := o.loginHint.read(r); did == "" && ok && !asksForAccount(requester) {
+		if err := o.storage.UpdatePARSessionSubject(ctx, requestKey, remembered.DID); err != nil {
+			o.metrics.authorizeErr(ctx, err, "update_subject")
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to update PAR subject: %w", err))
+			return
+		}
+		did = remembered.DID
+		usingRemembered = true
+	}
 	if did == "" {
 		if err := session.Save(r, w); err != nil {
 			o.metrics.authorizeErr(ctx, err, "save_cookie")
@@ -314,10 +340,19 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, opensocialPath, http.StatusSeeOther)
 		return
 	}
-	redirect, state, providerStateKey, err := o.loginRouter.Authorize(
-		ctx,
-		syntax.DID(requester.GetSession().GetSubject()),
-	)
+	redirect, state, providerStateKey, err := o.loginRouter.Authorize(ctx, did)
+	if err != nil && usingRemembered {
+		// The remembered account can't sign in anymore (e.g. it left its
+		// org): forget it and fall back to asking who the user is.
+		o.loginHint.clear(w)
+		if err := session.Save(r, w); err != nil {
+			o.metrics.authorizeErr(ctx, err, "save_cookie")
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
+			return
+		}
+		http.Redirect(w, r, disambiguationPath, http.StatusSeeOther)
+		return
+	}
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "begin_login")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to begin login: %w", err))
@@ -523,6 +558,11 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		o.metrics.callbackErr(ctx, err, "complete_login")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
 		return
+	} else {
+		// The user just proved who they are: remember them for the next app.
+		// Skipped for opensocial org logins above, whose subject is the org,
+		// not the person (their own nested PDS login sets it for them).
+		o.loginHint.set(ctx, w, o.directory, did)
 	}
 
 	// Nothing for the user to approve: finish the flow immediately instead of

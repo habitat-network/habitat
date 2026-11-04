@@ -60,6 +60,7 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 

@@ -1,0 +1,55 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.llm.connection",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Declares an LLM model connection configured for the org. Lives in the org's `members` space, authored by the org DID. Holds only connection metadata: any API key for the provider is stored encrypted by pear, never in this record. name is restricted to a limited character set (letters, digits, dots, hyphens, underscores) since it also serves as this record's key and as the model ID the org's OpenAI-compatible API exposes the connection under.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": [
+          "name",
+          "provider",
+          "model",
+          "updatedAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Also this record's key, and the model ID clients request. Letters, digits, dots, hyphens, and underscores only."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "provider": {
+            "type": "string",
+            "knownValues": [
+              "openai",
+              "anthropic",
+              "google",
+              "ollama"
+            ],
+            "description": "The provider API pear calls the model through; see network.habitat.llm.defs#connection."
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "The provider's identifier for the model, e.g. gpt-4o or claude-sonnet-4-5."
+          },
+          "baseUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "The provider API's base URL, overriding the provider's default. Required for ollama. For openai, any OpenAI-compatible API (e.g. OpenRouter's https://openrouter.ai/api/v1)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

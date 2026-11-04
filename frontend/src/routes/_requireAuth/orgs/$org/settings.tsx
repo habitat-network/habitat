@@ -32,6 +32,7 @@ import {
   ServerIcon,
   PaletteIcon,
   SearchIcon,
+  BotIcon,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth/orgs/$org/settings")({
@@ -54,6 +55,7 @@ const NAV_ITEMS: {
     | "/orgs/$org/settings/apps"
     | "/orgs/$org/settings/mcp"
     | "/orgs/$org/settings/search"
+    | "/orgs/$org/settings/models"
     | "/orgs/$org/settings/branding";
   label: string;
   icon: typeof UsersIcon;
@@ -68,6 +70,7 @@ const NAV_ITEMS: {
   { to: "/orgs/$org/settings/apps", label: "Authorized apps", icon: PlugIcon },
   { to: "/orgs/$org/settings/mcp", label: "MCP servers", icon: ServerIcon },
   { to: "/orgs/$org/settings/search", label: "Search", icon: SearchIcon },
+  { to: "/orgs/$org/settings/models", label: "Models", icon: BotIcon },
   { to: "/orgs/$org/settings/branding", label: "Branding", icon: PaletteIcon },
 ];
 
