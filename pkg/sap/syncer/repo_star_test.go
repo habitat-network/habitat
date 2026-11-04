@@ -301,9 +301,13 @@ func TestParseRepoStarErrors(t *testing.T) {
 			want: "out of order",
 		},
 		{
-			name:    "bad path",
-			archive: writeTestStar(t, validMeta(), []starRecord{{path: "noslash", value: map[string]any{}}}),
-			want:    "invalid record path",
+			name: "bad path",
+			archive: writeTestStar(
+				t,
+				validMeta(),
+				[]starRecord{{path: "noslash", value: map[string]any{}}},
+			),
+			want: "invalid record path",
 		},
 		{name: "truncated", archive: truncated, want: "read star pair"},
 	}
