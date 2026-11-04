@@ -12,7 +12,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/schema v1.4.1
 	github.com/gorilla/sessions v1.4.0
-	github.com/habitat-network/habitat/cmd/pear v0.0.0-20261023201409-e62bc3e2d404
+	github.com/habitat-network/habitat/cmd/pear v0.0.0-20261028213504-1db0bd920a4b
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/ipfs/go-cid v0.6.2
 	github.com/ipld/go-car v0.6.3
