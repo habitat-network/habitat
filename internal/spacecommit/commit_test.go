@@ -95,7 +95,12 @@ func TestCommitVerifyRejectsMismatches(t *testing.T) {
 		})
 	}
 
-	recordURI := habitat_syntax.ConstructSpaceRecordURI(refSpace, refRepo, "com.example.record", "abc")
+	recordURI := habitat_syntax.ConstructSpaceRecordURI(
+		refSpace,
+		refRepo,
+		"com.example.record",
+		"abc",
+	)
 	recordMAC := RecordMAC(secret, recordURI.String(), cid.MustParse(refRecordCID))
 	otherCID := cid.MustParse("bafyreihffx5a2e7k5uwrmmgofbvzujc5cmw5h4espouwuxt3liqoflx3ee")
 	require.ErrorIs(t,

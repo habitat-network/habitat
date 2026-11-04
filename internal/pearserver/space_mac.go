@@ -37,7 +37,11 @@ func (p *PearServer) requestMAC(
 	ctx := r.Context()
 	keyShare, requested, err := spacecommit.ParseWantMAC(r.Header, typ)
 	if err == nil && !requested && cred.Method == authn.ValidatorMethodSpaceCredential {
-		err = fmt.Errorf("%w: missing %s header", spacecommit.ErrBadSpaceMAC, spacecommit.WantMACHeader)
+		err = fmt.Errorf(
+			"%w: missing %s header",
+			spacecommit.ErrBadSpaceMAC,
+			spacecommit.WantMACHeader,
+		)
 	}
 	if err == nil && !requested {
 		return nil, true
