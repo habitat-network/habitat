@@ -52,14 +52,14 @@ func (p *PearServer) GetRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	carBytes, err := spaces.SerializeRepoCAR(*commit, blocks)
+	starBytes, err := spaces.SerializeRepoStar(spaceURI, repoDID, *commit, blocks)
 	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("serialize car: %w", err))
+		httpx.WriteServerError(ctx, w, fmt.Errorf("serialize star: %w", err))
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/vnd.ipld.car")
-	if _, err := w.Write(carBytes); err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "write car", http.StatusInternalServerError)
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if _, err := w.Write(starBytes); err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "write star", http.StatusInternalServerError)
 	}
 }

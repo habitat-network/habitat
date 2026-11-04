@@ -441,14 +441,14 @@ func TestEngineRecoverRepoNonOK(t *testing.T) {
 	require.Contains(t, r.ErrorMsg, "getRepo")
 }
 
-// TestEngineRecoverRepoInvalidCAR covers the path where the response body is
-// not a valid CAR.
-func TestEngineRecoverRepoInvalidCAR(t *testing.T) {
+// TestEngineRecoverRepoInvalidStar covers the path where the response body is
+// not a valid STAR archive.
+func TestEngineRecoverRepoInvalidStar(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write([]byte("not a car"))
+		_, _ = w.Write([]byte("not a star archive"))
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -470,7 +470,7 @@ func TestEngineRecoverRepoInvalidCAR(t *testing.T) {
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
 	require.Equal(t, stateDesynced, r.State)
-	require.Contains(t, r.ErrorMsg, "parse repo car")
+	require.Contains(t, r.ErrorMsg, "parse repo star")
 }
 
 type failClients struct{}
@@ -894,18 +894,18 @@ func TestEngineRunProcessesPendingRepo(t *testing.T) {
 	require.Equal(t, stateActive, r.State)
 }
 
-// TestEngineRecoverRepoVerifyError covers the path where the CAR is valid
+// TestEngineRecoverRepoVerifyError covers the path where the archive is valid
 // but the commit verification fails with a non-ErrInvalidCommit error.
 func TestEngineRecoverRepoVerifyError(t *testing.T) {
 	t.Parallel()
 
-	carBytes := buildMinimalCAR(t)
+	starBytes := buildMinimalStar(t, testSpace, testRepo)
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write(carBytes)
+		_, _ = w.Write(starBytes)
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -933,17 +933,17 @@ func TestEngineRecoverRepoVerifyError(t *testing.T) {
 }
 
 // TestEngineRecoverRepoSuccess covers the happy path of recoverRepo: a valid
-// CAR is fetched, the hash matches, records are emitted, and the repo settles active.
+// archive is fetched, the hash matches, records are emitted, and the repo settles active.
 func TestEngineRecoverRepoSuccess(t *testing.T) {
 	t.Parallel()
 
-	carBytes := buildMinimalCAR(t)
+	starBytes := buildMinimalStar(t, testSpace, testRepo)
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write(carBytes)
+		_, _ = w.Write(starBytes)
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -1224,24 +1224,24 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	require.Equal(t, map[string]string{"network.habitat.test/k1": "bafyaaa"}, index)
 }
 
-// TestEngineRecoverFromCAREmitsDeleteTombstone pins that full-snapshot
-// recovery also tombstones a record sap's index holds but the recovered CAR
+// TestEngineRecoverFromStarEmitsDeleteTombstone pins that full-snapshot
+// recovery also tombstones a record sap's index holds but the recovered archive
 // no longer does, not just recoverByDiff's narrow path. recoverRepo reaches
-// the CAR path here because the narrow-diff endpoints 404, the same way a
+// the STAR path here because the narrow-diff endpoints 404, the same way a
 // failed narrow recovery falls back to it in production.
-func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
+func TestEngineRecoverFromStarEmitsDeleteTombstone(t *testing.T) {
 	t.Parallel()
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
-	car := buildMinimalCAR(t) // holds exactly network.habitat.test/rec1
+	archive := buildMinimalStar(t, testSpace, testRepo) // holds exactly network.habitat.test/rec1
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(
 		"/xrpc/network.habitat.space.getRepo",
 		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/vnd.ipld.car")
-			_, _ = w.Write(car)
+			w.Header().Set("Content-Type", "application/octet-stream")
+			_, _ = w.Write(archive)
 		},
 	)
 	srv := httptest.NewServer(mux)
@@ -1249,7 +1249,7 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 
 	e, emitter, db := newTestEngine(t, srv.URL)
 	require.NoError(t, e.Track(t.Context(), space, repoDID))
-	// sap's index holds rec1 (still present in the CAR) and rec2 (deleted
+	// sap's index holds rec1 (still present in the archive) and rec2 (deleted
 	// since sap last synced).
 	require.NoError(t, indexRecord(t.Context(), db, space, repoDID,
 		"network.habitat.test", "rec1", "bafyaaa"))
@@ -1274,7 +1274,7 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 // TestEngineRecoverRepoUsesHabitatNsid pins that full recovery calls the
 // host's network.habitat.space.getRepo endpoint (com.atproto.space.getRepo
 // does not exist on the host). The repo holds no local index, so recoverRepo
-// must take the full-CAR path rather than the narrow diff.
+// must take the full-STAR path rather than the narrow diff.
 func TestEngineRecoverRepoUsesHabitatNsid(t *testing.T) {
 	t.Parallel()
 

@@ -265,12 +265,12 @@ export class SpaceClient extends Context.Service<
       });
 
       /**
-       * The CAR body as a stream that fails if the host goes quiet for
+       * The STAR body as a stream that fails if the host goes quiet for
        * `streamIdleTimeout` between chunks. When iteration ends or is
        * abandoned the stream only releases its reader; getRepo's scope cancels
        * the body.
        */
-      const carStream = (body: ReadableStream<Uint8Array>) =>
+      const starStream = (body: ReadableStream<Uint8Array>) =>
         Stream.fromReadableStream({
           evaluate: () => body,
           releaseLockOnEnd: true,
@@ -291,14 +291,14 @@ export class SpaceClient extends Context.Service<
                   method: space.getRepo.main.nsid,
                   status: 0,
                   error: "Timeout",
-                  message: "CAR stream stalled",
+                  message: "STAR stream stalled",
                   transient: true,
                 }),
               ),
           }),
         );
 
-      // getRepo bypasses `xrpc`, which buffers the whole body, so the CAR can
+      // getRepo bypasses `xrpc`, which buffers the whole body, so the archive can
       // be verified as it streams.
       const getRepo = (ref: SpaceRef, repo: DidString) => {
         const method = space.getRepo.main;
@@ -332,7 +332,7 @@ export class SpaceClient extends Context.Service<
         ).pipe(
           Effect.flatMap((res) =>
             res.body
-              ? Effect.succeed(Stream.toAsyncIterable(carStream(res.body)))
+              ? Effect.succeed(Stream.toAsyncIterable(starStream(res.body)))
               : Effect.fail(invalidResponse(method, res.status, "empty body")),
           ),
         );

@@ -24,7 +24,7 @@ import (
 // records that actually differ. That keeps both the transfer and the outbox
 // traffic proportional to the damage rather than to the repo. A repo sap holds
 // nothing for, or one whose narrow recovery cannot proceed, falls back to the
-// full network.habitat.space.getRepo CAR snapshot.
+// full network.habitat.space.getRepo STAR snapshot.
 func (e *Engine) recoverRepo(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -43,22 +43,22 @@ func (e *Engine) recoverRepo(
 		// Narrow recovery is an optimization over the full snapshot, so a
 		// failure here is not itself terminal: fall through and rebuild. It
 		// left the DB untouched (it runs in its own transaction), so index is
-		// still an accurate view of what sap holds for the CAR path to diff
+		// still an accurate view of what sap holds for the STAR path to diff
 		// against.
 		slog.WarnContext(ctx, "narrow recovery failed, falling back to getRepo",
 			"space", space, "repo", repoDID, "err", err)
 	}
-	return e.recoverFromCAR(ctx, space, repoDID, index)
+	return e.recoverFromStar(ctx, space, repoDID, index)
 }
 
-// recoverFromCAR rebuilds a repo from a full network.habitat.space.getRepo CAR
-// snapshot: it fetches the CAR, recomputes the repo's LtHash from the
-// recovered record set, verifies the CAR's signed commit, then emits the
+// recoverFromStar rebuilds a repo from a full network.habitat.space.getRepo STAR
+// snapshot: it fetches the archive, recomputes the repo's LtHash from the
+// recovered record set, verifies the archive's signed commit, then emits the
 // records and settles the repo active in a single transaction. held is
 // whatever sap's index holds for the repo going in (empty if none): paths it
 // names that are absent from the recovered snapshot were deleted and get a
 // tombstone emitted, the same as recoverByDiff does for its narrow diff.
-func (e *Engine) recoverFromCAR(
+func (e *Engine) recoverFromStar(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	repoDID syntax.DID,
@@ -78,10 +78,10 @@ func (e *Engine) recoverFromCAR(
 			fmt.Errorf("getRepo: %w", err))
 	}
 
-	recovered, err := parseRepoCAR(&buf)
+	recovered, err := parseRepoStar(&buf, space, repoDID)
 	if err != nil {
 		return e.scheduleRetry(ctx, space, repoDID, stateDesynced,
-			fmt.Errorf("parse repo car: %w", err))
+			fmt.Errorf("parse repo star: %w", err))
 	}
 
 	var lt spacecommit.LtHash

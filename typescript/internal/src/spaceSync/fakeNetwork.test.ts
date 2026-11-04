@@ -1,13 +1,13 @@
 // @vitest-environment node
 import { P256Keypair } from "@atproto/crypto";
-import { createSpaceSigHeaders, verifyRepoCarFull } from "@atproto/space";
+import { createSpaceSigHeaders, readRepoStar } from "@atproto/space";
 import type { DidString } from "@atproto/syntax";
 import { describe, expect, it } from "vitest";
 import { server } from "../test/msw";
 import { FakeNetwork } from "./test/fakeNetwork";
 
 describe("FakeNetwork", () => {
-  it("issues a credential and serves a verifiable repo CAR", async () => {
+  it("issues a credential and serves a readable repo STAR archive", async () => {
     const net = new FakeNetwork();
     server.use(...net.handlers);
     const alice = await net.createAccount("alice");
@@ -45,15 +45,16 @@ describe("FakeNetwork", () => {
       }),
     });
     expect(repoRes.status).toBe(200);
-    const repo = await verifyRepoCarFull(
-      [new Uint8Array(await repoRes.arrayBuffer())],
-      {
-        space: space.id,
-        author: bob.did,
-        didKey: bob.keypair.did(),
-      },
+    expect(repoRes.headers.get("content-type")).toBe(
+      "application/octet-stream",
     );
-    expect(repo.records.map((r) => r.rkey)).toEqual(["b"]);
+    // TODO(shared-secret MACs): verify the commit with verifyRepoStarFull.
+    await using repo = await readRepoStar([
+      new Uint8Array(await repoRes.arrayBuffer()),
+    ]);
+    const rkeys: string[] = [];
+    for await (const record of repo.records) rkeys.push(record.rkey);
+    expect(rkeys).toEqual(["b"]);
     expect(repo.commit.rev).toBe(space.repoRevOf(bob.did));
   });
 

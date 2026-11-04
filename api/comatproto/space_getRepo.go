@@ -4,7 +4,6 @@ package comatproto
 
 // ComAtprotoSpaceGetRepoParams represents the input parameters for com.atproto.space.getRepo
 type ComAtprotoSpaceGetRepoParams struct {
-	ExcludeValues bool   `json:"excludeValues,omitempty"`
-	Repo          string `json:"repo"`
-	Space         string `json:"space"`
+	Repo  string `json:"repo"`
+	Space string `json:"space"`
 }
