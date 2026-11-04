@@ -502,7 +502,7 @@ export class FakeNetwork {
             did,
             repoRev: repo.rev,
             spaceRev: repo.spaceRev,
-            hash: repo.commit.setHash.digest(),
+            data: repo.commit.setHash.digest(),
           })),
           cursor: rows.at(-1)![1].spaceRev,
         };

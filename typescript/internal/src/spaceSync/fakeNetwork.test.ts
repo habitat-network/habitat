@@ -3,6 +3,7 @@ import { P256Keypair } from "@atproto/crypto";
 import { createSpaceSigHeaders, readRepoStar } from "@atproto/space";
 import type { DidString } from "@atproto/syntax";
 import { describe, expect, it } from "vitest";
+import { wantCommitMacHeaders } from "../spaceSignature";
 import { server } from "../test/msw";
 import { FakeNetwork } from "./test/fakeNetwork";
 
@@ -38,10 +39,14 @@ describe("FakeNetwork", () => {
     url.searchParams.set("space", space.id);
     url.searchParams.set("repo", bob.did);
     const repoRes = await fetch(url, {
-      headers: await createSpaceSigHeaders(key, {
-        authorization: `Atproto-Space-Credential ${credential}`,
-        audience: bob.did as DidString,
-      }),
+      headers: {
+        ...(await createSpaceSigHeaders(key, {
+          authorization: `Atproto-Space-Credential ${credential}`,
+          audience: bob.did as DidString,
+        })),
+        // Repo hosts require a Want-Mac key share on commit reads.
+        ...(await wantCommitMacHeaders()),
+      },
     });
     expect(repoRes.status).toBe(200);
     expect(repoRes.headers.get("content-type")).toBe(
