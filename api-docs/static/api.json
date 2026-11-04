@@ -9836,6 +9836,51 @@
           }
         }
       },
+      "network.habitat.brain.message": {
+        "type": "object",
+        "required": [
+          "role",
+          "content",
+          "createdAt"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Who wrote the message.",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "The message's text.",
+            "maxLength": 100000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.brain.session": {
+        "type": "object",
+        "required": [
+          "title",
+          "createdAt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The session's title, taken from the first message.",
+            "maxLength": 1024
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.docs.comment": {
         "type": "object",
         "required": [
@@ -11090,6 +11135,9 @@
     },
     {
       "name": "network.habitat.admin"
+    },
+    {
+      "name": "network.habitat.brain"
     },
     {
       "name": "network.habitat.docs"
