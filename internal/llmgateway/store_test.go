@@ -177,7 +177,12 @@ func TestStoreUpdateValidation(t *testing.T) {
 	require.ErrorIs(t, err, llmgateway.ErrConnectionNotFound)
 
 	desc := "on-prem"
-	updated, err := s.Update(t.Context(), org, "local", llmgateway.ConnectionUpdate{Description: &desc})
+	updated, err := s.Update(
+		t.Context(),
+		org,
+		"local",
+		llmgateway.ConnectionUpdate{Description: &desc},
+	)
 	require.NoError(t, err)
 	require.Equal(t, "on-prem", updated.Description)
 	require.Equal(t, "llama3", updated.Model)
