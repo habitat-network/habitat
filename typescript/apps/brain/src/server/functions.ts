@@ -12,7 +12,7 @@ import {
   requireMember,
   resolveHandle,
 } from "./functions.server";
-import { listMyOrgs, type Org } from "./habitat";
+import { listLlmModels, listMyOrgs, type Org } from "./habitat";
 import { createOAuthClient, OAUTH_SCOPE } from "./oauth";
 import { useAppSession } from "./session";
 
@@ -77,6 +77,17 @@ export const listOrgs = createServerFn({ method: "GET" }).handler(
     return listMyOrgs(await memberSession(env, did));
   },
 );
+
+// listModels returns the ids of the LLM models an org offers the member, for
+// the model picker.
+export const listModels = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<string[]> => {
+    const { did } = await requireMember();
+    const agent = await memberSession(env, did);
+    const org = (await listMyOrgs(agent)).find((o) => o.did === data.org);
+    return org ? listLlmModels(agent, org.did) : [];
+  });
 
 // listChats returns the member's chats in an org, newest first.
 export const listChats = createServerFn({ method: "GET" })
