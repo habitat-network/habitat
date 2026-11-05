@@ -2,11 +2,17 @@ name: Integration Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - e2e/**
+      - cmd/pear/**
+      - internal/**
+      - typescript/apps/pear-pages/**
+      - .github/workflows/integration.yml
 
 jobs:
   integration:
     runs-on: ubuntu-latest
-    environment: integration
     steps:
       - uses: actions/checkout@v7
         with:
@@ -17,7 +23,20 @@ jobs:
         with:
           auto-install: true
 
+      - name: Install Playwright browsers
+        run: moon run e2e:install && pnpm --dir e2e exec playwright install --with-deps chromium
+
+      # Builds the pear image, starts it in a testcontainer and runs the
+      # Playwright suite in e2e/.
       - name: Run integration tests
-        run: moon integration:test
+        run: moon run e2e:test
         env:
-          INTEGRATION_DID_PRIVKEY: ${{ secrets.INTEGRATION_DID_PRIVKEY }}
+          CI: "true"
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7

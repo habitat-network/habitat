@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.options.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "playwright-report", "test-results"]
+}

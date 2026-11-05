@@ -1,0 +1,76 @@
+import { test as base, expect } from "@playwright/test";
+import { PearApi, type CreateOrgInput, type Org } from "./api";
+import { ADMIN_PASSWORD, PEAR_ORIGIN, hostResolverRule } from "./pear";
+import { registerMcpClient, type McpClient } from "./oauth";
+import type { SeedData } from "./seed";
+import { AdminHomePage, AdminLoginPage } from "./pages/admin";
+import { MemberLoginFlow } from "./pages/memberLogin";
+
+let orgCounter = 0;
+
+interface Fixtures {
+  /** Client for the pear under test. */
+  api: PearApi;
+  /** Data created by harness/seed.ts. Treat as read-only. */
+  seed: SeedData;
+  /** Creates an org with a unique subdomain; use for tests that need their own state. */
+  createOrg: (overrides?: Partial<CreateOrgInput>) => Promise<Org>;
+  /** A freshly registered OAuth client for driving member sign-in. */
+  mcpClient: McpClient;
+  adminPassword: string;
+  adminLoginPage: AdminLoginPage;
+  adminHomePage: AdminHomePage;
+  memberLogin: MemberLoginFlow;
+}
+
+/**
+ * Import `test` and `expect` from here, not from @playwright/test. Add new
+ * fixtures (page objects, helpers, pre-authenticated pages) to this file.
+ */
+export const test = base.extend<Fixtures>({
+  // Browsers reach the pear started in global setup at its domain (PEAR_ORIGIN);
+  // the host resolver rule maps that to wherever it is really listening.
+  baseURL: PEAR_ORIGIN,
+  launchOptions: [
+    async ({ launchOptions }, use) => {
+      const args = [
+        ...(launchOptions.args ?? []),
+        hostResolverRule({ address: process.env.E2E_PEAR_ADDRESS! }),
+      ];
+      await use({ ...launchOptions, args });
+    },
+    { scope: "worker" },
+  ],
+  api: async ({}, use) => {
+    await use(new PearApi(process.env.E2E_PEAR_ADDRESS!));
+  },
+  seed: async ({}, use) => {
+    await use(JSON.parse(process.env.E2E_SEED!) as SeedData);
+  },
+  createOrg: async ({ api }, use) => {
+    // Subdomains must be unique across the run; worker index + counter + time keeps parallel tests apart.
+    await use((overrides = {}) =>
+      api.createOrg({
+        subdomain: `t${Date.now().toString(36)}${test.info().parallelIndex}${orgCounter++}`,
+        ...overrides,
+      }),
+    );
+  },
+  mcpClient: async ({ api, baseURL }, use) => {
+    await use(await registerMcpClient(api, baseURL!));
+  },
+  adminPassword: async ({}, use) => {
+    await use(ADMIN_PASSWORD);
+  },
+  adminLoginPage: async ({ page }, use) => {
+    await use(new AdminLoginPage(page));
+  },
+  adminHomePage: async ({ page }, use) => {
+    await use(new AdminHomePage(page));
+  },
+  memberLogin: async ({ page }, use) => {
+    await use(new MemberLoginFlow(page));
+  },
+});
+
+export { expect };
