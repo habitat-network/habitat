@@ -261,15 +261,22 @@ function ConnectionCell({
       });
       return;
     }
-    startAuthorization(server.id, {
-      onSuccess(authorizationUrl) {
-        opened.location.href = authorizationUrl;
-        setPopup(opened);
+    startAuthorization(
+      { id: server.id },
+      {
+        onSuccess(authorizationUrl) {
+          if (!authorizationUrl) {
+            opened.close();
+            return;
+          }
+          opened.location.href = authorizationUrl;
+          setPopup(opened);
+        },
+        onError() {
+          opened.close();
+        },
       },
-      onError() {
-        opened.close();
-      },
-    });
+    );
   };
 
   if (server.authType === "manual") {
@@ -297,6 +304,10 @@ function ConnectionCell({
     );
   }
 
+  if (server.authType === "token") {
+    return <TokenDialog org={org} server={server} authManager={authManager} />;
+  }
+
   const connecting = starting || popup !== null;
   return (
     <div className="flex flex-col gap-1">
@@ -319,6 +330,92 @@ function ConnectionCell({
 // AddServerDialog first asks which connector to add, then shows the form for
 // it: a connector-specific one for a known connector (see mcpConnectors.ts), or
 // the generic one for a custom server.
+// TokenDialog connects the caller to a token server with their own access
+// token, such as a GitHub personal access token.
+function TokenDialog({
+  org,
+  server,
+  authManager,
+}: {
+  org: DidString;
+  server: McpServerWithStatus["server"];
+  authManager: AuthManager;
+}) {
+  const [open, setOpen] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    reset: resetForm,
+    formState: { isValid },
+  } = useForm<{ token: string }>({
+    mode: "onChange",
+    defaultValues: { token: "" },
+  });
+  const {
+    mutate: connect,
+    isPending,
+    error,
+    reset: resetMutation,
+  } = useMutation(startMcpAuthorizationMutationOptions(authManager, org));
+
+  const submit = handleSubmit(({ token }) =>
+    connect(
+      { id: server.id, token },
+      {
+        onSuccess() {
+          setOpen(false);
+          resetForm();
+        },
+      },
+    ),
+  );
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          resetForm();
+          resetMutation();
+        }
+      }}
+    >
+      <DialogTrigger render={<Button variant="outline" size="sm" />}>
+        Add token
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Connect to {server.name}</DialogTitle>
+        </DialogHeader>
+        <form className="flex flex-col gap-4" onSubmit={submit}>
+          <Field>
+            <FieldLabel htmlFor="mcp-token">Access token</FieldLabel>
+            <Input
+              id="mcp-token"
+              type="password"
+              autoComplete="off"
+              autoFocus
+              {...register("token", { required: "Enter your token." })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Your own token for this server, such as a personal access token.
+              It&apos;s stored encrypted, used only for your requests, and never
+              shown again.
+            </p>
+          </Field>
+          <FieldError errors={error ? [{ message: error.message }] : []} />
+          <DialogFooter>
+            <Button type="submit" disabled={isPending || !isValid}>
+              {isPending ? "Connecting…" : "Connect"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AddServerDialog({
   org,
   authManager,
@@ -458,8 +555,10 @@ function ConnectorForm({
   return (
     <form className="flex flex-col gap-4" onSubmit={submit}>
       <p className="text-sm text-muted-foreground">
-        {connector.description} Each member signs in with their own{" "}
-        {connector.name} account afterward.{" "}
+        {connector.description}{" "}
+        {connector.memberAuth === "token"
+          ? `Each member adds their own ${connector.name} access token afterward.`
+          : `Each member signs in with their own ${connector.name} account afterward.`}{" "}
         <a
           href={connector.docsUrl}
           target="_blank"

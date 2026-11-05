@@ -29,7 +29,7 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
   ),
   url: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'uri' })),
   authType: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.string<{ knownValues: ['oauth', 'manual'] }>(),
+    /*#__PURE__*/ l.string<{ knownValues: ['oauth', 'token', 'manual'] }>(),
   ),
   clientId: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string({ maxLength: 2000 }),

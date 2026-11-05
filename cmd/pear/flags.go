@@ -40,8 +40,6 @@ var (
 	fMCPGoogleDriveSecret  = "mcp_google_drive_client_secret"
 	fMCPSlackID            = "mcp_slack_client_id"
 	fMCPSlackSecret        = "mcp_slack_client_secret"
-	fMCPGitHubID           = "mcp_github_client_id"
-	fMCPGitHubSecret       = "mcp_github_client_secret"
 )
 
 var profiles []string
@@ -224,16 +222,6 @@ func getFlags() []cli.Flag {
 			Name:    fMCPSlackSecret,
 			Usage:   "OAuth client secret for the Slack MCP preset",
 			Sources: getSources(fMCPSlackSecret),
-		},
-		&cli.StringFlag{
-			Name:    fMCPGitHubID,
-			Usage:   "OAuth client ID pear uses for the GitHub MCP preset, shared by all orgs. Unset disables the preset",
-			Sources: getSources(fMCPGitHubID),
-		},
-		&cli.StringFlag{
-			Name:    fMCPGitHubSecret,
-			Usage:   "OAuth client secret for the GitHub MCP preset",
-			Sources: getSources(fMCPGitHubSecret),
 		},
 	}
 }

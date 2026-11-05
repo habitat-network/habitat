@@ -19,6 +19,9 @@ export interface McpConnector {
   // owns the connector's URL, auth type and OAuth client, which is shared by
   // all orgs, so none of them are sent from here.
   preset: network.habitat.mcp.addServer.$InputBody["preset"];
+  // How each member connects afterward: signing in with OAuth, or adding their
+  // own access token (mcpgateway.AuthType in Go).
+  memberAuth: "oauth" | "token";
   // Link to the provider's own documentation.
   docsUrl: string;
 }
@@ -27,6 +30,7 @@ export const MCP_CONNECTORS: McpConnector[] = [
   {
     id: "google-drive",
     preset: "google-drive",
+    memberAuth: "oauth",
     name: "Google Drive",
     description: "Search and read files in each member's Google Drive.",
     defaultName: "google-drive",
@@ -36,6 +40,7 @@ export const MCP_CONNECTORS: McpConnector[] = [
   {
     id: "slack",
     preset: "slack",
+    memberAuth: "oauth",
     name: "Slack",
     description: "Search and read messages, channels, and files in Slack.",
     defaultName: "slack",
@@ -44,6 +49,7 @@ export const MCP_CONNECTORS: McpConnector[] = [
   {
     id: "github",
     preset: "github",
+    memberAuth: "token",
     name: "GitHub",
     description: "Work with repositories, issues, and pull requests on GitHub.",
     defaultName: "github",

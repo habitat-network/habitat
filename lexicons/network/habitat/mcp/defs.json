@@ -27,9 +27,10 @@
           "type": "string",
           "knownValues": [
             "oauth",
+            "token",
             "manual"
           ],
-          "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth, run by pear, which stores their tokens encrypted. manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically."
+          "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth, run by pear, which stores their tokens encrypted. token: each member supplies their own access token (such as a personal access token) with startAuthorization, which pear stores encrypted and sends to the server as a bearer token. manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically."
         },
         "url": {
           "type": "string",

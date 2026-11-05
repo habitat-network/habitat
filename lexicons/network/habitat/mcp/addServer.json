@@ -36,7 +36,7 @@
                 "slack",
                 "github"
               ],
-              "description": "A known connector to add. pear fills in its URL and auth type and uses the OAuth client it holds for the connector, shared by all orgs, so url, authType, clientId and clientSecret must be omitted. Fails if pear has no client configured for the connector."
+              "description": "A known connector to add. pear fills in its URL and auth type and, for an oauth connector, uses the OAuth client it holds for it, shared by all orgs, so url, authType, clientId and clientSecret must be omitted. Fails if an oauth connector has no client configured on this pear."
             },
             "url": {
               "type": "string",
@@ -47,6 +47,7 @@
               "type": "string",
               "knownValues": [
                 "oauth",
+                "token",
                 "manual"
               ],
               "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server. Required unless preset is given, in which case it must be omitted."

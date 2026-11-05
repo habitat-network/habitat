@@ -330,10 +330,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 				ID:     cmd.String(fMCPSlackID),
 				Secret: cmd.String(fMCPSlackSecret),
 			},
-			mcpgateway.PresetGitHub: {
-				ID:     cmd.String(fMCPGitHubID),
-				Secret: cmd.String(fMCPGitHubSecret),
-			},
 		}),
 	)
 	if err != nil {

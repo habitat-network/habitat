@@ -3,8 +3,8 @@ package mcpgateway
 import "errors"
 
 // Preset names a known MCP connector. Adding one uses the connector's fixed
-// URL and auth type, and the OAuth client pear holds for it, which is shared by
-// every org, so the admin supplies none of them.
+// URL and auth type, and for an OAuth connector the client pear holds for it,
+// which is shared by every org, so the admin supplies none of them.
 type Preset string
 
 const (
@@ -14,8 +14,8 @@ const (
 )
 
 // presetServers are the fixed parts of each preset. None of these providers
-// support Dynamic Client Registration, so each needs a client that pear's
-// operator pre-registers (see PresetClient).
+// support Dynamic Client Registration, so each OAuth preset needs a client
+// that pear's operator pre-registers (see PresetClient).
 var presetServers = map[Preset]struct {
 	URL      string
 	AuthType AuthType
@@ -24,8 +24,9 @@ var presetServers = map[Preset]struct {
 	PresetGoogleDrive: {URL: "https://drivemcp.googleapis.com/mcp/v1", AuthType: AuthTypeOAuth},
 	// https://docs.slack.dev/ai/slack-mcp-server/
 	PresetSlack: {URL: "https://mcp.slack.com/mcp", AuthType: AuthTypeOAuth},
-	// https://github.com/github/github-mcp-server
-	PresetGitHub: {URL: "https://api.githubcopilot.com/mcp/", AuthType: AuthTypeOAuth},
+	// https://github.com/github/github-mcp-server. Each host app needs its
+	// own OAuth or GitHub App, so members use personal access tokens instead.
+	PresetGitHub: {URL: "https://api.githubcopilot.com/mcp/", AuthType: AuthTypeToken},
 }
 
 // PresetClient is the OAuth client pear holds for a Preset, pre-registered
@@ -71,11 +72,14 @@ func (s *store) applyPreset(ns *NewServer) error {
 	if !ok {
 		return ErrUnknownPreset
 	}
+	ns.URL, ns.AuthType = fixed.URL, fixed.AuthType
+	if fixed.AuthType != AuthTypeOAuth {
+		return nil
+	}
 	client := s.presetClients[ns.Preset]
 	if client.ID == "" {
 		return ErrPresetNotConfigured
 	}
-	ns.URL, ns.AuthType = fixed.URL, fixed.AuthType
 	ns.ClientID, ns.ClientSecret = client.ID, client.Secret
 	return nil
 }

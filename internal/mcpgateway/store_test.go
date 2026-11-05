@@ -70,7 +70,7 @@ func connect(
 	name mcpgateway.ServerName,
 ) {
 	t.Helper()
-	authURL, err := s.StartAuthorization(t.Context(), did, org, name)
+	authURL, err := s.StartAuthorization(t.Context(), did, org, name, "")
 	require.NoError(t, err)
 	q := fake.Authorize(t, authURL)
 	done, err := s.CompleteAuthorization(t.Context(), q.Get("state"), q.Get("code"), q.Get("iss"))
@@ -175,7 +175,7 @@ func TestAddServerValidation(t *testing.T) {
 			mcpgateway.ErrUnknownPreset,
 		},
 		"preset without a client": {
-			mcpgateway.NewServer{Name: "x", Preset: mcpgateway.PresetGitHub},
+			mcpgateway.NewServer{Name: "x", Preset: mcpgateway.PresetSlack},
 			mcpgateway.ErrPresetNotConfigured,
 		},
 		"unreachable oauth": {
@@ -208,7 +208,7 @@ func TestManualServer(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	require.True(t, listed[0].Connected)
-	_, err = s.StartAuthorization(t.Context(), alice, org, "docs")
+	_, err = s.StartAuthorization(t.Context(), alice, org, "docs", "")
 	require.ErrorIs(t, err, mcpgateway.ErrManualServer)
 	require.ErrorIs(
 		t,
@@ -314,7 +314,7 @@ func TestCompleteAuthorizationRejectsBadResponses(t *testing.T) {
 	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationNotFound)
 
 	start := func() (state, code string) {
-		authURL, err := s.StartAuthorization(t.Context(), alice, org, "linear")
+		authURL, err := s.StartAuthorization(t.Context(), alice, org, "linear", "")
 		require.NoError(t, err)
 		q := fake.Authorize(t, authURL)
 		return q.Get("state"), q.Get("code")
@@ -412,4 +412,45 @@ func TestPreregisteredClient(t *testing.T) {
 	})
 	require.NoError(t, err)
 	connect(t, s, fake, alice, "linear")
+}
+
+func TestTokenServer(t *testing.T) {
+	s := newStore(t)
+	// The GitHub preset is a token server, so it needs no OAuth client.
+	added, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "github", Preset: mcpgateway.PresetGitHub,
+	})
+	require.NoError(t, err)
+	require.Equal(t, mcpgateway.AuthTypeToken, added.AuthType)
+	require.Equal(t, "https://api.githubcopilot.com/mcp/", added.URL)
+
+	listed, err := s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.False(t, listed[0].Connected)
+	_, err = s.Downstream(t.Context(), alice, org, "github")
+	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
+
+	// Connecting needs a token.
+	_, err = s.StartAuthorization(t.Context(), alice, org, "github", "")
+	require.ErrorIs(t, err, mcpgateway.ErrTokenRequired)
+
+	// Storing one connects the member right away, with no URL to visit.
+	authURL, err := s.StartAuthorization(t.Context(), alice, org, "github", "ghp_alice")
+	require.NoError(t, err)
+	require.Empty(t, authURL)
+	listed, err = s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.True(t, listed[0].Connected)
+	d, err := s.Downstream(t.Context(), alice, org, "github")
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"Authorization": "Bearer ghp_alice"}, d.Headers)
+
+	// Tokens are per member.
+	listed, err = s.ListServers(t.Context(), org, bob)
+	require.NoError(t, err)
+	require.False(t, listed[0].Connected)
+
+	require.NoError(t, s.DisconnectServer(t.Context(), alice, org, "github"))
+	_, err = s.Downstream(t.Context(), alice, org, "github")
+	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
 }

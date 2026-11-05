@@ -372,3 +372,64 @@ func TestServer_ManualServer(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, code)
 	})
 }
+
+func TestServer_TokenServer(t *testing.T) {
+	client := httpx_testutil.NewTestXRPCClient(t)
+	adminTS, aliceTS, _ := newSharedOpenSocialServers(t)
+	orgDID, err := adminTS.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+	require.NoError(t, err)
+	require.NoError(
+		t, adminTS.OpenSocialStore.AssignRoles(
+			t.Context(), syntax.DID(orgDID), alice, []string{"member"},
+		),
+	)
+
+	// The GitHub preset needs no OAuth client, since members bring tokens.
+	var addOut habitat.NetworkHabitatMcpAddServerOutput
+	code := client.Procedure(
+		adminTS.Server.AddServer,
+		habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "github", Preset: "github"},
+		&addOut,
+	)
+	require.Equal(t, http.StatusOK, code)
+	require.Equal(t, "token", addOut.Server.AuthType)
+
+	connected := func() bool {
+		var listOut habitat.NetworkHabitatMcpListServersOutput
+		code := client.Query(
+			aliceTS.Server.ListServers, url.Values{"org": []string{orgDID}}, &listOut,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Len(t, listOut.Servers, 1)
+		return listOut.Servers[0].Connected
+	}
+	require.False(t, connected())
+
+	// Connecting without a token is refused; with one, it connects with no
+	// URL to visit.
+	var startOut habitat.NetworkHabitatMcpStartAuthorizationOutput
+	code = client.Procedure(
+		aliceTS.Server.StartAuthorization,
+		habitat.NetworkHabitatMcpStartAuthorizationInput{Org: orgDID, Id: "github"},
+		&startOut,
+	)
+	require.Equal(t, http.StatusBadRequest, code)
+	code = client.Procedure(
+		aliceTS.Server.StartAuthorization,
+		habitat.NetworkHabitatMcpStartAuthorizationInput{
+			Org: orgDID, Id: "github", Token: "ghp_alice",
+		},
+		&startOut,
+	)
+	require.Equal(t, http.StatusOK, code)
+	require.Empty(t, startOut.AuthorizationUrl)
+	require.True(t, connected())
+
+	code = client.Procedure(
+		aliceTS.Server.DisconnectServer,
+		habitat.NetworkHabitatMcpDisconnectServerInput{Org: orgDID, Id: "github"},
+		nil,
+	)
+	require.Equal(t, http.StatusOK, code)
+	require.False(t, connected())
+}
