@@ -1,1 +1,0 @@
-This sub-folder contains lexicon definitions for public-facing APIs for habitat.

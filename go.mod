@@ -259,7 +259,6 @@ require (
 )
 
 require (
-	github.com/alexedwards/argon2id v1.0.0
 	github.com/bradenaw/juniper v0.15.3
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

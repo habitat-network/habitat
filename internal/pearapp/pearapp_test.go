@@ -15,8 +15,6 @@ func TestNewHoldsItsDependencies(t *testing.T) {
 
 	app := pearapp.New(
 		nil, // database
-		nil, // instance admin store
-		nil, // instance admin server
 		"pear.example.com",
 		"hive.example.com",
 		"mcp.example.com",

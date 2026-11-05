@@ -23,7 +23,6 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
-	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/login"
@@ -90,10 +89,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("parse oauth server secret for login provider: %w", err)
 	}
 
-	passwordHash, err := setupInstanceAdminPassword(ctx, cmd)
-	if err != nil {
-		return nil, fmt.Errorf("setup instance admin password: %w", err)
-	}
 	// Requires the migrations (run by `pear migrate`) to have created the table.
 	// Failing here is fatal: a store that silently failed to build would turn
 	// every Put into a runtime error later.
@@ -101,20 +96,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if err != nil {
 		return nil, fmt.Errorf("setup keyval store: %w", err)
 	}
-
-	// Reuse the oauth server secret
-	instanceAdminStore, err := instance.NewStore(
-		database.WithContext(ctx),
-		kv.Namespace("instance_invite"),
-		oauthSecret,
-		fDomain,
-		passwordHash,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("setup instance admin store: %w", err)
-	}
-
-	instanceAdminServer := instance.NewServer(instanceAdminStore, "habitat.network")
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
@@ -362,8 +343,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 
 	return pearapp.New(
 		database,
-		instanceAdminStore,
-		instanceAdminServer,
 		domain,
 		hiveDomain,
 		mcpOrigin,

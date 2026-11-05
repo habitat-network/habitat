@@ -16,7 +16,6 @@ import (
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
-	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
@@ -32,28 +31,19 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
-// InstanceStore is the instance admin store as the instance server and the org
-// server each use it.
-type InstanceStore interface {
-	instance.AdminStore
-	instance.PolicyStore
-}
-
 // App holds pear's stores and services.
 type App struct {
-	DB                  *gorm.DB
-	InstanceAdminStore  InstanceStore
-	InstanceAdminServer *instance.Server
-	Domain              string
-	HiveDomain          string
-	MCPOrigin           string
-	OAuthClient         *pdsoauth.App
-	Hive                hive.Hive
-	DefaultDir          identity.Directory
-	HiveDir             identity.Directory
-	PDSClientFactory    pdsoauth.HttpClientFactory
-	EmailDomainStore    *emaildomain.Store
-	HostKey             atcrypto.PrivateKey
+	DB               *gorm.DB
+	Domain           string
+	HiveDomain       string
+	MCPOrigin        string
+	OAuthClient      *pdsoauth.App
+	Hive             hive.Hive
+	DefaultDir       identity.Directory
+	HiveDir          identity.Directory
+	PDSClientFactory pdsoauth.HttpClientFactory
+	EmailDomainStore *emaildomain.Store
+	HostKey          atcrypto.PrivateKey
 	// HostKEMKey is the host's #atproto_kem key: space commit MACs for repo
 	// owners on external PDSes are keyed against it (habitat-managed owners
 	// use their own hive KEM key instead). See spacecommit.KEMKeys.
@@ -93,8 +83,6 @@ type App struct {
 // New returns an App holding the given stores and services.
 func New(
 	database *gorm.DB,
-	instanceAdminStore InstanceStore,
-	instanceAdminServer *instance.Server,
 	domain string,
 	hiveDomain string,
 	mcpOrigin string,
@@ -132,8 +120,6 @@ func New(
 ) *App {
 	return &App{
 		DB:                    database,
-		InstanceAdminStore:    instanceAdminStore,
-		InstanceAdminServer:   instanceAdminServer,
 		Domain:                domain,
 		HiveDomain:            hiveDomain,
 		MCPOrigin:             mcpOrigin,
