@@ -10,5 +10,5 @@ type NetworkHabitatMcpStartAuthorizationInput struct {
 
 // NetworkHabitatMcpStartAuthorizationOutput represents the output for network.habitat.mcp.startAuthorization
 type NetworkHabitatMcpStartAuthorizationOutput struct {
-	SessionToken string `json:"sessionToken"`
+	AuthorizationUrl string `json:"authorizationUrl"`
 }

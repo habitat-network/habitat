@@ -28,7 +28,6 @@ import (
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/notify"
-	"github.com/habitat-network/habitat/internal/org"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -597,9 +596,8 @@ func setupPear(t *testing.T) *pearHost {
 
 	require.NoError(t, err)
 
-	everyone := org.NewEveryoneOrg(strings.TrimPrefix(server.URL, "https://"))
 	validator := authn_testutil.NewSuccessValidator(
-		&authn.CredentialInfo{Subject: author.DID, Org: everyone},
+		&authn.CredentialInfo{Subject: author.DID},
 	)
 	// sap registers itself by service identifier, which the host resolves
 	// through a DID document. The test server's host:port URL is not something

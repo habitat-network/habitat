@@ -49,7 +49,6 @@ func newOpenSocialServerAs(
 			pearserver_testutil.WithDB(ts.DB),
 			pearserver_testutil.WithFGA(ts.FGA),
 			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
-			pearserver_testutil.WithNangoClient(ts.NangoClient),
 		)
 	}
 	return pearserver_testutil.NewTestServer(t, opts...)
@@ -67,7 +66,6 @@ func newSharedOpenSocialServers(
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
-	nangoClient := pearserver_testutil.NewFakeNangoClient()
 
 	adminTS := pearserver_testutil.NewTestServer(
 		t,
@@ -80,7 +78,6 @@ func newSharedOpenSocialServers(
 		pearserver_testutil.WithDB(db),
 		pearserver_testutil.WithFGA(fga),
 		pearserver_testutil.WithSpaceStore(sp),
-		pearserver_testutil.WithNangoClient(nangoClient),
 	)
 	aliceTS := pearserver_testutil.NewTestServer(
 		t,
@@ -93,7 +90,6 @@ func newSharedOpenSocialServers(
 		pearserver_testutil.WithDB(db),
 		pearserver_testutil.WithFGA(fga),
 		pearserver_testutil.WithSpaceStore(sp),
-		pearserver_testutil.WithNangoClient(nangoClient),
 	)
 	return adminTS, aliceTS, sp
 }

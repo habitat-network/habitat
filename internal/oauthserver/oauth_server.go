@@ -47,7 +47,7 @@ const (
 	// requestKeyCookie holds the opaque key of the in-flight authorization
 	// request row. It is what lets the callback find the request without
 	// trusting the `state` the PDS echoes back — that state belongs to
-	// pdsclient's own OAuth flow, not to ours.
+	// pdsoauth's own OAuth flow, not to ours.
 	requestKeyCookie = "request_key"
 	// providerStateCookie holds the key of the login-provider state, held server-side, for one redirect hop.
 	providerStateCookie = "provider_state"
@@ -131,9 +131,6 @@ type OAuthServer struct {
 	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
-	// Org store for membership lookups
-	orgStore org.Store
-
 	// Cookie store for the request key and provider state across redirects
 	sessionStore sessions.Store
 
@@ -185,7 +182,6 @@ func NewOAuthServer(
 	db *gorm.DB,
 	kv keyval.Store,
 	meter metric.Meter,
-	orgStore org.Store,
 	issuer string,
 	approvedJwtBearerClients ApprovedClientStore,
 	opensocialStore *opensocial.Store,
@@ -231,10 +227,6 @@ func NewOAuthServer(
 		return nil, err
 	}
 
-	if loginRouter.OrgStore == nil {
-		loginRouter.OrgStore = orgStore
-	}
-
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options = &sessions.Options{
 		Path:     "/",
@@ -261,7 +253,6 @@ func NewOAuthServer(
 		sessionStore:    cookieStore,
 		directory:       directory,
 		storage:         storage,
-		orgStore:        orgStore,
 		issuer:          issuer,
 		opensocialStore: opensocialStore,
 		emailResolver:   emailResolver,
@@ -364,7 +355,7 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
 		return
 	}
-	// Redirect to the provider untouched: pdsclient already put its own state
+	// Redirect to the provider untouched: pdsoauth already put its own state
 	// inside the request it pushed to the PDS, and appending ours would be both
 	// ignored and ambiguous on the way back.
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
@@ -851,12 +842,6 @@ func (o *OAuthServer) ValidateRaw(
 		Subject: syntax.DID(did),
 		Method:  authn.ValidatorMethodOAuth,
 	}
-
-	org, err := o.orgStore.GetOrgForDID(ctx, syntax.DID(did))
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to get org for DID: %w", err)
-	}
-	credInfo.Org = org
 
 	return credInfo, true, nil
 }

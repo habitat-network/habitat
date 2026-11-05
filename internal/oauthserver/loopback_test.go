@@ -10,7 +10,7 @@ import (
 	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 )
@@ -34,13 +34,12 @@ func TestNormalizeLoopbackRedirect(t *testing.T) {
 	oauthSrv, err := NewOAuthServer(
 		secretBytes,
 		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
-		pdsclient.NewDummyDirectory(
+		pdsoauth.NewDummyDirectory(
 			"http://pds.url",
 		),
 		dbtestutil.NewDB(t, Models()),
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),

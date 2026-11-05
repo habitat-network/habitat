@@ -34,7 +34,7 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 	)
 	require.NoError(t, err)
 	simpleURI, err := ts.SimpleStore.CreateSpace(
-		t.Context(), org, owner, groupTp, habitat_syntax.SpaceKey("simple"),
+		t.Context(), owner, groupTp, habitat_syntax.SpaceKey("simple"),
 	)
 	require.NoError(t, err)
 

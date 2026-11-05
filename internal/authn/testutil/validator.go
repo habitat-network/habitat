@@ -3,8 +3,6 @@ package testutil
 import (
 	"net/http"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -35,15 +33,6 @@ func (s *validatorImpl) Request(options ...utils.Opt[authn.EndpointOptions]) aut
 
 func NewSuccessValidator(credentialInfo *authn.CredentialInfo) authn.RequestValidator {
 	return &validatorImpl{credentialInfo: credentialInfo, success: true}
-}
-
-// NewSuccessValidatorWithOrg returns a validator that authenticates the given
-// DID as a member of the given org, mirroring NewSuccessMethodWithOrg.
-func NewSuccessValidatorWithOrg(did, orgDID syntax.DID) authn.RequestValidator {
-	return NewSuccessValidator(&authn.CredentialInfo{
-		Subject: did,
-		Org:     &stubOrg{did: orgDID},
-	})
 }
 
 func NewFailureValidator() authn.RequestValidator {

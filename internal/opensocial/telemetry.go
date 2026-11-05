@@ -27,8 +27,6 @@ const (
 	// clientIDKey is the OAuth client id of an app being granted or checked
 	// for access.
 	clientIDKey = attribute.Key("habitat.opensocial.client_id")
-	// mcpServerKey is the rkey of an org's MCP server record.
-	mcpServerKey = attribute.Key("habitat.opensocial.mcp_server")
 )
 
 func memberAttr(did syntax.DID) attribute.KeyValue {
