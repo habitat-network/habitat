@@ -18,7 +18,7 @@
     "@habitat-network/habitat": "workspace:*",
     "@posthog/react": "^1.11.3",
     "@tanstack/ai": "^1.0.0",
-    "@tanstack/ai-anthropic": "^1.0.0",
+    "@tanstack/ai-openai": "1.0.0",
     "@tanstack/ai-react": "^1.0.0",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

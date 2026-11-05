@@ -68,3 +68,26 @@ export async function searchOrgRecords(
     value: r.value,
   }));
 }
+
+// llmBaseUrl is where the org's LLM gateway serves its OpenAI-compatible API
+// (pear's /llm/{org}/v1); the member's own session is the API key.
+export function llmBaseUrl(habitatUrl: string, org: DidString): string {
+  return `${habitatUrl.replace(/\/+$/, "")}/llm/${org}/v1`;
+}
+
+// firstLlmModel is the id of the first model the org's LLM gateway offers the
+// member, or null if the org has no connections.
+export async function firstLlmModel(
+  agent: Agent,
+  org: DidString,
+): Promise<string | null> {
+  const res = await agent.fetchHandler(`/llm/${org}/v1/models`, {
+    headers: { accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`listing ${org}'s models failed (${res.status})`);
+  }
+  const body = (await res.json()) as { data?: { id?: unknown }[] };
+  const id = body.data?.[0]?.id;
+  return typeof id === "string" ? id : null;
+}

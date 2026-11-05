@@ -15,8 +15,11 @@ they can read.
 - **Chat** (`src/routes/api.chat.ts`): the UI is TanStack AI's `useChat`
   against this route, with the chat's id as the `threadId`. The route
   writes the user's message to D1, streams the reply from the model, and
-  writes the reply when it finishes. The model is Anthropic's
-  `claude-sonnet-5-5` through `@tanstack/ai-anthropic`.
+  writes the reply when it finishes. The model comes from the
+  LLM gateway on pear (`/llm/{org}/v1`, OpenAI-compatible) of the member's
+  first org, using the first model that org has configured. Requests go out
+  through the member's own OAuth session. Configure models in pear under
+  Settings → Models.
 - **Search tool** (`src/server/search.ts`): `search({ query, org? })` over the
   records in one of the member's orgs. The system prompt lists the member's
   orgs; `org` can be left out when they belong to just one.
@@ -36,7 +39,6 @@ pnpm exec wrangler d1 migrations apply brain --remote
 
 pnpm exec wrangler secret put BRAIN_SESSION_SECRET   # 32+ characters
 pnpm exec wrangler secret put BRAIN_CREDENTIALS_KEY  # openssl rand -base64 32
-pnpm exec wrangler secret put ANTHROPIC_API_KEY
 
 pnpm build
 pnpm exec wrangler deploy
@@ -55,7 +57,6 @@ BRAIN_SESSION_SECRET=dev-only-32-char-minimum-secret!!
 BRAIN_CREDENTIALS_KEY=<openssl rand -base64 32>
 BRAIN_BASE_URL=https://brain.local.habitat.network
 BRAIN_HABITAT_URL=https://pear.local.habitat.network
-ANTHROPIC_API_KEY=<your key>
 ```
 
 Regenerate the D1 migration after changing `src/db/schema.ts` with

@@ -4,7 +4,7 @@ import {
   chatParamsFromRequest,
   toServerSentEventsResponse,
 } from "@tanstack/ai";
-import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { createOpenaiChatCompletions } from "@tanstack/ai-openai";
 import type { ModelMessage, UIMessage } from "@tanstack/ai";
 import { env, waitUntil } from "cloudflare:workers";
 import type { DidString } from "@atproto/syntax";
@@ -13,11 +13,14 @@ import {
   memberSession,
   MemberUnauthorizedError,
 } from "@/server/functions.server";
-import { fetchOrgName, listMyOrgIds } from "@/server/habitat";
+import {
+  fetchOrgName,
+  firstLlmModel,
+  listMyOrgIds,
+  llmBaseUrl,
+} from "@/server/habitat";
 import { searchTool } from "@/server/search";
 import { useAppSession } from "@/server/session";
-
-const MODEL = "claude-sonnet-5-5";
 
 const TITLE_MAX_CHARS = 80;
 
@@ -79,6 +82,20 @@ export const Route = createFileRoute("/api/chat")({
             })),
           );
 
+          // The model comes from the first of the member's orgs, through that
+          // org's LLM gateway on pear.
+          const llmOrg = orgs[0]?.did;
+          const model = llmOrg ? await firstLlmModel(agent, llmOrg) : null;
+          if (!llmOrg || !model) {
+            return Response.json(
+              {
+                message:
+                  "None of your organizations has an LLM model configured.",
+              },
+              { status: 409 },
+            );
+          }
+
           const text = textOf(latest);
           const id = "id" in latest ? (latest.id as string) : undefined;
           const db = getDb(env);
@@ -103,7 +120,23 @@ export const Route = createFileRoute("/api/chat")({
 
           const abortController = new AbortController();
           const stream = chat({
-            adapter: createAnthropicChat(MODEL, env.ANTHROPIC_API_KEY),
+            // The gateway takes the member's OAuth access token as the API
+            // key, and pear's tokens are DPoP-bound, so requests go out
+            // through the member's session, which supplies both. The key
+            // here is a placeholder the session's Authorization replaces.
+            adapter: createOpenaiChatCompletions(
+              model as "gpt-4o",
+              "unused",
+              {
+                baseURL: llmBaseUrl(env.BRAIN_HABITAT_URL, llmOrg),
+                fetch: (input, init) => {
+                  const url = new URL(
+                    input instanceof Request ? input.url : input.toString(),
+                  );
+                  return agent.fetchHandler(url.pathname + url.search, init);
+                },
+              },
+            ),
             messages: params.messages,
             threadId: params.threadId,
             systemPrompts: [
