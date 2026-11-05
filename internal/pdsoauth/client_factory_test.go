@@ -46,7 +46,9 @@ func saveSession(t *testing.T, s *Store, host, sessionID, accessToken string) {
 func TestClientFactorySignsRequestsForPDS(t *testing.T) {
 	var gotAuth, gotDPoP, gotPath, gotBody string
 	pds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuth, gotDPoP, gotPath = r.Header.Get("Authorization"), r.Header.Get("DPoP"), r.URL.RequestURI()
+		gotAuth = r.Header.Get("Authorization")
+		gotDPoP = r.Header.Get("DPoP")
+		gotPath = r.URL.RequestURI()
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
 		w.WriteHeader(http.StatusOK)
@@ -64,7 +66,10 @@ func TestClientFactorySignsRequestsForPDS(t *testing.T) {
 		// Relative URLs resolve against the member's PDS, as the forwarding
 		// paths send them.
 		req, err := http.NewRequestWithContext(
-			t.Context(), http.MethodPost, "/xrpc/com.example.thing?a=b", strings.NewReader("payload"),
+			t.Context(),
+			http.MethodPost,
+			"/xrpc/com.example.thing?a=b",
+			io.NopCloser(strings.NewReader("payload")),
 		)
 		require.NoError(t, err)
 		resp, err := client.Do(req)

@@ -15,7 +15,11 @@ func newTestStore(t *testing.T) (*Store, keyval.Store) {
 	kv := keyval_testutil.New(t)
 	enc, err := keyval.NewEncrypted(kv, encrypt.TestKey)
 	require.NoError(t, err)
-	return NewStore(enc.Namespace("sessions"), kv.Namespace("sessions"), kv.Namespace("requests")), kv
+	return NewStore(
+		enc.Namespace("sessions"),
+		kv.Namespace("sessions"),
+		kv.Namespace("requests"),
+	), kv
 }
 
 func TestStoreSessionLifecycle(t *testing.T) {
@@ -60,7 +64,11 @@ func TestStoreSessionLifecycle(t *testing.T) {
 
 func TestStoreAuthRequestLifecycle(t *testing.T) {
 	s, _ := newTestStore(t)
-	info := oauth.AuthRequestData{State: "state1", PKCEVerifier: "verifier", AuthServerURL: "https://as"}
+	info := oauth.AuthRequestData{
+		State:         "state1",
+		PKCEVerifier:  "verifier",
+		AuthServerURL: "https://as",
+	}
 
 	_, err := s.GetAuthRequestInfo(t.Context(), "state1")
 	require.ErrorIs(t, err, keyval.ErrNotFound)
