@@ -131,8 +131,6 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 		spacesStore,
 		permStore,
 		nil,
-		newFakeNangoClient(),
-		newFakeOrgMcpServerStore(),
 		nil,
 		nil,
 		newTestDirectory(),
@@ -278,7 +276,7 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 	newHTTPServer := func(s RecordSearcher, opts ...Option) *httptest.Server {
 		srv := New(
 			fakeTokens{}, spacesStore, permStore, s,
-			newFakeNangoClient(), newFakeOrgMcpServerStore(), nil,
+			nil,
 			nil,
 			newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 			opts...,
@@ -477,7 +475,7 @@ func TestMCPServerGetBlobTool(t *testing.T) {
 
 	srv := New(
 		fakeTokens{}, spacesStore, permStore, nil,
-		newFakeNangoClient(), newFakeOrgMcpServerStore(), nil, blobs,
+		nil, blobs,
 		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
@@ -562,7 +560,7 @@ func TestMCPServerRejectsInvalidOrgPath(t *testing.T) {
 	spacesStore, permStore := setupStores(t)
 	srv := New(
 		fakeTokens{}, spacesStore, permStore, nil,
-		newFakeNangoClient(), newFakeOrgMcpServerStore(), nil, nil,
+		nil, nil,
 		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
 
@@ -579,7 +577,7 @@ func TestMCPServerProtectedResourceMetadataIsPerOrg(t *testing.T) {
 	spacesStore, permStore := setupStores(t)
 	srv := New(
 		fakeTokens{}, spacesStore, permStore, nil,
-		newFakeNangoClient(), newFakeOrgMcpServerStore(), nil, nil,
+		nil, nil,
 		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
 
@@ -606,7 +604,7 @@ func TestMCPServerOrgByHandle(t *testing.T) {
 	searcher := &fakeRecordSearcher{}
 	srv := New(
 		fakeTokens{}, spacesStore, permStore, searcher,
-		newFakeNangoClient(), newFakeOrgMcpServerStore(), nil, nil,
+		nil, nil,
 		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())

@@ -33,6 +33,9 @@ func (p *PearServer) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !p.requireMemberspace(ctx, w, spaceURI) {
+		return
+	}
 	memberDID, ok := httpx.ParseDIDInput(ctx, w, input.Did, "did")
 	if !ok {
 		return

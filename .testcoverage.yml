@@ -31,6 +31,7 @@ exclude:
     - testutil/
     - internal/search/searchtest # Test helper that starts Meilisearch
     - internal/keyval/keyvaltest # Test helper that starts Postgres
+    - internal/mcpgateway/mcpgatewaytest # Test helper that fakes an OAuth MCP server
     - api/
     # Each service names its GORM models in a `migrations` package, which the
     # tests that migrate with it already cover.

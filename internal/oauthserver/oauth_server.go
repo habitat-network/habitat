@@ -47,7 +47,7 @@ const (
 	// requestKeyCookie holds the opaque key of the in-flight authorization
 	// request row. It is what lets the callback find the request without
 	// trusting the `state` the PDS echoes back — that state belongs to
-	// pdsclient's own OAuth flow, not to ours.
+	// pdsoauth's own OAuth flow, not to ours.
 	requestKeyCookie = "request_key"
 	// providerStateCookie holds the key of the login-provider state, held server-side, for one redirect hop.
 	providerStateCookie = "provider_state"
@@ -355,7 +355,7 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
 		return
 	}
-	// Redirect to the provider untouched: pdsclient already put its own state
+	// Redirect to the provider untouched: pdsoauth already put its own state
 	// inside the request it pushed to the PDS, and appending ours would be both
 	// ignored and ambiguous on the way back.
 	http.Redirect(w, r, redirect, http.StatusSeeOther)

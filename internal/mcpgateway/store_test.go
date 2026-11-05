@@ -1,430 +1,397 @@
-package mcpgateway
+package mcpgateway_test
 
 import (
 	"context"
-	"errors"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/habitat-network/habitat/internal/nango"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/keyval"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/mcpgateway/mcpgatewaytest"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// fakeConnection is a nango.Connection plus the end user it belongs to,
-// mirroring how the real API scopes ListConnections by the end_user_id tag.
-type fakeConnection struct {
-	nango.Connection
-	endUserID string
-}
+const callbackURL = "https://pear.example.com/mcp-oauth/callback"
 
-// fakeNangoClient is an in-memory stand-in for internal/nango.Client,
-// satisfying NangoClient, so tests don't need real Nango credentials or
-// network access.
-type fakeNangoClient struct {
-	integrations         map[string]bool
-	connections          map[string]fakeConnection // connectionID -> connection
-	createIntegrationErr error
-	createSessionErr     error
-	// lastSessionServerURL is the serverURL the last CreateConnectSession
-	// call pre-filled.
-	lastSessionServerURL string
-}
+var (
+	org    = syntax.DID("did:web:org.example.com")
+	alice  = syntax.DID("did:plc:alice")
+	bob    = syntax.DID("did:plc:bob")
+	nobody = syntax.DID("did:plc:nobody")
+)
 
-// fakeServerURL is the MCP server URL fakeNangoClient reports for
-// connectionID.
-func fakeServerURL(connectionID string) string {
-	return "https://mcp.example.com/" + connectionID
-}
+// fakeOrgs makes every user but nobody a member of org.
+type fakeOrgs struct{}
 
-func (f *fakeNangoClient) GetConnection(
-	ctx context.Context, connectionID, providerConfigKey string,
-) (*nango.ConnectionDetails, error) {
-	conn, ok := f.connections[connectionID]
-	if !ok || conn.ProviderConfigKey != providerConfigKey {
-		return nil, errors.New("connection not found")
+func (fakeOrgs) ListMemberSpaces(
+	_ context.Context,
+	user syntax.DID,
+) ([]habitat_syntax.SpaceURI, error) {
+	if user == nobody {
+		return nil, nil
 	}
-	return &nango.ConnectionDetails{MCPServerURL: fakeServerURL(connectionID)}, nil
+	return []habitat_syntax.SpaceURI{
+		habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self"),
+	}, nil
 }
 
-func newFakeNangoClient() *fakeNangoClient {
-	return &fakeNangoClient{
-		integrations: make(map[string]bool),
-		connections:  make(map[string]fakeConnection),
-	}
+type testStore struct {
+	mcpgateway.Store
+	kv keyval.Store
 }
 
-func (f *fakeNangoClient) CreateIntegration(ctx context.Context, uniqueKey string) error {
-	if f.createIntegrationErr != nil {
-		return f.createIntegrationErr
-	}
-	f.integrations[uniqueKey] = true
-	return nil
-}
-
-func (f *fakeNangoClient) DeleteIntegration(ctx context.Context, uniqueKey string) error {
-	if !f.integrations[uniqueKey] {
-		return errors.New("integration not found")
-	}
-	delete(f.integrations, uniqueKey)
-	return nil
-}
-
-func (f *fakeNangoClient) CreateConnectSession(
-	ctx context.Context, uniqueKey string, endUserID, orgID, serverURL string,
-) (string, error) {
-	if f.createSessionErr != nil {
-		return "", f.createSessionErr
-	}
-	f.lastSessionServerURL = serverURL
-	if !f.integrations[uniqueKey] {
-		return "", errors.New("unknown integration")
-	}
-	return "session-token", nil
-}
-
-// connect simulates endUserID completing the Nango Connect UI for uniqueKey,
-// as a test setup helper.
-func (f *fakeNangoClient) connect(connectionID, uniqueKey, endUserID string) {
-	f.connections[connectionID] = fakeConnection{
-		Connection: nango.Connection{
-			ConnectionID:      connectionID,
-			ProviderConfigKey: uniqueKey,
-		},
-		endUserID: endUserID,
-	}
-}
-
-func (f *fakeNangoClient) ListConnections(
-	ctx context.Context, endUserID string,
-) ([]nango.Connection, error) {
-	conns := make([]nango.Connection, 0, len(f.connections))
-	for _, c := range f.connections {
-		if c.endUserID == endUserID {
-			conns = append(conns, c.Connection)
-		}
-	}
-	return conns, nil
-}
-
-func (f *fakeNangoClient) DeleteConnection(
-	ctx context.Context,
-	connectionID, providerConfigKey string,
-) error {
-	if f.connections[connectionID].ProviderConfigKey != providerConfigKey {
-		return errors.New("connection not found")
-	}
-	delete(f.connections, connectionID)
-	return nil
-}
-
-func newTestStore(t *testing.T) (Store, *fakeNangoClient, OrgMcpServerStore) {
+func newStore(t *testing.T) testStore {
 	t.Helper()
-	nangoClient := newFakeNangoClient()
-	records := opensocial_testutil.NewTestStore(t)
-	s, err := NewStore(nangoClient, records)
+	kv := keyval_testutil.New(t)
+	encKV, err := keyval.NewEncrypted(kv, encrypt.TestKey)
 	require.NoError(t, err)
-	return s, nangoClient, records
-}
-
-func newTestOrg(t *testing.T, records OrgMcpServerStore) syntax.DID {
-	t.Helper()
-	ts, ok := records.(*opensocial_testutil.TestStore)
-	require.True(t, ok)
-	handle := "acme-" + uuid.NewString()
-	orgDID, err := ts.NewOrg(t.Context(), handle, syntax.DID("did:plc:creator"))
+	s, err := mcpgateway.NewStore(
+		db_testutil.NewDB(t, mcpgateway.Models()),
+		encKV, kv, encrypt.TestKey, fakeOrgs{}, http.DefaultClient, callbackURL,
+	)
 	require.NoError(t, err)
-	return syntax.DID(orgDID)
+	return testStore{Store: s, kv: kv}
 }
 
-// newTestMember provisions did as a member of org.
-func newTestMember(t *testing.T, records OrgMcpServerStore, org syntax.DID) syntax.DID {
-	t.Helper()
-	ts, ok := records.(*opensocial_testutil.TestStore)
-	require.True(t, ok)
-	did := syntax.DID("did:plc:member-" + uuid.NewString())
-	require.NoError(t, ts.ProvisionMember(t.Context(), org, did))
-	return did
-}
-
-// addServer adds an OAuth server via Store.AddServer and returns it.
-func addServer(
+// connect runs did through authorizing with server's OAuth server name.
+func connect(
 	t *testing.T,
-	s Store,
-	org syntax.DID,
-	name, description string,
-) *Server {
-	t.Helper()
-	server, err := s.AddServer(
-		t.Context(),
-		org,
-		name,
-		description,
-		"https://mcp.example.com/mcp",
-		AuthTypeOAuth,
-	)
-	require.NoError(t, err)
-	return server
-}
-
-// connectMember simulates member completing the Nango Connect UI for
-// server, as the frontend's StartAuthorization flow would.
-func connectMember(
-	nangoClient *fakeNangoClient,
-	org syntax.DID,
-	server *Server,
-	member syntax.DID,
+	s mcpgateway.Store,
+	fake *mcpgatewaytest.Server,
+	did syntax.DID,
+	name mcpgateway.ServerName,
 ) {
-	nangoClient.connect("conn-"+string(server.ID), NangoKeyFor(org, server.ID), member.String())
+	t.Helper()
+	authURL, err := s.StartAuthorization(t.Context(), did, org, name)
+	require.NoError(t, err)
+	q := fake.Authorize(t, authURL)
+	done, err := s.CompleteAuthorization(t.Context(), q.Get("state"), q.Get("code"), q.Get("iss"))
+	require.NoError(t, err)
+	require.Equal(t, &mcpgateway.CompletedAuthorization{OrgID: org, Server: name, DID: did}, done)
 }
 
-func TestStoreAddServer_CreatesIntegration(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
-	org := newTestOrg(t, records)
-
-	server, err := s.AddServer(
-		t.Context(), org, "linear", "desc", "https://mcp.example.com/mcp", AuthTypeOAuth,
+func TestNewStoreValidation(t *testing.T) {
+	kv := keyval_testutil.New(t)
+	encKV, err := keyval.NewEncrypted(kv, encrypt.TestKey)
+	require.NoError(t, err)
+	db := db_testutil.NewDB(t, mcpgateway.Models())
+	_, err = mcpgateway.NewStore(
+		db,
+		encKV,
+		kv,
+		[]byte("short"),
+		fakeOrgs{},
+		http.DefaultClient,
+		callbackURL,
 	)
-	require.NoError(t, err)
-	require.Equal(t, "linear", server.Name)
-	require.Equal(t, "desc", server.Description)
-	require.Equal(t, AuthTypeOAuth, server.AuthType)
-	require.True(t, nangoClient.integrations[NangoKeyFor(org, server.ID)])
-
-	// No one is signed in yet, but the record already exists.
-	all, err := records.ListMcpServers(t.Context(), org)
-	require.NoError(t, err)
-	require.Len(t, all, 1)
-	require.Equal(t, "https://mcp.example.com/mcp", all[0].ServerURL)
-}
-
-func TestStoreAddServer_RejectsInvalidName(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-
-	_, err := s.AddServer(
-		t.Context(), org, "not a valid name!", "", "https://a.example", AuthTypeOAuth,
+	require.Error(t, err)
+	_, err = mcpgateway.NewStore(
+		db,
+		encKV,
+		kv,
+		encrypt.TestKey,
+		nil,
+		http.DefaultClient,
+		callbackURL,
 	)
-	require.ErrorIs(t, err, ErrInvalidServerName)
-}
-
-func TestStoreAddServer_RejectsInvalidURL(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-
-	_, err := s.AddServer(t.Context(), org, "srv", "", "ftp://a.example", AuthTypeOAuth)
-	require.ErrorIs(t, err, ErrInvalidServerURL)
-}
-
-func TestStoreAddServer_RejectsInvalidAuthType(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-
-	_, err := s.AddServer(t.Context(), org, "srv", "", "https://a.example", AuthType("bogus"))
-	require.ErrorIs(t, err, ErrInvalidAuthType)
-}
-
-func TestStoreAddServer_RejectsDuplicateName(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-
-	addServer(t, s, org, "linear", "")
-
-	_, err := s.AddServer(t.Context(), org, "linear", "", "https://a.example", AuthTypeOAuth)
-	require.ErrorIs(t, err, ErrServerNameTaken)
-
-	_, err = s.AddServer(t.Context(), org, "linear", "", "https://a.example", AuthTypeManual)
-	require.ErrorIs(t, err, ErrServerNameTaken)
-}
-
-func TestStoreStartAuthorization_PrefillsServerURL(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
-	org := newTestOrg(t, records)
-
-	server := addServer(t, s, org, "linear", "")
-	_, err := s.StartAuthorization(t.Context(), "did:plc:member", org, server.ID)
-	require.NoError(t, err)
-	require.Equal(t, "https://mcp.example.com/mcp", nangoClient.lastSessionServerURL)
-}
-
-func TestStoreListServers_ScopedPerOrg(t *testing.T) {
-	s, _, records := newTestStore(t)
-	orgA := newTestOrg(t, records)
-	orgB := newTestOrg(t, records)
-
-	server := addServer(t, s, orgA, "server-a", "")
-	addServer(t, s, orgB, "server-b", "")
-
-	servers, err := s.ListServers(t.Context(), orgA, syntax.DID("did:plc:user"))
-	require.NoError(t, err)
-	require.Len(t, servers, 1)
-	require.Equal(t, server.ID, servers[0].Server.ID)
-}
-
-func TestStoreUpdateServer(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-
-	server := addServer(t, s, org, "server", "desc")
-
-	newDescription := "updated description"
-	updated, err := s.UpdateServer(
-		t.Context(), org, server.ID, ServerUpdate{Description: &newDescription},
+	require.Error(t, err)
+	_, err = mcpgateway.NewStore(db, encKV, kv, encrypt.TestKey, fakeOrgs{}, nil, callbackURL)
+	require.Error(t, err)
+	_, err = mcpgateway.NewStore(
+		db,
+		encKV,
+		kv,
+		encrypt.TestKey,
+		fakeOrgs{},
+		http.DefaultClient,
+		"/cb",
 	)
-	require.NoError(t, err)
-	require.Equal(t, "server", updated.Name) // unchanged
-	require.Equal(t, "updated description", updated.Description)
-}
-
-func TestStoreRemoveServer_DeletesIntegration(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	did := syntax.DID("did:plc:user")
-
-	server := addServer(t, s, org, "linear", "")
-
-	require.NoError(t, s.RemoveServer(t.Context(), org, server.ID))
-
-	servers, err := s.ListServers(t.Context(), org, did)
-	require.NoError(t, err)
-	require.Empty(t, servers)
-	require.False(t, nangoClient.integrations[NangoKeyFor(org, server.ID)])
-}
-
-func TestStoreListServers_ReflectsNangoConnections(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	member := syntax.DID("did:plc:member")
-
-	server := addServer(t, s, org, "linear", "")
-
-	servers, err := s.ListServers(t.Context(), org, member)
-	require.NoError(t, err)
-	require.Len(t, servers, 1)
-	require.False(t, servers[0].Connected)
-
-	sessionToken, err := s.StartAuthorization(t.Context(), member, org, server.ID)
-	require.NoError(t, err)
-	require.NotEmpty(t, sessionToken)
-
-	// The Nango Connect UI reports success directly to the frontend, which
-	// simply refetches; there's nothing for the gateway to record.
-	connectMember(nangoClient, org, server, member)
-
-	servers, err = s.ListServers(t.Context(), org, member)
-	require.NoError(t, err)
-	require.True(t, servers[0].Connected)
-}
-
-func TestStoreDisconnectServer(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	did := syntax.DID("did:plc:user")
-
-	server := addServer(t, s, org, "linear", "")
-	connectMember(nangoClient, org, server, did)
-
-	require.NoError(t, s.DisconnectServer(t.Context(), did, org, server.ID))
-	require.NotContains(t, nangoClient.connections, "conn-"+string(server.ID))
-
-	err := s.DisconnectServer(t.Context(), did, org, server.ID)
-	require.ErrorIs(t, err, ErrNotConnected)
-}
-
-func TestStoreAddManualServer(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	member := syntax.DID("did:plc:member")
-
-	server, err := s.AddServer(
-		t.Context(), org, "docs", "internal docs", "https://mcp.example.com/mcp", AuthTypeManual,
-	)
-	require.NoError(t, err)
-	require.Equal(t, AuthTypeManual, server.AuthType)
-	require.Equal(t, "docs", server.Name)
-
-	// Manual servers are connected for every member without any sign-in.
-	servers, err := s.ListServers(t.Context(), org, member)
-	require.NoError(t, err)
-	require.Len(t, servers, 1)
-	require.True(t, servers[0].Connected)
-	require.Equal(t, AuthTypeManual, servers[0].Server.AuthType)
-
-	_, err = s.StartAuthorization(t.Context(), member, org, server.ID)
-	require.ErrorIs(t, err, ErrManualServer)
-	require.ErrorIs(t, s.DisconnectServer(t.Context(), member, org, server.ID), ErrManualServer)
-}
-
-func TestStoreUpdateManualServer(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	creator := newTestMember(t, records, org)
-
-	_, err := s.AddServer(
-		t.Context(),
-		org,
-		"docs",
-		"old",
-		"https://old.example/mcp",
-		AuthTypeManual,
-	)
-	require.NoError(t, err)
-
-	newURL := "https://new.example/mcp"
-	newDescription := "new"
-	updated, err := s.UpdateServer(t.Context(), org, "docs", ServerUpdate{
-		Description: &newDescription,
-		URL:         &newURL,
-	})
-	require.NoError(t, err)
-	require.Equal(t, "new", updated.Description)
-
-	manual, err := s.ListManualServersForMember(t.Context(), creator)
-	require.NoError(t, err)
-	require.Len(t, manual, 1)
-	require.Equal(t, newURL, manual[0].URL)
-
-	// An invalid URL is rejected.
-	badURL := "not a url"
-	_, err = s.UpdateServer(t.Context(), org, "docs", ServerUpdate{URL: &badURL})
-	require.ErrorIs(t, err, ErrInvalidServerURL)
-
-	// URL doesn't apply to OAuth servers.
-	oauth := addServer(t, s, org, "linear", "")
-	_, err = s.UpdateServer(t.Context(), org, oauth.ID, ServerUpdate{URL: &newURL})
 	require.Error(t, err)
 }
 
-func TestStoreRemoveManualServer(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-
-	_, err := s.AddServer(t.Context(), org, "docs", "", "https://a.example", AuthTypeManual)
+func TestAddServerValidation(t *testing.T) {
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "docs", URL: "https://docs.example.com/mcp", AuthType: mcpgateway.AuthTypeManual,
+	})
 	require.NoError(t, err)
-	require.NoError(t, s.RemoveServer(t.Context(), org, "docs"))
 
-	servers, err := s.ListServers(t.Context(), org, "did:plc:member")
-	require.NoError(t, err)
-	require.Empty(t, servers)
-	require.ErrorIs(t, s.RemoveServer(t.Context(), org, "docs"), opensocial.ErrMcpServerNotFound)
+	for name, tc := range map[string]struct {
+		server mcpgateway.NewServer
+		want   error
+	}{
+		"bad name": {
+			mcpgateway.NewServer{Name: "a:b", URL: "https://x.example.com", AuthType: "manual"},
+			mcpgateway.ErrInvalidServerName,
+		},
+		"bad url": {
+			mcpgateway.NewServer{Name: "x", URL: "not a url", AuthType: "manual"},
+			mcpgateway.ErrInvalidServerURL,
+		},
+		"url with credentials": {
+			mcpgateway.NewServer{Name: "x", URL: "https://u:p@x.example.com", AuthType: "manual"},
+			mcpgateway.ErrInvalidServerURL,
+		},
+		"bad auth type": {
+			mcpgateway.NewServer{Name: "x", URL: "https://x.example.com", AuthType: "magic"},
+			mcpgateway.ErrInvalidAuthType,
+		},
+		"taken": {
+			mcpgateway.NewServer{Name: "docs", URL: "https://x.example.com", AuthType: "manual"},
+			mcpgateway.ErrServerNameTaken,
+		},
+		"secret without id": {
+			mcpgateway.NewServer{
+				Name: "x", URL: "https://x.example.com", AuthType: "oauth", ClientSecret: "s",
+			},
+			mcpgateway.ErrClientSecretWithoutID,
+		},
+		"client for manual": {
+			mcpgateway.NewServer{
+				Name: "x", URL: "https://x.example.com", AuthType: "manual", ClientID: "c",
+			},
+			mcpgateway.ErrClientNotSupported,
+		},
+		"unreachable oauth": {
+			mcpgateway.NewServer{Name: "x", URL: "http://127.0.0.1:1/mcp", AuthType: "oauth"},
+			mcpgateway.ErrOAuthDiscovery,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := s.AddServer(t.Context(), org, tc.server)
+			require.ErrorIs(t, err, tc.want)
+			require.True(t, mcpgateway.IsConfigError(err))
+		})
+	}
 }
 
-func TestStoreListManualServersForMember_OnlyMemberOrgs(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
+func TestManualServer(t *testing.T) {
+	s := newStore(t)
+	added, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "docs", Description: "Docs", URL: "https://docs.example.com/mcp",
+		AuthType: mcpgateway.AuthTypeManual,
+	})
+	require.NoError(t, err)
+	require.Equal(t, &mcpgateway.Server{
+		OrgID: org, Name: "docs", Description: "Docs", AuthType: mcpgateway.AuthTypeManual,
+		URL: "https://docs.example.com/mcp",
+	}, added)
 
-	_, err := s.AddServer(t.Context(), org, "docs", "", "https://a.example", AuthTypeManual)
+	// Every member is connected, with nothing to authorize.
+	listed, err := s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.True(t, listed[0].Connected)
+	_, err = s.StartAuthorization(t.Context(), alice, org, "docs")
+	require.ErrorIs(t, err, mcpgateway.ErrManualServer)
+	require.ErrorIs(
+		t,
+		s.DisconnectServer(t.Context(), alice, org, "docs"),
+		mcpgateway.ErrManualServer,
+	)
+
+	d, err := s.Downstream(t.Context(), alice, org, "docs")
+	require.NoError(t, err)
+	require.Equal(t, "https://docs.example.com/mcp", d.URL)
+	require.Empty(t, d.Headers)
+	require.NotNil(t, d.Client)
+
+	// Its URL can change.
+	newURL, desc := "https://docs2.example.com/mcp", "New docs"
+	updated, err := s.UpdateServer(t.Context(), org, "docs", mcpgateway.ServerUpdate{
+		URL: &newURL, Description: &desc,
+	})
+	require.NoError(t, err)
+	require.Equal(t, newURL, updated.URL)
+	require.Equal(t, desc, updated.Description)
+	badURL := "nope"
+	_, err = s.UpdateServer(t.Context(), org, "docs", mcpgateway.ServerUpdate{URL: &badURL})
+	require.ErrorIs(t, err, mcpgateway.ErrInvalidServerURL)
+
+	connected, err := s.ListConnectedServers(t.Context(), alice)
+	require.NoError(t, err)
+	require.Len(t, connected, 1)
+	connected, err = s.ListConnectedServers(t.Context(), nobody)
+	require.NoError(t, err)
+	require.Empty(t, connected)
+
+	require.NoError(t, s.RemoveServer(t.Context(), org, "docs"))
+	require.ErrorIs(t, s.RemoveServer(t.Context(), org, "docs"), mcpgateway.ErrServerNotFound)
+	_, err = s.UpdateServer(t.Context(), org, "docs", mcpgateway.ServerUpdate{})
+	require.ErrorIs(t, err, mcpgateway.ErrServerNotFound)
+	_, err = s.Downstream(t.Context(), alice, org, "docs")
+	require.ErrorIs(t, err, mcpgateway.ErrServerNotFound)
+}
+
+func TestOAuthServerConnectFlow(t *testing.T) {
+	fake := mcpgatewaytest.New(t)
+	s := newStore(t)
+	added, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
+	require.NoError(t, err)
+	require.Equal(t, mcpgateway.AuthTypeOAuth, added.AuthType)
+
+	listed, err := s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.False(t, listed[0].Connected)
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
+	require.ErrorIs(
+		t,
+		s.DisconnectServer(t.Context(), alice, org, "linear"),
+		mcpgateway.ErrNotConnected,
+	)
+
+	connect(t, s, fake, alice, "linear")
+
+	// Only alice is connected.
+	listed, err = s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.True(t, listed[0].Connected)
+	listed, err = s.ListServers(t.Context(), org, bob)
+	require.NoError(t, err)
+	require.False(t, listed[0].Connected)
+	connected, err := s.ListConnectedServers(t.Context(), alice)
+	require.NoError(t, err)
+	require.Len(t, connected, 1)
+	connected, err = s.ListConnectedServers(t.Context(), bob)
+	require.NoError(t, err)
+	require.Empty(t, connected)
+
+	d, err := s.Downstream(t.Context(), alice, org, "linear")
+	require.NoError(t, err)
+	require.Equal(t, fake.URL, d.URL)
+	require.Contains(t, d.Headers["Authorization"], "Bearer at-")
+
+	// An OAuth server's URL is fixed.
+	other := "https://other.example.com/mcp"
+	_, err = s.UpdateServer(t.Context(), org, "linear", mcpgateway.ServerUpdate{URL: &other})
+	require.ErrorIs(t, err, mcpgateway.ErrURLImmutable)
+
+	require.NoError(t, s.DisconnectServer(t.Context(), alice, org, "linear"))
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
+}
+
+func TestCompleteAuthorizationRejectsBadResponses(t *testing.T) {
+	fake := mcpgatewaytest.New(t)
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
 	require.NoError(t, err)
 
-	manual, err := s.ListManualServersForMember(t.Context(), newTestMember(t, records, org))
-	require.NoError(t, err)
-	require.Len(t, manual, 1)
-	require.Equal(t, org, manual[0].OrgID)
+	_, err = s.CompleteAuthorization(t.Context(), "", "code", "")
+	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationNotFound)
+	_, err = s.CompleteAuthorization(t.Context(), "unknown", "code", "")
+	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationNotFound)
 
-	manual, err = s.ListManualServersForMember(t.Context(), "did:plc:stranger")
+	start := func() (state, code string) {
+		authURL, err := s.StartAuthorization(t.Context(), alice, org, "linear")
+		require.NoError(t, err)
+		q := fake.Authorize(t, authURL)
+		return q.Get("state"), q.Get("code")
+	}
+
+	// The fake advertises iss, so a response without it is refused.
+	state, code := start()
+	_, err = s.CompleteAuthorization(t.Context(), state, code, "")
+	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationFailed)
+	// And the state was used up.
+	_, err = s.CompleteAuthorization(t.Context(), state, code, fake.Issuer)
+	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationNotFound)
+
+	state, code = start()
+	_, err = s.CompleteAuthorization(t.Context(), state, code, "https://evil.example.com")
+	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationFailed)
+
+	state, _ = start()
+	_, err = s.CompleteAuthorization(t.Context(), state, "", fake.Issuer)
+	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationFailed)
+
+	state, _ = start()
+	_, err = s.CompleteAuthorization(t.Context(), state, "wrong-code", fake.Issuer)
+	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationFailed)
+
+	// Removing the server while a member authorizes voids the authorization.
+	state, code = start()
+	require.NoError(t, s.RemoveServer(t.Context(), org, "linear"))
+	_, err = s.CompleteAuthorization(t.Context(), state, code, fake.Issuer)
+	require.ErrorIs(t, err, mcpgateway.ErrServerNotFound)
+}
+
+func TestRemovedServerTokensAreNotReused(t *testing.T) {
+	fake := mcpgatewaytest.New(t)
+	s := newStore(t)
+	add := func() {
+		_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+			Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+		})
+		require.NoError(t, err)
+	}
+	add()
+	connect(t, s, fake, alice, "linear")
+	require.NoError(t, s.RemoveServer(t.Context(), org, "linear"))
+
+	// Re-added under the same name, alice must connect again.
+	add()
+	listed, err := s.ListServers(t.Context(), org, alice)
 	require.NoError(t, err)
-	require.Empty(t, manual)
+	require.False(t, listed[0].Connected)
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
+}
+
+func TestDownstreamRefreshesExpiringTokens(t *testing.T) {
+	// Shorter than the store's refresh skew, so every token is refreshed.
+	fake := mcpgatewaytest.New(t, mcpgatewaytest.WithAccessTokenTTL(30*time.Second))
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
+	require.NoError(t, err)
+	connect(t, s, fake, alice, "linear")
+
+	first, err := s.Downstream(t.Context(), alice, org, "linear")
+	require.NoError(t, err)
+	require.Equal(t, 1, fake.Refreshes)
+	// The rotated refresh token was stored, so the next refresh works too.
+	second, err := s.Downstream(t.Context(), alice, org, "linear")
+	require.NoError(t, err)
+	require.Equal(t, 2, fake.Refreshes)
+	require.NotEqual(t, first.Headers["Authorization"], second.Headers["Authorization"])
+
+	// A revoked grant disconnects alice.
+	fake.RevokeRefreshTokens()
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
+	listed, err := s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.False(t, listed[0].Connected)
+}
+
+func TestPreregisteredClient(t *testing.T) {
+	fake := mcpgatewaytest.New(t, mcpgatewaytest.WithoutDCR())
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
+	require.ErrorIs(t, err, mcpgateway.ErrOAuthDiscovery)
+
+	clientID := fake.RegisterClient(callbackURL)
+	_, err = s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+		ClientID: clientID, ClientSecret: "shh",
+	})
+	require.NoError(t, err)
+	connect(t, s, fake, alice, "linear")
 }

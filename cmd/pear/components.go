@@ -27,19 +27,18 @@ import (
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pearapp"
+	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 
-	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/urfave/cli/v3"
@@ -106,7 +105,11 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if err != nil {
 		return nil, fmt.Errorf("setup encrypted keyval store: %w", err)
 	}
-	pdsCredStore := pdscred.NewPDSCredentialStore(encryptedKV.Namespace("pds_credentials"))
+	pdsOAuthStore := pdsoauth.NewStore(
+		encryptedKV.Namespace("pds_oauth_sessions"),
+		kv.Namespace("pds_oauth_sessions"),
+		kv.Namespace("pds_oauth_requests"),
+	)
 
 	domain := cmd.String(fDomain)
 	var clientUri string
@@ -116,17 +119,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if clientUri == "" {
 		clientUri = "https://" + domain
 	}
-	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		clientUri+"/client-metadata.json",
-		clientUri,
-		"https://"+domain+"/oauth-callback",
-		cmd.String(fOauthClientSecret),
-		meter,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("setup oauth client: %w", err)
-	}
-
 	hiveDomain := cmd.String(fHiveDomain)
 	if hiveDomain == "" {
 		hiveDomain = domain
@@ -145,11 +137,20 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	// any locally-hosted DID.
 	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
 
-	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
-		pdsCredStore,
-		oauthClient,
+	oauthClient, err := pdsoauth.NewApp(
+		pdsoauth.Config{
+			ClientID:    clientUri + "/client-metadata.json",
+			ClientURI:   clientUri,
+			CallbackURL: "https://" + domain + "/oauth-callback",
+			Secret:      cmd.String(fOauthClientSecret),
+		},
+		pdsOAuthStore,
 		defaultDir,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("setup oauth client: %w", err)
+	}
+	pdsClientFactory, err := pdsoauth.NewHttpClientFactory(oauthClient)
 	if err != nil {
 		return nil, fmt.Errorf("setup PDS client factory: %w", err)
 	}
@@ -160,12 +161,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	}
 
 	loginRouter := &org.LoginRouter{
-		Pds: login.NewPDSProvider(
-			oauthClient,
-			pdsCredStore,
-			defaultDir,
-			kv.Namespace("login"),
-		),
+		Pds:        login.NewPDSProvider(oauthClient),
 		EmailStore: emailDomainStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
@@ -312,26 +308,36 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		syntax.DID("did:web:"+domain),
 	)
 
-	// Store for org-configured MCP servers and per-user Nango connections.
-	nangoSecretKey := cmd.String(fNangoSecretKey)
-	if nangoSecretKey == "" {
-		slog.WarnContext(ctx, "nango secret key not set; MCP server configuration is disabled")
+	// Store for org-configured MCP servers and members' OAuth tokens for them.
+	// Org admins choose the servers' URLs, so OAuth discovery and token
+	// requests only reach public addresses unless allowed for development.
+	mcpClient := httpx.NewPublicClient()
+	if cmd.Bool(fMCPAllowPrivateNets) {
+		mcpClient = httpx.NewClient()
 	}
-	nangoClient := nango.NewClient(nangoSecretKey, httpx.NewClient())
-	mcpGatewayStore, err := mcpgateway.NewStore(nangoClient, opensocialStore)
+	mcpGatewayStore, err := mcpgateway.NewStore(
+		database,
+		encryptedKV,
+		kv,
+		credKey,
+		opensocialStore,
+		mcpClient,
+		"https://"+domain+pearserver.MCPOAuthCallbackPath,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("setup mcp gateway store: %w", err)
 	}
 
-	llmStore := llmgateway.NewStore(
-		spacesStore,
-		encryptedKV.Namespace(llmgateway.CredentialsNamespace),
-		kv.Namespace(llmgateway.CredentialsNamespace),
+	llmStore, err := llmgateway.NewStore(
+		database,
+		credKey,
 		llmgateway.NewModelFactory(httpx.NewClient()),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("setup llm gateway store: %w", err)
+	}
 
 	pdsForwarding := forwarding.NewPDSForwarding(
-		pdsCredStore,
 		validator,
 		pdsClientFactory,
 		defaultDir,
@@ -373,7 +379,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		credentialRevocations,
 		kv.Namespace("space_delegation_spent"),
 		simpleStore,
-		nangoClient,
 		mcpGatewayStore,
 		llmStore,
 		pdsForwarding,
