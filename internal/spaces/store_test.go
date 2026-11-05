@@ -1618,7 +1618,10 @@ func TestSpaceRevSequencesWrites(t *testing.T) {
 	put(owner, "a")
 	put(alice, "b")
 	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "a"))
-	require.NoError(t, s.RegisterRemoteWrite(t.Context(), uri, alice, syntax.NewTIDNow(0), []byte("d")))
+	require.NoError(
+		t,
+		s.RegisterRemoteWrite(t.Context(), uri, alice, syntax.NewTIDNow(0), []byte("d")),
+	)
 
 	// Each write advances the space revision, and names the revision it
 	// replaced as its previous one, so a receiver can spot a gap.

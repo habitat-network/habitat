@@ -262,7 +262,13 @@ func TestSpaceCredentialAuthMethod_KeyBinding(t *testing.T) {
 		// A host method addresses the space authority.
 		_, ok := method.Validate(
 			httptest.NewRecorder(),
-			presentCredential(t, "/xrpc/com.atproto.space.listRepos", bound, syncerKey, "did:plc:alice"),
+			presentCredential(
+				t,
+				"/xrpc/com.atproto.space.listRepos",
+				bound,
+				syncerKey,
+				"did:plc:alice",
+			),
 		)
 		require.False(t, ok)
 	})

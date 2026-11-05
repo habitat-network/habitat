@@ -50,7 +50,12 @@ func (c *CredentialRevocations) Revoke(
 	jtis []string,
 ) error {
 	for _, jti := range jtis {
-		if err := c.kv.Put(ctx, revocationKey(space, jti), true, CredentialRevocationTTL); err != nil {
+		if err := c.kv.Put(
+			ctx,
+			revocationKey(space, jti),
+			true,
+			CredentialRevocationTTL,
+		); err != nil {
 			return fmt.Errorf("revoke %s: %w", jti, err)
 		}
 	}
@@ -163,7 +168,13 @@ func (s *SpaceCredentialAuthMethod) Validate(
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check credential revocation: %w", err))
 		return nil, false
 	} else if revoked {
-		httpx.WriteError(ctx, w, "CredentialRevoked", "space credential was revoked", http.StatusUnauthorized)
+		httpx.WriteError(
+			ctx,
+			w,
+			"CredentialRevoked",
+			"space credential was revoked",
+			http.StatusUnauthorized,
+		)
 		return nil, false
 	}
 

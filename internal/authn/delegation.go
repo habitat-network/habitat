@@ -113,7 +113,11 @@ func (d *DelegationTokenVerifier) Verify(
 
 // spend records the token's jti so a replay of it is refused: a delegation
 // token is single-use. The jti is remembered until the token expires.
-func (d *DelegationTokenVerifier) spend(ctx context.Context, issuer string, claims jwt.Claims) error {
+func (d *DelegationTokenVerifier) spend(
+	ctx context.Context,
+	issuer string,
+	claims jwt.Claims,
+) error {
 	mc, _ := claims.(jwt.MapClaims)
 	jti, _ := mc["jti"].(string)
 	if jti == "" {
