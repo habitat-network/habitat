@@ -100,7 +100,7 @@ func (r *LoginRouter) Authorize(
 		return provider.Authorize(ctx, string(email))
 	}
 	// Everything else signs in through its PDS.
-	return r.Pds.Authorize(ctx, "" /* loginHint (empty because any account will work) */)
+	return r.Pds.Authorize(ctx, did.String())
 }
 
 func (r *LoginRouter) Exchange(
