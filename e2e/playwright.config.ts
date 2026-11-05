@@ -1,10 +1,5 @@
 import { defineConfig } from "@playwright/test";
 
-// Pear serves a self-signed certificate; the harness's Node-side HTTP calls
-// (workers inherit this) need to accept it just like the browser does below.
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-process.env.NODE_NO_WARNINGS = "1";
-
 // Pear is started once per run by globalSetup (see harness/global-setup.ts) and
 // every test shares it. Tests stay isolated by creating their own orgs through
 // the fixtures in harness/fixtures.ts instead of resetting the instance.

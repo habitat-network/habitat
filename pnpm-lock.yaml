@@ -6,123 +6,12 @@ settings:
 
 catalogs:
   default:
-    '@atproto/api':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@atproto/common-web':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@atproto/crypto':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@atproto/identity':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@atproto/lex':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@atproto/lex-server':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@atproto/lexicon':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@atproto/oauth-types':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@atproto/syntax':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@atproto/xrpc':
-      specifier: 0.0.0-spaces-alpha-20261029171913
-      version: 0.0.0-spaces-alpha-20261029171913
-    '@tailwindcss/typography':
-      specifier: ^0.5.20
-      version: 0.5.20
-    '@tailwindcss/vite':
-      specifier: ^4.3.3
-      version: 4.3.3
-    '@tanstack/devtools-vite':
-      specifier: ^0.8.5
-      version: 0.8.5
-    '@tanstack/pacer':
-      specifier: ^0.22.0
-      version: 0.22.0
-    '@tanstack/react-devtools':
-      specifier: ^0.10.8
-      version: 0.10.13
-    '@tanstack/react-query':
-      specifier: ^5.102.2
-      version: 5.102.8
-    '@tanstack/react-router':
-      specifier: ^1.170.32
-      version: 1.170.46
-    '@tanstack/react-router-devtools':
-      specifier: ^1.167.1
-      version: 1.167.2
-    '@tanstack/router-plugin':
-      specifier: ^1.168.35
-      version: 1.168.48
-    '@testing-library/dom':
-      specifier: ^10.4.1
-      version: 10.4.2
-    '@testing-library/react':
-      specifier: ^16.3.2
-      version: 16.3.3
     '@types/node':
       specifier: ^22.20.1
       version: 22.20.5
-    '@types/react':
-      specifier: ^19.2.18
-      version: 19.2.18
-    '@types/react-dom':
-      specifier: ^19.2.5
-      version: 19.2.7
-    '@vitejs/plugin-react':
-      specifier: 5.2.0
-      version: 5.2.0
-    boring-avatars:
-      specifier: ^2.0.4
-      version: 2.0.4
-    clsx:
-      specifier: ^2.1.1
-      version: 2.1.1
-    jsdom:
-      specifier: ^30.0.1
-      version: 30.0.1
-    lucide-react:
-      specifier: ^1.34.0
-      version: 1.34.0
-    react:
-      specifier: ^19.2.8
-      version: 19.2.8
-    react-dom:
-      specifier: ^19.2.8
-      version: 19.2.8
-    react-hook-form:
-      specifier: 7.86.0
-      version: 7.86.0
-    tailwindcss:
-      specifier: ^4.3.3
-      version: 4.3.3
     typescript:
       specifier: ^7.0.2
       version: 7.0.2
-    vite:
-      specifier: 8.2.2
-      version: 8.2.2
-    vite-tsconfig-paths:
-      specifier: ^6.0.0
-      version: 6.1.1
-    vitest:
-      specifier: ^5.0.3
-      version: 5.0.5
-    zod:
-      specifier: ^4.4.3
-      version: 4.6.7
-    zustand:
-      specifier: ^5.0.15
-      version: 5.0.16
 
 overrides:
   '@atproto/lex-builder': 0.0.0-spaces-alpha-20261029171913
@@ -239,9 +128,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.5
-      selfsigned:
-        specifier: ^5.5.0
-        version: 5.5.0
       testcontainers:
         specifier: ^11.0.0
         version: 11.14.0(supports-color@10.2.2)

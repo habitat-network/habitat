@@ -35,7 +35,7 @@ export const test = base.extend<Fixtures>({
     async ({ launchOptions }, use) => {
       const args = [
         ...(launchOptions.args ?? []),
-        hostResolverRule({ address: process.env.E2E_PEAR_ADDRESS! }),
+        hostResolverRule({ tlsAddress: process.env.E2E_PEAR_TLS_ADDRESS! }),
       ];
       await use({ ...launchOptions, args });
     },

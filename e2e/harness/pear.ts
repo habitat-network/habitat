@@ -1,12 +1,13 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { generate } from "selfsigned";
 import {
   GenericContainer,
+  Network,
   Wait,
+  type StartedNetwork,
   type StartedTestContainer,
 } from "testcontainers";
 
@@ -30,83 +31,107 @@ const PEAR_ENV = {
 };
 
 /**
- * Pear builds absolute redirects as https://<HABITAT_DOMAIN>/..., so the
- * instance has to be reachable over HTTPS at its domain on port 443. Containers
- * and local processes listen on arbitrary ports instead, so the browser maps
- * (see `hostResolverRule`) localhost:443 onto the real address.
+ * Pear builds absolute redirects as https://<HABITAT_DOMAIN>/..., so browsers
+ * must reach it over HTTPS at its domain on port 443. Pear itself speaks plain
+ * HTTP; a Caddy in front terminates TLS with its internal CA (the browser
+ * ignores the certificate error). Caddy and pear listen on arbitrary ports, so
+ * the browser maps (see `hostResolverRule`) localhost:443 onto Caddy.
  */
 export const PEAR_ORIGIN = "https://localhost";
 
 export interface PearInstance {
-  /** host:port pear is actually listening on, as reachable from this machine. */
+  /** host:port of pear's plain HTTP listener; used by Node-side API calls. */
   address: string;
+  /** host:port of the TLS-terminating proxy in front of pear; used by browsers. */
+  tlsAddress: string;
   stop(): Promise<void>;
 }
 
-/** Chromium flag that sends PEAR_ORIGIN to the running instance. */
-export function hostResolverRule(pear: Pick<PearInstance, "address">): string {
-  return `--host-resolver-rules=MAP localhost:443 ${pear.address}`;
+/** Chromium flag that sends PEAR_ORIGIN to the TLS proxy. */
+export function hostResolverRule(pear: Pick<PearInstance, "tlsAddress">) {
+  return `--host-resolver-rules=MAP localhost:443 ${pear.tlsAddress}`;
+}
+
+/** Caddyfile that serves `site` over TLS and proxies to pear at `upstream`. */
+function caddyfile(site: string, upstream: string): string {
+  return `{
+  admin off
+  skip_install_trust
+  auto_https disable_redirects
+}
+${site} {
+  tls internal
+  reverse_proxy ${upstream}
+}
+`;
 }
 
 /**
- * Starts a fresh pear (empty SQLite database, migrations applied) and waits
- * until it is healthy. Which flavour runs is picked from the environment:
+ * Starts a fresh pear (empty SQLite database, migrations applied) behind a
+ * Caddy TLS proxy and waits until it is healthy. Which flavour runs is picked
+ * from the environment:
  *
- *  - PEAR_ADDRESS=host:port  use an already-running TLS pear whose domain is
- *                            localhost (nothing is started/stopped)
- *  - PEAR_BINARY=<path>      run a locally built pear binary (no Docker needed)
- *  - default                 run the pear image in a testcontainer
+ *  - PEAR_ADDRESS + PEAR_TLS_ADDRESS  use an already-running pear and proxy
+ *                                     whose domain is localhost (nothing is
+ *                                     started or stopped)
+ *  - PEAR_BINARY=<path>               run a locally built pear binary and the
+ *                                     caddy on PATH (CADDY_BIN to override);
+ *                                     no Docker needed
+ *  - default                          run pear and caddy:2 in testcontainers
  */
 export async function startPear(): Promise<PearInstance> {
-  if (process.env.PEAR_ADDRESS) {
-    return { address: process.env.PEAR_ADDRESS, stop: async () => {} };
+  if (process.env.PEAR_ADDRESS && process.env.PEAR_TLS_ADDRESS) {
+    return {
+      address: process.env.PEAR_ADDRESS,
+      tlsAddress: process.env.PEAR_TLS_ADDRESS,
+      stop: async () => {},
+    };
   }
   if (process.env.PEAR_BINARY) {
     return startBinary(path.resolve(process.env.PEAR_BINARY));
   }
-  return startContainer();
+  return startContainers();
 }
 
-/** Writes a self-signed cert for localhost as fullchain.pem/privkey.pem, the names pear expects. */
-async function writeCerts(dir: string) {
-  mkdirSync(dir, { recursive: true });
-  const pems = await generate([{ name: "commonName", value: "localhost" }], {
-    algorithm: "sha256",
-    extensions: [
-      { name: "subjectAltName", altNames: [{ type: 2, value: "localhost" }] },
-    ],
-  });
-  writeFileSync(path.join(dir, "fullchain.pem"), pems.cert);
-  writeFileSync(path.join(dir, "privkey.pem"), pems.private);
-}
-
-async function startContainer(): Promise<PearInstance> {
+async function startContainers(): Promise<PearInstance> {
   const image = ensureImage();
-  const certDir = mkdtempSync(path.join(tmpdir(), "pear-e2e-certs-"));
-  await writeCerts(certDir);
-  const container = await new GenericContainer(image)
-    .withEnvironment({ ...PEAR_ENV, HABITAT_HTTPSCERTS: "/certs" })
-    .withCopyDirectoriesToContainer([{ source: certDir, target: "/certs" }])
+  const network: StartedNetwork = await new Network().start();
+  const pear = await new GenericContainer(image)
+    .withEnvironment(PEAR_ENV)
+    .withNetwork(network)
+    .withNetworkAliases("pear")
     .withExposedPorts(8000)
     // The server does not migrate on startup, so migrate first.
     .withCommand(["sh", "-c", "/app/pear migrate && exec /app/pear serve"])
-    .withWaitStrategy(
-      Wait.forHttp("/health", 8000)
-        .usingTls()
-        .allowInsecure()
-        .forStatusCode(200),
-    )
+    .withWaitStrategy(Wait.forHttp("/health", 8000).forStatusCode(200))
     .withStartupTimeout(60_000)
     .start()
     .catch((err) => {
       throw new Error(`pear container failed to start: ${err}`);
     });
+  const caddy = await new GenericContainer("caddy:2-alpine")
+    .withNetwork(network)
+    .withCopyContentToContainer([
+      {
+        content: caddyfile("localhost:443", "pear:8000"),
+        target: "/etc/caddy/Caddyfile",
+      },
+    ])
+    .withExposedPorts(443)
+    .withWaitStrategy(Wait.forListeningPorts())
+    .start()
+    .catch(async (err) => {
+      await pear.stop();
+      throw new Error(`caddy container failed to start: ${err}`);
+    });
   return {
-    address: `${container.getHost()}:${container.getMappedPort(8000)}`,
+    address: `${pear.getHost()}:${pear.getMappedPort(8000)}`,
+    tlsAddress: `${caddy.getHost()}:${caddy.getMappedPort(443)}`,
     stop: async () => {
-      await dumpLogs(container);
-      await container.stop();
-      rmSync(certDir, { recursive: true, force: true });
+      await dumpLogs(pear);
+      await caddy.stop();
+      await pear.stop();
+      await network.stop();
     },
   };
 }
@@ -149,27 +174,33 @@ function hasImage(image: string): boolean {
 
 async function startBinary(binary: string): Promise<PearInstance> {
   const dir = mkdtempSync(path.join(tmpdir(), "pear-e2e-"));
-  const port = String(30000 + Math.floor(Math.random() * 20000));
-  const certDir = path.join(dir, "certs");
-  await writeCerts(certDir);
-  const env = {
-    ...process.env,
-    ...PEAR_ENV,
-    HABITAT_PORT: port,
-    HABITAT_HTTPSCERTS: certDir,
-  };
+  const pearPort = String(30000 + Math.floor(Math.random() * 10000));
+  const tlsPort = String(40000 + Math.floor(Math.random() * 10000));
+  const env = { ...process.env, ...PEAR_ENV, HABITAT_PORT: pearPort };
   execFileSync(binary, ["migrate"], { cwd: dir, env, stdio: "ignore" });
-  const child: ChildProcess = spawn(binary, ["serve"], {
+  const pear: ChildProcess = spawn(binary, ["serve"], {
     cwd: dir,
     env,
     stdio: "ignore",
   });
-  const address = `localhost:${port}`;
+  const caddyConfig = path.join(dir, "Caddyfile");
+  writeFileSync(
+    caddyConfig,
+    caddyfile(`localhost:${tlsPort}`, `localhost:${pearPort}`),
+  );
+  const caddy: ChildProcess = spawn(
+    process.env.CADDY_BIN ?? "caddy",
+    ["run", "--config", caddyConfig, "--adapter", "caddyfile"],
+    { cwd: dir, stdio: "ignore" },
+  );
+  const address = `localhost:${pearPort}`;
   await waitForHealth(address);
   return {
     address,
+    tlsAddress: `localhost:${tlsPort}`,
     stop: async () => {
-      child.kill();
+      pear.kill();
+      caddy.kill();
       rmSync(dir, { recursive: true, force: true });
     },
   };
@@ -179,7 +210,7 @@ async function waitForHealth(address: string) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     try {
-      if ((await fetch(`https://${address}/health`)).ok) return;
+      if ((await fetch(`http://${address}/health`)).ok) return;
     } catch {
       // not listening yet
     }

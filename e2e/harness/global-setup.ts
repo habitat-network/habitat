@@ -11,6 +11,7 @@ export default async function globalSetup() {
   const pear = await startPear();
   const seeded = await seed(new PearApi(pear.address));
   process.env.E2E_PEAR_ADDRESS = pear.address;
+  process.env.E2E_PEAR_TLS_ADDRESS = pear.tlsAddress;
   process.env.E2E_SEED = JSON.stringify(seeded);
   return () => pear.stop();
 }

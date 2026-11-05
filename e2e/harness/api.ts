@@ -19,11 +19,11 @@ export interface Org {
 }
 
 export class PearApi {
-  /** @param address host:port pear listens on (TLS, self-signed; see playwright.config.ts). */
+  /** @param address host:port pear listens on (plain HTTP). */
   constructor(readonly address: string) {}
 
   get baseUrl() {
-    return `https://${this.address}`;
+    return `http://${this.address}`;
   }
 
   get(path: string): Promise<Response> {
@@ -64,8 +64,8 @@ export class PearApi {
 
   /** Fetches a path with a Host header, to hit pear's host-routed endpoints (DID docs, handles). */
   async getAsHost(host: string, path: string): Promise<Response> {
-    // fetch() forbids overriding Host, so go through node:https.
-    const { request } = await import("node:https");
+    // fetch() forbids overriding Host, so go through node:http.
+    const { request } = await import("node:http");
     const url = new URL(path, this.baseUrl);
     return new Promise((resolve, reject) => {
       const req = request(
@@ -74,7 +74,6 @@ export class PearApi {
           port: url.port,
           path: url.pathname,
           headers: { host },
-          rejectUnauthorized: false,
         },
         (res) => {
           const chunks: Buffer[] = [];
