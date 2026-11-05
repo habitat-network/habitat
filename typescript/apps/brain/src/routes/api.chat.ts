@@ -124,19 +124,15 @@ export const Route = createFileRoute("/api/chat")({
             // key, and pear's tokens are DPoP-bound, so requests go out
             // through the member's session, which supplies both. The key
             // here is a placeholder the session's Authorization replaces.
-            adapter: createOpenaiChatCompletions(
-              model as "gpt-4o",
-              "unused",
-              {
-                baseURL: llmBaseUrl(env.BRAIN_HABITAT_URL, llmOrg),
-                fetch: (input, init) => {
-                  const url = new URL(
-                    input instanceof Request ? input.url : input.toString(),
-                  );
-                  return agent.fetchHandler(url.pathname + url.search, init);
-                },
+            adapter: createOpenaiChatCompletions(model as "gpt-4o", "unused", {
+              baseURL: llmBaseUrl(env.BRAIN_HABITAT_URL, llmOrg),
+              fetch: (input, init) => {
+                const url = new URL(
+                  input instanceof Request ? input.url : input.toString(),
+                );
+                return agent.fetchHandler(url.pathname + url.search, init);
               },
-            ),
+            }),
             messages: params.messages,
             threadId: params.threadId,
             systemPrompts: [
