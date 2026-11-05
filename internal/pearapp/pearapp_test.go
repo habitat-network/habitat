@@ -27,7 +27,9 @@ func TestNewHoldsItsDependencies(t *testing.T) {
 		nil, // pds client factory
 		nil, // email domain store
 		nil, // host key
+		nil, // host KEM key
 		nil, // notify store
+		nil, // notifier
 		bucket,
 		nil, // blob store
 		nil, // spaces store
@@ -37,6 +39,8 @@ func TestNewHoldsItsDependencies(t *testing.T) {
 		nil, // service auth
 		nil, // perm store
 		nil, // validator
+		nil, // credential revocations
+		nil, // delegation tokens spent
 		nil, // simple store
 		nil, // nango client
 		nil, // mcp gateway store
