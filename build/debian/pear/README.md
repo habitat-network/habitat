@@ -34,7 +34,6 @@ To install a specific release instead, replace `latest/download` with `download/
 
 ```bash
 HABITAT_DOMAIN=pear.example.com
-HABITAT_ADMIN_PASSWORD=<password for the instance admin at https://pear.example.com/admin>
 ```
 
 `HABITAT_DOMAIN` is the only required setting. See [Configuration](#configuration) for all options.
@@ -72,7 +71,6 @@ All settings are environment variables in your `.env` file. Each corresponds to 
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `HABITAT_DOMAIN` | yes | — | Publicly accessible domain for your server (no `https://` prefix) |
-| `HABITAT_ADMIN_PASSWORD` | no | random on every boot | Password for the `admin` user of the instance admin pages at `/admin`. If unset, a new one is printed to the logs on each start |
 | `HABITAT_PORT` | no | `8000` | Port the server listens on (and is published on the host) |
 | `HABITAT_DB` | no | `sqlite:///data/repo.db` | Database connection string: `sqlite:///path/to/file.db` or `postgres://…` (see [Postgres](#postgres)) |
 | `HABITAT_BLOB_BUCKET` | no | `file:///data/blobs` | Blob storage: `file:///dir`, `s3://bucket?region=…`, or `gs://bucket` |

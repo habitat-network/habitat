@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	"log/slog"
 	"strings"
 
-	"github.com/alexedwards/argon2id"
 	"go.opentelemetry.io/otel"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -415,31 +413,4 @@ func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
 		return nil, fmt.Errorf("setup fga sqlite store %q: %w", fgaPath, err)
 	}
 	return fga, nil
-}
-
-func setupInstanceAdminPassword(ctx context.Context, cmd *cli.Command) (string, error) {
-	pass := cmd.String(fAdminPassword)
-
-	// Generate a password on startup if not given
-	generate := pass == ""
-	if generate {
-		b := make([]byte, 24)
-		if _, err := rand.Read(b); err != nil {
-			return "", err
-		}
-		pass = string(b)
-		slog.WarnContext(
-			ctx,
-			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
-			"username",
-			"admin",
-			"password",
-			pass,
-		)
-	}
-	passwordHash, err := argon2id.CreateHash(pass, argon2id.DefaultParams)
-	if err != nil {
-		return "", err
-	}
-	return passwordHash, nil
 }
