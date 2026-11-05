@@ -1,0 +1,11 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.personalspace.policy",
+  "defs": {
+    "main": {
+      "type": "object",
+      "description": "A space policy: only the authority's own account has access. No configuration.",
+      "properties": {}
+    }
+  }
+}

@@ -10,7 +10,7 @@ import (
 )
 
 // SupportsSpaces reports whether the PDS at pdsEndpoint implements the atproto
-// permissioned-data ("spaces") protocol — com.atproto.simplespace — per the
+// permissioned-data ("spaces") protocol — com.atproto.space — per the
 // alpha proposal (github.com/bluesky-social/proposals, 0016-permissioned-data).
 // A space authority resolves like any other account (#atproto_pds is its space
 // host, #atproto signs its credentials), so the DID document carries no
@@ -20,7 +20,7 @@ import (
 // real implementation would give — a successful result, or the XRPC
 // "InvalidRequest" a lexicon-validating server returns for the missing
 // required "space" param (e.g. `{"error":"InvalidRequest","message":"Invalid
-// com.atproto.simplespace.getSpace params: Missing required key \"space\""}`
+// com.atproto.space.getSpace params: Missing required key \"space\""}`
 // from a real spaces-alpha PDS). Any other response — a 404/501, a generic
 // router error, or some other error name entirely — is treated as
 // unsupported, since it isn't a signal a spaces implementation must produce.
@@ -36,7 +36,7 @@ func SupportsSpaces(ctx context.Context, client *http.Client, ident *identity.Id
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		ident.PDSEndpoint()+"/xrpc/com.atproto.simplespace.getSpace",
+		ident.PDSEndpoint()+"/xrpc/com.atproto.space.getSpace",
 		http.NoBody,
 	)
 	if err != nil {

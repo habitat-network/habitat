@@ -1,8 +1,10 @@
 package pearserver_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -348,4 +350,79 @@ func TestServer_Simplespace_Unauthorized(t *testing.T) {
 		&out,
 	)
 	require.Equal(t, http.StatusUnauthorized, code)
+}
+
+// TestServer_SpacePolicy covers the com.atproto.space policy lifecycle and
+// the memberspace-only member methods. Requests carry their real XRPC path
+// because handlers shared with network.habitat pick the namespace from it.
+func TestServer_SpacePolicy(t *testing.T) {
+	ts := pearserver_testutil.NewTestServer(t)
+
+	call := func(t *testing.T, h http.HandlerFunc, nsid string, in any) (int, []byte) {
+		t.Helper()
+		body, err := json.Marshal(in)
+		require.NoError(t, err)
+		req := httptest.NewRequest(http.MethodPost, "/xrpc/"+nsid, bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		h(w, req)
+		return w.Code, w.Body.Bytes()
+	}
+	create := func(t *testing.T, policy map[string]any) (int, string) {
+		t.Helper()
+		code, body := call(t, ts.Server.CreateSpace, "com.atproto.space.createSpace",
+			map[string]any{"type": "network.habitat.group", "policy": policy})
+		var out struct {
+			Uri string `json:"uri"`
+		}
+		_ = json.Unmarshal(body, &out)
+		return code, out.Uri
+	}
+
+	t.Run("create requires a policy and rejects unsupported ones", func(t *testing.T) {
+		code, _ := call(t, ts.Server.CreateSpace, "com.atproto.space.createSpace",
+			map[string]any{"type": "network.habitat.group"})
+		require.Equal(t, http.StatusBadRequest, code)
+		code, _ = create(t, map[string]any{
+			"$type": "com.atproto.managedspace.policy", "managingApp": "did:web:x",
+		})
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("update replaces the policy and getSpace returns it", func(t *testing.T) {
+		code, uri := create(t, map[string]any{"$type": "com.atproto.memberspace.policy"})
+		require.Equal(t, http.StatusOK, code)
+
+		code, _ = call(t, ts.Server.UpdateSpace, "com.atproto.space.updateSpace", map[string]any{
+			"space": uri,
+			"policy": map[string]any{
+				"$type": "com.atproto.memberspace.policy", "publicRead": true,
+			},
+		})
+		require.Equal(t, http.StatusOK, code)
+
+		got, err := ts.SpaceStore.GetSpacePolicy(t.Context(), habitat_syntax.SpaceURI(uri))
+		require.NoError(t, err)
+		require.True(t, got.PublicRead)
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/xrpc/com.atproto.space.getSpace?space="+url.QueryEscape(uri), nil)
+		w := httptest.NewRecorder()
+		ts.Server.GetSpace(w, req)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		var out struct {
+			Uri    string         `json:"uri"`
+			Policy map[string]any `json:"policy"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+		require.Equal(t, uri, out.Uri)
+		require.Equal(t, "com.atproto.memberspace.policy", out.Policy["$type"])
+	})
+
+	t.Run("a personalspace has no member list", func(t *testing.T) {
+		code, uri := create(t, map[string]any{"$type": "com.atproto.personalspace.policy"})
+		require.Equal(t, http.StatusOK, code)
+		code, _ = call(t, ts.Server.AddMember, "com.atproto.memberspace.putMember",
+			map[string]any{"space": uri, "did": alice.String(), "read": true, "write": true})
+		require.Equal(t, http.StatusBadRequest, code)
+	})
 }

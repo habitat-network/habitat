@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.memberspace.policy",
+  "defs": {
+    "main": {
+      "type": "object",
+      "description": "A space policy: access is decided by a member list maintained by the authority.",
+      "properties": {
+        "publicRead": {
+          "type": "boolean",
+          "default": false,
+          "description": "Anyone may read; no delegation token is required."
+        },
+        "publicWrite": {
+          "type": "boolean",
+          "default": false,
+          "description": "Writes from any user are tracked and forwarded, not just members'."
+        },
+        "allowedApps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "OAuth client IDs permitted to read, checked against the attested client_id. Does not apply to writes."
+        },
+        "publishPolicy": {
+          "type": "boolean",
+          "description": "Publish the policy to readers as a record in the authority's repo."
+        },
+        "publishMembers": {
+          "type": "boolean",
+          "description": "Publish the member list to readers as records in the authority's repo."
+        }
+      }
+    }
+  }
+}

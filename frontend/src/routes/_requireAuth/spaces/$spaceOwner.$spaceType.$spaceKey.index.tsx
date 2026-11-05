@@ -94,7 +94,7 @@ function SpaceMembers() {
 
   const { mutate: removeMember } = useMutation({
     async mutationFn(did: string) {
-      await xrpc(authManager, com.atproto.simplespace.removeMember.main, {
+      await xrpc(authManager, com.atproto.memberspace.removeMember.main, {
         body: { space: space as SpaceRefString, did: did as DidString },
       });
     },
@@ -251,7 +251,7 @@ function AddMemberDialog({
       // does not implement yet (it just adds the DID to the member list).
       // Send the defaults it would apply anyway; drop when the host grows
       // per-member read/write.
-      await xrpc(authManager, com.atproto.simplespace.putMember.main, {
+      await xrpc(authManager, com.atproto.memberspace.putMember.main, {
         body: {
           space: space as SpaceRefString,
           did: did as DidString,

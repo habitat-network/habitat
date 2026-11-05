@@ -93,7 +93,7 @@ func (p *PearServer) registerRoutes() {
 
 	// com.atproto aliases for the permissioned-data proposal's official NSIDs
 	// (proposal 0016). Same handlers as the network.habitat registrations
-	// above; com.atproto.simplespace.putMember aliases addMember.
+	// above; com.atproto.memberspace.putMember aliases addMember.
 	p.router.HandleFunc("/xrpc/com.atproto.space.listSpaces", p.ListSpaces)
 	p.router.HandleFunc("/xrpc/com.atproto.space.listRepos", p.ListRepos)
 	p.router.HandleFunc("/xrpc/com.atproto.space.putRecord", p.PutRecord)
@@ -116,9 +116,13 @@ func (p *PearServer) registerRoutes() {
 	// com.atproto.server aliases
 	p.router.HandleFunc("/xrpc/com.atproto.server.getSession", p.GetSession)
 
-	p.router.HandleFunc("/xrpc/com.atproto.simplespace.createSpace", p.CreateSpace)
-	p.router.HandleFunc("/xrpc/com.atproto.simplespace.putMember", p.AddMember)
-	p.router.HandleFunc("/xrpc/com.atproto.simplespace.removeMember", p.RemoveMember)
-	p.router.HandleFunc("/xrpc/com.atproto.simplespace.listMembers", p.ListMembers)
-	p.router.HandleFunc("/xrpc/com.atproto.simplespace.deleteSpace", p.DeleteSpace)
+	// Space policies (proposal 0016): lifecycle is policy-agnostic under
+	// com.atproto.space, member methods belong to the memberspace policy.
+	p.router.HandleFunc("/xrpc/com.atproto.space.createSpace", p.CreateSpace)
+	p.router.HandleFunc("/xrpc/com.atproto.space.updateSpace", p.UpdateSpace)
+	p.router.HandleFunc("/xrpc/com.atproto.space.getSpace", p.GetSpace)
+	p.router.HandleFunc("/xrpc/com.atproto.space.deleteSpace", p.DeleteSpace)
+	p.router.HandleFunc("/xrpc/com.atproto.memberspace.putMember", p.AddMember)
+	p.router.HandleFunc("/xrpc/com.atproto.memberspace.removeMember", p.RemoveMember)
+	p.router.HandleFunc("/xrpc/com.atproto.memberspace.listMembers", p.ListMembers)
 }
