@@ -55,7 +55,11 @@ func TestSpacePolicy_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, spaces.DefaultPolicy(), got, "new spaces default to memberspace")
 
-	want := spaces.Policy{Type: spaces.PolicyMemberSpace, PublicRead: true, AllowedApps: []string{"x"}}
+	want := spaces.Policy{
+		Type:        spaces.PolicyMemberSpace,
+		PublicRead:  true,
+		AllowedApps: []string{"x"},
+	}
 	require.NoError(t, s.SetSpacePolicy(t.Context(), uri, want))
 	got, err = s.GetSpacePolicy(t.Context(), uri)
 	require.NoError(t, err)

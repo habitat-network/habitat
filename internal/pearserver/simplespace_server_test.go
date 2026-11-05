@@ -405,7 +405,7 @@ func TestServer_SpacePolicy(t *testing.T) {
 		require.True(t, got.PublicRead)
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/xrpc/com.atproto.space.getSpace?space="+url.QueryEscape(uri), nil)
+			"/xrpc/com.atproto.space.getSpace?space="+url.QueryEscape(uri), http.NoBody)
 		w := httptest.NewRecorder()
 		ts.Server.GetSpace(w, req)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
