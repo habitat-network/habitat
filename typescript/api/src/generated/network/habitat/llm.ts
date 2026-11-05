@@ -3,7 +3,6 @@
  */
 
 export * as addConnection from './llm/addConnection.js'
-export * as connection from './llm/connection.js'
 export * as defs from './llm/defs.js'
 export * as listConnections from './llm/listConnections.js'
 export * as removeConnection from './llm/removeConnection.js'

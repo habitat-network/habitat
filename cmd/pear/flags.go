@@ -22,11 +22,9 @@ var (
 	fGoogleClientID        = "google_client_id"
 	fGoogleClientSecret    = "google_client_secret"
 	fPdsOauthClientUri     = "pds_oauth_client_uri"
-	fAdminPassword         = "admin_password"
 	fUiDevProxy            = "ui_dev_proxy"
 	fBuiltinApps           = "builtin_app"
 	fBlobBucket            = "blob_bucket"
-	fNangoSecretKey        = "nango_secret_key"
 	fMeilisearchURL        = "meilisearch_url"
 	fMeilisearchAPIKey     = "meilisearch_api_key"
 	fEmbedderURL           = "embedder_url"
@@ -37,6 +35,7 @@ var (
 	fSearchMinScore        = "search_min_score"
 	fMCPTextOverrides      = "mcp_text_overrides"
 	fLoginHintCookieDomain = "login_hint_cookie_domain"
+	fMCPAllowPrivateNets   = "mcp_allow_private_networks"
 )
 
 var profiles []string
@@ -122,11 +121,6 @@ func getFlags() []cli.Flag {
 			Sources: getSources(fPdsOauthClientUri),
 		},
 		&cli.StringFlag{
-			Name:    fAdminPassword,
-			Usage:   "Preset password for the instance admin account; if unset, a random password is generated on every boot and printed once. Not persisted - kept in memory only",
-			Sources: getSources(fAdminPassword),
-		},
-		&cli.StringFlag{
 			Name:    fUiDevProxy,
 			Usage:   "If set, reverse-proxy the embedded /ui/ pages to this URL (the pear-pages dev server) instead of serving the embedded build. Used in development.",
 			Sources: getSources(fUiDevProxy),
@@ -148,11 +142,6 @@ func getFlags() []cli.Flag {
 			Usage:   "gocloud.dev bucket connection string for blob storage, with inline credentials (e.g. s3://bucket?region=us-east-1, gs://bucket, file:///var/blobs). Defaults to an in-memory store.",
 			Value:   "mem://",
 			Sources: getSources(fBlobBucket),
-		},
-		&cli.StringFlag{
-			Name:    fNangoSecretKey,
-			Usage:   "Secret key for the Nango environment brokering MCP server OAuth connections. If unset, MCP server configuration is unavailable.",
-			Sources: getSources(fNangoSecretKey),
 		},
 		&cli.StringFlag{
 			Name:    fMeilisearchURL,
@@ -204,6 +193,11 @@ func getFlags() []cli.Flag {
 			Name:    fLoginHintCookieDomain,
 			Usage:   "Parent domain (e.g. habitat.network) to scope the signed-in user's login-hint cookie to, so apps on its subdomains can read it and skip asking for a handle. Must cover --domain. Empty keeps the cookie on pear's own host",
 			Sources: getSources(fLoginHintCookieDomain),
+		},
+		&cli.BoolFlag{
+			Name:    fMCPAllowPrivateNets,
+			Usage:   "Development only: let org MCP servers and their authorization servers live on loopback or private-network addresses, which pear otherwise refuses to connect to.",
+			Sources: getSources(fMCPAllowPrivateNets),
 		},
 	}
 }

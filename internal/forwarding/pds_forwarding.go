@@ -13,8 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -35,7 +34,7 @@ var targetRoutedMethods = map[string]string{
 
 type PDSForwarding struct {
 	validator        authn.RequestValidator
-	pdsClientFactory pdsclient.HttpClientFactory
+	pdsClientFactory pdsoauth.HttpClientFactory
 	dir              identity.Directory
 	plainHTTPClient  *http.Client
 }
@@ -43,9 +42,8 @@ type PDSForwarding struct {
 var _ http.Handler = (*PDSForwarding)(nil)
 
 func NewPDSForwarding(
-	credStore pdscred.PDSCredentialStore,
 	validator authn.RequestValidator,
-	pdsClientFactory pdsclient.HttpClientFactory,
+	pdsClientFactory pdsoauth.HttpClientFactory,
 	dir identity.Directory,
 ) *PDSForwarding {
 	return &PDSForwarding{

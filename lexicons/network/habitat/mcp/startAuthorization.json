@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Begin authorizing the caller against an org-configured MCP server via Nango. Returns a Nango Connect session token for the caller's browser to use with the Nango frontend SDK's Connect UI. Requires service-auth. Callable by any org member.",
+      "description": "Begin authorizing the caller against an org-configured oauth MCP server. Returns the server's authorization URL, for the caller's browser to open; once they approve, the authorization server redirects back to pear, which stores the caller's tokens. Requires service-auth. Callable by any org member.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -30,12 +30,13 @@
         "schema": {
           "type": "object",
           "required": [
-            "sessionToken"
+            "authorizationUrl"
           ],
           "properties": {
-            "sessionToken": {
+            "authorizationUrl": {
               "type": "string",
-              "description": "A Nango Connect session token, to be passed to the Nango frontend SDK's openConnectUI."
+              "format": "uri",
+              "description": "Where to send the caller's browser to authorize pear with the server. It's valid for 10 minutes and can be used once."
             }
           }
         }

@@ -40,7 +40,6 @@ func TestNewHoldsItsDependencies(t *testing.T) {
 		nil, // credential revocations
 		nil, // delegation tokens spent
 		nil, // simple store
-		nil, // nango client
 		nil, // mcp gateway store
 		nil, // llm store
 		nil, // pds forwarding

@@ -35,15 +35,15 @@ Auth:
 - `authn` — `Method` abstraction for authenticating inbound requests (OAuth, service-auth)
 - `login` — pluggable login `Provider`s (google, pds) used by `org`'s login flow
 - `oauthserver` — Habitat's OAuth 2.0 provider (Fosite-based); brokers between client apps and a user's PDS OAuth (see `internal/oauthserver/README.md`)
-- `pdsclient` — authenticated HTTP client factory for calling a DID's AT Proto PDS (OAuth + DPoP)
-- `pdscred` — encrypted storage of PDS OAuth credentials per DID
+- `pdsoauth` — atproto OAuth client of members' PDSes on indigo's `oauth.ClientApp`: keyval-backed session store (encrypted) and auth-request store (expiring), plus the authenticated HTTP client factory for calling a DID's PDS (OAuth + DPoP)
 
 Data & permissions:
 - `spaces` — `network.habitat.space` abstraction grouping records, backed by `fgastore`
 - `fgastore` — Zanzibar-style relationship-based access control store wrapping an embedded OpenFGA server
 - `search` — full-text search over space records in Meilisearch. `search.Indexer` (a `spaces.Notifier`) syncs every repo via `ListRepoOps` and indexes each record with its space's read access (readers flattened by the perms store, opensocial.access community roles) as filterable fields; a record's text and each blob's are split into ~2KB overlapping chunks, one Meilisearch document each, sharing a `parent_id` that searches dedupe on (`distinct`); `search.Searcher` queries as the caller. pear opens the index without changing its settings; `pear run reindex` (a Cloud Run job in prod) rebuilds it with the running settings into `<index>_next`, atomically swaps it in and deletes the old one, so run it after a settings, embedder or projection change, and never two at once; until then an index from an older projection (no `body` field) still serves searches but refuses writes with `search.ErrLegacyIndex`, which the indexer retries. Off unless `--meilisearch_url` is set. Tests use `HABITAT_TEST_MEILISEARCH_URL` if set, else testcontainers
 - `syntax` — Habitat-specific syntax types/parsers (Habitat URI, Space URI/Key, Clique ref) extending `atproto/syntax`
-- `llmgateway` — per-org LLM model connections: metadata as `network.habitat.llm.connection` records in the opensocial members space, API keys in the encrypted keyval store, providers called via langchaingo, and the OpenAI Chat Completions translation served at `/llm/{org}/v1`
+- `llmgateway` — per-org LLM model connections: metadata in the `llm_connections` table with API keys encrypted on the row, providers called via langchaingo, and the OpenAI Chat Completions translation served at `/llm/{org}/v1`
+- `mcpgateway` — per-org MCP server configuration in the `mcp_servers` table (including the OAuth client pear registers with each server's authorization server); pear runs the MCP OAuth flow itself (callback at `/mcp-oauth/callback`) and keeps each member's tokens in the encrypted keyval store, refreshing them for `internal/mcpserver`'s proxied tools
 - `perms` — wraps the fgastore and opensocial to query, update, and enforce permissions
 
 Sync & networking:
@@ -117,7 +117,6 @@ moon run <project>:format      # format a projects
 - `HABITAT_GOOGLE_CLIENT_ID` / `HABITAT_GOOGLE_CLIENT_SECRET` — Google Sign-In login method
 - `HABITAT_MEILISEARCH_URL` / `HABITAT_MEILISEARCH_API_KEY` — Meilisearch for space record search (`pear:dev` sets the URL and runs `root:meilisearch` on :7700); search is off when unset
 - `HABITAT_EMBEDDER_URL` / `HABITAT_EMBEDDER_API_KEY` / `HABITAT_EMBEDDER_MODEL` — OpenAI-compatible embeddings endpoint Meilisearch calls for hybrid search (locally Ollama, e.g. `http://localhost:11434/v1/embeddings` with `nomic-embed-text`; in prod Microsoft Foundry's `/openai/v1/embeddings` with the deployment name as model); keyword-only when unset. Tune with `HABITAT_SEARCH_SEMANTIC_RATIO` and `HABITAT_SEARCH_MIN_SCORE`
-- `HABITAT_ADMIN_PASSWORD` — preset instance admin password (random + printed once if unset)
 
 ## Code conventions
 

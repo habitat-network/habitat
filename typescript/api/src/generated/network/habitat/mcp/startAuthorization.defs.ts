@@ -23,7 +23,7 @@ export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  sessionToken: /*#__PURE__*/ l.string(),
+  authorizationUrl: /*#__PURE__*/ l.string({ format: 'uri' }),
 })
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
@@ -32,7 +32,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Begin authorizing the caller against an org-configured MCP server via Nango. Returns a Nango Connect session token for the caller's browser to use with the Nango frontend SDK's Connect UI. Requires service-auth. Callable by any org member. */
+/** Begin authorizing the caller against an org-configured oauth MCP server. Returns the server's authorization URL, for the caller's browser to open; once they approve, the authorization server redirects back to pear, which stores the caller's tokens. Requires service-auth. Callable by any org member. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

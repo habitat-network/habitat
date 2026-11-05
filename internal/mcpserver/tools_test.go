@@ -3,7 +3,6 @@ package mcpserver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,97 +13,60 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/nango"
-	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// fakeNangoClient is an in-memory stand-in for internal/nango.Client,
-// satisfying NangoClient, so tests don't need real Nango credentials or
-// network access.
-type fakeNangoClient struct {
-	connections map[string][]nango.Connection       // endUserID -> connections
-	details     map[string]*nango.ConnectionDetails // connectionID -> details
-	detailsErr  map[string]error                    // connectionID -> error, if any
+// fakeConnectedServers is an in-memory stand-in for mcpgateway.Store,
+// satisfying ConnectedServers.
+type fakeConnectedServers struct {
+	servers    map[syntax.DID][]*mcpgateway.Server // member -> servers
+	downstream map[mcpgateway.ServerName]*mcpgateway.Downstream
+	// unreachable servers fail to resolve.
+	unreachable map[mcpgateway.ServerName]error
 }
 
-func newFakeNangoClient() *fakeNangoClient {
-	return &fakeNangoClient{
-		connections: make(map[string][]nango.Connection),
-		details:     make(map[string]*nango.ConnectionDetails),
-		detailsErr:  make(map[string]error),
+func newFakeConnectedServers() *fakeConnectedServers {
+	return &fakeConnectedServers{
+		servers:     make(map[syntax.DID][]*mcpgateway.Server),
+		downstream:  make(map[mcpgateway.ServerName]*mcpgateway.Downstream),
+		unreachable: make(map[mcpgateway.ServerName]error),
 	}
 }
 
-// connect registers a connection for endUserID to the MCP server at url,
-// with no authorization required.
-func (f *fakeNangoClient) connect(endUserID, connectionID, providerConfigKey, orgID, url string) {
-	f.connections[endUserID] = append(f.connections[endUserID], nango.Connection{
-		ConnectionID:      connectionID,
-		ProviderConfigKey: providerConfigKey,
-		OrgID:             orgID,
-	})
-	f.details[connectionID] = &nango.ConnectionDetails{MCPServerURL: url}
+// connect connects member to the server name at url, sending headers.
+func (f *fakeConnectedServers) connect(
+	member syntax.DID, orgID syntax.DID, name mcpgateway.ServerName, url string,
+	headers map[string]string,
+) {
+	f.servers[member] = append(f.servers[member], &mcpgateway.Server{OrgID: orgID, Name: name})
+	f.downstream[name] = &mcpgateway.Downstream{URL: url, Headers: headers}
 }
 
-func (f *fakeNangoClient) ListConnections(
-	ctx context.Context, endUserID string,
-) ([]nango.Connection, error) {
-	return f.connections[endUserID], nil
+func (f *fakeConnectedServers) ListConnectedServers(
+	_ context.Context, did syntax.DID,
+) ([]*mcpgateway.Server, error) {
+	return f.servers[did], nil
 }
 
-func (f *fakeNangoClient) GetConnection(
-	ctx context.Context, connectionID, providerConfigKey string,
-) (*nango.ConnectionDetails, error) {
-	if err, ok := f.detailsErr[connectionID]; ok {
+func (f *fakeConnectedServers) Downstream(
+	_ context.Context, _ syntax.DID, _ syntax.DID, name mcpgateway.ServerName,
+) (*mcpgateway.Downstream, error) {
+	if err, ok := f.unreachable[name]; ok {
 		return nil, err
 	}
-	details, ok := f.details[connectionID]
+	d, ok := f.downstream[name]
 	if !ok {
-		return nil, fmt.Errorf("no connection %q", connectionID)
+		return nil, mcpgateway.ErrNotConnected
 	}
-	return details, nil
-}
-
-// fakeOrgMcpServerStore is an in-memory stand-in for opensocial.Store,
-// satisfying OrgMcpServerStore.
-type fakeOrgMcpServerStore struct {
-	servers map[string][]*opensocial.McpServer // orgDID -> servers
-}
-
-func newFakeOrgMcpServerStore() *fakeOrgMcpServerStore {
-	return &fakeOrgMcpServerStore{servers: make(map[string][]*opensocial.McpServer)}
-}
-
-// add registers a server record for orgDID, as mcpgateway.CompleteAddServer would.
-func (f *fakeOrgMcpServerStore) add(orgDID, name, nangoKey string) {
-	f.servers[orgDID] = append(f.servers[orgDID], &opensocial.McpServer{
-		ID:       syntax.RecordKey(name),
-		Name:     name,
-		NangoKey: nangoKey,
-	})
-}
-
-func (f *fakeOrgMcpServerStore) GetMcpServer(
-	ctx context.Context, orgDID syntax.DID, id syntax.RecordKey,
-) (*opensocial.McpServer, error) {
-	for _, srv := range f.servers[orgDID.String()] {
-		if srv.ID == id {
-			return srv, nil
-		}
-	}
-	return nil, opensocial.ErrMcpServerNotFound
-}
-
-func (f *fakeOrgMcpServerStore) ListMcpServers(
-	ctx context.Context, orgDID syntax.DID,
-) ([]*opensocial.McpServer, error) {
-	return f.servers[orgDID.String()], nil
+	return d, nil
 }
 
 // newFakeMCPServer stands in for a downstream MCP server the caller has
 // connected to, exposing a single "ping" tool.
-func newFakeMCPServer(t *testing.T) *httptest.Server {
+//
+// If authorization is given, requests without it as their Authorization
+// header are refused.
+func newFakeMCPServer(t *testing.T, authorization ...string) *httptest.Server {
 	t.Helper()
 	impl := &mcp.Implementation{Name: "fake-downstream-mcp", Version: "0.1.0"}
 	srv := mcp.NewServer(impl, nil)
@@ -121,169 +83,108 @@ func newFakeMCPServer(t *testing.T) *httptest.Server {
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return srv
 	}, &mcp.StreamableHTTPOptions{DisableLocalhostProtection: true})
-	httpServer := httptest.NewServer(handler)
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if len(authorization) > 0 && r.Header.Get("Authorization") != authorization[0] {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
 	t.Cleanup(httpServer.Close)
 	return httpServer
 }
 
-func TestMCPServerToolsList_MergesConnectedServerTools(t *testing.T) {
-	ctx := t.Context()
+// newConnectedServerTestServer starts pear's MCP server, with servers as the
+// caller's connected servers.
+func newConnectedServerTestServer(t *testing.T, servers ConnectedServers) *httptest.Server {
+	t.Helper()
 	spacesStore, permStore := setupStores(t)
-	caller := "did:plc:caller"
-	const orgID = "did:web:org1.example"
-
-	fake := newFakeMCPServer(t)
-	nangoClient := newFakeNangoClient()
-	nangoClient.connect(caller, "conn-1", "nango-key-1", orgID, fake.URL)
-	orgRecords := newFakeOrgMcpServerStore()
-	orgRecords.add(orgID, "cloudflare", "nango-key-1")
-
 	srv := New(
 		fakeTokens{},
 		spacesStore,
 		permStore,
 		nil,
-		nangoClient,
-		orgRecords,
-		nil,
+		servers,
 		nil,
 		newTestDirectory(),
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
-	defer httpServer.Close()
+	t.Cleanup(httpServer.Close)
+	return httpServer
+}
 
-	session, err := connectAs(t, ctx, httpServer.URL, caller)
+func toolNames(t *testing.T, session *mcp.ClientSession) []string {
+	t.Helper()
+	result, err := session.ListTools(t.Context(), nil)
 	require.NoError(t, err)
-	defer func() { _ = session.Close() }()
-
-	result, err := session.ListTools(ctx, nil)
-	require.NoError(t, err)
-
 	names := make([]string, len(result.Tools))
 	for i, tool := range result.Tools {
 		names[i] = tool.Name
 	}
+	return names
+}
+
+func TestMCPServerToolsList_MergesConnectedServerTools(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+
+	fake := newFakeMCPServer(t)
+	servers := newFakeConnectedServers()
+	servers.connect(caller, "did:web:org1.example", "cloudflare", fake.URL, nil)
+	httpServer := newConnectedServerTestServer(t, servers)
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	names := toolNames(t, session)
 	require.Contains(t, names, "get_record")
 	require.Contains(t, names, "cloudflare:ping")
 }
 
 func TestMCPServerToolsList_SkipsUnreachableConnectedServer(t *testing.T) {
 	ctx := t.Context()
-	spacesStore, permStore := setupStores(t)
-	caller := "did:plc:caller"
-	const orgID = "did:web:org1.example"
-
-	nangoClient := newFakeNangoClient()
-	nangoClient.connections[caller] = []nango.Connection{
-		{ConnectionID: "conn-1", ProviderConfigKey: "nango-key-1", OrgID: orgID},
-	}
-	nangoClient.detailsErr["conn-1"] = errors.New("nango unavailable")
-	orgRecords := newFakeOrgMcpServerStore()
-	orgRecords.add(orgID, "cloudflare", "nango-key-1")
-
-	srv := New(
-		fakeTokens{},
-		spacesStore,
-		permStore,
-		nil,
-		nangoClient,
-		orgRecords,
-		nil,
-		nil,
-		newTestDirectory(),
-		"https://habitat.example",
-		"https://habitat.example/mcp",
-	)
-	httpServer := httptest.NewServer(srv.Handler())
-	defer httpServer.Close()
-
-	session, err := connectAs(t, ctx, httpServer.URL, caller)
-	require.NoError(t, err)
-	defer func() { _ = session.Close() }()
-
-	result, err := session.ListTools(ctx, nil)
-	require.NoError(t, err)
-
-	names := make([]string, len(result.Tools))
-	for i, tool := range result.Tools {
-		names[i] = tool.Name
-	}
-	require.Contains(t, names, "get_record")
-	require.Len(t, names, 2) // the unreachable connected server contributed nothing
-}
-
-func TestMCPServerToolsList_SkipsConnectionWithNoMatchingRecord(t *testing.T) {
-	ctx := t.Context()
-	spacesStore, permStore := setupStores(t)
-	caller := "did:plc:caller"
-	const orgID = "did:web:org1.example"
+	caller := syntax.DID("did:plc:caller")
 
 	fake := newFakeMCPServer(t)
-	nangoClient := newFakeNangoClient()
-	nangoClient.connect(caller, "conn-1", "nango-key-1", orgID, fake.URL)
-	// No matching org record registered (e.g. it was since removed).
+	servers := newFakeConnectedServers()
+	servers.connect(caller, "did:web:org1.example", "cloudflare", fake.URL, nil)
+	servers.connect(caller, "did:web:org1.example", "broken", fake.URL, nil)
+	servers.unreachable["broken"] = errors.New("token refresh failed")
+	httpServer := newConnectedServerTestServer(t, servers)
 
-	srv := New(
-		fakeTokens{},
-		spacesStore,
-		permStore,
-		nil,
-		nangoClient,
-		newFakeOrgMcpServerStore(),
-		nil,
-		nil,
-		newTestDirectory(),
-		"https://habitat.example",
-		"https://habitat.example/mcp",
-	)
-	httpServer := httptest.NewServer(srv.Handler())
-	defer httpServer.Close()
-
-	session, err := connectAs(t, ctx, httpServer.URL, caller)
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
 	require.NoError(t, err)
 	defer func() { _ = session.Close() }()
 
-	result, err := session.ListTools(ctx, nil)
-	require.NoError(t, err)
+	names := toolNames(t, session)
+	require.Contains(t, names, "cloudflare:ping")
+	require.NotContains(t, names, "broken:ping")
+}
 
-	names := make([]string, len(result.Tools))
-	for i, tool := range result.Tools {
-		names[i] = tool.Name
-	}
-	require.Equal(t, []string{"get_blob", "get_record"}, names)
+func TestMCPServerToolsList_NoConnectedServers(t *testing.T) {
+	ctx := t.Context()
+	httpServer := newConnectedServerTestServer(t, nil)
+
+	session, err := connectAs(t, ctx, httpServer.URL, "did:plc:caller")
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	require.Equal(t, []string{"get_blob", "get_record"}, toolNames(t, session))
 }
 
 func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
 	ctx := t.Context()
-	spacesStore, permStore := setupStores(t)
-	caller := "did:plc:caller"
-	const orgID = "did:web:org1.example"
+	caller := syntax.DID("did:plc:caller")
 
 	fake := newFakeMCPServer(t)
-	nangoClient := newFakeNangoClient()
-	nangoClient.connect(caller, "conn-1", "nango-key-1", orgID, fake.URL)
-	orgRecords := newFakeOrgMcpServerStore()
-	orgRecords.add(orgID, "cloudflare", "nango-key-1")
+	servers := newFakeConnectedServers()
+	servers.connect(caller, "did:web:org1.example", "cloudflare", fake.URL, nil)
+	httpServer := newConnectedServerTestServer(t, servers)
 
-	srv := New(
-		fakeTokens{},
-		spacesStore,
-		permStore,
-		nil,
-		nangoClient,
-		orgRecords,
-		nil,
-		nil,
-		newTestDirectory(),
-		"https://habitat.example",
-		"https://habitat.example/mcp",
-	)
-	httpServer := httptest.NewServer(srv.Handler())
-	defer httpServer.Close()
-
-	session, err := connectAs(t, ctx, httpServer.URL, caller)
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
 	require.NoError(t, err)
 	defer func() { _ = session.Close() }()
 
@@ -295,21 +196,9 @@ func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
 
 func TestMCPServerToolsCall_UnknownNamespacedToolFallsThrough(t *testing.T) {
 	ctx := t.Context()
-	spacesStore, permStore := setupStores(t)
-	caller := "did:plc:caller"
+	httpServer := newConnectedServerTestServer(t, newFakeConnectedServers())
 
-	srv := New(
-		fakeTokens{}, spacesStore, permStore, nil, newFakeNangoClient(), newFakeOrgMcpServerStore(),
-		nil,
-		nil,
-		newTestDirectory(),
-		"https://habitat.example",
-		"https://habitat.example/mcp",
-	)
-	httpServer := httptest.NewServer(srv.Handler())
-	defer httpServer.Close()
-
-	session, err := connectAs(t, ctx, httpServer.URL, caller)
+	session, err := connectAs(t, ctx, httpServer.URL, "did:plc:caller")
 	require.NoError(t, err)
 	defer func() { _ = session.Close() }()
 
@@ -335,62 +224,24 @@ func TestDownstreamContext(t *testing.T) {
 	require.ErrorIs(t, ctx.Err(), context.Canceled)
 }
 
-// fakeManualServerSource is an in-memory stand-in for mcpgateway.Store,
-// satisfying ManualServerSource.
-type fakeManualServerSource struct {
-	servers map[syntax.DID][]*mcpgateway.ManualServer // member -> servers
-}
-
-func (f fakeManualServerSource) ListManualServersForMember(
-	ctx context.Context, did syntax.DID,
-) ([]*mcpgateway.ManualServer, error) {
-	return f.servers[did], nil
-}
-
-func TestMCPServerTools_ManualServer(t *testing.T) {
+func TestMCPServerTools_OAuthServer(t *testing.T) {
 	ctx := t.Context()
-	spacesStore, permStore := setupStores(t)
 	caller := syntax.DID("did:plc:caller")
 
-	fake := newFakeMCPServer(t)
-	manual := fakeManualServerSource{servers: map[syntax.DID][]*mcpgateway.ManualServer{
-		caller: {{
-			OrgID: "did:web:org1.example",
-			ID:    "docs",
-			URL:   fake.URL,
-		}},
-	}}
+	// The downstream server rejects calls without the caller's token.
+	protected := newFakeMCPServer(t, "Bearer secret")
 
-	// Nango isn't configured at all: manual servers work without it.
-	srv := New(
-		fakeTokens{},
-		spacesStore,
-		permStore,
-		nil,
-		newFakeNangoClient(),
-		newFakeOrgMcpServerStore(),
-		manual,
-		nil,
-		newTestDirectory(),
-		"https://habitat.example",
-		"https://habitat.example/mcp",
-	)
-	httpServer := httptest.NewServer(srv.Handler())
-	defer httpServer.Close()
+	servers := newFakeConnectedServers()
+	servers.connect(caller, "did:web:org1.example", "linear", protected.URL,
+		map[string]string{"Authorization": "Bearer secret"})
+	httpServer := newConnectedServerTestServer(t, servers)
 
 	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
 	require.NoError(t, err)
 	defer func() { _ = session.Close() }()
 
-	result, err := session.ListTools(ctx, nil)
-	require.NoError(t, err)
-	names := make([]string, len(result.Tools))
-	for i, tool := range result.Tools {
-		names[i] = tool.Name
-	}
-	require.Contains(t, names, "docs:ping")
-
-	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "docs:ping"})
+	require.Contains(t, toolNames(t, session), "linear:ping")
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "linear:ping"})
 	require.NoError(t, err)
 	require.False(t, res.IsError)
 }

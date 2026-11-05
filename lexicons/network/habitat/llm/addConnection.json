@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Add an LLM model connection to the org. Its metadata is written as a network.habitat.llm.connection record, and its API key, if any, is stored encrypted. Requires service-auth. Requires the community.configure action.",
+      "description": "Add an LLM model connection to the org. Its metadata is stored by pear, and its API key, if any, is stored encrypted and never returned. Requires service-auth. Requires the community.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -24,7 +24,7 @@
             "name": {
               "type": "string",
               "maxLength": 64,
-              "description": "Also becomes the connection's record key and the model ID clients request. Letters, digits, dots, hyphens, and underscores only, and must be unique within the org."
+              "description": "Also becomes the connection's ID and the model ID clients request. Letters, digits, dots, hyphens, and underscores only, and must be unique within the org."
             },
             "description": {
               "type": "string",

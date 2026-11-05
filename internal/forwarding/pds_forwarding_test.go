@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +26,7 @@ func fakePDSServer(t *testing.T) (*httptest.Server, *string) {
 
 func newTestForwarding(t *testing.T, fakePDS *httptest.Server) *PDSForwarding {
 	t.Helper()
-	dir := pdsclient.NewDummyDirectory(fakePDS.URL)
+	dir := pdsoauth.NewDummyDirectory(fakePDS.URL)
 	return &PDSForwarding{
 		dir:             dir,
 		plainHTTPClient: fakePDS.Client(),
@@ -86,7 +86,7 @@ func TestServeHTTP_ForwardsToCallerPDS(t *testing.T) {
 	callerDID := syntax.DID("did:plc:caller123")
 	p := &PDSForwarding{
 		validator:        successValidator(callerDID),
-		pdsClientFactory: pdsclient.NewDummyClientFactory(fakePDS.URL),
+		pdsClientFactory: pdsoauth.NewDummyClientFactory(fakePDS.URL),
 		plainHTTPClient:  fakePDS.Client(),
 	}
 

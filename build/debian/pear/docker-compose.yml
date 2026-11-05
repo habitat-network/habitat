@@ -17,7 +17,6 @@ services:
       # Required: the publicly accessible domain for this server (no https:// prefix)
       HABITAT_DOMAIN: ${HABITAT_DOMAIN}
       # Optional: if unset, a random admin password is generated and printed on every boot.
-      HABITAT_ADMIN_PASSWORD: ${HABITAT_ADMIN_PASSWORD:-}
 
       # Optional: the port the server listens on inside the container.
       HABITAT_PORT: ${HABITAT_PORT:-8000}
