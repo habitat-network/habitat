@@ -67,7 +67,7 @@ ${site} {
 }
 
 /**
- * Starts a fresh pear (empty SQLite database, migrations applied) behind a
+ * Starts a fresh pear (empty database, migrations applied) behind a
  * Caddy TLS proxy and waits until it is healthy. Which flavour runs is picked
  * from the environment:
  *
@@ -77,7 +77,8 @@ ${site} {
  *  - PEAR_BINARY=<path>               run a locally built pear binary and the
  *                                     caddy on PATH (CADDY_BIN to override);
  *                                     no Docker needed
- *  - default                          run pear and caddy:2 in testcontainers
+ *  - default                          run pear (on Postgres) and caddy:2 in
+ *                                     testcontainers
  */
 export async function startPear(): Promise<PearInstance> {
   if (process.env.PEAR_ADDRESS && process.env.PEAR_TLS_ADDRESS) {
@@ -96,9 +97,28 @@ export async function startPear(): Promise<PearInstance> {
 async function startContainers(): Promise<PearInstance> {
   const image = ensureImage();
   const network: StartedNetwork = await new Network().start();
+  // The pear image is built without cgo, so it cannot use the SQLite driver
+  // that local runs default to; like production it needs Postgres.
+  const postgres = await new GenericContainer("postgres:16-alpine")
+    .withEnvironment({
+      POSTGRES_DB: "habitat",
+      POSTGRES_USER: "habitat",
+      POSTGRES_PASSWORD: "habitat",
+    })
+    .withNetwork(network)
+    .withNetworkAliases("postgres")
+    // The entrypoint restarts postgres once after init, hence two occurrences.
+    .withWaitStrategy(
+      Wait.forLogMessage(/database system is ready to accept connections/, 2),
+    )
+    .start();
   const pearLogs: string[] = [];
   const pear = await new GenericContainer(image)
-    .withEnvironment(PEAR_ENV)
+    .withEnvironment({
+      ...PEAR_ENV,
+      HABITAT_DB:
+        "postgres://habitat:habitat@postgres:5432/habitat?sslmode=disable",
+    })
     .withLogConsumer((stream) => {
       stream.on("data", (line) => pearLogs.push(String(line)));
     })
@@ -110,7 +130,8 @@ async function startContainers(): Promise<PearInstance> {
     .withWaitStrategy(Wait.forHttp("/health", 8000).forStatusCode(200))
     .withStartupTimeout(60_000)
     .start()
-    .catch((err) => {
+    .catch(async (err) => {
+      await postgres.stop();
       throw new Error(
         `pear container failed to start: ${err}\n--- pear logs ---\n${pearLogs.slice(-60).join("")}`,
       );
@@ -128,6 +149,7 @@ async function startContainers(): Promise<PearInstance> {
     .start()
     .catch(async (err) => {
       await pear.stop();
+      await postgres.stop();
       throw new Error(`caddy container failed to start: ${err}`);
     });
   return {
@@ -137,6 +159,7 @@ async function startContainers(): Promise<PearInstance> {
       await dumpLogs(pear);
       await caddy.stop();
       await pear.stop();
+      await postgres.stop();
       await network.stop();
     },
   };
