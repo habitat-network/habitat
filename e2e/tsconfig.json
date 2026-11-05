@@ -5,8 +5,17 @@
     "incremental": false,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "outDir": "../.moon/cache/types/e2e"
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "playwright-report", "test-results"]
+  "include": [
+    "**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "playwright-report",
+    "test-results"
+  ]
 }
