@@ -27,7 +27,7 @@ import (
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -237,13 +237,11 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	if ts.PDSForwarding == nil {
 		// Default forwarding points nowhere; getSession's remote-identity path
 		// forwards to a caller's real PDS, which tests exercise by injecting
-		// their own forwarding via WithPDSForwarding. The credential store is
-		// fully unused on that path.
+		// their own forwarding via WithPDSForwarding.
 		ts.PDSForwarding = forwarding.NewPDSForwarding(
-			nil,
 			ts.Validator,
-			pdsclient.NewDummyClientFactory("http://127.0.0.1:1"),
-			pdsclient.NewDummyDirectory("http://127.0.0.1:1"),
+			pdsoauth.NewDummyClientFactory("http://127.0.0.1:1"),
+			pdsoauth.NewDummyDirectory("http://127.0.0.1:1"),
 		)
 	}
 

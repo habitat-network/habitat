@@ -39,8 +39,7 @@ import (
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 
-	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/urfave/cli/v3"
@@ -125,7 +124,11 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if err != nil {
 		return nil, fmt.Errorf("setup encrypted keyval store: %w", err)
 	}
-	pdsCredStore := pdscred.NewPDSCredentialStore(encryptedKV.Namespace("pds_credentials"))
+	pdsOAuthStore := pdsoauth.NewStore(
+		encryptedKV.Namespace("pds_oauth_sessions"),
+		kv.Namespace("pds_oauth_sessions"),
+		kv.Namespace("pds_oauth_requests"),
+	)
 
 	domain := cmd.String(fDomain)
 	var clientUri string
@@ -135,17 +138,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if clientUri == "" {
 		clientUri = "https://" + domain
 	}
-	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		clientUri+"/client-metadata.json",
-		clientUri,
-		"https://"+domain+"/oauth-callback",
-		cmd.String(fOauthClientSecret),
-		meter,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("setup oauth client: %w", err)
-	}
-
 	hiveDomain := cmd.String(fHiveDomain)
 	if hiveDomain == "" {
 		hiveDomain = domain
@@ -164,11 +156,20 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	// any locally-hosted DID.
 	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
 
-	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
-		pdsCredStore,
-		oauthClient,
+	oauthClient, err := pdsoauth.NewApp(
+		pdsoauth.Config{
+			ClientID:    clientUri + "/client-metadata.json",
+			ClientURI:   clientUri,
+			CallbackURL: "https://" + domain + "/oauth-callback",
+			Secret:      cmd.String(fOauthClientSecret),
+		},
+		pdsOAuthStore,
 		defaultDir,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("setup oauth client: %w", err)
+	}
+	pdsClientFactory, err := pdsoauth.NewHttpClientFactory(oauthClient)
 	if err != nil {
 		return nil, fmt.Errorf("setup PDS client factory: %w", err)
 	}
@@ -179,12 +180,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	}
 
 	loginRouter := &org.LoginRouter{
-		Pds: login.NewPDSProvider(
-			oauthClient,
-			pdsCredStore,
-			defaultDir,
-			kv.Namespace("login"),
-		),
+		Pds:        login.NewPDSProvider(oauthClient),
 		EmailStore: emailDomainStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
@@ -350,7 +346,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	)
 
 	pdsForwarding := forwarding.NewPDSForwarding(
-		pdsCredStore,
 		validator,
 		pdsClientFactory,
 		defaultDir,

@@ -19,7 +19,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 )
@@ -86,7 +86,7 @@ func setupJWTBearerTestServer(
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 
 	var oauthServer *oauthserver.OAuthServer
 	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
