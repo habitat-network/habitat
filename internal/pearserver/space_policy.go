@@ -30,6 +30,15 @@ func writePolicyError(ctx context.Context, w http.ResponseWriter, err error) boo
 	return false
 }
 
+// marshalPolicyInput re-encodes a generated input's policy union (an untyped
+// value) so [spaces.ParsePolicy] can validate it. A missing policy is an error.
+func marshalPolicyInput(policy any) (json.RawMessage, error) {
+	if policy == nil {
+		return nil, errors.New("missing policy")
+	}
+	return json.Marshal(policy)
+}
+
 // UpdateSpace implements com.atproto.space.updateSpace: it replaces the
 // space's policy wholesale.
 //
@@ -38,10 +47,7 @@ func writePolicyError(ctx context.Context, w http.ResponseWriter, err error) boo
 // migration to another policy does not discard them.
 func (p *PearServer) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var input struct {
-		Space  string          `json:"space"`
-		Policy json.RawMessage `json:"policy"`
-	}
+	var input comatproto.ComAtprotoSpaceUpdateSpaceInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
@@ -50,8 +56,9 @@ func (p *PearServer) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if len(input.Policy) == 0 {
-		httpx.WriteInvalidRequest(ctx, w, "policy is required", nil)
+	rawPolicy, err := marshalPolicyInput(input.Policy)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "policy is required", err)
 		return
 	}
 	if _, ok := p.validator.Request(
@@ -60,7 +67,7 @@ func (p *PearServer) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 	).Validate(w, r); !ok {
 		return
 	}
-	policy, err := spaces.ParsePolicy(input.Policy)
+	policy, err := spaces.ParsePolicy(rawPolicy)
 	if !writePolicyError(ctx, w, err) {
 		return
 	}

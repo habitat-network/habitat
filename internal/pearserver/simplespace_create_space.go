@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -24,27 +25,31 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// One input shape serves both namespaces: network.habitat.simplespace
+	// The two namespaces have their own generated inputs: network.habitat
 	// carries a `config` this host ignores, com.atproto.space carries the
 	// proposal's `policy`.
-	var input struct {
-		Did    string          `json:"did"`
-		Type   string          `json:"type"`
-		Skey   string          `json:"skey"`
-		Policy json.RawMessage `json:"policy"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+	var input habitat.NetworkHabitatSimplespaceCreateSpaceInput
+	var rawPolicy json.RawMessage
+	if httpx.IsComAtprotoRequest(r) {
+		var in comatproto.ComAtprotoSpaceCreateSpaceInput
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
+			return
+		}
+		var err error
+		if rawPolicy, err = marshalPolicyInput(in.Policy); err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "policy is required", err)
+			return
+		}
+		input.Type, input.Skey = in.Type, in.Skey
+	} else if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
 	}
 	var policy spaces.Policy
 	if httpx.IsComAtprotoRequest(r) {
-		if len(input.Policy) == 0 {
-			httpx.WriteInvalidRequest(ctx, w, "policy is required", nil)
-			return
-		}
 		var err error
-		if policy, err = spaces.ParsePolicy(input.Policy); !writePolicyError(ctx, w, err) {
+		if policy, err = spaces.ParsePolicy(rawPolicy); !writePolicyError(ctx, w, err) {
 			return
 		}
 	} else {
