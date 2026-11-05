@@ -31,7 +31,7 @@ import (
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -70,7 +70,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		&org.LoginRouter{
 			Pds: login_testutil.NewPassthroughProvider(t),
 		},
-		pdsclient.NewDummyDirectory("http://pds.url"),
+		pdsoauth.NewDummyDirectory("http://pds.url"),
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
@@ -166,7 +166,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	require.NoError(t, err)
 
 	pds := login_testutil.NewPassthroughProvider(t)
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
@@ -216,9 +216,9 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				}))
@@ -277,7 +277,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
@@ -338,9 +338,9 @@ func TestOAuthServerE2E(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				err := json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				})
@@ -511,9 +511,9 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				err := json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				})
@@ -590,7 +590,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	require.NoError(t, err)
 
 	pds := login_testutil.NewPassthroughProvider(t)
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
@@ -640,9 +640,9 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 					Scope:         "org:*",
@@ -729,9 +729,9 @@ func acquireAccessToken(
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -777,7 +777,7 @@ func TestValidate(t *testing.T) {
 	// newSrv creates an OAuthServer sharing the same secret and database.
 	// Stateless JWT introspection means tokens issued by any server here are
 	// valid for all others created with the same secret.
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	newSrv := func() (*OAuthServer, *login_testutil.PassthroughProvider) {
 		p := login_testutil.NewPassthroughProvider(t)
 		s, srvErr := NewOAuthServer(
@@ -872,7 +872,7 @@ func TestValidateWithScopeChecking(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	newSrv := func() (*OAuthServer, *login_testutil.PassthroughProvider) {
 		p := login_testutil.NewPassthroughProvider(t)
 		s, srvErr := NewOAuthServer(
@@ -980,7 +980,7 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 	db := dbtestutil.NewDB(t, Models())
 	loginProvider := login_testutil.NewPassthroughProvider(t)
 	loginProvider.LoginID = pdsLoginDID
-	dir := pdsclient.NewDummyDirectory("https://habitat.example")
+	dir := pdsoauth.NewDummyDirectory("https://habitat.example")
 	oauthServer, err := NewOAuthServer(
 		encrypt.TestKey,
 		&org.LoginRouter{
@@ -1152,7 +1152,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
@@ -1209,9 +1209,9 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -1270,7 +1270,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
 	opensocialStore := testOpensocialStore(t)
 
@@ -1347,9 +1347,9 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -1416,7 +1416,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
 	opensocialStore := testOpensocialStore(t)
 
@@ -1463,9 +1463,9 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -1529,7 +1529,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	p := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
@@ -1626,7 +1626,7 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := &statefulProvider{}
 	opensocialStore := testOpensocialStore(t)
 	adminDID := syntax.DID("did:web:example.did.com") // dummyDir resolves any handle to this DID
@@ -1703,9 +1703,9 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))

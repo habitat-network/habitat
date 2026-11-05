@@ -2,42 +2,22 @@ package login
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"fmt"
-	"log/slog"
 	"net/url"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/habitat-network/habitat/internal/keyval"
-	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
-	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 )
 
+// pdsProvider logs members in with their atproto PDS, through pear's OAuth
+// client. The client keeps the pending authorization (PKCE verifier, DPoP key)
+// in its store under the OAuth state and the session it ends up with, so the
+// provider has no state of its own.
 type pdsProvider struct {
-	oauthClient pdsclient.PdsOAuthClient
-	credStore   pdscred.PDSCredentialStore
-	dir         identity.Directory
-	kv          keyval.Store
+	app *pdsoauth.App
 }
 
-// pdsProviderState is the flow state for the PDS login flow.
-type pdsProviderState struct {
-	DpopKey        []byte                   `json:"dpop_key"`
-	AuthorizeState pdsclient.AuthorizeState `json:"authorize_state"`
-}
-
-func NewPDSProvider(
-	oauthClient pdsclient.PdsOAuthClient,
-	credStore pdscred.PDSCredentialStore,
-	dir identity.Directory,
-	kv keyval.Store,
-) Provider {
-	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, dir: dir, kv: kv}
+func NewPDSProvider(app *pdsoauth.App) Provider {
+	return &pdsProvider{app: app}
 }
 
 func (p *pdsProvider) Authorize(
@@ -46,84 +26,24 @@ func (p *pdsProvider) Authorize(
 ) (string, string, string, error) {
 	// TODO if login hint is empty (like when authing an org), we need to redirect to a page that let's the user
 	// enter their handle so we can resolve the right pds to auth with.
-
-	// If the member has a public ATProto DID as their loginID, resolve it and use
-	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
-	// use the identity as-is.
-	did, err := syntax.ParseDID(loginHint)
+	ctx, authState := pdsoauth.WithAuthState(ctx)
+	redirect, err := p.app.StartAuthFlow(ctx, loginHint)
 	if err != nil {
-		return "", "", "", fmt.Errorf("parse loginID: %w", err)
+		return "", "", "", fmt.Errorf("start pds auth flow: %w", err)
 	}
-	id, err := p.dir.LookupDID(ctx, did)
-	if err != nil {
-		return "", "", "", fmt.Errorf("lookup loginID: %w", err)
-	}
-
-	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return "", "", "", fmt.Errorf("generate dpop key: %w", err)
-	}
-	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
-	redirect, state, err := p.oauthClient.Authorize(ctx, dpopClient, id)
-	if err != nil {
-		return "", "", "", err
-	}
-	dpopKeyBytes, err := dpopKey.Bytes()
-	if err != nil {
-		return "", "", "", fmt.Errorf("serialize dpop key: %w", err)
-	}
-	key := utils.RandomNonce(32)
-	if err := p.kv.Put(
-		ctx,
-		key,
-		pdsProviderState{DpopKey: dpopKeyBytes, AuthorizeState: *state},
-		loginStateTTL,
-	); err != nil {
-		return "", "", "", fmt.Errorf("store pds provider state: %w", err)
-	}
-	return redirect, state.State, key, nil
+	return redirect, authState(), "", nil
 }
 
 func (p *pdsProvider) Exchange(
 	ctx context.Context,
 	query url.Values,
-	providerStateKey string,
+	_ string,
 ) (loginID string, profile Profile, err error) {
-	code := query.Get("code")
-	issuer := query.Get("iss")
-	var s pdsProviderState
-	// Consume, not Get: the state is single-use, so replaying the callback fails.
-	if err := p.kv.Consume(ctx, providerStateKey, &s); err != nil {
-		return "", Profile{}, fmt.Errorf("pds provider state: %w", err)
-	}
-	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), s.DpopKey)
+	// ProcessCallback consumes the pending authorization, so replaying the
+	// callback fails, and stores the session.
+	sess, err := p.app.ProcessCallback(ctx, query)
 	if err != nil {
-		return "", Profile{}, fmt.Errorf("parse dpop key: %w", err)
+		return "", Profile{}, fmt.Errorf("process pds callback: %w", err)
 	}
-	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
-	tokenInfo, err := p.oauthClient.ExchangeCode(dpopClient, code, issuer, &s.AuthorizeState)
-	if err != nil {
-		return "", Profile{}, fmt.Errorf("exchange code: %w", err)
-	}
-	token, err := jwt.ParseSigned(tokenInfo.AccessToken)
-	if err != nil {
-		return "", Profile{}, fmt.Errorf("parse access token: %w", err)
-	}
-	var claims jwt.Claims
-	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		return "", Profile{}, fmt.Errorf("parse access token claims: %w", err)
-	}
-	loginDID, err := syntax.ParseDID(claims.Subject)
-	if err != nil {
-		return "", Profile{}, fmt.Errorf("parse loginID: %w", err)
-	}
-	if err := p.credStore.UpsertCredentials(ctx, loginDID, &pdscred.Credentials{
-		AccessToken:  tokenInfo.AccessToken,
-		RefreshToken: tokenInfo.RefreshToken,
-		DpopKey:      dpopKey,
-	}); err != nil {
-		// Log and move on since an error upserting doesn't mean the login failed
-		slog.WarnContext(ctx, "error upserting PDS credentials", "err", err)
-	}
-	return loginDID.String(), Profile{}, nil
+	return sess.AccountDID.String(), Profile{}, nil
 }

@@ -1,4 +1,4 @@
-package pdsclient
+package pdsoauth
 
 import (
 	"context"

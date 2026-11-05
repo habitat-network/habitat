@@ -35,8 +35,7 @@ Auth:
 - `authn` — `Method` abstraction for authenticating inbound requests (OAuth, service-auth)
 - `login` — pluggable login `Provider`s (google, pds) used by `org`'s login flow
 - `oauthserver` — Habitat's OAuth 2.0 provider (Fosite-based); brokers between client apps and a user's PDS OAuth (see `internal/oauthserver/README.md`)
-- `pdsclient` — authenticated HTTP client factory for calling a DID's AT Proto PDS (OAuth + DPoP)
-- `pdscred` — encrypted storage of PDS OAuth credentials per DID
+- `pdsoauth` — atproto OAuth client of members' PDSes on indigo's `oauth.ClientApp`: keyval-backed session store (encrypted) and auth-request store (expiring), plus the authenticated HTTP client factory for calling a DID's PDS (OAuth + DPoP)
 
 Data & permissions:
 - `spaces` — `network.habitat.space` abstraction grouping records, backed by `fgastore`

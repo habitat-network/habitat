@@ -3,6 +3,7 @@ package oauthserver
 import (
 	"encoding/base64"
 	"encoding/json"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -17,7 +18,7 @@ import (
 	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
@@ -33,7 +34,7 @@ func TestLoginHintCookieRoundTrip(t *testing.T) {
 	did := syntax.DID("did:web:example.did.com")
 
 	w := httptest.NewRecorder()
-	c.set(t.Context(), w, pdsclient.NewDummyDirectory("http://pds.url"), did)
+	c.set(t.Context(), w, pdsoauth.NewDummyDirectory("http://pds.url"), did)
 	set := w.Result().Cookies()
 	require.Len(t, set, 1)
 	require.Equal(t, "habitat.example", set[0].Domain)
@@ -119,7 +120,7 @@ func TestOAuthServerRemembersLogin(t *testing.T) {
 	oauthServer, err := NewOAuthServer(
 		secret,
 		&org.LoginRouter{Pds: pds},
-		pdsclient.NewDummyDirectory("http://pds.url"),
+		pdsoauth.NewDummyDirectory("http://pds.url"),
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
@@ -152,9 +153,9 @@ func TestOAuthServerRemembersLogin(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-			ClientId:      "http://" + r.Host + "/client-metadata.json",
-			RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+		require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+			ClientID:      "http://" + r.Host + "/client-metadata.json",
+			RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 			ResponseTypes: []string{"code"},
 			GrantTypes:    []string{"authorization_code", "refresh_token"},
 		}))

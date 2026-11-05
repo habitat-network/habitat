@@ -15,7 +15,7 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 )
 
@@ -81,10 +81,9 @@ func TestServer_GetSession(t *testing.T) {
 		remoteDID := syntax.DID(remoteDIDStr)
 
 		fwd := forwarding.NewPDSForwarding(
-			nil,
 			authntest.NewSuccessValidator(&authn.CredentialInfo{Subject: remoteDID}),
-			pdsclient.NewDummyClientFactory(fakePDS.URL),
-			pdsclient.NewDummyDirectory(fakePDS.URL),
+			pdsoauth.NewDummyClientFactory(fakePDS.URL),
+			pdsoauth.NewDummyDirectory(fakePDS.URL),
 		)
 		ts := pearserver_testutil.NewTestServer(t,
 			pearserver_testutil.WithValidator(authntest.NewSuccessValidator(
