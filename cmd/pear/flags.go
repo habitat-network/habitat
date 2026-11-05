@@ -85,7 +85,7 @@ func getFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:     fSpaceSigningKey,
-			Usage:    "Multibase-encoded P-256 private key for the single space-host identity. Signs permissioned-repo commits for repo owners on external PDSes",
+			Usage:    "Multibase-encoded P-256 private key for the single space-host identity. Signs delegation tokens and space credentials, and seeds the host #atproto_kem key that permissioned-repo commit MACs for repo owners on external PDSes are keyed against",
 			Sources:  getSources(fSpaceSigningKey),
 			Required: true,
 		},

@@ -20,6 +20,7 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/keyval"
 	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/llmgateway"
@@ -33,6 +34,7 @@ import (
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -43,14 +45,19 @@ import (
 type TestServer struct {
 	Server *pearserver.PearServer
 
-	Validator        authn.RequestValidator
-	PermStore        perms.Store
-	SpaceStore       spaces.Store
-	OpenSocialStore  *opensocial.Store
-	SimpleStore      *simplespace.Store
-	NotifyStore      notify.Store
-	Hive             hive.Hive
-	HostKey          atcrypto.PrivateKey
+	Validator authn.RequestValidator
+	PermStore perms.Store
+	// CredentialRevocations is where notifyCredentialRevoked stores jtis.
+	CredentialRevocations *authn.CredentialRevocations
+	SpaceStore            spaces.Store
+	OpenSocialStore       *opensocial.Store
+	SimpleStore           *simplespace.Store
+	NotifyStore           notify.Store
+	Hive                  hive.Hive
+	HostKey               atcrypto.PrivateKey
+	// HostKEMKey keys commit MACs for repo owners hive does not manage;
+	// derived from HostKey unless set.
+	HostKEMKey       *atcrypto.PrivateKeyP256
 	DB               *gorm.DB
 	FGA              fgastore.Store
 	McpGatewayStore  mcpgateway.Store
@@ -164,6 +171,11 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		require.NoError(t, err)
 		ts.HostKey = key
 	}
+	if ts.HostKEMKey == nil {
+		kemKey, err := spacecommit.DeriveKEMKey(ts.HostKey.(atcrypto.PrivateKeyExportable))
+		require.NoError(t, err)
+		ts.HostKEMKey = kemKey
+	}
 	if ts.FGA == nil {
 		fga, err := fgastore.NewMemory(t.Context())
 		require.NoError(t, err)
@@ -183,7 +195,6 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 			t,
 			spaces_testutil.WithDB(ts.DB),
 			spaces_testutil.WithFGA(ts.FGA),
-			spaces_testutil.WithHostKey(ts.HostKey),
 		)
 	}
 	if ts.NotifyStore == nil {
@@ -256,13 +267,21 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		)
 	}
 
+	ts.CredentialRevocations = authn.NewCredentialRevocations(
+		kv.Namespace("space_credential_revoked"),
+	)
 	// Only the fields PearServer reads; the rest of pear's App isn't needed here.
 	ts.Server = pearserver.New(&pearapp.App{
-		Domain:           "pear.example.com",
-		Validator:        ts.Validator,
-		DefaultDir:       ts.Directory,
+		Domain:                "pear.example.com",
+		Validator:             ts.Validator,
+		CredentialRevocations: ts.CredentialRevocations,
+		DelegationTokensSpent: kv.Namespace("space_delegation_spent"),
+		DefaultDir:            ts.Directory,
+		// Like pear's own, resolving managed identities through the hive first.
+		HiveDir:          habitat_identity.NewWrappedDirectory(ts.Hive, ts.Directory),
 		Hive:             ts.Hive,
 		HostKey:          ts.HostKey,
+		HostKEMKey:       ts.HostKEMKey,
 		BlobStore:        blobStore,
 		SpacesStore:      ts.SpaceStore,
 		OpensocialStore:  os,

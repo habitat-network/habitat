@@ -29,13 +29,24 @@ func TestServer_NotifyCredentialRevoked(t *testing.T) {
 		)
 	}
 
-	t.Run("space authority notification is acknowledged", func(t *testing.T) {
+	isRevoked := func(space habitat_syntax.SpaceURI, jti string) bool {
+		revoked, err := ts.CredentialRevocations.IsRevoked(t.Context(), space, jti)
+		require.NoError(t, err)
+		return revoked
+	}
+
+	t.Run("space authority revokes credentials", func(t *testing.T) {
 		require.Equal(t, http.StatusOK, revoke(ownedSpace, "jti-1", "jti-2"))
+		// Idempotent, so an authority can retry.
 		require.Equal(t, http.StatusOK, revoke(ownedSpace, "jti-1"))
+		require.True(t, isRevoked(ownedSpace, "jti-1"))
+		require.True(t, isRevoked(ownedSpace, "jti-2"))
+		require.False(t, isRevoked(ownedSpace, "jti-other"))
 	})
 
 	t.Run("only the space authority can revoke", func(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, revoke(foreignSpace, "jti-3"))
+		require.False(t, isRevoked(foreignSpace, "jti-3"))
 	})
 
 	t.Run("requires at least one jti", func(t *testing.T) {

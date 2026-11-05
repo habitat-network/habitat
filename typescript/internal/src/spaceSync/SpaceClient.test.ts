@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
+import { P256Keypair } from "@atproto/crypto";
 import { cidForRawBytes } from "@atproto/lex";
+import { type Commit, verifyCommit } from "@atproto/space";
 import { Duration, Effect, Layer } from "effect";
 import { HttpResponse, delay, http } from "msw";
 import { describe, expect } from "vitest";
@@ -46,30 +48,48 @@ describe("SpaceClient", () => {
     }),
   );
 
-  it.live("pages listRepoOps and returns the commit on the last page", () =>
-    Effect.gen(function* () {
-      const { bob, space, layer } = yield* setup;
-      for (const rkey of ["1", "2", "3"]) {
-        yield* Effect.promise(() =>
-          space.write(bob, "com.example.post", rkey, { text: rkey }),
-        );
-      }
-      space.maxOpsPage = 2;
-      yield* Effect.gen(function* () {
-        const client = yield* SpaceClient;
-        const first = yield* client.listRepoOps(space.ref, bob.did, undefined);
-        expect(first.ops).toHaveLength(2);
-        expect(first.commit).toBeUndefined();
-        const second = yield* client.listRepoOps(
-          space.ref,
-          bob.did,
-          undefined,
-          first.cursor,
-        );
-        expect(second.ops).toHaveLength(1);
-        expect(second.commit?.rev).toBe(space.repoRevOf(bob.did));
-      }).pipe(Effect.provide(layer));
-    }),
+  it.live(
+    "pages listRepoOps and returns the MACed commit on the last page",
+    () =>
+      Effect.gen(function* () {
+        const { bob, space, layer } = yield* setup;
+        for (const rkey of ["1", "2", "3"]) {
+          yield* Effect.promise(() =>
+            space.write(bob, "com.example.post", rkey, { text: rkey }),
+          );
+        }
+        space.maxOpsPage = 2;
+        yield* Effect.gen(function* () {
+          const client = yield* SpaceClient;
+          const first = yield* client.listRepoOps(
+            space.ref,
+            bob.did,
+            undefined,
+          );
+          expect(first.body.ops).toHaveLength(2);
+          expect(first.body.commit).toBeUndefined();
+          expect(first.mac).toBeUndefined();
+          const second = yield* client.listRepoOps(
+            space.ref,
+            bob.did,
+            undefined,
+            first.body.cursor,
+          );
+          expect(second.body.ops).toHaveLength(1);
+          const commit = second.body.commit!;
+          expect(commit.rev).toBe(space.repoRevOf(bob.did));
+          // The MAC is keyed by the secret negotiated with bob's #atproto_kem.
+          const mac = second.mac!;
+          expect(
+            verifyCommit(commit as Commit, {
+              space: space.id,
+              repo: bob.did,
+              sharedSecret: mac.sharedSecret,
+              mac: mac.mac!,
+            }),
+          ).toBe(true);
+        }).pipe(Effect.provide(layer));
+      }),
   );
 
   it.live(
@@ -121,6 +141,45 @@ describe("SpaceClient", () => {
     }),
   );
 
+  it.live("refreshKem picks up a rotated KEM key", () =>
+    Effect.gen(function* () {
+      const { bob, space, layer } = yield* setup;
+      yield* Effect.promise(() =>
+        space.write(bob, "com.example.post", "1", { text: "x" }),
+      );
+      yield* Effect.gen(function* () {
+        const client = yield* SpaceClient;
+        // Resolve and cache bob's current KEM key.
+        yield* client.listRepoOps(space.ref, bob.did, undefined);
+        bob.kem = yield* Effect.promise(() => P256Keypair.create());
+        const calls = space.listRepoOpsCalls;
+        const page = yield* client.listRepoOps(space.ref, bob.did, undefined);
+        // The stale key share's MAC fails to verify, so refreshing finds the
+        // new key and a retry would succeed.
+        expect(
+          verifyCommit(page.body.commit as Commit, {
+            space: space.id,
+            repo: bob.did,
+            sharedSecret: page.mac!.sharedSecret,
+            mac: page.mac!.mac!,
+          }),
+        ).toBe(false);
+        expect(yield* client.refreshKem(space.ref, bob.did)).toBe(true);
+        expect(yield* client.refreshKem(space.ref, bob.did)).toBe(false);
+        const fresh = yield* client.listRepoOps(space.ref, bob.did, undefined);
+        expect(
+          verifyCommit(fresh.body.commit as Commit, {
+            space: space.id,
+            repo: bob.did,
+            sharedSecret: fresh.mac!.sharedSecret,
+            mac: fresh.mac!.mac!,
+          }),
+        ).toBe(true);
+        expect(space.listRepoOpsCalls).toBe(calls + 2);
+      }).pipe(Effect.provide(layer));
+    }),
+  );
+
   it.live("streams getRepo bytes", () =>
     Effect.gen(function* () {
       const { bob, space, layer } = yield* setup;
@@ -129,12 +188,13 @@ describe("SpaceClient", () => {
       );
       const size = yield* Effect.scoped(
         Effect.gen(function* () {
-          const body = yield* Effect.flatMap(SpaceClient, (c) =>
+          const { star, mac } = yield* Effect.flatMap(SpaceClient, (c) =>
             c.getRepo(space.ref, bob.did),
           );
+          expect(mac.mac).toBeInstanceOf(Uint8Array);
           let n = 0;
           yield* Effect.promise(async () => {
-            for await (const chunk of body) n += chunk.length;
+            for await (const chunk of star) n += chunk.length;
           });
           return n;
         }),

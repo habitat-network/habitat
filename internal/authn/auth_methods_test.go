@@ -25,7 +25,6 @@ func TestValidate(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 	).Request(WithMethods(ValidatorMethodOAuth)).Validate(w, r)
 	require.True(t, ok)
 	require.Equal(t, syntax.DID("did:web:test"), credInfo.Subject)
@@ -37,7 +36,6 @@ func TestValidate(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 	).Request(WithMethods(ValidatorMethodOAuth)).Validate(w, r)
 	require.False(t, ok)
 	require.Equal(t, w.Result().StatusCode, http.StatusUnauthorized)
@@ -46,7 +44,6 @@ func TestValidate(t *testing.T) {
 	r.Header.Set("Authorization", "foo")
 	_, ok = NewValidator(
 		&testAuthMethod{expectedHeader: "bar"},
-		nil,
 		nil,
 		nil,
 		nil,

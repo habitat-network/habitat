@@ -2,11 +2,7 @@ import type { SpaceRef, SpaceRefString } from "@atproto/syntax";
 import { P256Keypair } from "@atproto/crypto";
 import { type XrpcFailure, XrpcResponseError, xrpcSafe } from "@atproto/lex";
 import { com } from "api";
-import {
-  createSpaceSigHeaders,
-  parseSpaceToken,
-  spaceHostAud,
-} from "@atproto/space";
+import { parseSpaceToken, spaceHostAud } from "@atproto/space";
 import {
   Cache,
   Clock,
@@ -20,7 +16,7 @@ import {
 } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { CredentialError, errorMessage } from "./errors";
-import { Identity } from "./Identity";
+import { Identity, requirePds } from "./Identity";
 import { signedAgent } from "./wire";
 
 export interface SpaceCredential {
@@ -119,7 +115,9 @@ export class Credentials extends Context.Service<
         id: space,
       }: SpaceKey) {
         const authority = ref.spaceDid;
+        // The space host is the authority's PDS, like any other account.
         const host = yield* identity.resolve(authority).pipe(
+          Effect.flatMap(requirePds),
           Effect.mapError(
             (e) =>
               new CredentialError({
@@ -133,16 +131,18 @@ export class Credentials extends Context.Service<
         const attestation = delegation.attestation
           ? yield* delegation.attestation(space, spaceHostAud(authority))
           : undefined;
-        // A new keypair per credential, per the proposal.
+        // A new keypair per credential, per the proposal. The request carries
+        // no auth headers: the key to bind the credential to (credentialKid)
+        // and the delegation token travel in the body.
         const key = yield* Effect.promise(() => P256Keypair.create());
-        const agent = signedAgent(host.spaceHost, () =>
-          createSpaceSigHeaders(key, { authorization: `Bearer ${token}` }),
-        );
+        const agent = signedAgent(host, async () => ({}));
         const result = yield* Effect.tryPromise({
           try: (signal) =>
             xrpcSafe(agent, com.atproto.space.getSpaceCredential.main, {
               body: {
                 space,
+                credentialKid: key.did(),
+                delegationToken: token,
                 ...(attestation ? { clientAttestation: attestation } : {}),
               },
               signal,

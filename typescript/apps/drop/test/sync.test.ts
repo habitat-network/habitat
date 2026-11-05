@@ -58,7 +58,7 @@ describe("sync", () => {
         space: SPACE,
         repo: ORG,
         repoRev: "3kabcdefghi22",
-        hash: { $bytes: "AAAA" },
+        data: { $bytes: "AAAA" },
       },
       undefined,
     );

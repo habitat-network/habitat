@@ -369,7 +369,7 @@ func (c *Crawler) enumerateRepos(
 		if rev == "" {
 			rev = r.Rev
 		}
-		if err := c.tracker.Check(ctx, space, did, syntax.TID(rev), r.Hash); err != nil {
+		if err := c.tracker.Check(ctx, space, did, syntax.TID(rev), r.Data); err != nil {
 			return err
 		}
 	}

@@ -1,4 +1,4 @@
-import type { AuthManager } from "internal";
+import { type AuthManager, wantCommitMacHeaders } from "internal";
 import {
   xrpc,
   XrpcResponseError,
@@ -91,20 +91,19 @@ export function spaceReposQueryOptions(
   });
 }
 
-// SpaceCommit is the decoded shape of com.atproto.space.defs#signedCommit.
+// SpaceCommit is the decoded shape of com.atproto.space.defs#commit.
 // xrpc already runs responses through lex decoding, so byte fields arrive as
 // Uint8Array, matching the generated lexicon type.
 export interface SpaceCommit {
   ver: number;
+  repo: string;
+  space: string;
   rev: string;
-  hash: Uint8Array;
-  ikm: Uint8Array;
-  mac: Uint8Array;
-  sig: Uint8Array;
+  data: Uint8Array;
 }
 
-// spaceLatestCommitQueryOptions fetches the host-signed commit over a repo's
-// current state in a space. A repo that holds no records has no commit to sign
+// spaceLatestCommitQueryOptions fetches the commit over a repo's
+// current state in a space. A repo that holds no records has no commit
 // and the host answers RepoNotFound, which is a normal state here rather than
 // an error, so it resolves to null. Read via a space credential (see
 // spaceCredentialQueryOptions), routed to the space's own resolved host.
@@ -127,6 +126,9 @@ export function spaceLatestCommitQueryOptions(
           {
             validateResponse: false,
             params: { space: space as SpaceRefString, repo: repo as DidString },
+            // Required with a space credential; the MAC it requests is not
+            // checked here (see wantCommitMacHeaders).
+            headers: await wantCommitMacHeaders(),
           },
         );
         return response.body.commit ?? null;

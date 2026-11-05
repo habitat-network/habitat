@@ -26,12 +26,12 @@ import (
 )
 
 // dirWithSpaceHost builds an identity.MockDirectory with a single identity
-// whose atproto_space_host service points at host.
+// whose atproto_pds service (its space host) points at host.
 func dirWithSpaceHost(did syntax.DID, host string) *identity.MockDirectory {
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      did,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: host}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: host}},
 	})
 	return dir
 }
@@ -138,7 +138,7 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 // ClientForSpace backs every syncer read (listRepoOps, getRepo, ...) and,
 // per the permissioned-data proposal, listRepos.
 func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
-	var delegationAuth, credentialAuth, repoAuth string
+	var delegationAuth, credentialDelegation, repoAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/xrpc/network.habitat.space.getDelegationToken":
@@ -146,7 +146,9 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(
 				habitat.NetworkHabitatSpaceGetDelegationTokenOutput{Token: "deleg-tok"})
 		case "/xrpc/network.habitat.space.getSpaceCredential":
-			credentialAuth = r.Header.Get("Authorization")
+			var in habitat.NetworkHabitatSpaceGetSpaceCredentialInput
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			credentialDelegation = in.DelegationToken
 			_ = json.NewEncoder(w).Encode(
 				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
 		case "/xrpc/network.habitat.space.listRepos":
@@ -192,8 +194,8 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	// only assert something was sent; the credential exchange legs use fixed
 	// bearer tokens minted by the (fake) space host.
 	require.NotEmpty(t, delegationAuth)
-	require.Equal(t, "Bearer deleg-tok", credentialAuth)
-	require.Equal(t, "Atproto-Space space-cred", repoAuth)
+	require.Equal(t, "deleg-tok", credentialDelegation)
+	require.Equal(t, "Atproto-Space-Credential space-cred", repoAuth)
 }
 
 // TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost verifies the
@@ -204,7 +206,7 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 // this wrong means the credential exchange, and every read it backs, targets
 // a host that has never heard of the space.
 func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) {
-	var delegationAuth, credentialAuth, repoAuth string
+	var delegationAuth, credentialDelegation, repoAuth string
 
 	memberSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/xrpc/network.habitat.space.getDelegationToken" {
@@ -220,7 +222,9 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 	ownerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/xrpc/network.habitat.space.getSpaceCredential":
-			credentialAuth = r.Header.Get("Authorization")
+			var in habitat.NetworkHabitatSpaceGetSpaceCredentialInput
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			credentialDelegation = in.DelegationToken
 			_ = json.NewEncoder(w).Encode(
 				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
 		case "/xrpc/network.habitat.space.listRepos":
@@ -259,6 +263,6 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 	require.NoError(t, client.Get(t.Context(), "network.habitat.space.listRepos", nil, &out))
 
 	require.NotEmpty(t, delegationAuth)
-	require.Equal(t, "Bearer deleg-tok", credentialAuth)
-	require.Equal(t, "Atproto-Space space-cred", repoAuth)
+	require.Equal(t, "deleg-tok", credentialDelegation)
+	require.Equal(t, "Atproto-Space-Credential space-cred", repoAuth)
 }

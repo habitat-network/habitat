@@ -22,6 +22,7 @@ import (
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
@@ -35,12 +36,22 @@ type PearServer struct {
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
 
+	// delegations verifies the delegation tokens getSpaceCredential takes in
+	// its request body.
+	delegations *authn.DelegationTokenVerifier
+	// credentialRevocations stores the credential jtis space authorities
+	// revoke through notifyCredentialRevoked.
+	credentialRevocations *authn.CredentialRevocations
+
 	// dir resolves identities named by the service identifiers
 	// registerNotify accepts, to find the endpoint to deliver to.
 	dir identity.Directory
 
-	hive      hive.Hive
-	hostKey   atcrypto.PrivateKey
+	hive    hive.Hive
+	hostKey atcrypto.PrivateKey
+	// kemKeys derives the per-request shared secrets that commit and record
+	// MACs are keyed by.
+	kemKeys   *spacecommit.KEMKeys
 	blobStore spaces.BlobStore
 
 	spacesStore     spaces.Store
@@ -74,26 +85,31 @@ type PearServer struct {
 // an internal router for future handler registration.
 func New(app *pearapp.App) *PearServer {
 	ps := &PearServer{
-		router:           mux.NewRouter(),
-		domain:           app.Domain,
-		validator:        app.Validator,
-		decoder:          schema.NewDecoder(),
-		dir:              app.DefaultDir,
-		hive:             app.Hive,
-		hostKey:          app.HostKey,
-		blobStore:        app.BlobStore,
-		spacesStore:      app.SpacesStore,
-		opensocialStore:  app.OpensocialStore,
-		permStore:        app.PermStore,
-		simpleStore:      app.SimpleStore,
-		notifyStore:      app.NotifyStore,
-		clientMeta:       app.ClientMetadata,
-		mcpGatewayStore:  app.MCPGatewayStore,
-		llmStore:         app.LLMStore,
-		pdsForwarding:    app.PDSForwarding,
-		emailDomainStore: app.EmailDomainStore,
-		searcher:         app.Searcher,
-		searchConfig:     app.SearchConfig,
+		router:    mux.NewRouter(),
+		domain:    app.Domain,
+		validator: app.Validator,
+		decoder:   schema.NewDecoder(),
+		delegations: authn.NewDelegationTokenVerifier(
+			app.HiveDir, app.PermStore, app.HostKey, app.DelegationTokensSpent,
+		),
+		credentialRevocations: app.CredentialRevocations,
+		dir:                   app.DefaultDir,
+		hive:                  app.Hive,
+		hostKey:               app.HostKey,
+		kemKeys:               spacecommit.NewKEMKeys(app.HostKEMKey, app.Hive),
+		blobStore:             app.BlobStore,
+		spacesStore:           app.SpacesStore,
+		opensocialStore:       app.OpensocialStore,
+		permStore:             app.PermStore,
+		simpleStore:           app.SimpleStore,
+		notifyStore:           app.NotifyStore,
+		clientMeta:            app.ClientMetadata,
+		mcpGatewayStore:       app.MCPGatewayStore,
+		llmStore:              app.LLMStore,
+		pdsForwarding:         app.PDSForwarding,
+		emailDomainStore:      app.EmailDomainStore,
+		searcher:              app.Searcher,
+		searchConfig:          app.SearchConfig,
 	}
 	ps.registerRoutes()
 	return ps

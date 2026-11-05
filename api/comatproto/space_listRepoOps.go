@@ -16,7 +16,7 @@ type ComAtprotoSpaceListRepoOpsParams struct {
 
 // ComAtprotoSpaceListRepoOpsOutput represents the output for com.atproto.space.listRepoOps
 type ComAtprotoSpaceListRepoOpsOutput struct {
-	Commit *ComAtprotoSpaceDefsSignedCommit    `json:"commit,omitempty"`
+	Commit *ComAtprotoSpaceDefsCommit          `json:"commit,omitempty"`
 	Cursor string                              `json:"cursor,omitempty"`
 	Ops    []ComAtprotoSpaceListRepoOpsOpEntry `json:"ops"`
 }

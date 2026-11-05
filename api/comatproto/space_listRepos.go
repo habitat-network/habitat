@@ -23,8 +23,8 @@ type ComAtprotoSpaceListReposOutput struct {
 // ComAtprotoSpaceListReposRepo represents a repo object
 type ComAtprotoSpaceListReposRepo struct {
 	LexiconTypeID string       `json:"$type"`
+	Data          atdata.Bytes `json:"data"`
 	Did           string       `json:"did"`
-	Hash          atdata.Bytes `json:"hash"`
 	RepoRev       string       `json:"repoRev"`
 	SpaceRev      string       `json:"spaceRev"`
 }

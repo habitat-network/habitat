@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/nango"
@@ -53,22 +54,33 @@ type App struct {
 	PDSClientFactory    pdsclient.HttpClientFactory
 	EmailDomainStore    *emaildomain.Store
 	HostKey             atcrypto.PrivateKey
-	NotifyStore         notify.Store
-	BlobBucket          *blob.Bucket
-	BlobStore           spaces.BlobStore
-	SpacesStore         spaces.Store
-	OpensocialStore     *opensocial.Store
-	EmailResolver       *habitat_identity.EmailResolver
-	OAuthServer         *oauthserver.OAuthServer
-	ServiceAuth         *authn.AtprotoServiceAuthMethod
-	PermStore           perms.Store
-	Validator           authn.RequestValidator
-	SimpleStore         *simplespace.Store
-	NangoClient         *nango.Client
-	MCPGatewayStore     mcpgateway.Store
-	LLMStore            *llmgateway.Store
-	PDSForwarding       *forwarding.PDSForwarding
-	ClientMetadata      *clientmetadata.Resolver
+	// HostKEMKey is the host's #atproto_kem key: space commit MACs for repo
+	// owners on external PDSes are keyed against it (habitat-managed owners
+	// use their own hive KEM key instead). See spacecommit.KEMKeys.
+	HostKEMKey      *atcrypto.PrivateKeyP256
+	NotifyStore     notify.Store
+	Notifier        *notify.Deliverer
+	BlobBucket      *blob.Bucket
+	BlobStore       spaces.BlobStore
+	SpacesStore     spaces.Store
+	OpensocialStore *opensocial.Store
+	EmailResolver   *habitat_identity.EmailResolver
+	OAuthServer     *oauthserver.OAuthServer
+	ServiceAuth     *authn.AtprotoServiceAuthMethod
+	PermStore       perms.Store
+	Validator       authn.RequestValidator
+	// CredentialRevocations holds the space credentials authorities revoked
+	// through notifyCredentialRevoked; the validator refuses them.
+	CredentialRevocations *authn.CredentialRevocations
+	// DelegationTokensSpent records used delegation token jtis, so each is
+	// accepted by getSpaceCredential only once.
+	DelegationTokensSpent keyval.Store
+	SimpleStore           *simplespace.Store
+	NangoClient           *nango.Client
+	MCPGatewayStore       mcpgateway.Store
+	LLMStore              *llmgateway.Store
+	PDSForwarding         *forwarding.PDSForwarding
+	ClientMetadata        *clientmetadata.Resolver
 	// SearchIndex is nil when search (--meilisearch_url) is off.
 	SearchIndex search.Index
 	// SearchIndexer is nil when search (--meilisearch_url) is off.
@@ -93,7 +105,9 @@ func New(
 	pdsClientFactory pdsclient.HttpClientFactory,
 	emailDomainStore *emaildomain.Store,
 	hostKey atcrypto.PrivateKey,
+	hostKEMKey *atcrypto.PrivateKeyP256,
 	notifyStore notify.Store,
+	notifier *notify.Deliverer,
 	blobBucket *blob.Bucket,
 	blobStore spaces.BlobStore,
 	spacesStore spaces.Store,
@@ -103,6 +117,8 @@ func New(
 	serviceAuth *authn.AtprotoServiceAuthMethod,
 	permStore perms.Store,
 	validator authn.RequestValidator,
+	credentialRevocations *authn.CredentialRevocations,
+	delegationTokensSpent keyval.Store,
 	simpleStore *simplespace.Store,
 	nangoClient *nango.Client,
 	mcpGatewayStore mcpgateway.Store,
@@ -115,39 +131,43 @@ func New(
 	searchConfigStore *searchconfig.Store,
 ) *App {
 	return &App{
-		DB:                  database,
-		InstanceAdminStore:  instanceAdminStore,
-		InstanceAdminServer: instanceAdminServer,
-		Domain:              domain,
-		HiveDomain:          hiveDomain,
-		MCPOrigin:           mcpOrigin,
-		OAuthClient:         oauthClient,
-		Hive:                hive,
-		DefaultDir:          defaultDir,
-		HiveDir:             hiveDir,
-		PDSClientFactory:    pdsClientFactory,
-		EmailDomainStore:    emailDomainStore,
-		HostKey:             hostKey,
-		NotifyStore:         notifyStore,
-		BlobBucket:          blobBucket,
-		BlobStore:           blobStore,
-		SpacesStore:         spacesStore,
-		OpensocialStore:     opensocialStore,
-		EmailResolver:       emailResolver,
-		OAuthServer:         oauthServer,
-		ServiceAuth:         serviceAuth,
-		PermStore:           permStore,
-		Validator:           validator,
-		SimpleStore:         simpleStore,
-		NangoClient:         nangoClient,
-		MCPGatewayStore:     mcpGatewayStore,
-		LLMStore:            llmStore,
-		PDSForwarding:       pdsForwarding,
-		ClientMetadata:      clientMetadata,
-		SearchIndex:         searchIndex,
-		SearchIndexer:       searchIndexer,
-		Searcher:            searcher,
-		SearchConfig:        searchConfigStore,
+		DB:                    database,
+		InstanceAdminStore:    instanceAdminStore,
+		InstanceAdminServer:   instanceAdminServer,
+		Domain:                domain,
+		HiveDomain:            hiveDomain,
+		MCPOrigin:             mcpOrigin,
+		OAuthClient:           oauthClient,
+		Hive:                  hive,
+		DefaultDir:            defaultDir,
+		HiveDir:               hiveDir,
+		PDSClientFactory:      pdsClientFactory,
+		EmailDomainStore:      emailDomainStore,
+		HostKey:               hostKey,
+		HostKEMKey:            hostKEMKey,
+		NotifyStore:           notifyStore,
+		Notifier:              notifier,
+		BlobBucket:            blobBucket,
+		BlobStore:             blobStore,
+		SpacesStore:           spacesStore,
+		OpensocialStore:       opensocialStore,
+		EmailResolver:         emailResolver,
+		OAuthServer:           oauthServer,
+		ServiceAuth:           serviceAuth,
+		PermStore:             permStore,
+		Validator:             validator,
+		CredentialRevocations: credentialRevocations,
+		DelegationTokensSpent: delegationTokensSpent,
+		SimpleStore:           simpleStore,
+		NangoClient:           nangoClient,
+		MCPGatewayStore:       mcpGatewayStore,
+		LLMStore:              llmStore,
+		PDSForwarding:         pdsForwarding,
+		ClientMetadata:        clientMetadata,
+		SearchIndex:           searchIndex,
+		SearchIndexer:         searchIndexer,
+		Searcher:              searcher,
+		SearchConfig:          searchConfigStore,
 	}
 }
 

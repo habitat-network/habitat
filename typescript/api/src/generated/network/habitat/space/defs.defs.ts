@@ -10,61 +10,49 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** A signed commit over the current state of a permissioned repo. */
-type SignedCommit = {
-  $type?: 'network.habitat.space.defs#signedCommit'
+/** A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header. */
+type Commit = {
+  $type?: 'network.habitat.space.defs#commit'
 
   /**
-   * Commit format version, currently 1. Corresponds to the version in the ctx protocol tag (atproto-space-v1).
+   * Commit format version, currently 1.
    */
   ver: number
 
   /**
-   * True if sig was produced by the space host's key rather than the author's own key.
+   * The author DID of the repo.
    */
-  habitatSigned?: boolean
+  repo: l.DidString
+
+  /**
+   * Reference to the space.
+   */
+  space: l.SpaceRefString
+
+  /**
+   * Commit revision (TID).
+   */
+  rev: l.TidString
 
   /**
    * sha256 digest of the LtHash state (32 bytes).
    */
-  hash: Uint8Array
-
-  /**
-   * Per-signature input keying material (32 random bytes)
-   */
-  ikm: Uint8Array
-
-  /**
-   * Signature over ctx (space, author DID, rev, ikm) by the user's atproto signing key. Does not cover the repo hash.
-   */
-  sig: Uint8Array
-
-  /**
-   * HMAC-SHA256 over hash, keyed by HKDF-SHA256(ikm, info=ctx). Binds the repo hash to this commit's context.
-   */
-  mac: Uint8Array
-
-  /**
-   * Commit revision (TID), also bound into ctx.
-   */
-  rev: string
+  data: Uint8Array
 }
 
-export type { SignedCommit }
+export type { Commit }
 
-/** A signed commit over the current state of a permissioned repo. */
-const signedCommit = /*#__PURE__*/ l.typedObject<SignedCommit>(
+/** A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header. */
+const commit = /*#__PURE__*/ l.typedObject<Commit>(
   $nsid,
-  'signedCommit',
+  'commit',
   /*#__PURE__*/ l.object({
     ver: /*#__PURE__*/ l.integer(),
-    habitatSigned: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
-    hash: /*#__PURE__*/ l.bytes(),
-    ikm: /*#__PURE__*/ l.bytes(),
-    sig: /*#__PURE__*/ l.bytes(),
-    mac: /*#__PURE__*/ l.bytes(),
-    rev: /*#__PURE__*/ l.string(),
+    repo: /*#__PURE__*/ l.string({ format: 'did' }),
+    space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
+    rev: /*#__PURE__*/ l.string({ format: 'tid' }),
+    data: /*#__PURE__*/ l.bytes(),
   }),
 )
 
-export { signedCommit }
+export { commit }

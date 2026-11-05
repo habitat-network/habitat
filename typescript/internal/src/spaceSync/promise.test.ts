@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { publicIdentityResolver } from "./Identity";
+import { NotificationAuthError, SinkError, WireDecodeError } from "./errors";
+import { notificationErrorStatus } from "./notification";
 import type { VerifiedRecord } from "@atproto/space";
 import { describe, expect, it } from "vitest";
 import { server } from "../test/msw";
@@ -39,6 +41,23 @@ const memoryStore = (): PromiseSyncStore => {
   };
 };
 
+describe("notificationErrorStatus", () => {
+  it("retries everything but a rejected caller or a malformed body", () => {
+    expect(
+      notificationErrorStatus(new NotificationAuthError({ message: "no" })),
+    ).toBe(401);
+    expect(
+      notificationErrorStatus(new WireDecodeError({ message: "bad" })),
+    ).toBe(400);
+    expect(
+      notificationErrorStatus(
+        new SinkError({ message: "db down", cause: undefined }),
+      ),
+    ).toBe(500);
+    expect(notificationErrorStatus(new Error("boom"))).toBe(500);
+  });
+});
+
 describe("createSpaceSyncer", () => {
   it("syncs through Promise ports and verifies notifications", async () => {
     const net = new FakeNetwork();
@@ -73,9 +92,15 @@ describe("createSpaceSyncer", () => {
       await space.write(alice, "com.example.post", "2", { text: "b" });
       const lxm = "com.atproto.space.notifyWrite";
       const goodAuth = `Bearer ${await net.serviceAuth(alice, { aud: SERVICE_DID, lxm })}`;
-      await expect(
-        syncer.notifyWrite(space.notifyWriteBody(alice.did), "Bearer nope"),
-      ).rejects.toThrow();
+      const rejected = await syncer
+        .notifyWrite(space.notifyWriteBody(alice.did), "Bearer nope")
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+      expect(rejected).toBeDefined();
+      // A rejected caller is permanent, so the authority stops retrying.
+      expect(notificationErrorStatus(rejected)).toBe(401);
       await syncer.notifyWrite(space.notifyWriteBody(alice.did), goodAuth);
       await syncer.awaitIdle(space.id);
       expect(applied.at(-1)).toEqual({ tag: "Ops" });

@@ -17,7 +17,6 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -25,7 +24,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -97,13 +95,10 @@ func TestEngineSyncRepoVerifiesAndSettles(t *testing.T) {
 	var lt spacecommit.LtHash
 	lt.Add(spacecommit.RecordElement("network.habitat.test", "k1", "bafyaaa"))
 	lt.Add(spacecommit.RecordElement("network.habitat.test", "k2", "bafybbb"))
-	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+	commit := habitat.NetworkHabitatSpaceDefsCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: atdata.Bytes(lt.Sum()),
-		Ikm:  atdata.Bytes{},
-		Mac:  atdata.Bytes{},
-		Sig:  atdata.Bytes{},
+		Data: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -279,61 +274,6 @@ func TestEngineNotifyWriteAlreadyBehindHash(t *testing.T) {
 	require.Equal(t, statePending, r.State)
 }
 
-// TestVerifierNilDir verifies hash-only mode when the verifier has no identity
-// directory.
-func TestVerifierNilDir(t *testing.T) {
-	t.Parallel()
-
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	var lt spacecommit.LtHash
-	lt.Add(spacecommit.RecordElement("net.test", "r1", "cid1"))
-	commit := spacecommit.SignedCommit{
-		Ver:  spacecommit.Version,
-		Hash: lt.Sum(),
-		Rev:  "3kzl6abcde02k",
-	}
-
-	v := NewVerifier(nil)
-	require.NoError(t, v.Verify(t.Context(), space, "did:plc:alice", commit, &lt))
-}
-
-// TestVerifierNilDirMismatch verifies that a hash mismatch is caught in
-// hash-only mode.
-func TestVerifierNilDirMismatch(t *testing.T) {
-	t.Parallel()
-
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	var lt spacecommit.LtHash
-	lt.Add(spacecommit.RecordElement("net.test", "r1", "cid1"))
-	commit := spacecommit.SignedCommit{
-		Ver:  spacecommit.Version,
-		Hash: []byte{0xff, 0xfe},
-		Rev:  "3kzl6abcde02k",
-	}
-
-	v := NewVerifier(nil)
-	err := v.Verify(t.Context(), space, "did:plc:alice", commit, &lt)
-	require.Error(t, err)
-	require.ErrorIs(t, err, spacecommit.ErrInvalidCommit)
-}
-
-// TestVerifierNilPointer tests that a nil Verifier falls back to hash-only.
-func TestVerifierNilPointer(t *testing.T) {
-	t.Parallel()
-
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	var lt spacecommit.LtHash
-	lt.Add(spacecommit.RecordElement("net.test", "r1", "cid1"))
-	commit := spacecommit.SignedCommit{
-		Ver:  spacecommit.Version,
-		Hash: lt.Sum(),
-		Rev:  "3kzl6abcde02k",
-	}
-
-	var v *Verifier
-	require.NoError(t, v.Verify(t.Context(), space, "did:plc:alice", commit, &lt))
-}
-
 // TestEngineScheduleRetry covers the retry backoff path.
 func TestEngineScheduleRetry(t *testing.T) {
 	t.Parallel()
@@ -441,14 +381,14 @@ func TestEngineRecoverRepoNonOK(t *testing.T) {
 	require.Contains(t, r.ErrorMsg, "getRepo")
 }
 
-// TestEngineRecoverRepoInvalidCAR covers the path where the response body is
-// not a valid CAR.
-func TestEngineRecoverRepoInvalidCAR(t *testing.T) {
+// TestEngineRecoverRepoInvalidStar covers the path where the response body is
+// not a valid STAR archive.
+func TestEngineRecoverRepoInvalidStar(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write([]byte("not a car"))
+		_, _ = w.Write([]byte("not a star archive"))
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -470,7 +410,7 @@ func TestEngineRecoverRepoInvalidCAR(t *testing.T) {
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
 	require.Equal(t, stateDesynced, r.State)
-	require.Contains(t, r.ErrorMsg, "parse repo car")
+	require.Contains(t, r.ErrorMsg, "parse repo star")
 }
 
 type failClients struct{}
@@ -479,215 +419,6 @@ func (failClients) ClientForSpace(
 	context.Context, habitat_syntax.SpaceURI,
 ) (*atclient.APIClient, error) {
 	return nil, fmt.Errorf("no client")
-}
-
-// TestVerifierSignerWebAuthor covers the signer path for did:web authors.
-func TestVerifierSignerWebAuthor(t *testing.T) {
-	t.Parallel()
-
-	priv, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-	pub, err := priv.PublicKey()
-	require.NoError(t, err)
-
-	authorDID := syntax.DID("did:web:alice.example.com")
-	ident := did.New(authorDID).AtprotoKey(pub.Multibase()).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ident)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	var lt spacecommit.LtHash
-	_ = spacecommit.SignedCommit{
-		Ver:  spacecommit.Version,
-		Hash: lt.Sum(),
-		Rev:  "3kzl6abcde02k",
-	}
-
-	got, err := v.signer(t.Context(), space, authorDID, false)
-	require.NoError(t, err)
-	require.Equal(t, pub.Multibase(), got.Multibase())
-}
-
-// TestVerifierSignerWebAuthorFallsBackToAtprotoSpace covers a did:web author
-// whose identity, like the pear host's own "everyone org" identity (built by
-// cmd/pear/main.go with ATProtoSpaceKey/HabitatKey, not AtprotoKey),
-// publishes no "#atproto" verification method — only "#atproto_space".
-func TestVerifierSignerWebAuthorFallsBackToAtprotoSpace(t *testing.T) {
-	t.Parallel()
-
-	priv, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-	pub, err := priv.PublicKey()
-	require.NoError(t, err)
-
-	authorDID := syntax.DID("did:web:pear.example.com")
-	ident := did.New(authorDID).ATProtoSpaceKey(pub.Multibase()).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ident)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	got, err := v.signer(t.Context(), space, authorDID, false)
-	require.NoError(t, err)
-	require.Equal(t, pub.Multibase(), got.Multibase())
-}
-
-// TestVerifierSignerExternalAuthor covers the signer path for external
-// (non-did:web) authors where the host signs the commit.
-func TestVerifierSignerExternalAuthor(t *testing.T) {
-	t.Parallel()
-
-	priv, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-	pub, err := priv.PublicKey()
-	require.NoError(t, err)
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
-	hostIdent := did.New(hostDID).ATProtoSpaceKey(pub.Multibase()).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	dir.Insert(*hostIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	got, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.NoError(t, err)
-	require.Equal(t, pub.Multibase(), got.Multibase())
-}
-
-// TestVerifierSignerExternalAuthorFallsBackToAtproto covers the proposal's
-// fallback rule: a host that publishes no "#atproto_space" verification
-// method is resolved through its "#atproto" key instead.
-func TestVerifierSignerExternalAuthorFallsBackToAtproto(t *testing.T) {
-	t.Parallel()
-
-	priv, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-	pub, err := priv.PublicKey()
-	require.NoError(t, err)
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
-	hostIdent := did.New(hostDID).AtprotoKey(pub.Multibase()).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	dir.Insert(*hostIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	got, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.NoError(t, err)
-	require.Equal(t, pub.Multibase(), got.Multibase())
-}
-
-// TestVerifierSignerAuthorLookupError covers the error path when author
-// DID lookup fails.
-func TestVerifierSignerAuthorLookupError(t *testing.T) {
-	t.Parallel()
-
-	dir := identity.NewMockDirectory()
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:web:missing.example.com", false)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "lookup author")
-}
-
-// TestVerifierSignerAuthorNoKey covers the error path when the author's
-// identity has no public key.
-func TestVerifierSignerAuthorNoKey(t *testing.T) {
-	t.Parallel()
-
-	authorDID := syntax.DID("did:web:alice.example.com")
-	ident := did.New(authorDID).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ident)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, authorDID, false)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "author signing key")
-}
-
-// TestVerifierSignerExternalOwnerLookupError covers the error path when
-// external author's space owner lookup fails.
-func TestVerifierSignerExternalOwnerLookupError(t *testing.T) {
-	t.Parallel()
-
-	dir := identity.NewMockDirectory()
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "lookup space owner")
-}
-
-// TestVerifierSignerExternalNoHabitatService covers the error path when the
-// space owner has no atproto_space_host service endpoint.
-func TestVerifierSignerExternalNoHabitatService(t *testing.T) {
-	t.Parallel()
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	ownerIdent := did.New(spaceOwner).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no atproto_space_host service")
-}
-
-// TestVerifierSignerExternalHostLookupError covers the error path when the
-// host DID lookup fails.
-func TestVerifierSignerExternalHostLookupError(t *testing.T) {
-	t.Parallel()
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "lookup host")
-}
-
-// TestVerifierSignerExternalHostNoKey covers the error path when the host
-// has no atproto_space/atproto verification method.
-func TestVerifierSignerExternalHostNoKey(t *testing.T) {
-	t.Parallel()
-
-	spaceOwner := syntax.DID("did:plc:owner")
-	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
-	hostIdent := did.New(hostDID).Build()
-
-	dir := identity.NewMockDirectory()
-	dir.Insert(*ownerIdent)
-	dir.Insert(*hostIdent)
-	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-
-	_, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "host signing key")
 }
 
 // TestEngineDispatchClaimsPendingAndErrorRepos verifies that dispatch claims
@@ -894,18 +625,18 @@ func TestEngineRunProcessesPendingRepo(t *testing.T) {
 	require.Equal(t, stateActive, r.State)
 }
 
-// TestEngineRecoverRepoVerifyError covers the path where the CAR is valid
+// TestEngineRecoverRepoVerifyError covers the path where the archive is valid
 // but the commit verification fails with a non-ErrInvalidCommit error.
 func TestEngineRecoverRepoVerifyError(t *testing.T) {
 	t.Parallel()
 
-	carBytes := buildMinimalCAR(t)
+	starBytes := buildMinimalStar(t, testSpace, testRepo)
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write(carBytes)
+		_, _ = w.Write(starBytes)
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -933,17 +664,17 @@ func TestEngineRecoverRepoVerifyError(t *testing.T) {
 }
 
 // TestEngineRecoverRepoSuccess covers the happy path of recoverRepo: a valid
-// CAR is fetched, the hash matches, records are emitted, and the repo settles active.
+// archive is fetched, the hash matches, records are emitted, and the repo settles active.
 func TestEngineRecoverRepoSuccess(t *testing.T) {
 	t.Parallel()
 
-	carBytes := buildMinimalCAR(t)
+	starBytes := buildMinimalStar(t, testSpace, testRepo)
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write(carBytes)
+		_, _ = w.Write(starBytes)
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -1075,7 +806,13 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 	rev := syntax.NewTIDClock(0).Next().String()
 
 	// The host holds three records; sap's index is current for two of them.
-	hostCids := map[syntax.RecordKey]string{"k1": "bafyaaa", "k2": "bafybbb", "k3": "bafyccc"}
+	// Fetched values are checked against their CIDs, so these are real.
+	hostCids := map[syntax.RecordKey]string{}
+	for _, rkey := range []syntax.RecordKey{"k1", "k2", "k3"} {
+		c, err := recordCID(map[string]any{"k": rkey.String()})
+		require.NoError(t, err)
+		hostCids[rkey] = c.String()
+	}
 	var lt spacecommit.LtHash
 	for rkey, c := range hostCids {
 		lt.Add(spacecommit.RecordElement(coll, rkey, c))
@@ -1088,13 +825,10 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 		func(w http.ResponseWriter, _ *http.Request) {
 			commitCalls.Add(1)
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetLatestCommitOutput{
-				Commit: &habitat.NetworkHabitatSpaceDefsSignedCommit{
+				Commit: &habitat.NetworkHabitatSpaceDefsCommit{
 					Ver:  int64(spacecommit.Version),
 					Rev:  rev,
-					Hash: atdata.Bytes(lt.Sum()),
-					Ikm:  atdata.Bytes{},
-					Mac:  atdata.Bytes{},
-					Sig:  atdata.Bytes{},
+					Data: atdata.Bytes(lt.Sum()),
 				},
 			})
 		})
@@ -1115,6 +849,8 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 			rkey := r.URL.Query().Get("rkey")
 			fetched.Store(rkey, true)
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetRecordOutput{
+				Uri: habitat_syntax.ConstructSpaceRecordURI(
+					space, repoDID, coll, syntax.RecordKey(rkey)).String(),
 				Cid: hostCids[syntax.RecordKey(rkey)], Value: map[string]any{"k": rkey},
 			})
 		})
@@ -1124,7 +860,7 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 	e, emitter, db := newTestEngine(t, srv.URL)
 	require.NoError(t, e.Track(t.Context(), space, repoDID))
 	// k1 is current, k2 is stale, k3 is unknown to sap.
-	for rkey, c := range map[syntax.RecordKey]string{"k1": "bafyaaa", "k2": "bafyOLD"} {
+	for rkey, c := range map[syntax.RecordKey]string{"k1": hostCids["k1"], "k2": "bafyOLD"} {
 		require.NoError(t, indexRecord(t.Context(), db, space, repoDID, coll, rkey, c))
 	}
 
@@ -1149,9 +885,9 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 	index, err := recordIndex(t.Context(), db, space, repoDID)
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{
-		"network.habitat.test/k1": "bafyaaa",
-		"network.habitat.test/k2": "bafybbb",
-		"network.habitat.test/k3": "bafyccc",
+		"network.habitat.test/k1": hostCids["k1"],
+		"network.habitat.test/k2": hostCids["k2"],
+		"network.habitat.test/k3": hostCids["k3"],
 	}, index)
 }
 
@@ -1173,13 +909,10 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	// The host now holds only k1; k2 was deleted since sap last saw it.
 	var lt spacecommit.LtHash
 	lt.Add(spacecommit.RecordElement(coll, "k1", "bafyaaa"))
-	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+	commit := habitat.NetworkHabitatSpaceDefsCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev,
-		Hash: atdata.Bytes(lt.Sum()),
-		Ikm:  atdata.Bytes{},
-		Mac:  atdata.Bytes{},
-		Sig:  atdata.Bytes{},
+		Data: atdata.Bytes(lt.Sum()),
 	}
 
 	mux := http.NewServeMux()
@@ -1224,24 +957,24 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	require.Equal(t, map[string]string{"network.habitat.test/k1": "bafyaaa"}, index)
 }
 
-// TestEngineRecoverFromCAREmitsDeleteTombstone pins that full-snapshot
-// recovery also tombstones a record sap's index holds but the recovered CAR
+// TestEngineRecoverFromStarEmitsDeleteTombstone pins that full-snapshot
+// recovery also tombstones a record sap's index holds but the recovered archive
 // no longer does, not just recoverByDiff's narrow path. recoverRepo reaches
-// the CAR path here because the narrow-diff endpoints 404, the same way a
+// the STAR path here because the narrow-diff endpoints 404, the same way a
 // failed narrow recovery falls back to it in production.
-func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
+func TestEngineRecoverFromStarEmitsDeleteTombstone(t *testing.T) {
 	t.Parallel()
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
-	car := buildMinimalCAR(t) // holds exactly network.habitat.test/rec1
+	archive := buildMinimalStar(t, testSpace, testRepo) // holds exactly network.habitat.test/rec1
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(
 		"/xrpc/network.habitat.space.getRepo",
 		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/vnd.ipld.car")
-			_, _ = w.Write(car)
+			w.Header().Set("Content-Type", "application/octet-stream")
+			_, _ = w.Write(archive)
 		},
 	)
 	srv := httptest.NewServer(mux)
@@ -1249,7 +982,7 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 
 	e, emitter, db := newTestEngine(t, srv.URL)
 	require.NoError(t, e.Track(t.Context(), space, repoDID))
-	// sap's index holds rec1 (still present in the CAR) and rec2 (deleted
+	// sap's index holds rec1 (still present in the archive) and rec2 (deleted
 	// since sap last synced).
 	require.NoError(t, indexRecord(t.Context(), db, space, repoDID,
 		"network.habitat.test", "rec1", "bafyaaa"))
@@ -1274,7 +1007,7 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 // TestEngineRecoverRepoUsesHabitatNsid pins that full recovery calls the
 // host's network.habitat.space.getRepo endpoint (com.atproto.space.getRepo
 // does not exist on the host). The repo holds no local index, so recoverRepo
-// must take the full-CAR path rather than the narrow diff.
+// must take the full-STAR path rather than the narrow diff.
 func TestEngineRecoverRepoUsesHabitatNsid(t *testing.T) {
 	t.Parallel()
 
@@ -1317,13 +1050,10 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 		{Rev: rev2, Collection: "network.habitat.test", Rkey: "k1", Prev: "bafyaaa"},
 	}
 	var lt spacecommit.LtHash
-	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+	commit := habitat.NetworkHabitatSpaceDefsCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: atdata.Bytes(lt.Sum()),
-		Ikm:  atdata.Bytes{},
-		Mac:  atdata.Bytes{},
-		Sig:  atdata.Bytes{},
+		Data: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1504,7 +1234,7 @@ func TestEngineCatchUpListsSince(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 			Cursor: "3l000000000e2",
 			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-				{Did: "did:plc:missed", RepoRev: "3l000000000d2", Hash: atdata.Bytes("hash")},
+				{Did: "did:plc:missed", RepoRev: "3l000000000d2", Data: atdata.Bytes("hash")},
 			},
 		})
 	}))
@@ -1567,7 +1297,7 @@ func TestEngineCatchUpFallsBackToFullListing(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 			Cursor: "3l000000000e2",
 			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-				{Did: "did:plc:a", RepoRev: "aaa", Hash: atdata.Bytes("hash")},
+				{Did: "did:plc:a", RepoRev: "aaa", Data: atdata.Bytes("hash")},
 			},
 		})
 	}))

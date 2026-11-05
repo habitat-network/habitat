@@ -61,14 +61,10 @@ func TestServer_ListRepoOps(t *testing.T) {
 		require.Equal(t, output.Ops[1].Rev, output.Cursor)
 	})
 
-	// TestServer_ListRepoOps_IncludesSignedCommit verifies that at the head of
-	// the oplog a host-signed commit is returned, and that it verifies against
-	// the host key with the host protocol tag and carries the repo's LtHash.
-	t.Run("includes a host-signed commit at head", func(t *testing.T) {
-		pub, err := ts.HostKey.PublicKey()
-		require.NoError(t, err)
-
-		uri := newSpace(t, "host-signed")
+	// TestServer_ListRepoOps_IncludesCommit verifies that at the head of the
+	// oplog the commit is returned, and that it carries the repo's LtHash.
+	t.Run("includes the commit at head", func(t *testing.T) {
+		uri := newSpace(t, "head-commit")
 		putRecord(t, uri, groupTp, "k1", map[string]any{"x": 1})
 
 		var out habitat.NetworkHabitatSpaceListRepoOpsOutput
@@ -80,20 +76,12 @@ func TestServer_ListRepoOps(t *testing.T) {
 		require.Len(t, out.Ops, 1)
 		require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
 		require.Equal(t, out.Ops[0].Rev, out.Commit.Rev)
-
-		hash := []byte(out.Commit.Hash)
-		ikm := []byte(out.Commit.Ikm)
-		sig := []byte(out.Commit.Sig)
-		require.Len(t, ikm, 32)
-
-		// External author (did:plc:owner) → host-signed, so verify with the host key.
-		ctxBytes := spacecommit.Ctx(uri, owner, out.Commit.Rev, ikm)
-		require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
+		require.Equal(t, owner.String(), out.Commit.Repo)
 
 		_, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
 		require.NoError(t, err)
 		require.True(t, found)
-		require.Equal(t, wantHash, hash)
+		require.Equal(t, wantHash, []byte(out.Commit.Data))
 	})
 
 	t.Run("since cursor excludes prior ops", func(t *testing.T) {

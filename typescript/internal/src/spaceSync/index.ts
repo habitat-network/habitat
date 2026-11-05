@@ -13,6 +13,7 @@ export {
 export {
   NotificationAuth,
   type NotificationMethod,
+  notificationErrorStatus,
   receiveNotifySpaceDeleted,
   receiveNotifyWrite,
 } from "./notification";

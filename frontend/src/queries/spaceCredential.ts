@@ -1,21 +1,25 @@
 import type { AuthManager } from "internal";
-import { createSpaceSignatureHeaders, resolveSpaceHost } from "internal";
+import {
+  createSpaceSignatureHeaders,
+  resolveSpaceHost,
+  spaceCredentialKid,
+} from "internal";
 import { xrpc, type Agent, type SpaceRefString } from "@atproto/lex";
 import { SpaceRef } from "@atproto/syntax";
 import { queryOptions } from "@tanstack/react-query";
 import { com } from "api";
 
 export interface SpaceCredential {
-  // The signed space credential, sent as a bearer token to `host`.
+  // The signed space credential, presented to `host` under the
+  // Atproto-Space-Credential scheme with a request signature.
   credential: string;
-  // The space authority's host, resolved from its DID document (the
-  // atproto_space_host service, falling back to its PDS) — see
-  // internal/utils.SpaceHostEndpoint on the Go side for the same rule. Every
+  // The space authority's host, resolved from its DID document: like any
+  // other account, its atproto_pds service. Every
   // com.atproto.space.* read for this space is served here, per
   // bluesky-social/proposals#0016.
   host: string;
-  // The space authority's DID, signed as the audience on every request that
-  // presents the credential.
+  // The space authority's DID: the audience signed on requests to the space
+  // host. Repo methods address the repo owner instead (see requestAudience).
   audience: string;
 }
 
@@ -39,19 +43,21 @@ export function spaceCredentialQueryOptions(
       );
       const { token: delegationToken } = response.body;
       const host = await resolveSpaceHost(SpaceRef.parse(space).spaceDid);
-      // The atproto spaces protocol requires an HTTP message signature over
-      // the delegation token, made by the key to bind the minted credential
-      // to (see lexicons/com/atproto/space/getSpaceCredential.json), so a
-      // spaces-capable PDS talked to directly (bypassing pear's proxy)
-      // rejects this call without one. No credential exists yet at this
-      // exchange step, so no audience is signed — the signature's keyid
-      // carries the confirmation key instead.
+      // The delegation token and the key to bind the minted credential to
+      // (credentialKid) travel in the body; the request itself carries no
+      // auth (see lexicons/com/atproto/space/getSpaceCredential.json).
       const {
         body: { credential },
       } = await xrpc(
-        signedAgent(host, delegationToken),
+        plainAgent(host),
         com.atproto.space.getSpaceCredential.main,
-        { body: { space: space as SpaceRefString } },
+        {
+          body: {
+            space: space as SpaceRefString,
+            credentialKid: await spaceCredentialKid(),
+            delegationToken,
+          },
+        },
       );
       return {
         credential,
@@ -77,21 +83,41 @@ export async function spaceCredentialHeaders(
   cred: SpaceCredential,
 ): Promise<HeadersInit> {
   return createSpaceSignatureHeaders(
-    `Bearer ${cred.credential}`,
+    `Atproto-Space-Credential ${cred.credential}`,
     cred.audience,
   );
 }
 
-// signedAgent is an xrpc Agent that sends requests to `host` with `token` as
-// the bearer, adding a fresh space signature over it per request (and over
-// `audience`, when given) instead of using the caller's own OAuth session.
-function signedAgent(host: string, token: string, audience?: string): Agent {
+// plainAgent is an xrpc Agent that sends requests to `host` with no auth.
+function plainAgent(host: string): Agent {
+  return {
+    fetchHandler: (path, init) => fetch(`${host}${path}`, init),
+  };
+}
+
+// requestAudience is the DID a space credential request addresses, per the
+// spaces proposal: the repo owner for repo methods, which name it in the
+// `repo` parameter, and otherwise the space authority (`authority`).
+export function requestAudience(path: string, authority: string): string {
+  const repo = new URL(path, "http://localhost").searchParams.get("repo");
+  return repo || authority;
+}
+
+// signedAgent is an xrpc Agent that sends requests to `host` presenting
+// `credential`, adding a fresh space signature over it and the audience the
+// request addresses (see requestAudience) instead of using the caller's own
+// OAuth session.
+function signedAgent(
+  host: string,
+  credential: string,
+  authority: string,
+): Agent {
   return {
     fetchHandler: async (path, init) => {
       const headers = new Headers(init.headers);
       const sigHeaders = await createSpaceSignatureHeaders(
-        `Bearer ${token}`,
-        audience,
+        `Atproto-Space-Credential ${credential}`,
+        requestAudience(path, authority),
       );
       for (const [key, value] of Object.entries(sigHeaders)) {
         headers.set(key, value);

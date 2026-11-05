@@ -4,7 +4,7 @@
 // keeps notify registrations with the spaces' hosts fresh, and — when the
 // caller relays a host notification via NotifyWrite / NotifySpaceDeleted —
 // incrementally syncs the affected repo with listRepoOps, verifying each
-// repo's LtHash against the host's signed commit. Repos that fail verification
+// repo's LtHash against the host's MAC-authenticated commit. Repos that fail verification
 // are rebuilt from a full getRepo snapshot. Synced records are delivered
 // through an acknowledged outbox.
 package sap
@@ -182,7 +182,7 @@ func New(config Config) (*Sap, error) {
 		crawlInterval = time.Hour
 	}
 
-	return &Sap{
+	s := &Sap{
 		db:            config.DB,
 		sessions:      sessions,
 		credentials:   credentials,
@@ -192,7 +192,19 @@ func New(config Config) (*Sap, error) {
 		outbox:        ob,
 		crawlInterval: crawlInterval,
 		tracer:        tracer,
-	}, nil
+	}
+	// A credential renewal answered SpaceDeleted means the space is gone even
+	// if its notifySpaceDeleted never arrived, so drop it the same way. In the
+	// background: the renewal may be part of a sync of that very space.
+	credentials.OnSpaceDeleted(func(ctx context.Context, space habitat_syntax.SpaceURI) {
+		go func() {
+			ctx := context.WithoutCancel(ctx)
+			if err := s.NotifySpaceDeleted(ctx, space.URI()); err != nil {
+				slog.ErrorContext(ctx, "drop deleted space", "err", err, "space", space)
+			}
+		}()
+	})
+	return s, nil
 }
 
 // Start runs the background loops (sync engine, crawl resumption and periodic
@@ -260,20 +272,6 @@ func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID string) 
 // AddSession, it returns once the crawl is scheduled, not once it completes.
 func (s *Sap) Recrawl(ctx context.Context, did syntax.DID, sessionID string) {
 	go s.crawler.Restart(detachSpan(ctx), did, sessionID)
-}
-
-// SpaceCredential returns a space credential for space, and the space host it
-// is valid against, minted through some session on record as able to access
-// the space.
-func (s *Sap) SpaceCredential(
-	ctx context.Context,
-	space habitat_syntax.SpaceURI,
-) (credential.Credential, error) {
-	cred, err := s.credentials.Credential(ctx, space)
-	if err != nil {
-		return credential.Credential{}, fmt.Errorf("space credential for %s: %w", space, err)
-	}
-	return cred, nil
 }
 
 // Sessions lists the DIDs of the sessions sap syncs on behalf of.

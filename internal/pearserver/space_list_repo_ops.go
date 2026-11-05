@@ -9,6 +9,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -24,7 +25,7 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_, ok = p.validator.Request(
+	cred, ok := p.validator.Request(
 		authn.WithMethods(
 			authn.ValidatorMethodOAuth,
 			authn.ValidatorMethodServiceAuth,
@@ -36,6 +37,12 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	// Required on every page with a space credential, including pages that
+	// turn out to have no commit (and so carry no MAC).
+	mac, ok := p.requestMAC(w, r, cred, repoDID, spacecommit.CommitMACType)
 	if !ok {
 		return
 	}
@@ -54,6 +61,12 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list repo ops: %w", err))
 		return
+	}
+	if commit != nil {
+		if err := mac.setCommit(w, *commit); err != nil {
+			httpx.WriteServerError(ctx, w, err)
+			return
+		}
 	}
 
 	if httpx.IsComAtprotoRequest(r) {
@@ -75,8 +88,7 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 			output.Cursor = records[len(records)-1].Rev
 		}
 		if commit != nil {
-			signed := commit.ToComAtprotoXRPC()
-			output.Commit = &signed
+			output.Commit = new(commit.ToComAtprotoXRPC())
 		}
 		httpx.WriteJSON(r.Context(), w, output)
 		return
@@ -101,8 +113,7 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if commit != nil {
-		signed := commit.ToXRPC()
-		output.Commit = &signed
+		output.Commit = new(commit.ToXRPC())
 	}
 	httpx.WriteJSON(r.Context(), w, output)
 }

@@ -16,6 +16,8 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
+  credentialKid: /*#__PURE__*/ l.string(),
+  delegationToken: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
   clientAttestation: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
 })
 
@@ -32,7 +34,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Exchange a delegation token for a space credential. Called on the space authority, with the delegation token as the request's authorization token and an HTTP message signature over Authorization made by the key to bind the credential to. The resulting space credential reads repos across the space. Requires a delegation token and HTTP message signature, plus a client attestation when the space gates on app identity. */
+/** Request a space credential. Called on the space authority. A delegation token is required when the space gates on the user. A client attestation is required when the space gates on app identity. A space that requires neither offers public access. The resulting space credential reads repos across the space. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
   'SpaceDeleted',

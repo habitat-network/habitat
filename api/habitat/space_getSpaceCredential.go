@@ -5,6 +5,8 @@ package habitat
 // NetworkHabitatSpaceGetSpaceCredentialInput represents the input for network.habitat.space.getSpaceCredential
 type NetworkHabitatSpaceGetSpaceCredentialInput struct {
 	ClientAttestation string `json:"clientAttestation,omitempty"`
+	CredentialKid     string `json:"credentialKid"`
+	DelegationToken   string `json:"delegationToken,omitempty"`
 	Space             string `json:"space"`
 }
 

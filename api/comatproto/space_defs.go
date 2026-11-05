@@ -7,20 +7,19 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atdata"
 )
 
-// ComAtprotoSpaceDefsSignedCommit represents a signedCommit object
-type ComAtprotoSpaceDefsSignedCommit struct {
+// ComAtprotoSpaceDefsCommit represents a commit object
+type ComAtprotoSpaceDefsCommit struct {
 	LexiconTypeID string       `json:"$type"`
-	Hash          atdata.Bytes `json:"hash"`
-	Ikm           atdata.Bytes `json:"ikm"`
-	Mac           atdata.Bytes `json:"mac"`
+	Data          atdata.Bytes `json:"data"`
+	Repo          string       `json:"repo"`
 	Rev           string       `json:"rev"`
-	Sig           atdata.Bytes `json:"sig"`
+	Space         string       `json:"space"`
 	Ver           int64        `json:"ver"`
 }
 
-// MarshalJSON sets $type to "com.atproto.space.defs#signedCommit" before encoding.
-func (t ComAtprotoSpaceDefsSignedCommit) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "com.atproto.space.defs#signedCommit"
-	type alias ComAtprotoSpaceDefsSignedCommit
+// MarshalJSON sets $type to "com.atproto.space.defs#commit" before encoding.
+func (t ComAtprotoSpaceDefsCommit) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "com.atproto.space.defs#commit"
+	type alias ComAtprotoSpaceDefsCommit
 	return json.Marshal(alias(t))
 }

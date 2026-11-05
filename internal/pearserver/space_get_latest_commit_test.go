@@ -18,12 +18,9 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	ts := pearserver_testutil.NewTestServer(t)
 	store := ts.SpaceStore
 
-	// TestServer_GetLatestCommit returns a host-signed commit over the repo's
-	// head that verifies against the host key and carries the repo's LtHash.
-	t.Run("returns a host-signed commit at head", func(t *testing.T) {
-		pub, err := ts.HostKey.PublicKey()
-		require.NoError(t, err)
-
+	// TestServer_GetLatestCommit returns the commit over the repo's head: its
+	// repo, space and the repo's LtHash digest.
+	t.Run("returns the commit at head", func(t *testing.T) {
 		uri, err := store.CreateSpace(t.Context(), org, groupTp, "test")
 		require.NoError(t, err)
 		_, _, err = store.PutRecord(
@@ -43,19 +40,13 @@ func TestServer_GetLatestCommit(t *testing.T) {
 		require.Equal(t, http.StatusOK, code)
 
 		require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
-
-		hash := []byte(out.Commit.Hash)
-		ikm := []byte(out.Commit.Ikm)
-		sig := []byte(out.Commit.Sig)
-		require.Len(t, ikm, 32)
-
-		ctxBytes := spacecommit.Ctx(uri, owner, out.Commit.Rev, ikm)
-		require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
+		require.Equal(t, owner.String(), out.Commit.Repo)
+		require.Equal(t, uri.String(), out.Commit.Space)
 
 		rev, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
 		require.NoError(t, err)
 		require.True(t, found)
-		require.Equal(t, wantHash, hash)
+		require.Equal(t, wantHash, []byte(out.Commit.Data))
 		require.Equal(t, rev, out.Commit.Rev)
 	})
 

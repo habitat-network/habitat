@@ -30,22 +30,23 @@ func (stubDelegator) DelegationToken(context.Context, habitat_syntax.SpaceURI) (
 	return "test-delegation", nil
 }
 
-// credToken extracts the bearer token a ClientForSpace client would send,
-// standing in for the removed Manager.Credential.
+// credToken extracts the credential a ClientForSpace client would send.
 func credToken(t *testing.T, m *Manager, space habitat_syntax.SpaceURI) string {
 	t.Helper()
 	client, err := m.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
-	return strings.TrimPrefix(client.Headers.Get("Authorization"), "Atproto-Space ")
+	return strings.TrimPrefix(
+		client.Headers.Get("Authorization"), httpsig.CredentialScheme+" ",
+	)
 }
 
 // dirWithSpaceHost builds an identity.MockDirectory with a single identity
-// whose atproto_space_host service points at host.
+// whose atproto_pds service (its space host) points at host.
 func dirWithSpaceHost(did syntax.DID, host string) *identity.MockDirectory {
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      did,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: host}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: host}},
 	})
 	return dir
 }
@@ -78,7 +79,13 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 			mu.Lock()
 			credCalls++
 			mu.Unlock()
-			require.Equal(t, "Bearer test-delegation", r.Header.Get("Authorization"))
+			// The delegation token travels in the body; the request carries
+			// no auth of its own.
+			require.Empty(t, r.Header.Get("Authorization"))
+			var in habitat.NetworkHabitatSpaceGetSpaceCredentialInput
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&in))
+			require.Equal(t, "test-delegation", in.DelegationToken)
+			require.True(t, httpsig.IsP256DIDKey(in.CredentialKid))
 			_ = json.NewEncoder(w).Encode(
 				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
 		case "/xrpc/network.habitat.space.listRepos":
@@ -117,7 +124,7 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 		&out,
 	))
 	mu.Lock()
-	require.Equal(t, "Atproto-Space space-cred", repoAuth)
+	require.Equal(t, "Atproto-Space-Credential space-cred", repoAuth)
 	require.Equal(t, 1, repoRevCalls)
 	mu.Unlock()
 
@@ -154,11 +161,11 @@ func TestManagerResolvesHostPerSpace(t *testing.T) {
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      ownerA,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: srvA.URL}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: srvA.URL}},
 	})
 	dir.Insert(identity.Identity{
 		DID:      ownerB,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: srvB.URL}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: srvB.URL}},
 	})
 	m := NewManager(
 		dir,
@@ -171,14 +178,15 @@ func TestManagerResolvesHostPerSpace(t *testing.T) {
 	require.Equal(t, "cred-b", credToken(t, m, spaceB))
 }
 
-// TestManagerCredential verifies Credential hands back the minted token along
-// with the space owner's host it was minted for, so a caller can read the space
-// there directly.
-func TestManagerCredential(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/xrpc/network.habitat.space.getSpaceCredential", r.URL.Path)
-		_ = json.NewEncoder(w).Encode(
-			habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
+// TestManagerReportsDeletedSpace verifies a host answering SpaceDeleted is
+// reported through OnSpaceDeleted and ErrSpaceDeleted, and that any other
+// failure says nothing about the space.
+func TestManagerReportsDeletedSpace(t *testing.T) {
+	errName := "SpaceDeleted"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": errName})
 	}))
 	t.Cleanup(srv.Close)
 
@@ -190,10 +198,20 @@ func TestManagerCredential(t *testing.T) {
 		stubDelegator{},
 		testAttester(t, "https://sap.example.com"),
 	)
+	var reported []habitat_syntax.SpaceURI
+	m.OnSpaceDeleted(func(_ context.Context, s habitat_syntax.SpaceURI) {
+		reported = append(reported, s)
+	})
 
-	cred, err := m.Credential(t.Context(), space)
-	require.NoError(t, err)
-	require.Equal(t, Credential{Token: "space-cred", Host: srv.URL}, cred)
+	_, err := m.ClientForSpace(t.Context(), space)
+	require.ErrorIs(t, err, ErrSpaceDeleted)
+	require.Equal(t, []habitat_syntax.SpaceURI{space}, reported)
+
+	errName = "NotAuthorized"
+	_, err = m.ClientForSpace(t.Context(), space)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrSpaceDeleted)
+	require.Len(t, reported, 1)
 }
 
 // TestManagerAttachesClientAttestation verifies mint signs a
@@ -326,30 +344,32 @@ func TestManagerRefetchesRejectedCredential(t *testing.T) {
 	require.Equal(t, 2, minted)
 }
 
-// TestManagerSignsRequestsWithBindingKey checks that the credential exchange
-// and credential use are both RFC 9421-signed by the same P-256 key, and that
-// the unbound Credential path sends no signature.
+// TestManagerSignsRequestsWithBindingKey checks that the credential is
+// requested for the manager's P-256 key (credentialKid) and that every use of
+// it is RFC 9421-signed by that same key over the credential and audience.
 func TestManagerSignsRequestsWithBindingKey(t *testing.T) {
-	var mintSigner, useSigner string
-	var unboundSigned bool
+	var credentialKid string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/xrpc/network.habitat.space.getSpaceCredential":
-			if httpsig.HasSignature(r) {
-				signer, err := httpsig.Verify(r, "authorization")
-				require.NoError(t, err)
-				mintSigner = signer
-			} else {
-				unboundSigned = true
-			}
+			var in habitat.NetworkHabitatSpaceGetSpaceCredentialInput
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&in))
+			credentialKid = in.CredentialKid
 			_ = json.NewEncoder(w).Encode(
 				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
 		case "/xrpc/network.habitat.space.listRepos":
-			signer, err := httpsig.Verify(r, "authorization", "atproto-space-audience")
-			require.NoError(t, err)
-			useSigner = signer
+			require.NoError(t, httpsig.VerifyBound(
+				r, credentialKid, "authorization", "atproto-space-audience",
+			))
 			require.Equal(t, "did:web:org", r.Header.Get(httpsig.AudienceHeader))
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{})
+		case "/xrpc/network.habitat.space.getLatestCommit":
+			// A repo method addresses the repo owner, not the authority.
+			require.NoError(t, httpsig.VerifyBound(
+				r, credentialKid, "authorization", "atproto-space-audience",
+			))
+			require.Equal(t, "did:plc:alice", r.Header.Get(httpsig.AudienceHeader))
+			_ = json.NewEncoder(w).Encode(map[string]any{})
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
@@ -363,11 +383,6 @@ func TestManagerSignsRequestsWithBindingKey(t *testing.T) {
 		testAttester(t, "https://sap.example.com"),
 	)
 
-	// Unbound credential: no signature on the exchange.
-	_, err := m.Credential(t.Context(), space)
-	require.NoError(t, err)
-	require.True(t, unboundSigned)
-
 	client, err := m.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
 	var out habitat.NetworkHabitatSpaceListReposOutput
@@ -375,6 +390,10 @@ func TestManagerSignsRequestsWithBindingKey(t *testing.T) {
 		t.Context(), "network.habitat.space.listRepos",
 		map[string]any{"space": space.String()}, &out,
 	))
-	require.NotEmpty(t, mintSigner)
-	require.Equal(t, mintSigner, useSigner)
+	require.NotEmpty(t, credentialKid)
+	var commit map[string]any
+	require.NoError(t, client.Get(
+		t.Context(), "network.habitat.space.getLatestCommit",
+		map[string]any{"space": space.String(), "repo": "did:plc:alice"}, &commit,
+	))
 }
