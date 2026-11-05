@@ -23,27 +23,30 @@ func (p *PearServer) ListMembers(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	credInfo, ok := p.validator.Request(
+	_, ok = p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
 	}
-	dids, err := p.simpleStore.ListMembers(ctx, credInfo.Org.DID(), spaceURI)
+	if !p.requireMemberspace(ctx, w, spaceURI) {
+		return
+	}
+	dids, err := p.simpleStore.ListMembers(ctx, spaceURI)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list members: %w", err))
 		return
 	}
 	if httpx.IsComAtprotoRequest(r) {
 		// Membership in a simplespace grants both read and write.
-		members := make([]comatproto.ComAtprotoSimplespaceListMembersMember, len(dids))
+		members := make([]comatproto.ComAtprotoMemberspaceListMembersMember, len(dids))
 		for i, did := range dids {
-			members[i] = comatproto.ComAtprotoSimplespaceListMembersMember{
+			members[i] = comatproto.ComAtprotoMemberspaceListMembersMember{
 				Did: did.String(), Read: true, Write: true,
 			}
 		}
-		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSimplespaceListMembersOutput{Members: members})
+		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoMemberspaceListMembersOutput{Members: members})
 		return
 	}
 	members := make([]habitat.NetworkHabitatSimplespaceListMembersMember, len(dids))

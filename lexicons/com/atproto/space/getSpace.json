@@ -1,0 +1,54 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.space.getSpace",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Describe a space, including its policy. Served by the space host. Requires either OAuth (for a caller with an account on this host) or a space credential; either way the caller must be authorized for the space.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "space"
+        ],
+        "properties": {
+          "space": {
+            "type": "string",
+            "format": "space-ref",
+            "description": "Reference to the space."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "uri",
+            "policy"
+          ],
+          "properties": {
+            "uri": {
+              "type": "string",
+              "format": "space-ref",
+              "description": "URI of the space."
+            },
+            "policy": {
+              "type": "union",
+              "description": "The space policy.",
+              "refs": [
+                "com.atproto.personalspace.policy",
+                "com.atproto.memberspace.policy",
+                "com.atproto.managedspace.policy"
+              ]
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "SpaceNotFound"
+        }
+      ]
+    }
+  }
+}

@@ -1,6 +1,8 @@
 package org_test
 
 import (
+	"context"
+	"errors"
 	"net/url"
 	"testing"
 
@@ -10,219 +12,234 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
-	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
-func TestLoginRouter(t *testing.T) {
-	store := testutil.NewTestStore(t)
-	orgID, adminID, err := store.CreateOrg(
-		t.Context(),
-		"test-org",
-		"admin",
-		"",
-		string(org.LoginMethodGoogle),
-		"test@gmail.com",
-		"subdomain",
-		"contact@example.com",
-	)
-	t.Logf("orgID: %s", orgID.DID.String())
-	t.Logf("adminID: %s", adminID.DID.String())
-
-	require.NoError(t, err)
-	router := org.LoginRouter{
-		Google:   login_testutil.NewPassthroughProvider(t),
-		OrgStore: store,
-	}
-
-	t.Run("member login", func(t *testing.T) {
-		_, _, state, err := router.Authorize(t.Context(), adminID.DID)
-		require.NoError(t, err)
-
-		err = router.Exchange(
-			t.Context(),
-			adminID.DID,
-			url.Values{},
-			state,
-		)
-		require.NoError(t, err)
-	})
-
-	t.Run("org login", func(t *testing.T) {
-		p := login_testutil.NewPassthroughProvider(t)
-		p.LoginID = "test@gmail.com"
-		router := org.LoginRouter{
-			Google:   p,
-			OrgStore: store,
-		}
-		_, _, state, err := router.Authorize(t.Context(), orgID.DID)
-		require.NoError(t, err)
-
-		err = router.Exchange(
-			t.Context(),
-			orgID.DID,
-			url.Values{},
-			state,
-		)
-		require.NoError(t, err)
-	})
+// stubProvider is a login.Provider whose results and errors a test controls.
+type stubProvider struct {
+	loginID      string
+	profile      login.Profile
+	authorizeErr error
+	exchangeErr  error
+	loginHint    string
+	exchanges    int
 }
 
-func TestExchange_RequireAdminForOrg(t *testing.T) {
-	store := testutil.NewTestStore(t)
-	orgID, _, err := store.CreateOrg(
-		t.Context(),
-		"test-org",
-		"admin",
-		"",
-		string(org.LoginMethodGoogle),
-		"test@gmail.com",
-		"subdomain",
-		"contact@example.com",
-	)
-	require.NoError(t, err)
-	router := org.LoginRouter{
-		Google:   login_testutil.NewPassthroughProvider(t),
-		OrgStore: store,
+func (p *stubProvider) Authorize(
+	_ context.Context,
+	loginHint string,
+) (string, string, string, error) {
+	p.loginHint = loginHint
+	if p.authorizeErr != nil {
+		return "", "", "", p.authorizeErr
 	}
-	err = router.Exchange(
-		t.Context(),
-		orgID.DID,
-		url.Values{},
-		"",
-	)
-	require.Error(t, err)
+	return "https://provider.example.com/authorize", "state", "provider-state", nil
 }
 
-func TestExchange_MismatchLoginID(t *testing.T) {
-	store := testutil.NewTestStore(t)
-	_, adminID, err := store.CreateOrg(
-		t.Context(),
-		"test-org",
-		"admin",
-		"",
-		string(org.LoginMethodGoogle),
-		"test@gmail.com",
-		"subdomain",
-		"contact@example.com",
-	)
-	require.NoError(t, err)
-	router := org.LoginRouter{
-		Google:   login_testutil.NewPassthroughProvider(t),
-		OrgStore: store,
+func (p *stubProvider) Exchange(
+	_ context.Context,
+	_ url.Values,
+	_ string,
+) (string, login.Profile, error) {
+	p.exchanges++
+	if p.exchangeErr != nil {
+		return "", login.Profile{}, p.exchangeErr
 	}
-
-	err = router.Exchange(
-		t.Context(),
-		adminID.DID,
-		url.Values{},
-		"",
-	)
-	require.Error(t, err)
+	return p.loginID, p.profile, nil
 }
 
-func TestExchange_MissingMember(t *testing.T) {
-	store := testutil.NewTestStore(t)
-	_, adminID, err := store.CreateOrg(
-		t.Context(),
-		"test-org",
-		"admin",
-		"",
-		string(org.LoginMethodGoogle),
-		"test@gmail.com",
-		"subdomain",
-		"contact@example.com",
-	)
-	require.NoError(t, err)
-	router := org.LoginRouter{
-		Google:   login_testutil.NewPassthroughProvider(t),
-		OrgStore: store,
-	}
-
-	err = router.Exchange(t.Context(), adminID.DID, url.Values{}, "")
-	require.Error(t, err)
-}
-
-func TestLoginRouterEmailDomain(t *testing.T) {
+func newEmailOrg(t *testing.T) (
+	*emaildomain.Store,
+	*opensocial_testutil.TestStore,
+	syntax.DID,
+) {
+	t.Helper()
 	db := db_testutil.NewDB(
 		t,
-		hive.Models(),
-		login.Models(),
-		instance.Models(),
-		emaildomain.Models(),
-		spaces.Models(),
 		opensocial.Models(),
+		spaces.Models(),
+		hive.Models(),
+		emaildomain.Models(),
 	)
+	osStore := opensocial_testutil.NewTestStore(t, opensocial_testutil.WithDB(db))
 	emailStore, err := emaildomain.NewStore(db)
 	require.NoError(t, err)
-	osStore := opensocial_testutil.NewTestStore(t, opensocial_testutil.WithDB(db))
 	orgDIDStr, err := osStore.NewOrgWithoutCreator(t.Context(), "acme")
 	require.NoError(t, err)
 	orgDID := syntax.DID(orgDIDStr)
-	alice := syntax.DID("did:web:alice.example.com")
 	require.NoError(t, emailStore.CreateDomainMapping(
 		t.Context(), "acme.com", orgDID, emaildomain.LoginMethodGoogle,
 	))
+	return emailStore, osStore, orgDID
+}
+
+func TestLoginRouterEmailDomain(t *testing.T) {
+	emailStore, osStore, orgDID := newEmailOrg(t)
+	alice := syntax.DID("did:web:alice.example.com")
 	require.NoError(t, emailStore.Provision(t.Context(), "alice@acme.com", orgDID, alice))
-	orgStore := testutil.NewTestStore(t)
 
-	t.Run("google login for provisioned email grants org membership", func(t *testing.T) {
-		p := login_testutil.NewPassthroughProvider(t)
-		router := org.LoginRouter{
-			Google: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
-		}
-		_, _, state, err := router.Authorize(t.Context(), alice)
+	google := &stubProvider{
+		loginID: "alice@acme.com",
+		profile: login.Profile{Name: "Alice", Picture: "https://example.com/alice.png"},
+	}
+	router := &org.LoginRouter{
+		Pds:             &stubProvider{},
+		Google:          google,
+		EmailStore:      emailStore,
+		OpensocialStore: osStore.Store,
+	}
+
+	t.Run("authorizes with the provisioned email as login hint", func(t *testing.T) {
+		redirect, state, key, err := router.Authorize(t.Context(), alice)
 		require.NoError(t, err)
-		// The provisioned email is passed as Google's login_hint.
-		require.Equal(t, "alice@acme.com", p.LoginID)
+		require.NotEmpty(t, redirect)
+		require.Equal(t, "state", state)
+		require.Equal(t, "provider-state", key)
+		require.Equal(t, "alice@acme.com", google.loginHint)
 
-		// Resolving/authorizing the identity alone must not enroll it.
+		// Authorizing alone must not enroll the DID.
 		roles, err := osStore.GetUserRoles(t.Context(), orgDID, alice)
 		require.NoError(t, err)
 		require.Empty(t, roles)
+	})
 
-		require.NoError(t, router.Exchange(t.Context(), alice, url.Values{}, state))
-
-		roles, err = osStore.GetUserRoles(t.Context(), orgDID, alice)
+	t.Run("exchange grants membership and seeds the profile", func(t *testing.T) {
+		require.NoError(t, router.Exchange(t.Context(), alice, url.Values{}, "provider-state"))
+		roles, err := osStore.GetUserRoles(t.Context(), orgDID, alice)
 		require.NoError(t, err)
-		require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
+		require.ElementsMatch(
+			t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles,
+		)
 	})
 
-	t.Run("google email differing only in case is accepted", func(t *testing.T) {
-		p := login_testutil.NewPassthroughProvider(t)
-		p.LoginID = "Alice@Acme.com"
-		router := org.LoginRouter{
-			Google: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
-		}
-		require.NoError(t, router.Exchange(t.Context(), alice, url.Values{}, ""))
+	t.Run("email match is case-insensitive", func(t *testing.T) {
+		google.loginID = "Alice@Acme.com"
+		require.NoError(t, router.Exchange(t.Context(), alice, url.Values{}, "provider-state"))
+		require.Equal(t, 2, google.exchanges)
 	})
 
-	t.Run("mismatched google email is rejected and grants no membership", func(t *testing.T) {
+	t.Run("mismatched email is rejected and grants no membership", func(t *testing.T) {
 		bob := syntax.DID("did:web:bob.example.com")
 		require.NoError(t, emailStore.Provision(t.Context(), "bob@acme.com", orgDID, bob))
-		p := login_testutil.NewPassthroughProvider(t)
-		p.LoginID = "mallory@acme.com"
-		router := org.LoginRouter{
-			Google: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
+
+		mallory := &stubProvider{loginID: "mallory@acme.com"}
+		mismatchRouter := &org.LoginRouter{
+			Google: mallory, EmailStore: emailStore, OpensocialStore: osStore.Store,
 		}
-		require.Error(t, router.Exchange(t.Context(), bob, url.Values{}, ""))
+		err := mismatchRouter.Exchange(t.Context(), bob, url.Values{}, "")
+		require.ErrorContains(t, err, "login id mismatch")
 
 		roles, err := osStore.GetUserRoles(t.Context(), orgDID, bob)
 		require.NoError(t, err)
 		require.Empty(t, roles)
 	})
 
-	t.Run("google not configured", func(t *testing.T) {
-		router := org.LoginRouter{OrgStore: orgStore, EmailStore: emailStore}
+	t.Run("provider exchange error is wrapped", func(t *testing.T) {
+		carol := syntax.DID("did:web:carol.example.com")
+		require.NoError(t, emailStore.Provision(t.Context(), "carol@acme.com", orgDID, carol))
+
+		failing := &stubProvider{exchangeErr: errors.New("boom")}
+		failingRouter := &org.LoginRouter{
+			Google: failing, EmailStore: emailStore, OpensocialStore: osStore.Store,
+		}
+		err := failingRouter.Exchange(t.Context(), carol, url.Values{}, "")
+		require.ErrorContains(t, err, "failed to exchange code")
+	})
+
+	t.Run("unsupported login method is rejected", func(t *testing.T) {
+		otherOrgDIDStr, err := osStore.NewOrgWithoutCreator(t.Context(), "legacy")
+		require.NoError(t, err)
+		otherOrgDID := syntax.DID(otherOrgDIDStr)
+		require.NoError(t, emailStore.CreateDomainMapping(
+			t.Context(), "legacy.example.com", otherOrgDID, emaildomain.LoginMethod("password"),
+		))
+		dave := syntax.DID("did:web:dave.example.com")
+		require.NoError(
+			t, emailStore.Provision(t.Context(), "dave@legacy.example.com", otherOrgDID, dave),
+		)
+
+		router := &org.LoginRouter{Google: google, EmailStore: emailStore}
+		_, _, _, err = router.Authorize(t.Context(), dave)
+		require.ErrorContains(t, err, "unsupported login provider")
+		err = router.Exchange(t.Context(), dave, url.Values{}, "")
+		require.ErrorContains(t, err, "unsupported login provider")
+	})
+
+	t.Run("google not configured is rejected", func(t *testing.T) {
+		router := &org.LoginRouter{EmailStore: emailStore}
 		_, _, _, err := router.Authorize(t.Context(), alice)
 		require.ErrorContains(t, err, "unsupported login provider")
 		err = router.Exchange(t.Context(), alice, url.Values{}, "")
 		require.ErrorContains(t, err, "unsupported login provider")
+	})
+}
+
+func TestLoginRouterEmailDomainWithoutOpensocialStore(t *testing.T) {
+	emailStore, _, orgDID := newEmailOrg(t)
+	alice := syntax.DID("did:web:alice.example.com")
+	require.NoError(t, emailStore.Provision(t.Context(), "alice@acme.com", orgDID, alice))
+
+	google := &stubProvider{loginID: "alice@acme.com"}
+	router := &org.LoginRouter{Google: google, EmailStore: emailStore}
+
+	_, _, _, err := router.Authorize(t.Context(), alice)
+	require.NoError(t, err)
+	// Without an opensocial store the member is not enrolled, but sign-in
+	// still succeeds.
+	require.NoError(t, router.Exchange(t.Context(), alice, url.Values{}, ""))
+}
+
+func TestLoginRouterEmailStoreError(t *testing.T) {
+	// A database without the email tables makes GetLoginMethod fail.
+	brokenStore, err := emaildomain.NewStore(db_testutil.NewDB(t))
+	require.NoError(t, err)
+
+	router := &org.LoginRouter{
+		Pds:        &stubProvider{},
+		Google:     &stubProvider{},
+		EmailStore: brokenStore,
+	}
+	_, _, _, err = router.Authorize(t.Context(), syntax.DID("did:web:alice.example.com"))
+	require.ErrorContains(t, err, "get email login method")
+	err = router.Exchange(t.Context(), syntax.DID("did:web:alice.example.com"), url.Values{}, "")
+	require.ErrorContains(t, err, "get email login method")
+}
+
+func TestLoginRouterPDSFallback(t *testing.T) {
+	emailStore, _, _ := newEmailOrg(t)
+	unknown := syntax.DID("did:web:unknown.example.com")
+
+	t.Run("authorize and exchange fall back to the PDS", func(t *testing.T) {
+		pds := &stubProvider{loginID: unknown.String()}
+		router := &org.LoginRouter{Pds: pds, Google: &stubProvider{}, EmailStore: emailStore}
+
+		_, _, key, err := router.Authorize(t.Context(), unknown)
+		require.NoError(t, err)
+		// The PDS is asked to sign in as the DID the login hint resolved to.
+		require.Equal(t, unknown.String(), pds.loginHint)
+
+		require.NoError(t, router.Exchange(t.Context(), unknown, url.Values{}, key))
+		require.Equal(t, 1, pds.exchanges)
+	})
+
+	t.Run("without an email store", func(t *testing.T) {
+		pds := &stubProvider{loginID: unknown.String()}
+		router := &org.LoginRouter{Pds: pds}
+
+		_, _, key, err := router.Authorize(t.Context(), unknown)
+		require.NoError(t, err)
+		require.Equal(t, unknown.String(), pds.loginHint)
+		require.NoError(t, router.Exchange(t.Context(), unknown, url.Values{}, key))
+	})
+
+	t.Run("pds exchange failure is wrapped", func(t *testing.T) {
+		pds := &stubProvider{exchangeErr: errors.New("boom")}
+		router := &org.LoginRouter{Pds: pds}
+		err := router.Exchange(t.Context(), unknown, url.Values{}, "")
+		require.ErrorContains(t, err, "failed to exchange code")
 	})
 }

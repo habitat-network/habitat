@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -58,7 +56,7 @@ func (p *PearServer) UpdateLlmConnection(w http.ResponseWriter, r *http.Request)
 		update.APIKey = &empty
 	}
 
-	conn, err := p.llmStore.Update(ctx, org, syntax.RecordKey(input.Id), update)
+	conn, err := p.llmStore.Update(ctx, org, llmgateway.ConnectionID(input.Id), update)
 	if errors.Is(err, llmgateway.ErrConnectionNotFound) {
 		httpx.WriteError(ctx, w, "NotFound", "llm connection not found", http.StatusNotFound)
 		return

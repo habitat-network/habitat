@@ -21,9 +21,6 @@ export type {
   Role as ShareDialogRole,
   Grantee as ShareDialogGrantee,
 } from "./components/ShareDialog";
-export { default as ShareDialogV2 } from "./components/ShareDialogV2";
-export { default as GroupCombobox } from "./components/GroupCombobox";
-export type { GroupView } from "./components/GroupCombobox";
 export {
   resolveHandleToDid,
   resolveDidToHandle,
@@ -67,14 +64,6 @@ export {
   forgetRememberedLogin,
 } from "./rememberedLogin";
 export type { RememberedLogin } from "./rememberedLogin";
-export {
-  anonymousAgentFor,
-  castRecord,
-  listPrivateRecords,
-  getPrivateRecord,
-} from "./rpc";
-export type { TypedRecord, ListRecordsResponse } from "./rpc";
-export { default as GranteeAvatars } from "./components/GranteeAvatars";
 
 // Utilities
 export { default as clientMetadata } from "./clientMetadata";

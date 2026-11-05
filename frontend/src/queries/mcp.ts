@@ -37,9 +37,9 @@ export function orgMcpServersQueryOptions(
 // listServers returns refetches it before resolving, so isPending covers the
 // refresh and callers can close their dialogs from onSuccess.
 
-// addMcpServerMutationOptions adds an MCP server to org by writing its
-// record: name, description, url and authType. Nobody signs in yet; for an
-// oauth server, a member connects afterward with
+// addMcpServerMutationOptions adds an MCP server to org: name, description,
+// url and authType, plus an optional pre-registered OAuth client. Nobody signs
+// in yet; for an oauth server, a member connects afterward with
 // startMcpAuthorizationMutationOptions, while a manual server needs no auth
 // and every member is connected automatically. Requires the caller to hold
 // the mcp.configure action.
@@ -85,8 +85,8 @@ export const updateMcpServerMutationOptions = (
   });
 
 // removeMcpServerMutationOptions deletes an org's configured MCP server,
-// identified by the mutation's id variable, along with any stored user
-// credentials for it. Requires the caller to hold the mcp.configure action.
+// identified by the mutation's id variable. Members' stored credentials for it
+// are never used again. Requires the caller to hold the mcp.configure action.
 export const removeMcpServerMutationOptions = (
   authManager: AuthManager,
   org: DidString,
@@ -102,11 +102,11 @@ export const removeMcpServerMutationOptions = (
     },
   });
 
-// startMcpAuthorizationMutationOptions begins a Nango Connect session for
-// the caller to authorize against an existing org-configured MCP server,
-// identified by the mutation's id variable. It resolves to a session token
-// for the Nango frontend SDK's Connect UI. Nothing changes until the caller
-// completes that UI, so there's nothing to invalidate here.
+// startMcpAuthorizationMutationOptions begins authorizing the caller against
+// an existing org-configured oauth MCP server, identified by the mutation's id
+// variable. It resolves to the server's authorization URL, for the caller to
+// open; pear stores their tokens once they approve. Nothing changes until
+// then, so there's nothing to invalidate here.
 export const startMcpAuthorizationMutationOptions = (
   authManager: AuthManager,
   org: DidString,
@@ -118,7 +118,7 @@ export const startMcpAuthorizationMutationOptions = (
         network.habitat.mcp.startAuthorization.main,
         { body: { org, id } },
       );
-      return response.body.sessionToken;
+      return response.body.authorizationUrl;
     },
   });
 

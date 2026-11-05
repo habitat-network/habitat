@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Controller, useForm } from "react-hook-form";
-import Nango from "@nangohq/frontend";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import type { AuthManager } from "internal";
 import type { DidString } from "@atproto/lex";
 import {
@@ -40,7 +39,7 @@ import {
 } from "internal/components/ui";
 
 // Mirrors mcpgateway.serverNamePattern (Go). The name doubles as the
-// server's record key and, once connected, the namespace its tools are
+// server's ID and, once connected, the namespace its tools are
 // exposed under (e.g. "cloudflare:docs"), so it's restricted to a plain,
 // unique-per-org slug.
 const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -53,7 +52,19 @@ interface AddServerFormValues {
   description: string;
   authType: AuthType;
   url: string;
+  // A client pre-registered with the server's authorization server, for
+  // oauth servers that don't support dynamic client registration.
+  clientId: string;
+  clientSecret: string;
 }
+
+// The type of the message pear's MCP OAuth callback page posts to the window
+// that opened it (pearserver.mcpOAuthCallbackMessageType in Go).
+const OAUTH_CALLBACK_MESSAGE_TYPE = "habitat-mcp-oauth";
+
+// pear's MCP OAuth callback (pearserver.MCPOAuthCallbackPath in Go), which
+// admins register as the redirect URI of a pre-registered client.
+const OAUTH_CALLBACK_URL = `https://${import.meta.env.VITE_HABITAT_DOMAIN}/mcp-oauth/callback`;
 
 // isUri narrows s to the lexicon's uri string format.
 function isUri(s: string): s is `${string}:${string}` {
@@ -183,9 +194,40 @@ function ConnectionCell({
   authManager: AuthManager;
 }) {
   const queryClient = useQueryClient();
-  // Whether Nango's Connect UI is open. That lifecycle belongs to Nango's SDK
-  // rather than to a mutation, so it's tracked separately.
-  const [connectUiOpen, setConnectUiOpen] = useState(false);
+  // The popup the member authorizes in, while it's open. Its lifecycle
+  // belongs to the browser rather than to a mutation, so it's tracked
+  // separately.
+  const [popup, setPopup] = useState<Window | null>(null);
+  const pollRef = useRef<number | undefined>(undefined);
+
+  // Once the popup closes, whether the member finished or gave up, refetch
+  // the servers' connected status.
+  useEffect(() => {
+    if (!popup) return;
+    const done = () => {
+      window.clearInterval(pollRef.current);
+      setPopup(null);
+      void queryClient.invalidateQueries({
+        queryKey: mcpServersQueryKey(org),
+      });
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (
+        event.source === popup &&
+        event.data?.type === OAUTH_CALLBACK_MESSAGE_TYPE
+      ) {
+        done();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    pollRef.current = window.setInterval(() => {
+      if (popup.closed) done();
+    }, 500);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.clearInterval(pollRef.current);
+    };
+  }, [popup, org, queryClient]);
 
   const {
     mutate: disconnect,
@@ -199,31 +241,31 @@ function ConnectionCell({
     error: startError,
   } = useMutation(startMcpAuthorizationMutationOptions(authManager, org));
 
-  const authorize = () =>
+  const authorize = () => {
+    // Opened right away, in the click's handler, so pop-up blockers allow
+    // it; it's pointed at the authorization URL once pear returns one.
+    const opened = window.open(
+      "",
+      "habitat-mcp-oauth",
+      "popup,width=600,height=720",
+    );
+    if (!opened) {
+      toast.add({
+        type: "error",
+        title: "Allow pop-ups for this site to connect",
+      });
+      return;
+    }
     startAuthorization(server.id, {
-      onSuccess(sessionToken) {
-        setConnectUiOpen(true);
-        const nango = new Nango();
-        const connect = nango.openConnectUI({
-          sessionToken,
-          onEvent: async (event) => {
-            if (event.type === "connect") {
-              await queryClient.invalidateQueries({
-                queryKey: mcpServersQueryKey(org),
-              });
-            }
-            if (event.type === "connect" || event.type === "close") {
-              setConnectUiOpen(false);
-            }
-            if (event.type === "error") {
-              setConnectUiOpen(false);
-              toast.add({ type: "error", title: "Failed to connect" });
-            }
-          },
-        });
-        connect.open();
+      onSuccess(authorizationUrl) {
+        opened.location.href = authorizationUrl;
+        setPopup(opened);
+      },
+      onError() {
+        opened.close();
       },
     });
+  };
 
   if (server.authType === "manual") {
     return <Badge variant="secondary">Shared</Badge>;
@@ -250,7 +292,7 @@ function ConnectionCell({
     );
   }
 
-  const connecting = starting || connectUiOpen;
+  const connecting = starting || popup !== null;
   return (
     <div className="flex flex-col gap-1">
       <Button
@@ -286,8 +328,16 @@ function AddServerDialog({
     formState: { errors, isValid },
   } = useForm<AddServerFormValues>({
     mode: "onChange",
-    defaultValues: { name: "", description: "", authType: "oauth", url: "" },
+    defaultValues: {
+      name: "",
+      description: "",
+      authType: "oauth",
+      url: "",
+      clientId: "",
+      clientSecret: "",
+    },
   });
+  const authType = useWatch({ control, name: "authType" });
 
   const {
     mutate: add,
@@ -301,21 +351,31 @@ function AddServerDialog({
     resetMutation();
   };
 
-  // Adding a server just writes its record; nobody signs in here. For an
-  // oauth server, members (including this admin) connect afterward with the
-  // "Connect" button, which drives Nango's Connect UI.
-  const submit = handleSubmit(({ name, description, authType, url }) => {
-    if (!isUri(url)) return;
-    add(
-      { name, description: description || undefined, url, authType },
-      {
-        onSuccess() {
-          setOpen(false);
-          reset();
+  // Adding a server registers pear with its authorization server, if it has
+  // one, but nobody signs in here. For an oauth server, members (including
+  // this admin) connect afterward with the "Connect" button.
+  const submit = handleSubmit(
+    ({ name, description, authType, url, clientId, clientSecret }) => {
+      if (!isUri(url)) return;
+      const oauth = authType === "oauth";
+      add(
+        {
+          name,
+          description: description || undefined,
+          url,
+          authType,
+          clientId: (oauth && clientId) || undefined,
+          clientSecret: (oauth && clientId && clientSecret) || undefined,
         },
-      },
-    );
-  });
+        {
+          onSuccess() {
+            setOpen(false);
+            reset();
+          },
+        },
+      );
+    },
+  );
 
   return (
     <Dialog
@@ -416,6 +476,42 @@ function AddServerDialog({
               Everyone in this community can see this URL.
             </p>
           </Field>
+          {authType === "oauth" && (
+            <>
+              <Field>
+                <FieldLabel htmlFor="mcp-client-id">
+                  Client ID (optional)
+                </FieldLabel>
+                <Input
+                  id="mcp-client-id"
+                  autoComplete="off"
+                  {...register("clientId")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Only needed if the server doesn&apos;t let Habitat register
+                  itself. Register a client with redirect URI{" "}
+                  <span className="font-mono break-all">
+                    {OAUTH_CALLBACK_URL}
+                  </span>{" "}
+                  and enter its ID here.
+                </p>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="mcp-client-secret">
+                  Client secret (optional)
+                </FieldLabel>
+                <Input
+                  id="mcp-client-secret"
+                  type="password"
+                  autoComplete="off"
+                  {...register("clientSecret")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Stored encrypted, and never shown again.
+                </p>
+              </Field>
+            </>
+          )}
           <FieldError errors={error ? [{ message: error.message }] : []} />
           <DialogFooter>
             <Button type="submit" disabled={adding || !isValid}>
@@ -461,7 +557,8 @@ function RemoveServerButton({
           <DialogTitle>Remove "{name}"?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Every member's stored credential for this server will be deleted too.
+          Members' sign-ins to this server stop working. If it's added again,
+          they'll need to connect again.
         </p>
         <FieldError errors={error ? [{ message: error.message }] : []} />
         <DialogFooter>

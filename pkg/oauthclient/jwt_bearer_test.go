@@ -19,8 +19,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
-	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 )
@@ -41,24 +40,6 @@ func (rt *jwtBearerRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 		req.URL = u
 	}
 	return rt.server.Client().Transport.RoundTrip(req)
-}
-
-// jwtBearerTestOrgStore creates an org.Store seeded with a test org.
-func jwtBearerTestOrgStore(t *testing.T) org.Store {
-	t.Helper()
-	s := org_testutil.NewTestStore(t)
-	_, _, err := s.CreateOrg(
-		t.Context(),
-		"org-name",
-		"admin",
-		"password",
-		"",
-		"",
-		"",
-		"contact@example.com",
-	)
-	require.NoError(t, err)
-	return s
 }
 
 // newJWTBearerTestClient creates an httptest server serving the client's
@@ -105,7 +86,7 @@ func setupJWTBearerTestServer(
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 
 	var oauthServer *oauthserver.OAuthServer
 	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +110,6 @@ func setupJWTBearerTestServer(
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		jwtBearerTestOrgStore(t),
 		jwtBearerIssuer,
 		oauthserver.NewJWTBearerStore(approvedClientIDs...),
 		opensocial_testutil.NewTestStore(t).Store,

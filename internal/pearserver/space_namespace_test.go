@@ -34,7 +34,7 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 	)
 	require.NoError(t, err)
 	simpleURI, err := ts.SimpleStore.CreateSpace(
-		t.Context(), org, owner, groupTp, habitat_syntax.SpaceKey("simple"),
+		t.Context(), owner, groupTp, habitat_syntax.SpaceKey("simple"),
 	)
 	require.NoError(t, err)
 
@@ -149,10 +149,10 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 		var out struct {
 			Members []typed `json:"members"`
 		}
-		body := query(t, ts.Server.ListMembers, "com.atproto.simplespace.listMembers", params)
+		body := query(t, ts.Server.ListMembers, "com.atproto.memberspace.listMembers", params)
 		require.NoError(t, json.Unmarshal(body, &out))
 		require.NotEmpty(t, out.Members)
-		require.Equal(t, "com.atproto.simplespace.listMembers#member", out.Members[0].Type)
+		require.Equal(t, "com.atproto.memberspace.listMembers#member", out.Members[0].Type)
 
 		body = query(t, ts.Server.ListMembers, "network.habitat.simplespace.listMembers", params)
 		require.NoError(t, json.Unmarshal(body, &out))

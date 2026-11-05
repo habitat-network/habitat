@@ -16,7 +16,7 @@ import (
 	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 )
@@ -26,7 +26,7 @@ const (
 	mcpTestRedirect = "http://127.0.0.1:9/callback"
 	mcpTestVerifier = "test-verifier-test-verifier-test-verifier-1234567"
 	// mcpTestDID is the DID the dummy PDS always issues tokens for (see
-	// pdsclient.DummyOAuthClient.ExchangeCode); the handle prompt is given
+	// pdsoauth.DummyOAuthClient.ExchangeCode); the handle prompt is given
 	// this DID directly as the "handle" to sign in with.
 	mcpTestDID = "did:web:example.did.com"
 )
@@ -46,7 +46,7 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 	require.NoError(t, err)
 	secret, err := encrypt.ParseKey(key)
 	require.NoError(t, err)
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
 	srv, err := NewOAuthServer(
 		secret,
@@ -55,7 +55,6 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 		dbtestutil.NewDB(t, Models()),
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		mcpTestOrigin,
 		NewJWTBearerStore(),
 		testOpensocialStore(t),

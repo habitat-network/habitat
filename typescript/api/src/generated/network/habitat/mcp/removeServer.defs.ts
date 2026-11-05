@@ -30,7 +30,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Remove an org's configured MCP server, along with any stored user credentials for it. Requires service-auth. Requires the mcp.configure action. */
+/** Remove an org's configured MCP server. Members' stored credentials for it are never used again, even if a server is later added under the same name. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

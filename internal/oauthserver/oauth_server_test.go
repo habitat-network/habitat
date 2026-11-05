@@ -3,7 +3,6 @@ package oauthserver
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,7 +24,6 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/login"
@@ -33,31 +31,12 @@ import (
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
-	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
 )
-
-// testStore creates a Store with a seeded test org.
-func testStore(t *testing.T) org.Store {
-	t.Helper()
-	s := org_testutil.NewTestStore(t)
-	_, _, err := s.CreateOrg(
-		t.Context(),
-		"org-name",
-		"admin",
-		"password",
-		"",
-		"",
-		"",
-		"contact@example.com",
-	)
-	require.NoError(t, err)
-	return s
-}
 
 // testOpensocialStore creates an opensocial.Store backed by throwaway
 // storage, with no orgs seeded.
@@ -70,7 +49,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			[]byte("not valid base64"),
-			nil, nil, nil, nil, noop.Meter{}, testStore(t),
+			nil, nil, nil, nil, noop.Meter{},
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
@@ -89,14 +68,12 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	oauthSrv, err := NewOAuthServer(
 		secret,
 		&org.LoginRouter{
-			Pds:      login_testutil.NewPassthroughProvider(t),
-			OrgStore: testStore(t),
+			Pds: login_testutil.NewPassthroughProvider(t),
 		},
-		pdsclient.NewDummyDirectory("http://pds.url"),
+		pdsoauth.NewDummyDirectory("http://pds.url"),
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
@@ -189,7 +166,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	require.NoError(t, err)
 
 	pds := login_testutil.NewPassthroughProvider(t)
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
@@ -199,7 +176,6 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
@@ -240,9 +216,9 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				}))
@@ -301,7 +277,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
@@ -312,7 +288,6 @@ func TestOAuthServerE2E(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
@@ -363,9 +338,9 @@ func TestOAuthServerE2E(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				err := json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				})
@@ -459,56 +434,13 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	const memberDomain = "unreachable.invalid"
 	const pearDomain = "pear." + memberDomain
 
-	// hive and the org store share one db: org.WithTx swaps hive's db
-	// connection for its own transaction when minting member identities.
-	hiveDB := dbtestutil.NewDB(t, Models(), hive.Models(), org.Models())
+	hiveDB := dbtestutil.NewDB(t, Models(), hive.Models())
 	h, err := hive.NewHive(memberDomain, pearDomain, hiveDB)
 	require.NoError(t, err, "failed to create hive")
 
-	// The PDS-side directory only needs to resolve a DID to a PDS endpoint for
-	// the OAuth handshake with the (dummy) PDS; it is independent of how the
-	// OAuth server itself resolves a handle to a hive-served DID.
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-
-	// The dummy PDS always issues tokens for "did:web:example.did.com" (see
-	// DummyOAuthClient.ExchangeCode), so the org member is registered with
-	// that as their external atproto login identity, while their actual
-	// habitat identity (and the DID the OAuth server issues a token for) is
-	// the hive-served one resolved from their handle.
-	const pdsLoginDID = "did:web:example.did.com"
-
-	passwordProvider, err := login.NewPasswordProvider(
-		hiveDB,
-		pearDomain,
-		[]byte("test-signing-secret-for-org-00000"),
-		dummyDir,
-	)
-	require.NoError(t, err, "failed to setup password provider")
-	fgaStore, err := fgastore.NewMemory(t.Context())
-	require.NoError(t, err, "failed to setup fga store")
-	orgStore, err := org.NewStore(
-		hiveDB,
-		h,
-		dummyDir,
-		pearDomain,
-		passwordProvider,
-		fgaStore,
-		org.NewEveryoneOrg(pearDomain),
-		keyval_testutil.New(t),
-	)
-	require.NoError(t, err, "failed to setup org store")
-
-	_, member, err := orgStore.CreateOrg(
-		t.Context(),
-		"org-name",
-		"alice",
-		"",
-		"atproto",
-		pdsLoginDID,
-		"acme",
-		"contact@example.com",
-	)
-	require.NoError(t, err, "failed to create org with hive-served admin")
+	// Mint the hive-served identity the OAuth server resolves the handle to.
+	member, err := h.MintIdentity(t.Context(), "alice", "acme")
+	require.NoError(t, err, "failed to mint hive-served identity")
 
 	// setup test database
 	db := dbtestutil.NewDB(t, Models())
@@ -523,14 +455,12 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds:      pds,
-			OrgStore: orgStore,
+			Pds: pds,
 		},
 		h, // the OAuth server resolves handles/DIDs via hive, not a public directory
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		orgStore,
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
@@ -581,9 +511,9 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				err := json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				})
@@ -660,7 +590,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	require.NoError(t, err)
 
 	pds := login_testutil.NewPassthroughProvider(t)
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
@@ -670,7 +600,6 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
@@ -711,9 +640,9 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 					Scope:         "org:*",
@@ -758,20 +687,6 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 }
 
-// testIsMemberStore wraps an org.Store and overrides GetOrgByDID.
-type testIsMemberStore struct {
-	org.Store
-	fn func(ctx context.Context, did syntax.DID) (org.Org, error)
-}
-
-func (s *testIsMemberStore) GetOrgForDID(
-	ctx context.Context,
-	did syntax.DID,
-) (org.Org, error) {
-	o, err := s.fn(ctx, did)
-	return o, err
-}
-
 // acquireAccessToken drives the full authorization code flow and returns the
 // resulting bearer access token issued by srv.
 func acquireAccessToken(
@@ -814,9 +729,9 @@ func acquireAccessToken(
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -862,8 +777,8 @@ func TestValidate(t *testing.T) {
 	// newSrv creates an OAuthServer sharing the same secret and database.
 	// Stateless JWT introspection means tokens issued by any server here are
 	// valid for all others created with the same secret.
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-	newSrv := func(st org.Store) (*OAuthServer, *login_testutil.PassthroughProvider) {
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
+	newSrv := func() (*OAuthServer, *login_testutil.PassthroughProvider) {
 		p := login_testutil.NewPassthroughProvider(t)
 		s, srvErr := NewOAuthServer(
 			bytes,
@@ -874,7 +789,6 @@ func TestValidate(t *testing.T) {
 			db,
 			keyval_testutil.New(t),
 			noop.Meter{},
-			st,
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
@@ -886,7 +800,7 @@ func TestValidate(t *testing.T) {
 	}
 
 	// Issue a real JWT via the complete OAuth flow.
-	srv, pds := newSrv(testStore(t))
+	srv, pds := newSrv()
 	validToken := acquireAccessToken(t, srv, pds)
 
 	// callValidate issues a GET against a minimal HTTP server wrapping srv.Validate
@@ -920,43 +834,19 @@ func TestValidate(t *testing.T) {
 	}
 
 	t.Run("missing token returns !ok", func(t *testing.T) {
-		srvEmpty, _ := newSrv(testStore(t))
+		srvEmpty, _ := newSrv()
 		status, _, ok, _ := callValidate(srvEmpty, "")
 		require.False(t, ok)
 		require.NotEqual(t, http.StatusOK, status)
 
-		srvBad, _ := newSrv(testStore(t))
+		srvBad, _ := newSrv()
 		status, _, ok, _ = callValidate(srvBad, "not.a.valid.jwt")
 		require.False(t, ok)
 		require.NotEqual(t, http.StatusOK, status)
 	})
 
-	t.Run("GetOrgForDID error returns !ok with 401", func(t *testing.T) {
-		srv, _ := newSrv(&testIsMemberStore{
-			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
-				return nil, errors.New("simulated database failure")
-			},
-		})
-		status, _, ok, _ := callValidate(srv, validToken)
-		require.False(t, ok)
-		require.Equal(t, http.StatusUnauthorized, status)
-	})
-
-	t.Run("non-member returns !ok with 401", func(t *testing.T) {
-		srv, _ := newSrv(&testIsMemberStore{
-			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
-				return nil, org.ErrMemberNotFound
-			},
-		})
-		status, _, ok, _ := callValidate(srv, validToken)
-		require.False(t, ok)
-		require.Equal(t, http.StatusUnauthorized, status)
-	})
-
 	t.Run("valid token for member returns DID and ok with 200", func(t *testing.T) {
-		srv, _ := newSrv(testStore(t))
+		srv, _ := newSrv()
 		status, credInfo, ok, _ := callValidate(srv, validToken)
 		require.True(t, ok)
 		require.Equal(t, http.StatusOK, status)
@@ -967,7 +857,7 @@ func TestValidate(t *testing.T) {
 		// indigo's oauth.ClientSession.DoWithAuth only triggers a token
 		// refresh when it sees this exact header (RFC 6750 error="invalid_token")
 		// on a 401 response; without it, clients treat expiry as a hard failure.
-		srv, _ := newSrv(testStore(t))
+		srv, _ := newSrv()
 		status, _, ok, header := callValidate(srv, "not.a.valid.jwt")
 		require.False(t, ok)
 		require.Equal(t, http.StatusUnauthorized, status)
@@ -982,8 +872,8 @@ func TestValidateWithScopeChecking(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-	newSrv := func(st org.Store) (*OAuthServer, *login_testutil.PassthroughProvider) {
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
+	newSrv := func() (*OAuthServer, *login_testutil.PassthroughProvider) {
 		p := login_testutil.NewPassthroughProvider(t)
 		s, srvErr := NewOAuthServer(
 			bytes,
@@ -994,7 +884,6 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			db,
 			keyval_testutil.New(t),
 			noop.Meter{},
-			st,
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
@@ -1006,21 +895,21 @@ func TestValidateWithScopeChecking(t *testing.T) {
 	}
 
 	t.Run("token without org scope fails org scope requirement", func(t *testing.T) {
-		srv, pds := newSrv(testStore(t))
+		srv, pds := newSrv()
 		token := acquireAccessToken(t, srv, pds)
 		_, _, err := srv.ValidateRaw(t.Context(), token, "org:*")
 		require.Error(t, err)
 	})
 
 	t.Run("token passes with no scope requirement", func(t *testing.T) {
-		srv, pds := newSrv(testStore(t))
+		srv, pds := newSrv()
 		token := acquireAccessToken(t, srv, pds)
 		_, _, err := srv.ValidateRaw(t.Context(), token)
 		require.NoError(t, err)
 	})
 
 	t.Run("valid token returns DID and ok", func(t *testing.T) {
-		srv, pds := newSrv(testStore(t))
+		srv, pds := newSrv()
 		token := acquireAccessToken(t, srv, pds)
 		credInfo, ok, err := srv.ValidateRaw(t.Context(), token)
 		require.NoError(t, err)
@@ -1082,28 +971,25 @@ func TestIndigoClientApp(t *testing.T) {
 // test server ends up listening on.
 func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth.ClientConfig) {
 	// The disambiguation page returns a handle, which the OAuth server resolves
-	// (via hive) to the member's hive-served DID; the org store then routes that
-	// DID's login to the atproto (passthrough) provider. The passthrough stands
-	// in for the PDS OAuth dance and reports the member's external atproto login
-	// DID on exchange.
+	// (via hive) to the member's hive-served DID; it then signs that DID in
+	// through the atproto (passthrough) provider, which stands in for the PDS
+	// OAuth dance and reports the member's external atproto login DID on
+	// exchange.
 	const pdsLoginDID = "did:web:example.did.com"
-	orgStore := org_testutil.NewTestStore(t)
 
 	db := dbtestutil.NewDB(t, Models())
 	loginProvider := login_testutil.NewPassthroughProvider(t)
 	loginProvider.LoginID = pdsLoginDID
-	dir := pdsclient.NewDummyDirectory("https://habitat.example")
+	dir := pdsoauth.NewDummyDirectory("https://habitat.example")
 	oauthServer, err := NewOAuthServer(
 		encrypt.TestKey,
 		&org.LoginRouter{
-			Pds:      loginProvider,
-			OrgStore: orgStore,
+			Pds: loginProvider,
 		},
 		dir,
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		orgStore,
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
@@ -1266,7 +1152,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
@@ -1277,7 +1163,6 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
@@ -1324,9 +1209,9 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -1385,7 +1270,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
 	opensocialStore := testOpensocialStore(t)
 
@@ -1403,7 +1288,6 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		opensocialStore,
@@ -1463,9 +1347,9 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -1532,7 +1416,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
 	opensocialStore := testOpensocialStore(t)
 
@@ -1551,7 +1435,6 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		opensocialStore,
@@ -1580,9 +1463,9 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -1646,7 +1529,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	p := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
@@ -1655,7 +1538,6 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
@@ -1744,7 +1626,7 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	pds := &statefulProvider{}
 	opensocialStore := testOpensocialStore(t)
 	adminDID := syntax.DID("did:web:example.did.com") // dummyDir resolves any handle to this DID
@@ -1759,7 +1641,6 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		opensocialStore,
@@ -1822,9 +1703,9 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))

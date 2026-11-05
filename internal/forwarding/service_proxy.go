@@ -16,7 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -34,7 +34,7 @@ type serviceProxy struct {
 	hive             hive.Hive
 	dir              identity.Directory
 	httpClient       *http.Client
-	pdsClientFactory pdsclient.HttpClientFactory
+	pdsClientFactory pdsoauth.HttpClientFactory
 }
 
 // NewServiceProxy constructs a ServiceProxy, which is a MiddlewareFunc and intercepts requests that have atproto-proxy in the headers.
@@ -45,7 +45,7 @@ func NewServiceProxy(
 	validator authn.RequestValidator,
 	hive hive.Hive,
 	dir identity.Directory,
-	clientFactory pdsclient.HttpClientFactory,
+	clientFactory pdsoauth.HttpClientFactory,
 ) func(http.Handler) http.Handler /* type of mux.MiddlewareFunc */ {
 	sp := &serviceProxy{
 		validator:        validator,

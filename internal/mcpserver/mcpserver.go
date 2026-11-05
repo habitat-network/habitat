@@ -17,8 +17,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/nango"
-	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -28,46 +26,23 @@ import (
 	"github.com/olgasafonova/mcp-otel-go/mcpotel"
 )
 
-// NangoClient is the subset of Nango's backend API needed to reach a
-// caller's connected MCP servers. See internal/nango.Client for the concrete
-// implementation.
-type NangoClient interface {
-	// ListConnections lists the MCP connections tagged with endUserID.
-	ListConnections(ctx context.Context, endUserID string) ([]nango.Connection, error)
-	// GetConnection fetches a Connection's live details, including
-	// credentials, from Nango.
-	GetConnection(
+// ConnectedServers lists the MCP servers configured in a caller's orgs (see
+// internal/mcpgateway) that the caller can reach, and says how to reach each
+// on their behalf. See mcpgateway.Store for the concrete implementation.
+type ConnectedServers interface {
+	ListConnectedServers(ctx context.Context, did syntax.DID) ([]*mcpgateway.Server, error)
+	Downstream(
 		ctx context.Context,
-		connectionID, providerConfigKey string,
-	) (*nango.ConnectionDetails, error)
-}
-
-// OrgMcpServerStore is the subset of opensocial.Store needed to resolve a
-// Nango connection's provider_config_key back to the org-chosen server name
-// (see internal/mcpgateway) that namespaces its tools.
-type OrgMcpServerStore interface {
-	GetMcpServer(
-		ctx context.Context,
-		orgDID syntax.DID,
-		id syntax.RecordKey,
-	) (*opensocial.McpServer, error)
-	ListMcpServers(ctx context.Context, orgDID syntax.DID) ([]*opensocial.McpServer, error)
+		did syntax.DID,
+		orgID syntax.DID,
+		name mcpgateway.ServerName,
+	) (*mcpgateway.Downstream, error)
 }
 
 // RecordSearcher runs a record search as a caller. See search.Searcher for
 // the concrete implementation.
 type RecordSearcher interface {
 	Search(ctx context.Context, caller syntax.DID, q search.Query) (search.Page, error)
-}
-
-// ManualServerSource lists the manually configured MCP servers (see
-// internal/mcpgateway) available to an org member, with the URL to reach
-// each.
-type ManualServerSource interface {
-	ListManualServersForMember(
-		ctx context.Context,
-		did syntax.DID,
-	) ([]*mcpgateway.ManualServer, error)
 }
 
 // ProtectedResourceMetadataPath is the well-known path prefix (RFC 9728) under
@@ -136,10 +111,8 @@ func orgFromPath(p, prefix string) (syntax.AtIdentifier, error) {
 //     within the org named in the endpoint's path.
 //     It may be nil when search isn't configured, in which case the tool isn't
 //     offered.
-//   - nangoClient and orgRecords together look up the caller's Nango
-//     connections to org-configured MCP servers, and manualServers the
-//     manually configured servers of the caller's orgs (see
-//     internal/mcpgateway): every connected server's tools are merged into
+//   - connectedServers lists the MCP servers of the caller's orgs that the
+//     caller can reach (see internal/mcpgateway): every one's tools are merged into
 //     this server's own tools/list response, namespaced by the server's name
 //     (see namespaceTool), and tools/call for a namespaced tool is proxied
 //     straight through to that server.
@@ -154,9 +127,7 @@ func New(
 	spacesStore spaces.Store,
 	permStore perms.Store,
 	searcher RecordSearcher,
-	nangoClient NangoClient,
-	orgRecords OrgMcpServerStore,
-	manualServers ManualServerSource,
+	connectedServers ConnectedServers,
 	blobs spaces.BlobStore,
 	dir identity.Directory,
 	origin string,
@@ -208,8 +179,8 @@ func New(
 			}, searchRecordsHandler(searcher, org))
 		}
 		mcpServer.AddReceivingMiddleware(
-			mergeConnectedToolsMiddleware(nangoClient, orgRecords, manualServers),
-			proxyConnectedToolCallMiddleware(nangoClient, orgRecords, manualServers),
+			mergeConnectedToolsMiddleware(connectedServers),
+			proxyConnectedToolCallMiddleware(connectedServers),
 		)
 		return mcpServer
 	}

@@ -39,15 +39,15 @@ func (p *PearServer) AddServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server, err := p.mcpGatewayStore.AddServer(
-		ctx,
-		org,
-		input.Name,
-		input.Description,
-		input.Url,
-		mcpgateway.AuthType(input.AuthType),
-	)
-	if isMcpConfigError(err) {
+	server, err := p.mcpGatewayStore.AddServer(ctx, org, mcpgateway.NewServer{
+		Name:         input.Name,
+		Description:  input.Description,
+		URL:          input.Url,
+		AuthType:     mcpgateway.AuthType(input.AuthType),
+		ClientID:     input.ClientId,
+		ClientSecret: input.ClientSecret,
+	})
+	if mcpgateway.IsConfigError(err) {
 		httpx.WriteInvalidRequest(ctx, w, "add mcp server", err)
 		return
 	} else if err != nil {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/httpsig"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -50,27 +52,39 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 		)
 		return
 	}
-	// Habitat has no public spaces: every space gates on the user, so a
-	// request without a delegation token answers SpaceNotFound, which
-	// doesn't reveal whether the space exists.
-	if input.DelegationToken == "" {
+	policy, err := p.spacesStore.GetSpacePolicy(ctx, spaceURI)
+	if errors.Is(err, spaces.ErrSpaceNotFound) {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get space policy: %w", err))
+		return
+	}
+	// Only a memberspace with publicRead issues credentials without a user:
+	// every other space gates on the user, so a request without a delegation
+	// token answers SpaceNotFound, which doesn't reveal whether the space
+	// exists.
+	publicRead := policy.Type == spaces.PolicyMemberSpace && policy.PublicRead
+	if input.DelegationToken == "" && !publicRead {
 		httpx.WriteSpaceNotFound(ctx, w, errors.New("delegation token required"))
 		return
 	}
-	if _, err := p.delegations.Verify(ctx, input.DelegationToken, spaceURI); err != nil {
-		switch {
-		case errors.Is(err, authn.ErrInvalidDelegationToken):
-			httpx.WriteError(
-				ctx, w, "InvalidDelegationToken", err.Error(), http.StatusBadRequest,
-			)
-		case errors.Is(err, authn.ErrUserNotAuthorized):
-			httpx.WriteError(ctx, w, "UserNotAuthorized", "", http.StatusBadRequest)
-		default:
-			httpx.WriteServerError(ctx, w, err)
+	if input.DelegationToken != "" {
+		if _, err := p.delegations.Verify(ctx, input.DelegationToken, spaceURI); err != nil {
+			switch {
+			case errors.Is(err, authn.ErrInvalidDelegationToken):
+				httpx.WriteError(
+					ctx, w, "InvalidDelegationToken", err.Error(), http.StatusBadRequest,
+				)
+			case errors.Is(err, authn.ErrUserNotAuthorized):
+				httpx.WriteError(ctx, w, "UserNotAuthorized", "", http.StatusBadRequest)
+			default:
+				httpx.WriteServerError(ctx, w, err)
+			}
+			return
 		}
-		return
 	}
-	if !p.verifyClientAttestation(ctx, w, spaceURI, input.ClientAttestation) {
+	if !p.verifyClientAttestation(ctx, w, spaceURI, policy, input.ClientAttestation) {
 		return
 	}
 	privKey, err := p.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
@@ -96,8 +110,37 @@ func (p *PearServer) verifyClientAttestation(
 	ctx context.Context,
 	w http.ResponseWriter,
 	spaceURI habitat_syntax.SpaceURI,
+	policy spaces.Policy,
 	attestation string,
 ) bool {
+	// A memberspace allowedApps list limits which apps may read, checked
+	// against the attested client_id, so a credential request must attest.
+	if policy.Type == spaces.PolicyMemberSpace && len(policy.AllowedApps) > 0 {
+		if attestation == "" {
+			httpx.WriteError(
+				ctx, w, "AppNotAuthorized", "space restricts readers to allowed apps",
+				http.StatusBadRequest,
+			)
+			return false
+		}
+		clientID, err := clientmetadata.VerifyAttestation(
+			ctx, p.clientMeta, attestation, spaceURI.SpaceOwner(),
+		)
+		if errors.Is(err, clientmetadata.ErrInvalidAttestation) {
+			httpx.WriteInvalidClientAttestation(ctx, w, err.Error(), err)
+			return false
+		} else if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
+			return false
+		}
+		if !slices.Contains(policy.AllowedApps, clientID) {
+			httpx.WriteError(
+				ctx, w, "AppNotAuthorized", "app is not in the space's allowedApps",
+				http.StatusBadRequest,
+			)
+			return false
+		}
+	}
 	orgDID := spaceURI.SpaceOwner()
 	isOrg, err := p.opensocialStore.IsOrg(ctx, orgDID)
 	if err != nil {
