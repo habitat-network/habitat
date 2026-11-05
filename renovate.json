@@ -4,5 +4,14 @@
     "config:recommended"
   ],
   "minimumReleaseAge": "1 day",
-  "internalChecksFilter": "strict"
+  "internalChecksFilter": "strict",
+  "packageRules": [
+    {
+      "description": "Keep the atproto spaces alpha packages pinned; bump them manually",
+      "matchDatasources": ["npm"],
+      "matchPackageNames": ["@atproto/**", "@atproto-labs/**"],
+      "matchCurrentVersion": "/^0\\.0\\.0-spaces-alpha-/",
+      "enabled": false
+    }
+  ]
 }
