@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import type { AuthManager } from "internal";
@@ -61,8 +61,6 @@ interface AddServerFormValues {
 
 interface ConnectorFormValues {
   name: string;
-  clientId: string;
-  clientSecret: string;
 }
 
 // The type of the message pear's MCP OAuth callback page posts to the window
@@ -416,8 +414,8 @@ function ConnectorPicker({
   );
 }
 
-// ConnectorForm asks only for the inputs a known connector needs; its URL,
-// name and auth type come from the connector's definition.
+// ConnectorForm asks only for a name; pear fills in the rest from the
+// connector's preset.
 function ConnectorForm({
   connector,
   org,
@@ -437,11 +435,7 @@ function ConnectorForm({
     formState: { errors, isValid },
   } = useForm<ConnectorFormValues>({
     mode: "onChange",
-    defaultValues: {
-      name: connector.defaultName,
-      clientId: "",
-      clientSecret: "",
-    },
+    defaultValues: { name: connector.defaultName },
   });
 
   const {
@@ -450,22 +444,12 @@ function ConnectorForm({
     error,
   } = useMutation(addMcpServerMutationOptions(authManager, org));
 
-  const submit = handleSubmit(({ name, clientId, clientSecret }) => {
-    if (!isUri(connector.url)) return;
-    const values = { clientId, clientSecret };
+  const submit = handleSubmit(({ name }) => {
     add(
       {
         name,
         description: connector.description,
-        url: connector.url,
-        authType: connector.authType,
-        // Only the inputs the connector declares are sent.
-        clientId: connector.inputs.some((i) => i.key === "clientId")
-          ? values.clientId || undefined
-          : undefined,
-        clientSecret: connector.inputs.some((i) => i.key === "clientSecret")
-          ? values.clientSecret || undefined
-          : undefined,
+        preset: connector.preset,
       },
       { onSuccess: onDone },
     );
@@ -473,35 +457,18 @@ function ConnectorForm({
 
   return (
     <form className="flex flex-col gap-4" onSubmit={submit}>
-      {connector.setupSteps.length > 0 && (
-        <div className="flex flex-col gap-2 text-sm">
-          <p className="font-medium">Before you start</p>
-          <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
-            {connector.setupSteps.map((step) => (
-              <li key={step}>
-                {step.split("{callbackUrl}").map((part, i, parts) => (
-                  <Fragment key={i}>
-                    {part}
-                    {i < parts.length - 1 && (
-                      <span className="font-mono break-all">
-                        {OAUTH_CALLBACK_URL}
-                      </span>
-                    )}
-                  </Fragment>
-                ))}
-              </li>
-            ))}
-          </ol>
-          <a
-            href={connector.docsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm underline"
-          >
-            {connector.name} documentation
-          </a>
-        </div>
-      )}
+      <p className="text-sm text-muted-foreground">
+        {connector.description} Each member signs in with their own{" "}
+        {connector.name} account afterward.{" "}
+        <a
+          href={connector.docsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="underline"
+        >
+          Learn more
+        </a>
+      </p>
       <Field>
         <FieldLabel htmlFor="mcp-name">Name</FieldLabel>
         <Input
@@ -519,24 +486,6 @@ function ConnectorForm({
           Unique within this community, and can't be changed later.
         </p>
       </Field>
-      {connector.inputs.map((input) => (
-        <Field key={input.key}>
-          <FieldLabel htmlFor={`mcp-${input.key}`}>{input.label}</FieldLabel>
-          <Input
-            id={`mcp-${input.key}`}
-            type={input.secret ? "password" : "text"}
-            autoComplete="off"
-            placeholder={input.placeholder}
-            {...register(input.key, {
-              required: input.required ? `Enter the ${input.label}.` : false,
-            })}
-          />
-          <FieldError errors={[errors[input.key]]} />
-          {input.help && (
-            <p className="text-xs text-muted-foreground">{input.help}</p>
-          )}
-        </Field>
-      ))}
       <FieldError errors={error ? [{ message: error.message }] : []} />
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onBack}>

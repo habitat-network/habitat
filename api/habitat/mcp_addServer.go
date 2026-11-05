@@ -4,13 +4,14 @@ package habitat
 
 // NetworkHabitatMcpAddServerInput represents the input for network.habitat.mcp.addServer
 type NetworkHabitatMcpAddServerInput struct {
-	AuthType     string `json:"authType"`
+	AuthType     string `json:"authType,omitempty"`
 	ClientId     string `json:"clientId,omitempty"`
 	ClientSecret string `json:"clientSecret,omitempty"`
 	Description  string `json:"description,omitempty"`
 	Name         string `json:"name"`
 	Org          string `json:"org"`
-	Url          string `json:"url"`
+	Preset       string `json:"preset,omitempty"`
+	Url          string `json:"url,omitempty"`
 }
 
 // NetworkHabitatMcpAddServerOutput represents the output for network.habitat.mcp.addServer

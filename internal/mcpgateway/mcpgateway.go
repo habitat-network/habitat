@@ -106,7 +106,10 @@ func IsConfigError(err error) bool {
 		errors.Is(err, ErrURLImmutable) ||
 		errors.Is(err, ErrClientSecretWithoutID) ||
 		errors.Is(err, ErrClientNotSupported) ||
-		errors.Is(err, ErrOAuthDiscovery)
+		errors.Is(err, ErrOAuthDiscovery) ||
+		errors.Is(err, ErrUnknownPreset) ||
+		errors.Is(err, ErrPresetNotConfigured) ||
+		errors.Is(err, ErrPresetConflict)
 }
 
 // serverNamePattern restricts MCP server names to a limited, predictable
@@ -161,6 +164,10 @@ type NewServer struct {
 	// URL is the server's streamable HTTP endpoint.
 	URL      string
 	AuthType AuthType
+	// Preset adds a known connector instead: its URL, auth type and OAuth
+	// client are filled in, so URL, AuthType, ClientID and ClientSecret must
+	// be empty.
+	Preset Preset
 	// ClientID and ClientSecret are an OAuth client pre-registered with the
 	// server's authorization server, for OAuth servers that don't support
 	// Dynamic Client Registration. Empty registers one dynamically. The

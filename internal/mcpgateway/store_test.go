@@ -160,6 +160,24 @@ func TestAddServerValidation(t *testing.T) {
 			},
 			mcpgateway.ErrClientNotSupported,
 		},
+		"preset with url": {
+			mcpgateway.NewServer{
+				Name: "x", Preset: mcpgateway.PresetSlack, URL: "https://x.example.com",
+			},
+			mcpgateway.ErrPresetConflict,
+		},
+		"preset with client": {
+			mcpgateway.NewServer{Name: "x", Preset: mcpgateway.PresetSlack, ClientID: "c"},
+			mcpgateway.ErrPresetConflict,
+		},
+		"unknown preset": {
+			mcpgateway.NewServer{Name: "x", Preset: "nope"},
+			mcpgateway.ErrUnknownPreset,
+		},
+		"preset without a client": {
+			mcpgateway.NewServer{Name: "x", Preset: mcpgateway.PresetGitHub},
+			mcpgateway.ErrPresetNotConfigured,
+		},
 		"unreachable oauth": {
 			mcpgateway.NewServer{Name: "x", URL: "http://127.0.0.1:1/mcp", AuthType: "oauth"},
 			mcpgateway.ErrOAuthDiscovery,

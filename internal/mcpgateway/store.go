@@ -198,6 +198,8 @@ type store struct {
 	// callbackURL is pear's OAuth redirect URI, where authorization servers
 	// send members' browsers back to.
 	callbackURL string
+	// presetClients are the OAuth clients pear holds for its presets.
+	presetClients map[Preset]PresetClient
 	// refreshes collapses concurrent refreshes of the same tokens within this
 	// process, since a rotating refresh token can only be redeemed once.
 	refreshes singleflight.Group
@@ -217,6 +219,7 @@ func NewStore(
 	orgs OrgMemberships,
 	client *http.Client,
 	callbackURL string,
+	opts ...Option,
 ) (Store, error) {
 	if _, err := encrypt.EncryptCBOR(nil, key); err != nil {
 		return nil, fmt.Errorf("mcpgateway: invalid encryption key: %w", err)
@@ -230,7 +233,7 @@ func NewStore(
 	if err := validateServerURL(callbackURL); err != nil {
 		return nil, fmt.Errorf("mcpgateway: callback url: %w", err)
 	}
-	return &store{
+	s := &store{
 		db:          db,
 		tokens:      encKV.Namespace(TokensNamespace),
 		rawTokens:   kv.Namespace(TokensNamespace),
@@ -239,7 +242,11 @@ func NewStore(
 		orgs:        orgs,
 		client:      client,
 		callbackURL: callbackURL,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
 }
 
 func (s *store) getRow(ctx context.Context, orgID syntax.DID, name ServerName) (*serverRow, error) {
@@ -296,6 +303,9 @@ func (s *store) oauthConfig(row *serverRow) (*oauthConfig, error) {
 }
 
 func (s *store) AddServer(ctx context.Context, orgID syntax.DID, ns NewServer) (*Server, error) {
+	if err := s.applyPreset(&ns); err != nil {
+		return nil, err
+	}
 	if err := validateServerName(ns.Name); err != nil {
 		return nil, err
 	}
