@@ -96,8 +96,12 @@ export async function startPear(): Promise<PearInstance> {
 async function startContainers(): Promise<PearInstance> {
   const image = ensureImage();
   const network: StartedNetwork = await new Network().start();
+  const pearLogs: string[] = [];
   const pear = await new GenericContainer(image)
     .withEnvironment(PEAR_ENV)
+    .withLogConsumer((stream) => {
+      stream.on("data", (line) => pearLogs.push(String(line)));
+    })
     .withNetwork(network)
     .withNetworkAliases("pear")
     .withExposedPorts(8000)
@@ -107,7 +111,9 @@ async function startContainers(): Promise<PearInstance> {
     .withStartupTimeout(60_000)
     .start()
     .catch((err) => {
-      throw new Error(`pear container failed to start: ${err}`);
+      throw new Error(
+        `pear container failed to start: ${err}\n--- pear logs ---\n${pearLogs.slice(-60).join("")}`,
+      );
     });
   const caddy = await new GenericContainer("caddy:2-alpine")
     .withNetwork(network)
