@@ -5067,6 +5067,107 @@
         }
       }
     },
+    "/network.habitat.repo.uploadBlob": {
+      "post": {
+        "tags": [
+          "network.habitat.repo"
+        ],
+        "summary": "network.habitat.repo.uploadBlob",
+        "description": "Upload a new blob, to be referenced from a repository record. The blob will be deleted if it is not referenced within a time window (eg, minutes). Blob restrictions (mimetype, size, etc) are enforced when the reference is created. Requires auth, implemented by PDS.",
+        "operationId": "network.habitat.repo.uploadBlob",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "*/*": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "blob"
+                  ],
+                  "properties": {
+                    "blob": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "cid": {
+                      "type": "string",
+                      "format": "cid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.search.addCollection": {
       "post": {
         "tags": [
@@ -10053,6 +10154,9 @@
     },
     {
       "name": "network.habitat.render"
+    },
+    {
+      "name": "network.habitat.repo"
     },
     {
       "name": "network.habitat.search"

@@ -3,7 +3,6 @@ package migrations
 import (
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
@@ -23,7 +22,6 @@ func Models() []any {
 	for _, set := range [][]any{
 		emaildomain.Models(),
 		hive.Models(),
-		instance.Models(),
 		keyval.Models(),
 		notify.Models(),
 		oauthserver.Models(),
