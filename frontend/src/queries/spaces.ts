@@ -19,7 +19,7 @@ export type SpaceRecord =
   com.atproto.space.listRecords.$OutputBody["records"][number];
 
 export type Member =
-  com.atproto.simplespace.listMembers.$OutputBody["members"][number];
+  com.atproto.memberspace.listMembers.$OutputBody["members"][number];
 
 // The list lexicons declare limit/cursor, but the space host does not paginate
 // yet: it returns the complete set and never a cursor, and listRepos answers
@@ -145,7 +145,7 @@ export function spaceLatestCommitQueryOptions(
 // spaceMembersQueryOptions lists a space's member list — the DIDs granted read
 // access. This is the space's ACL, which is broader than the writer set
 // listRepos returns: a member who has never written data has no repo.
-// The canonical com.atproto.simplespace.listMembers member type carries read
+// The canonical com.atproto.memberspace.listMembers member type carries read
 // and write access, but the host has not grown those yet and still answers
 // with { did } only, so the response is taken unvalidated. Relax when the
 // host starts returning read/write.
@@ -158,7 +158,7 @@ export function spaceMembersQueryOptions(
     queryFn: async (): Promise<Member[]> => {
       const response = await xrpc(
         authManager,
-        com.atproto.simplespace.listMembers.main,
+        com.atproto.memberspace.listMembers.main,
         {
           params: { space: space as SpaceRefString },
           validateResponse: false,

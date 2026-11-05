@@ -34,7 +34,10 @@ type space struct {
 	// Rev is the space's own revision (TID), advanced to a fresh TID on every
 	// write to any of its repos. Syncers use it to detect missed
 	// notifications and to catch up via listRepos's since.
-	Rev       syntax.TID
+	Rev syntax.TID
+	// Policy is the JSON-encoded space policy; empty means the default
+	// memberspace policy (see [ParsePolicy]).
+	Policy    []byte
 	CreatedAt time.Time
 }
 
@@ -158,6 +161,11 @@ type Store interface {
 		filterType *syntax.NSID,
 	) ([]habitat_syntax.SpaceURI, error)
 	CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
+	// GetSpacePolicy returns the space's policy, or ErrSpaceNotFound.
+	GetSpacePolicy(ctx context.Context, uri habitat_syntax.SpaceURI) (Policy, error)
+	// SetSpacePolicy replaces the space's policy wholesale, or returns
+	// ErrSpaceNotFound.
+	SetSpacePolicy(ctx context.Context, uri habitat_syntax.SpaceURI, policy Policy) error
 	// IsSpaceDeleted reports whether the space was deleted and hasn't been
 	// recreated since. A space that never existed is not deleted.
 	IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)

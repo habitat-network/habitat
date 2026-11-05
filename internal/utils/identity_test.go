@@ -46,10 +46,10 @@ func TestSupportsSpaces_ProbesPDS(t *testing.T) {
 	}{
 		{
 			// A real spaces-alpha PDS, called with no params:
-			// https://spaces-alpha.host.bsky.network/xrpc/com.atproto.simplespace.getSpace
+			// https://spaces-alpha.host.bsky.network/xrpc/com.atproto.space.getSpace
 			name:   "missing required param reports InvalidRequest",
 			status: http.StatusBadRequest,
-			body: `{"error":"InvalidRequest","message":"Invalid com.atproto.simplespace.` +
+			body: `{"error":"InvalidRequest","message":"Invalid com.atproto.space.` +
 				`getSpace params: Missing required key \"space\""}`,
 			want: true,
 		},
@@ -98,7 +98,7 @@ func TestSupportsSpaces_ProbesPDS(t *testing.T) {
 			} else {
 				srv := httptest.NewServer(http.HandlerFunc(
 					func(w http.ResponseWriter, r *http.Request) {
-						require.Equal(t, "/xrpc/com.atproto.simplespace.getSpace", r.URL.Path)
+						require.Equal(t, "/xrpc/com.atproto.space.getSpace", r.URL.Path)
 						w.WriteHeader(tc.status)
 						_, _ = w.Write([]byte(tc.body))
 					},
