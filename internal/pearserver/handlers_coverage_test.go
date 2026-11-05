@@ -90,43 +90,12 @@ func TestServer_GetDelegationToken(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, code)
 }
 
+// Connecting and disconnecting servers is covered in mcp_test.go.
 func TestServer_McpDisconnectServer(t *testing.T) {
 	client := httpx_testutil.NewTestXRPCClient(t)
 	ts := newOpenSocialServer(t, admin)
 	orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
 	require.NoError(t, err)
-
-	var addOut habitat.NetworkHabitatMcpAddServerOutput
-	require.Equal(t, http.StatusOK, client.Procedure(
-		ts.Server.AddServer,
-		habitat.NetworkHabitatMcpAddServerInput{
-			Org: orgDID, Name: "Linear", Url: "https://mcp.example.com/mcp", AuthType: "oauth",
-		},
-		&addOut,
-	))
-
-	t.Run("disconnecting a server that isn't connected is not found", func(t *testing.T) {
-		var out struct{}
-		code := client.Procedure(
-			ts.Server.DisconnectServer,
-			habitat.NetworkHabitatMcpDisconnectServerInput{Org: orgDID, Id: addOut.Server.Id},
-			&out,
-		)
-		require.Equal(t, http.StatusNotFound, code)
-	})
-
-	t.Run("disconnects a connected server", func(t *testing.T) {
-		ts.NangoClient.Connect(
-			"conn-admin", nangoKey(orgDID, addOut.Server.Id), admin.String(),
-		)
-		var out struct{}
-		code := client.Procedure(
-			ts.Server.DisconnectServer,
-			habitat.NetworkHabitatMcpDisconnectServerInput{Org: orgDID, Id: addOut.Server.Id},
-			&out,
-		)
-		require.Equal(t, http.StatusOK, code)
-	})
 
 	t.Run("requires an id", func(t *testing.T) {
 		var out struct{}

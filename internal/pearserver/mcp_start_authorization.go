@@ -5,13 +5,10 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
 // StartAuthorization implements network.habitat.mcp.startAuthorization.
@@ -41,10 +38,10 @@ func (p *PearServer) StartAuthorization(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	sessionToken, err := p.mcpGatewayStore.StartAuthorization(
-		ctx, credInfo.Subject, org, syntax.RecordKey(input.Id),
+	authorizationURL, err := p.mcpGatewayStore.StartAuthorization(
+		ctx, credInfo.Subject, org, mcpgateway.ServerName(input.Id),
 	)
-	if errors.Is(err, opensocial.ErrMcpServerNotFound) {
+	if errors.Is(err, mcpgateway.ErrServerNotFound) {
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
 		return
 	} else if errors.Is(err, mcpgateway.ErrManualServer) {
@@ -56,6 +53,6 @@ func (p *PearServer) StartAuthorization(w http.ResponseWriter, r *http.Request) 
 	}
 
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatMcpStartAuthorizationOutput{
-		SessionToken: sessionToken,
+		AuthorizationUrl: authorizationURL,
 	})
 }

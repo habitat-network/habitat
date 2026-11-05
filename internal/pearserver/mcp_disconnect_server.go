@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
 // DisconnectServer implements network.habitat.mcp.disconnectServer.
@@ -46,12 +43,12 @@ func (p *PearServer) DisconnectServer(w http.ResponseWriter, r *http.Request) {
 		ctx,
 		credInfo.Subject,
 		org,
-		syntax.RecordKey(input.Id),
+		mcpgateway.ServerName(input.Id),
 	)
 	if errors.Is(err, mcpgateway.ErrNotConnected) {
 		httpx.WriteError(ctx, w, "NotFound", "not connected to mcp server", http.StatusNotFound)
 		return
-	} else if errors.Is(err, opensocial.ErrMcpServerNotFound) {
+	} else if errors.Is(err, mcpgateway.ErrServerNotFound) {
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
 		return
 	} else if errors.Is(err, mcpgateway.ErrManualServer) {

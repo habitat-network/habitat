@@ -45,7 +45,7 @@ type ServerWithStatus = {
   server: McpDefs.Server
 
   /**
-   * Whether the caller has a stored credential for this server.
+   * Whether the caller can reach this server: always for a manual server, and for an oauth server once the caller has authorized it.
    */
   connected: boolean
 }

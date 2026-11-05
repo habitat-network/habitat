@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -22,7 +23,6 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/keyval"
-	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
@@ -61,7 +61,6 @@ type TestServer struct {
 	DB               *gorm.DB
 	FGA              fgastore.Store
 	McpGatewayStore  mcpgateway.Store
-	NangoClient      *FakeNangoClient
 	PDSForwarding    *forwarding.PDSForwarding
 	EmailDomainStore *emaildomain.Store
 	Directory        identity.Directory
@@ -109,12 +108,6 @@ func WithSpaceStore(store spaces.Store) utils.Opt[TestServer] {
 func WithNotifyStore(store notify.Store) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.NotifyStore = store
-	}
-}
-
-func WithNangoClient(client *FakeNangoClient) utils.Opt[TestServer] {
-	return func(o *TestServer) {
-		o.NangoClient = client
 	}
 }
 
@@ -212,10 +205,14 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	ts.OpenSocialStore = os
 	ts.SimpleStore = ss
 
-	if ts.NangoClient == nil {
-		ts.NangoClient = NewFakeNangoClient()
-	}
-	mcpGatewayStore, err := mcpgateway.NewStore(ts.NangoClient, os)
+	// Over the server's own database, so servers sharing it share state.
+	kv, err := keyval.New(t.Context(), ts.DB)
+	require.NoError(t, err)
+	encKV, err := keyval.NewEncrypted(kv, encrypt.TestKey)
+	require.NoError(t, err)
+	mcpGatewayStore, err := mcpgateway.NewStore(
+		ts.DB, encKV, kv, encrypt.TestKey, os, http.DefaultClient, MCPOAuthCallbackURL,
+	)
 	require.NoError(t, err)
 	ts.McpGatewayStore = mcpGatewayStore
 
@@ -224,15 +221,8 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 			return nil, errors.New("no model factory configured")
 		}
 	}
-	kv := keyval_testutil.New(t)
-	creds, err := keyval.NewEncrypted(
-		kv.Namespace(llmgateway.CredentialsNamespace),
-		encrypt.TestKey,
-	)
+	ts.LLMStore, err = llmgateway.NewStore(ts.DB, encrypt.TestKey, ts.llmModels)
 	require.NoError(t, err)
-	ts.LLMStore = llmgateway.NewStore(
-		ts.SpaceStore, creds, kv.Namespace(llmgateway.CredentialsNamespace), ts.llmModels,
-	)
 
 	if ts.PDSForwarding == nil {
 		// Default forwarding points nowhere; getSession's remote-identity path
@@ -297,6 +287,10 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	ts.PermStore = ps
 	return &ts
 }
+
+// MCPOAuthCallbackURL is the OAuth redirect URI the test server's MCP gateway
+// registers with MCP servers' authorization servers.
+const MCPOAuthCallbackURL = "https://pear.example.com" + pearserver.MCPOAuthCallbackPath
 
 var (
 	org   = syntax.DID("did:plc:org")

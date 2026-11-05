@@ -27,12 +27,12 @@ import (
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pearapp"
+	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
@@ -308,23 +308,34 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		syntax.DID("did:web:"+domain),
 	)
 
-	// Store for org-configured MCP servers and per-user Nango connections.
-	nangoSecretKey := cmd.String(fNangoSecretKey)
-	if nangoSecretKey == "" {
-		slog.WarnContext(ctx, "nango secret key not set; MCP server configuration is disabled")
+	// Store for org-configured MCP servers and members' OAuth tokens for them.
+	// Org admins choose the servers' URLs, so OAuth discovery and token
+	// requests only reach public addresses unless allowed for development.
+	mcpClient := httpx.NewPublicClient()
+	if cmd.Bool(fMCPAllowPrivateNets) {
+		mcpClient = httpx.NewClient()
 	}
-	nangoClient := nango.NewClient(nangoSecretKey, httpx.NewClient())
-	mcpGatewayStore, err := mcpgateway.NewStore(nangoClient, opensocialStore)
+	mcpGatewayStore, err := mcpgateway.NewStore(
+		database,
+		encryptedKV,
+		kv,
+		credKey,
+		opensocialStore,
+		mcpClient,
+		"https://"+domain+pearserver.MCPOAuthCallbackPath,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("setup mcp gateway store: %w", err)
 	}
 
-	llmStore := llmgateway.NewStore(
-		spacesStore,
-		encryptedKV.Namespace(llmgateway.CredentialsNamespace),
-		kv.Namespace(llmgateway.CredentialsNamespace),
+	llmStore, err := llmgateway.NewStore(
+		database,
+		credKey,
 		llmgateway.NewModelFactory(httpx.NewClient()),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("setup llm gateway store: %w", err)
+	}
 
 	pdsForwarding := forwarding.NewPDSForwarding(
 		validator,
@@ -368,7 +379,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		credentialRevocations,
 		kv.Namespace("space_delegation_spent"),
 		simpleStore,
-		nangoClient,
 		mcpGatewayStore,
 		llmStore,
 		pdsForwarding,

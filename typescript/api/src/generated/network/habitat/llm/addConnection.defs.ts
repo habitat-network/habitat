@@ -44,7 +44,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Add an LLM model connection to the org. Its metadata is written as a network.habitat.llm.connection record, and its API key, if any, is stored encrypted. Requires service-auth. Requires the community.configure action. */
+/** Add an LLM model connection to the org. Its metadata is stored by pear, and its API key, if any, is stored encrypted and never returned. Requires service-auth. Requires the community.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

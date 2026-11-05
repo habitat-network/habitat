@@ -19,7 +19,6 @@ import (
 	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -66,7 +65,6 @@ type App struct {
 	// accepted by getSpaceCredential only once.
 	DelegationTokensSpent keyval.Store
 	SimpleStore           *simplespace.Store
-	NangoClient           *nango.Client
 	MCPGatewayStore       mcpgateway.Store
 	LLMStore              *llmgateway.Store
 	PDSForwarding         *forwarding.PDSForwarding
@@ -108,7 +106,6 @@ func New(
 	credentialRevocations *authn.CredentialRevocations,
 	delegationTokensSpent keyval.Store,
 	simpleStore *simplespace.Store,
-	nangoClient *nango.Client,
 	mcpGatewayStore mcpgateway.Store,
 	llmStore *llmgateway.Store,
 	pdsForwarding *forwarding.PDSForwarding,
@@ -145,7 +142,6 @@ func New(
 		CredentialRevocations: credentialRevocations,
 		DelegationTokensSpent: delegationTokensSpent,
 		SimpleStore:           simpleStore,
-		NangoClient:           nangoClient,
 		MCPGatewayStore:       mcpGatewayStore,
 		LLMStore:              llmStore,
 		PDSForwarding:         pdsForwarding,
