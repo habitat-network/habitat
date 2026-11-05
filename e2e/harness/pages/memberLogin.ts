@@ -1,29 +1,19 @@
 import { expect, type Page } from "@playwright/test";
 
 /**
- * The member sign-in screens a browser walks through during an OAuth
- * authorize request: handle prompt -> password -> consent.
+ * The sign-in prompt a browser lands on during an OAuth authorize request
+ * (/ui/login/mcp). Members enter a work email (or handle); pear then sends
+ * them to their org's login provider.
  */
-export class MemberLoginFlow {
+export class MemberLoginPage {
   constructor(private readonly page: Page) {}
 
-  async enterHandle(handle: string) {
-    await this.page.getByPlaceholder("alice.example.com").fill(handle);
+  async submitIdentifier(identifier: string) {
+    await this.page.getByPlaceholder("alice.example.com").fill(identifier);
     await this.page.getByRole("button", { name: "Continue" }).click();
   }
 
-  async enterPassword(password: string) {
-    await this.page.getByPlaceholder("password").fill(password);
-    await this.page.getByRole("button", { name: "Sign in" }).click();
-  }
-
-  async expectPasswordError() {
-    await expect(
-      this.page.locator("p.text-destructive, [role=alert]").first(),
-    ).toBeVisible();
-  }
-
-  async authorize() {
-    await this.page.getByRole("button", { name: "Authorize" }).click();
+  async expectError(message: string) {
+    await expect(this.page.getByText(message)).toBeVisible();
   }
 }

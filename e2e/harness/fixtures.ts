@@ -1,10 +1,9 @@
 import { test as base, expect } from "@playwright/test";
 import { PearApi, type CreateOrgInput, type Org } from "./api";
-import { ADMIN_PASSWORD, PEAR_ORIGIN, hostResolverRule } from "./pear";
+import { PEAR_ORIGIN, hostResolverRule } from "./pear";
 import { registerMcpClient, type McpClient } from "./oauth";
 import type { SeedData } from "./seed";
-import { AdminHomePage, AdminLoginPage } from "./pages/admin";
-import { MemberLoginFlow } from "./pages/memberLogin";
+import { MemberLoginPage } from "./pages/memberLogin";
 
 let orgCounter = 0;
 
@@ -17,10 +16,7 @@ interface Fixtures {
   createOrg: (overrides?: Partial<CreateOrgInput>) => Promise<Org>;
   /** A freshly registered OAuth client for driving member sign-in. */
   mcpClient: McpClient;
-  adminPassword: string;
-  adminLoginPage: AdminLoginPage;
-  adminHomePage: AdminHomePage;
-  memberLogin: MemberLoginFlow;
+  memberLogin: MemberLoginPage;
 }
 
 /**
@@ -51,7 +47,7 @@ export const test = base.extend<Fixtures>({
     // Subdomains must be unique across the run; worker index + counter + time keeps parallel tests apart.
     await use((overrides = {}) =>
       api.createOrg({
-        subdomain: `t${Date.now().toString(36)}${test.info().parallelIndex}${orgCounter++}`,
+        handle: `t${Date.now().toString(36)}${test.info().parallelIndex}${orgCounter++}`,
         ...overrides,
       }),
     );
@@ -59,17 +55,8 @@ export const test = base.extend<Fixtures>({
   mcpClient: async ({ api, baseURL }, use) => {
     await use(await registerMcpClient(api, baseURL!));
   },
-  adminPassword: async ({}, use) => {
-    await use(ADMIN_PASSWORD);
-  },
-  adminLoginPage: async ({ page }, use) => {
-    await use(new AdminLoginPage(page));
-  },
-  adminHomePage: async ({ page }, use) => {
-    await use(new AdminHomePage(page));
-  },
   memberLogin: async ({ page }, use) => {
-    await use(new MemberLoginFlow(page));
+    await use(new MemberLoginPage(page));
   },
 });
 

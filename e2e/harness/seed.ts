@@ -16,10 +16,6 @@ export interface SeedData {
 }
 
 export async function seed(api: PearApi): Promise<SeedData> {
-  const org = await api.createOrg({
-    subdomain: "seed",
-    name: "Seed Org",
-    adminPassword: "seed-admin-password",
-  });
+  const org = await api.createOrg({ handle: "seed", domain: "seed.test" });
   return { org };
 }

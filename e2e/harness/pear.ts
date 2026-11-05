@@ -16,18 +16,17 @@ const repoRoot = path.resolve(
   "../..",
 );
 
-/** Password of the instance admin on the instance under test. */
-export const ADMIN_PASSWORD = "e2e-admin-password";
-
 // Throwaway secrets for the test instance only. Same values pear:dev uses.
 const PEAR_ENV = {
   HABITAT_DOMAIN: "localhost",
   HABITAT_PORT: "8000",
-  HABITAT_ADMIN_PASSWORD: ADMIN_PASSWORD,
   HABITAT_SPACE_SIGNING_KEY: "z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd",
   HABITAT_PDS_CRED_ENCRYPT_KEY: "WRlpsucNQl8AVO1qNN+T+hzbVtYjdoF21QfF+0uDJSM=",
   HABITAT_OAUTH_SERVER_SECRET: "KFLA79A/GPPsxz+y5kk7dLX2Nxxe7RM9Ik96rD2tO4c=",
   HABITAT_OAUTH_CLIENT_SECRET: "RL4fcDJiumyAEMJ5US0WWu/QKDallQAZ/2GJHz99d4Y=",
+  // Enables the Google login method. Fake: tests stop at the redirect to Google.
+  HABITAT_GOOGLE_CLIENT_ID: "e2e-google-client-id",
+  HABITAT_GOOGLE_CLIENT_SECRET: "e2e-google-client-secret",
 };
 
 /**
