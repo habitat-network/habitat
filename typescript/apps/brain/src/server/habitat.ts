@@ -75,12 +75,12 @@ export function llmBaseUrl(habitatUrl: string, org: DidString): string {
   return `${habitatUrl.replace(/\/+$/, "")}/llm/${org}/v1`;
 }
 
-// firstLlmModel is the id of the first model the org's LLM gateway offers the
-// member, or null if the org has no connections.
-export async function firstLlmModel(
+// listLlmModels is the ids of the models the org's LLM gateway offers the
+// member.
+export async function listLlmModels(
   agent: Agent,
   org: DidString,
-): Promise<string | null> {
+): Promise<string[]> {
   const res = await agent.fetchHandler(`/llm/${org}/v1/models`, {
     headers: { accept: "application/json" },
   });
@@ -88,8 +88,18 @@ export async function firstLlmModel(
     throw new Error(`listing ${org}'s models failed (${res.status})`);
   }
   const body = (await res.json()) as { data?: { id?: unknown }[] };
-  const id = body.data?.[0]?.id;
-  return typeof id === "string" ? id : null;
+  return (body.data ?? []).flatMap((m) =>
+    typeof m.id === "string" ? [m.id] : [],
+  );
+}
+
+// firstLlmModel is the id of the first model the org's LLM gateway offers the
+// member, or null if the org has no connections.
+export async function firstLlmModel(
+  agent: Agent,
+  org: DidString,
+): Promise<string | null> {
+  return (await listLlmModels(agent, org))[0] ?? null;
 }
 
 // mcpUrl is where pear's MCP gateway serves the org's merged tools (the

@@ -4,7 +4,6 @@ go 1.26.3
 
 require (
 	ariga.io/atlas-provider-gorm v0.6.1
-	github.com/alexedwards/argon2id v1.0.0
 	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
 	github.com/gorilla/handlers v1.5.2
 	github.com/pressly/goose/v3 v3.27.3

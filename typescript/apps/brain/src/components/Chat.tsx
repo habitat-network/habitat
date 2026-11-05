@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
 import type { UIMessage } from "@tanstack/ai-react";
 import {
@@ -9,11 +9,16 @@ import {
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Spinner,
 } from "internal/components/ui";
 import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import { useState } from "react";
-import type { ChatMessage } from "@/server/functions";
+import { listModels, type ChatMessage } from "@/server/functions";
 import { useOrgStore } from "@/stores/org";
 
 // The connection is created once: useChat treats a new one as a new chat.
@@ -38,6 +43,19 @@ export function Chat({
 }) {
   const queryClient = useQueryClient();
   const org = useOrgStore((s) => s.selectedOrg);
+  const selectedModel = useOrgStore((s) => s.selectedModel);
+  const selectModel = useOrgStore((s) => s.selectModel);
+  const { data: models = [] } = useQuery({
+    queryKey: ["models", org],
+    queryFn: () => listModels({ data: { org: org! } }),
+    enabled: !!org,
+  });
+  // A stored pick the org no longer offers falls back to its first model,
+  // the same fallback the server applies.
+  const model =
+    selectedModel && models.includes(selectedModel)
+      ? selectedModel
+      : (models[0] ?? null);
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     connection,
@@ -49,8 +67,8 @@ export function Chat({
   const submit = () => {
     const text = input.trim();
     if (!text || isLoading) return;
-    // The org rides along as a forwarded prop; the route checks it.
-    sendMessage(text, { body: { org } });
+    // The org and model ride along as forwarded props; the route checks them.
+    sendMessage(text, { body: { org, model } });
     setInput("");
   };
 
@@ -100,6 +118,20 @@ export function Chat({
           }}
         />
         <InputGroupAddon align="block-end">
+          {models.length > 0 && (
+            <Select value={model} onValueChange={(value) => selectModel(value)}>
+              <SelectTrigger size="sm" aria-label="Model">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {models.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {isLoading ? (
             <InputGroupButton
               variant="default"

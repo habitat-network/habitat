@@ -13,7 +13,7 @@ import {
   memberSession,
   MemberUnauthorizedError,
 } from "@/server/functions.server";
-import { firstLlmModel, listMyOrgs, llmBaseUrl } from "@/server/habitat";
+import { listLlmModels, listMyOrgs, llmBaseUrl } from "@/server/habitat";
 import { gatewayTools } from "@/server/mcp";
 import { searchTool } from "@/server/search";
 import { useAppSession } from "@/server/session";
@@ -82,8 +82,14 @@ export const Route = createFileRoute("/api/chat")({
               { status: 400 },
             );
           }
-          // The model comes from that org's LLM gateway on pear.
-          const model = await firstLlmModel(agent, llmOrg);
+          // The model comes from that org's LLM gateway on pear: the one the
+          // UI picked if the org offers it, else the org's first.
+          const models = await listLlmModels(agent, llmOrg);
+          const picked = params.forwardedProps.model;
+          const model =
+            typeof picked === "string" && models.includes(picked)
+              ? picked
+              : models[0];
           if (!model) {
             return Response.json(
               {
