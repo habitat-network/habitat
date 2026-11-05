@@ -10,17 +10,14 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/org"
 )
 
 func NewServiceAuthMethod(
-	everyoneOrg org.Org,
 	directory identity.Directory,
 	legacyDID syntax.DID,
 	serviceEndpoint string,
 ) *AtprotoServiceAuthMethod {
 	return &AtprotoServiceAuthMethod{
-		everyoneOrg:     everyoneOrg,
 		dir:             directory,
 		serviceEndpoint: serviceEndpoint,
 		legacyDID:       legacyDID,
@@ -30,7 +27,6 @@ func NewServiceAuthMethod(
 type AtprotoServiceAuthMethod struct {
 	dir             identity.Directory
 	serviceEndpoint string
-	everyoneOrg     org.Org
 	legacyDID       syntax.DID
 }
 
@@ -111,7 +107,6 @@ func (p *AtprotoServiceAuthMethod) Validate(
 	}
 	return &CredentialInfo{
 		Subject: did,
-		Org:     p.everyoneOrg,
 		Method:  ValidatorMethodServiceAuth,
 	}, true
 }
@@ -128,7 +123,6 @@ func (p *AtprotoServiceAuthMethod) ValidateRaw(
 	}
 	return &CredentialInfo{
 		Subject: did,
-		Org:     p.everyoneOrg,
 		Method:  ValidatorMethodServiceAuth,
 	}, true, nil
 }

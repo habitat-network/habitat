@@ -15,7 +15,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
-	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -174,30 +173,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("setup PDS client factory: %w", err)
 	}
 
-	passwordProvider, err := login.NewPasswordProvider(
-		database,
-		cmd.String(fDomain),
-		oauthSecret,
-		hiveDir,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("setup password login provider: %w", err)
-	}
-	everyoneOrg := org.NewEveryoneOrg(domain)
-	orgStore, err := org.NewStore(
-		database.WithContext(ctx),
-		hive,
-		hiveDir,
-		domain,
-		passwordProvider,
-		fgaStore,
-		everyoneOrg,
-		kv.Namespace("org_spent_token"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("setup org store: %w", err)
-	}
-
 	emailDomainStore, err := emaildomain.NewStore(database.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("setup email domain store: %w", err)
@@ -210,8 +185,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 			defaultDir,
 			kv.Namespace("login"),
 		),
-		Password:   passwordProvider,
-		OrgStore:   orgStore,
 		EmailStore: emailDomainStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
@@ -321,7 +294,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		database.WithContext(ctx),
 		kv.Namespace("oauth"),
 		meter,
-		orgStore,
 		"https://"+domain,
 		oauthserver.NewJWTBearerStore(
 			cmd.StringSlice(fBuiltinApps)...,
@@ -335,16 +307,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	}
 
 	serviceAuth := authn.NewServiceAuthMethod(
-		everyoneOrg,
 		defaultDir,
 		syntax.DID("did:web:"+domain),
 		"https://"+domain,
 	)
-
-	cliqueStore, err := clique.NewStore(database.WithContext(ctx))
-	if err != nil {
-		return nil, fmt.Errorf("setup clique store: %w", err)
-	}
 
 	permStore := perms.NewStore(database, spacesStore, fgaStore, opensocialStore)
 	credentialRevocations := authn.NewCredentialRevocations(
@@ -358,7 +324,12 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		permStore,
 	)
 
-	simpleStore := simplespace.NewStore(database, spacesStore, permStore)
+	simpleStore := simplespace.NewStore(
+		database,
+		spacesStore,
+		permStore,
+		syntax.DID("did:web:"+domain),
+	)
 
 	// Store for org-configured MCP servers and per-user Nango connections.
 	nangoSecretKey := cmd.String(fNangoSecretKey)
@@ -391,7 +362,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		searcher = search.NewSearcher(
 			searchIndex, opensocialStore, spacesStore,
 			search.WithCollections(searchConfigStore),
-			search.WithEveryoneOrg(everyoneOrg.DID()),
 		)
 	}
 
@@ -407,8 +377,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		defaultDir,
 		hiveDir,
 		pdsClientFactory,
-		passwordProvider,
-		orgStore,
 		emailDomainStore,
 		hostKey,
 		hostKEMKey,
@@ -421,7 +389,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		emailResolver,
 		oauthServer,
 		serviceAuth,
-		cliqueStore,
 		permStore,
 		validator,
 		credentialRevocations,

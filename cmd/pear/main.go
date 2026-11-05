@@ -19,21 +19,16 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/oauthserver"
-	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
-	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/pearserver"
-	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
@@ -147,17 +142,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	// route falls through to the rest of this mux.
 	mux.MatcherFunc(pearApp.Handles).Handler(pearApp)
 
-	repo, err := repo.NewRepo(app.DB.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup repo: %w", err)
-	}
-
-	permissions, err := permissions.NewStore(app.DB, app.CliqueStore)
-	if err != nil {
-		return fmt.Errorf("create permission store: %w", err)
-	}
-
-	pearStore := pear.NewPear(app.HiveDir, permissions, repo)
 	// A nil *search.Searcher in an interface would be non-nil, so only set it
 	// when search is configured.
 	var mcpSearcher mcpserver.RecordSearcher
@@ -182,41 +166,14 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		app.OAuthServer.MCPIssuer(),
 		mcpOpts...,
 	)
-	// Server for org management routes
-	orgServer, err := org_server.NewServer(
-		app.OrgStore,
-		app.Validator,
-		app.Domain,
-		app.HiveDir,
-		app.InstanceAdminStore,
-	)
-	if err != nil {
-		return fmt.Errorf("setup org server for domain %q: %w", app.Domain, err)
-	}
-	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
-	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
-	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
-	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
-	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.issueInviteToken", orgServer.IssueInviteToken)
-	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
-	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
 	// Server for opensocial community routes
 	mux.HandleFunc("/xrpc/network.habitat.emaildomain.createOrg", pearApp.CreateEmailDomainOrg)
 	// Server-side client-metadata proxy for the management frontend
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
 
-	cliqueServer := clique.NewServer(app.CliqueStore, app.Validator)
-	pearServer := pear.NewServer(
-		pearStore,
-		app.Validator,
-		app.OrgStore,
-	)
 	idServer, err := habitat_identity.NewServer(
-		app.Hive, app.Validator, app.OrgStore, app.PDSForwarding, app.Domain,
+		app.Hive, app.Validator, app.PDSForwarding, app.Domain,
 		habitat_identity.WithClient(httpx.NewClient()),
 		habitat_identity.WithEmailResolver(app.EmailResolver),
 	)
@@ -293,10 +250,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/token", app.OAuthServer.HandleToken)
 	mux.HandleFunc("/oauth/forget-login", app.OAuthServer.HandleForgetLogin).Methods("POST")
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", app.OAuthServer.ListConnectedApps)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.org.loginMember",
-		app.PasswordProvider.HandlePasswordLogin,
-	)
 
 	// MCP (Model Context Protocol) server. Its endpoints match what MCP
 	// clients expect (dynamic client registration, no PAR) but share
@@ -313,24 +266,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	mux.PathPrefix(mcpserver.ProtectedResourceMetadataPath + "/").
 		Handler(mcpServer.ProtectedResourceMetadataHandler())
 	mux.PathPrefix(mcpserver.Path + "/").Handler(mcpServer.Handler())
-
-	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.listRecords", pearServer.ListRecords)
-	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
-	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
-
-	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
-	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
-	mux.HandleFunc("/xrpc/network.habitat.permissions.removePermission",
-		pearServer.RemovePermission)
-
-	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)
-	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", cliqueServer.AddCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", cliqueServer.RemoveCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
 	// The methods PearServer does not register are forwarded to the PDS that
 	// hosts them; it is mounted after the PearServer matcher above, which is

@@ -3,6 +3,7 @@ package pearserver_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
+	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/fake"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -22,6 +24,17 @@ import (
 type fakeLLM struct{ *fake.LLM }
 
 func (fakeLLM) Close() error { return nil }
+
+// failingLLM is a model whose upstream calls always fail.
+type failingLLM struct{ fakeLLM }
+
+func (failingLLM) GenerateContent(
+	context.Context,
+	[]llms.MessageContent,
+	...llms.CallOption,
+) (*llms.ContentResponse, error) {
+	return nil, errors.New("upstream boom")
+}
 
 func fakeModels(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
 	return fakeLLM{fake.NewFakeLLM([]string{"hello there"})}, nil
@@ -165,5 +178,41 @@ func TestServerLlmOpenAICompatibleAPI(t *testing.T) {
 		w := do(http.MethodPost, "/chat/completions", `{"model":"gpt","messages":[]}`)
 		require.Equal(t, http.StatusBadRequest, w.Code)
 		require.Contains(t, w.Body.String(), "invalid_request_error")
+	})
+
+	t.Run("replays a streamed request with tools as events", func(t *testing.T) {
+		w := do(http.MethodPost, "/chat/completions",
+			`{"model":"gpt","stream":true,"stream_options":{"include_usage":true},`+
+				`"messages":[{"role":"user","content":"hi"}],`+
+				`"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object"}}}]}`)
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, "text/event-stream", w.Header().Get("Content-Type"))
+		body := w.Body.String()
+		require.Contains(t, body, `"content":"hello there"`)
+		require.True(t, strings.HasSuffix(body, "data: [DONE]\n\n"))
+	})
+
+	t.Run("upstream failures are bad gateway errors", func(t *testing.T) {
+		failing := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithDB(ts.DB),
+			pearserver_testutil.WithFGA(ts.FGA),
+			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
+			pearserver_testutil.WithValidator(ts.Validator),
+			pearserver_testutil.WithLLMModelFactory(
+				func(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
+					return failingLLM{fakeLLM{fake.NewFakeLLM(nil)}}, nil
+				}),
+		)
+		for _, body := range []string{
+			`{"model":"gpt","messages":[{"role":"user","content":"hi"}]}`,
+			`{"model":"gpt","stream":true,"messages":[{"role":"user","content":"hi"}]}`,
+		} {
+			req := httptest.NewRequest(http.MethodPost, "/llm/"+orgDID+"/v1/chat/completions",
+				strings.NewReader(body))
+			w := httptest.NewRecorder()
+			failing.Server.ServeHTTP(w, req)
+			require.Equal(t, http.StatusBadGateway, w.Code)
+			require.Contains(t, w.Body.String(), "upstream boom")
+		}
 	})
 }

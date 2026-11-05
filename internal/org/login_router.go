@@ -2,7 +2,6 @@ package org
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -14,10 +13,8 @@ import (
 )
 
 type LoginRouter struct {
-	Pds      login.Provider
-	Google   login.Provider
-	Password login.Provider
-	OrgStore Store
+	Pds    login.Provider
+	Google login.Provider
 	// EmailStore, if set, routes DIDs provisioned via email-domain sign-in
 	// (see identity.EmailResolver) through their domain's login method.
 	EmailStore *emaildomain.Store
@@ -28,18 +25,6 @@ type LoginRouter struct {
 	// the new member's profile from the login provider's account metadata
 	// (e.g. Google name/picture).
 	OpensocialStore *opensocial.Store
-}
-
-func (r *LoginRouter) getProvider(org Org) login.Provider {
-	switch org.LoginMethod(context.Background() /* todo: fix context */) {
-	case LoginMethodGoogle:
-		return r.Google
-	case LoginMethodPassword:
-		return r.Password
-	case LoginMethodAtproto:
-		return r.Pds
-	}
-	return nil
 }
 
 // emailProvider returns the login provider for an email domain's login
@@ -114,29 +99,8 @@ func (r *LoginRouter) Authorize(
 	} else if ok {
 		return provider.Authorize(ctx, string(email))
 	}
-
-	// org login (requires admin credential)
-	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
-	if err == nil {
-		provider := r.getProvider(fetchedOrg)
-		if provider == nil {
-			return "", "", "", fmt.Errorf("unsupported login provider for %s", did)
-		}
-		return provider.Authorize(ctx, "" /* loginHint (empty because any admin will work) */)
-	} else if !errors.Is(err, ErrOrgNotFound) {
-		return "", "", "", fmt.Errorf("failed to get org: %w", err)
-	}
-
-	// member login
-	member, err := r.OrgStore.GetMember(ctx, did)
-	if err != nil {
-		return "", "", "", fmt.Errorf("failed to get member: %w", err)
-	}
-	provider := r.getProvider(member.Org)
-	if provider == nil {
-		return "", "", "", fmt.Errorf("unsupported login provider for %s", did)
-	}
-	return provider.Authorize(ctx, member.LoginID)
+	// Everything else signs in through its PDS.
+	return r.Pds.Authorize(ctx, "" /* loginHint (empty because any account will work) */)
 }
 
 func (r *LoginRouter) Exchange(
@@ -164,45 +128,9 @@ func (r *LoginRouter) Exchange(
 		}
 		return nil
 	}
-
-	// org login (requires admin)
-	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
-	if err == nil {
-		provider := r.getProvider(fetchedOrg)
-		if provider == nil {
-			return fmt.Errorf("unsupported login provider for %s", did)
-		}
-		loginID, _, err := provider.Exchange(ctx, query, providerStateKey)
-		if err != nil {
-			return fmt.Errorf("failed to exchange code: %w", err)
-		}
-		member, err := r.OrgStore.GetMemberByLoginID(ctx, loginID)
-		if err != nil {
-			return fmt.Errorf("failed to get member by login id: %w", err)
-		}
-		if member.Role != AdminRole {
-			return fmt.Errorf("not an admin")
-		}
-		return nil
-	} else if !errors.Is(err, ErrOrgNotFound) {
-		return fmt.Errorf("failed to get org: %w", err)
-	}
-
-	// member login
-	member, err := r.OrgStore.GetMember(ctx, did)
-	if err != nil {
-		return fmt.Errorf("failed to get member: %w", err)
-	}
-	provider := r.getProvider(member.Org)
-	if provider == nil {
-		return fmt.Errorf("unsupported login provider for %s", did)
-	}
-	loginID, _, err := provider.Exchange(ctx, query, providerStateKey)
-	if err != nil {
+	// Everything else signs in through its PDS.
+	if _, _, err := r.Pds.Exchange(ctx, query, providerStateKey); err != nil {
 		return fmt.Errorf("failed to exchange code: %w", err)
-	}
-	if member.LoginID != loginID {
-		return fmt.Errorf("login id mismatch: %s != %s", member.LoginID, loginID)
 	}
 	return nil
 }

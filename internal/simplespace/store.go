@@ -17,7 +17,8 @@ type Store struct {
 	spaces spaces.Store
 	perms  perms.Store
 
-	clock *syntax.TIDClock
+	clock   *syntax.TIDClock
+	hostDid syntax.DID
 }
 
 var (
@@ -29,12 +30,14 @@ func NewStore(
 	db *gorm.DB,
 	spaces spaces.Store,
 	perms perms.Store,
+	hostDid syntax.DID,
 ) *Store {
 	return &Store{
-		db:     db,
-		spaces: spaces,
-		clock:  syntax.NewTIDClock(0),
-		perms:  perms,
+		hostDid: hostDid,
+		db:      db,
+		spaces:  spaces,
+		clock:   syntax.NewTIDClock(0),
+		perms:   perms,
 	}
 }
 
@@ -51,7 +54,6 @@ func (m *Store) WithTx(tx *gorm.DB) *Store {
 // CreateSpace implements [Store].
 func (m *Store) CreateSpace(
 	ctx context.Context,
-	org syntax.DID,
 	creator syntax.DID,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
@@ -59,7 +61,7 @@ func (m *Store) CreateSpace(
 	var uri habitat_syntax.SpaceURI
 	err := m.db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		uri, err = m.spaces.WithTx(tx).CreateSpace(ctx, org, spaceType, skey)
+		uri, err = m.spaces.WithTx(tx).CreateSpace(ctx, m.hostDid, spaceType, skey)
 		if errors.Is(err, spaces.ErrSpaceAlreadyExists) {
 			return ErrSpaceAlreadyExists
 		} else if err != nil {
@@ -105,7 +107,6 @@ func (m *Store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 // ListMembers implements [Store].
 func (m *Store) ListMembers(
 	ctx context.Context,
-	callerOrg syntax.DID,
 	space habitat_syntax.SpaceURI,
 ) ([]syntax.DID, error) {
 	dids, err := m.perms.ListUserSubjects(ctx, space, habitat_syntax.SpaceRoleReader)

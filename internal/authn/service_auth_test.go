@@ -11,7 +11,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/did"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +85,6 @@ func TestServiceAuth(t *testing.T) {
 				require.NoError(t, err)
 
 				serviceAuth := NewServiceAuthMethod(
-					org.NewEveryoneOrg("everyone.example.com"),
 					dir,
 					legacyDID,
 					tt.serviceEndpoint,
@@ -108,7 +106,6 @@ func TestServiceAuth(t *testing.T) {
 
 	t.Run("Validate_EmptyAudience", func(t *testing.T) {
 		serviceAuth := NewServiceAuthMethod(
-			org.NewEveryoneOrg("everyone.example.com"),
 			dir,
 			legacyDID,
 			testHabitatEndpoint,
@@ -134,7 +131,6 @@ func TestServiceAuth(t *testing.T) {
 
 	t.Run("Validate_InvalidToken", func(t *testing.T) {
 		serviceAuth := NewServiceAuthMethod(
-			org.NewEveryoneOrg("everyone.example.com"),
 			dir,
 			legacyDID,
 			testHabitatEndpoint,
@@ -150,7 +146,6 @@ func TestServiceAuth(t *testing.T) {
 		token, err := utils.ServiceAuthToken(userKey, userDID, testHabitatEndpoint, &testLxm, nil)
 		require.NoError(t, err)
 		serviceAuth := NewServiceAuthMethod(
-			org.NewEveryoneOrg("everyone.example.com"),
 			dir,
 			legacyDID,
 			testHabitatEndpoint,

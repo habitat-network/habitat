@@ -15,7 +15,6 @@ import (
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -36,7 +35,6 @@ type Server struct {
 	hive          hive.Hive
 	directory     *SpaceProxyDirectory
 	validator     authn.RequestValidator
-	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
 }
 
@@ -48,7 +46,6 @@ type Server struct {
 func NewServer(
 	hive hive.Hive,
 	validator authn.RequestValidator,
-	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	domain string,
 	opts ...utils.Opt[SpaceProxyDirectory],
@@ -62,7 +59,6 @@ func NewServer(
 		hive:          hive,
 		directory:     directory,
 		validator:     validator,
-		orgStore:      orgStore,
 		pdsForwarding: pdsForwarding,
 	}, nil
 }

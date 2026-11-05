@@ -52,7 +52,6 @@ func TestValidator(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		nil,
 		"https://issuer.com",
 		nil,
 		os.Store,
