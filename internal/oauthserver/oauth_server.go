@@ -131,9 +131,6 @@ type OAuthServer struct {
 	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
-	// Org store for membership lookups
-	orgStore org.Store
-
 	// Cookie store for the request key and provider state across redirects
 	sessionStore sessions.Store
 
@@ -185,7 +182,6 @@ func NewOAuthServer(
 	db *gorm.DB,
 	kv keyval.Store,
 	meter metric.Meter,
-	orgStore org.Store,
 	issuer string,
 	approvedJwtBearerClients ApprovedClientStore,
 	opensocialStore *opensocial.Store,
@@ -231,10 +227,6 @@ func NewOAuthServer(
 		return nil, err
 	}
 
-	if loginRouter.OrgStore == nil {
-		loginRouter.OrgStore = orgStore
-	}
-
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options = &sessions.Options{
 		Path:     "/",
@@ -261,7 +253,6 @@ func NewOAuthServer(
 		sessionStore:    cookieStore,
 		directory:       directory,
 		storage:         storage,
-		orgStore:        orgStore,
 		issuer:          issuer,
 		opensocialStore: opensocialStore,
 		emailResolver:   emailResolver,
@@ -851,12 +842,6 @@ func (o *OAuthServer) ValidateRaw(
 		Subject: syntax.DID(did),
 		Method:  authn.ValidatorMethodOAuth,
 	}
-
-	org, err := o.orgStore.GetOrgForDID(ctx, syntax.DID(did))
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to get org for DID: %w", err)
-	}
-	credInfo.Org = org
 
 	return credInfo, true, nil
 }

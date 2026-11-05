@@ -40,7 +40,6 @@ func TestNormalizeLoopbackRedirect(t *testing.T) {
 		dbtestutil.NewDB(t, Models()),
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),

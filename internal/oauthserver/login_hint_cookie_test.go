@@ -123,7 +123,6 @@ func TestOAuthServerRemembersLogin(t *testing.T) {
 		db,
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),

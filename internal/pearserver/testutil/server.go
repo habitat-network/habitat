@@ -164,7 +164,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 
 	ts := utils.ResolveOptions(TestServer{}, opts)
 	if ts.Validator == nil {
-		ts.Validator = authntest.NewSuccessValidatorWithOrg(owner, org)
+		ts.Validator = authntest.NewSuccessValidator(&authn.CredentialInfo{Subject: owner})
 	}
 	if ts.HostKey == nil {
 		key, err := atcrypto.GeneratePrivateKeyK256()
@@ -207,7 +207,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	os, err := opensocial.NewStore(ts.DB, ts.SpaceStore, blobStore, ts.Hive)
 	require.NoError(t, err)
 	ps := perms.NewStore(ts.DB, ts.SpaceStore, ts.FGA, os)
-	ss := simplespace.NewStore(ts.DB, ts.SpaceStore, ps)
+	ss := simplespace.NewStore(ts.DB, ts.SpaceStore, ps, org)
 
 	ts.OpenSocialStore = os
 	ts.SimpleStore = ss

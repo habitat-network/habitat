@@ -42,13 +42,13 @@ func newTestStore(t *testing.T) *Store {
 		opensocial_testutil.WithSpaceStore(spacesStore),
 	)
 	permsStore := perms.NewStore(db, spacesStore, fga, os)
-	return NewStore(db, spacesStore, permsStore)
+	return NewStore(db, spacesStore, permsStore, orgID)
 }
 
 func TestCreateSpace(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "my-group")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "my-group")
 	require.NoError(t, err)
 	require.Equal(t, "at://did:plc:org/space/network.habitat.group/my-group", uri.String())
 }
@@ -56,7 +56,7 @@ func TestCreateSpace(t *testing.T) {
 func TestCreateSpace_AutoSkey(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "")
 	require.NoError(t, err)
 	require.Contains(t, uri, "at://did:plc:org/space/network.habitat.group/")
 }
@@ -64,17 +64,17 @@ func TestCreateSpace_AutoSkey(t *testing.T) {
 func TestCreateSpace_Duplicate(t *testing.T) {
 	s := newTestStore(t)
 
-	_, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "dup")
+	_, err := s.CreateSpace(t.Context(), owner, groupType, "dup")
 	require.NoError(t, err)
 
-	_, err = s.CreateSpace(t.Context(), orgID, owner, groupType, "dup")
+	_, err = s.CreateSpace(t.Context(), owner, groupType, "dup")
 	require.ErrorIs(t, err, ErrSpaceAlreadyExists)
 }
 
 func TestCreateSpace_OwnerIsMember(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	isMember, err := s.IsMember(t.Context(), orgID, uri, owner)
@@ -85,7 +85,7 @@ func TestCreateSpace_OwnerIsMember(t *testing.T) {
 func TestIsMember_Owner(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	isMember, err := s.IsMember(t.Context(), orgID, uri, owner)
@@ -96,7 +96,7 @@ func TestIsMember_Owner(t *testing.T) {
 func TestIsMember_NonOwner(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	isMember, err := s.IsMember(t.Context(), orgID, uri, alice)
@@ -116,7 +116,7 @@ func TestIsMember_NonExistentSpace(t *testing.T) {
 func TestIsMember_FGAMember(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	err = s.AddMember(t.Context(), uri, alice)
@@ -130,7 +130,7 @@ func TestIsMember_FGAMember(t *testing.T) {
 func TestAddMember_DuplicateIsIdempotent(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	err = s.AddMember(t.Context(), uri, alice)
@@ -143,7 +143,7 @@ func TestAddMember_DuplicateIsIdempotent(t *testing.T) {
 func TestAddMember_OwnerIsAlwaysMember(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	err = s.AddMember(t.Context(), uri, owner)
@@ -161,7 +161,7 @@ func TestAddMember_SpaceNotFound(t *testing.T) {
 func TestRemoveMember(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	err = s.AddMember(t.Context(), uri, alice)
@@ -178,7 +178,7 @@ func TestRemoveMember(t *testing.T) {
 func TestRemoveMember_NotAMember(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	err = s.RemoveMember(t.Context(), uri, alice)
@@ -188,7 +188,7 @@ func TestRemoveMember_NotAMember(t *testing.T) {
 func TestRemoveMember_CanNotRemoveOrg(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	err = s.RemoveMember(t.Context(), uri, orgID)
@@ -198,7 +198,7 @@ func TestRemoveMember_CanNotRemoveOrg(t *testing.T) {
 func TestRemoveMember_CanRemoveOwner(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
 	err = s.RemoveMember(t.Context(), uri, owner)
@@ -216,7 +216,7 @@ func TestRemoveMember_NonExistentSpace(t *testing.T) {
 func TestDeleteSpace(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "to-delete")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "to-delete")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -268,7 +268,7 @@ func TestDeleteSpace_NonExistent(t *testing.T) {
 func TestDeleteSpace_RemovesFGATuples(t *testing.T) {
 	s := newTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "to-delete")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "to-delete")
 	require.NoError(t, err)
 	require.NoError(t, s.AddMember(t.Context(), uri, alice))
 
@@ -296,9 +296,9 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 		opensocial_testutil.WithSpaceStore(spacesStore),
 	)
 	permsStore := perms.NewStore(db, spacesStore, fga, os)
-	s := NewStore(db, spacesStore, permsStore)
+	s := NewStore(db, spacesStore, permsStore, orgID)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "doomed")
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "doomed")
 	require.NoError(t, err)
 
 	require.NoError(t, s.DeleteSpace(t.Context(), uri))

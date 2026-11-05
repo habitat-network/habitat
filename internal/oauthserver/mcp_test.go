@@ -55,7 +55,6 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 		dbtestutil.NewDB(t, Models()),
 		keyval_testutil.New(t),
 		noop.Meter{},
-		testStore(t),
 		mcpTestOrigin,
 		NewJWTBearerStore(),
 		testOpensocialStore(t),

@@ -33,16 +33,12 @@ Identity & org:
 
 Auth:
 - `authn` — `Method` abstraction for authenticating inbound requests (OAuth, service-auth)
-- `login` — pluggable login `Provider`s (google, password, pds) used by `org`'s login flow
+- `login` — pluggable login `Provider`s (google, pds) used by `org`'s login flow
 - `oauthserver` — Habitat's OAuth 2.0 provider (Fosite-based); brokers between client apps and a user's PDS OAuth (see `internal/oauthserver/README.md`)
 - `pdsclient` — authenticated HTTP client factory for calling a DID's AT Proto PDS (OAuth + DPoP)
 - `pdscred` — encrypted storage of PDS OAuth credentials per DID
 
 Data & permissions:
-- `pear` — permission-enforcing AT Protocol repo wrapper; historically the core abstraction, but marked for removal in favor of `internal/server` composing `internal/repo` + `internal/permissions` + `internal/spaces` directly (see exclusions in `.testcoverage.yml`) — avoid building new functionality on it
-- `repo` — (DEPRECATED) replaced by `internal/spaces`
-- `permissions` — (DEPRECATED) replaced by `internal/perms`
-- `clique` — (DEPRECATED) replaced by `internal/spaces`
 - `spaces` — `network.habitat.space` abstraction grouping records, backed by `fgastore`
 - `fgastore` — Zanzibar-style relationship-based access control store wrapping an embedded OpenFGA server
 - `search` — full-text search over space records in Meilisearch. `search.Indexer` (a `spaces.Notifier`) syncs every repo via `ListRepoOps` and indexes each record with its space's read access (readers flattened by the perms store, opensocial.access community roles) as filterable fields; a record's text and each blob's are split into ~2KB overlapping chunks, one Meilisearch document each, sharing a `parent_id` that searches dedupe on (`distinct`); `search.Searcher` queries as the caller. pear opens the index without changing its settings; `pear run reindex` (a Cloud Run job in prod) rebuilds it with the running settings into `<index>_next`, atomically swaps it in and deletes the old one, so run it after a settings, embedder or projection change, and never two at once; until then an index from an older projection (no `body` field) still serves searches but refuses writes with `search.ErrLegacyIndex`, which the indexer retries. Off unless `--meilisearch_url` is set. Tests use `HABITAT_TEST_MEILISEARCH_URL` if set, else testcontainers
@@ -55,7 +51,7 @@ Sync & networking:
 - `forwarding` — AT Proto service proxying (`Atproto-Proxy` header) and PDS request forwarding using service-auth JWTs
 
 Shared/infra:
-- `server` — top-level Pear HTTP server wiring auth, org, oauthserver, permissions, repo
+- `pearserver` — top-level Pear HTTP server wiring auth, oauthserver, opensocial, and spaces
 - `db` — generic `Store[T]` tx-scoping interface shared by GORM-backed stores
 - `encrypt` — CBOR + NaCl secretbox encryption helpers
 - `telemetry` — OpenTelemetry setup (traces/metrics/logs via OTLP)

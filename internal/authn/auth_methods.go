@@ -5,13 +5,11 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/org"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type CredentialInfo struct {
 	Subject syntax.DID
-	Org     org.Org
 	Space   habitat_syntax.SpaceURI
 	// Audience is the verified Atproto-Space-Audience of a key-bound space
 	// credential request; empty for unbound credentials.
