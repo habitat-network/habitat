@@ -30,7 +30,7 @@ overrides:
 
 catalog:
   '@atproto/api': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/common-web': 0.0.0-spaces-alpha-20261029171913
+  '@atproto/common-web': 0.5.16
   '@atproto/crypto': 0.0.0-spaces-alpha-20261029171913
   '@atproto/identity': 0.0.0-spaces-alpha-20261029171913
   '@atproto/lex': 0.0.0-spaces-alpha-20261029171913
