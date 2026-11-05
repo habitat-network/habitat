@@ -1,6 +1,7 @@
 package mcpgateway
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
@@ -76,4 +77,19 @@ func TestServerURLPattern(t *testing.T) {
 	} {
 		require.Equal(t, want, serverURLPattern.MatchString(u), u)
 	}
+}
+
+func TestAuthorizationURLRequestsRefreshToken(t *testing.T) {
+	cfg := &oauthConfig{
+		Resource: "https://mcp.example.com",
+		AuthURL:  "https://auth.example.com/authorize",
+		ClientID: "client",
+	}
+	u, err := url.Parse(cfg.authorizationURL("https://pear.example.com/cb", "state", "verifier"))
+	require.NoError(t, err)
+	q := u.Query()
+	require.Equal(t, "offline", q.Get("access_type"))
+	require.Equal(t, "consent", q.Get("prompt"))
+	require.Equal(t, "https://mcp.example.com", q.Get("resource"))
+	require.Equal(t, "S256", q.Get("code_challenge_method"))
 }

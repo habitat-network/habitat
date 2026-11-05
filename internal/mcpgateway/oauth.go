@@ -315,11 +315,18 @@ func authMethodStyle(method string) oauth2.AuthStyle {
 
 // authorizationURL is where to send a member's browser to authorize pear with
 // the server, binding the request to state and the PKCE verifier.
+//
+// access_type=offline and prompt=consent ask for a refresh token from servers
+// like Google's that don't use the offline_access scope: they only issue one
+// on the first consent, or when consent is forced. Servers that don't know
+// these parameters ignore them.
 func (c *oauthConfig) authorizationURL(redirectURL, state, verifier string) string {
 	return c.oauth2Config(redirectURL).AuthCodeURL(
 		state,
 		oauth2.S256ChallengeOption(verifier),
 		oauth2.SetAuthURLParam("resource", c.Resource),
+		oauth2.AccessTypeOffline,
+		oauth2.ApprovalForce,
 	)
 }
 
