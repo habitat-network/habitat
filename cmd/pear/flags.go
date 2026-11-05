@@ -22,7 +22,6 @@ var (
 	fGoogleClientID        = "google_client_id"
 	fGoogleClientSecret    = "google_client_secret"
 	fPdsOauthClientUri     = "pds_oauth_client_uri"
-	fAdminPassword         = "admin_password"
 	fUiDevProxy            = "ui_dev_proxy"
 	fBuiltinApps           = "builtin_app"
 	fBlobBucket            = "blob_bucket"
@@ -120,11 +119,6 @@ func getFlags() []cli.Flag {
 			Name:    fPdsOauthClientUri,
 			Usage:   "PDS OAuth client ID for PDS login method",
 			Sources: getSources(fPdsOauthClientUri),
-		},
-		&cli.StringFlag{
-			Name:    fAdminPassword,
-			Usage:   "Preset password for the instance admin account; if unset, a random password is generated on every boot and printed once. Not persisted - kept in memory only",
-			Sources: getSources(fAdminPassword),
 		},
 		&cli.StringFlag{
 			Name:    fUiDevProxy,
