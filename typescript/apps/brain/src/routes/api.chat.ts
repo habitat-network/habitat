@@ -13,12 +13,8 @@ import {
   memberSession,
   MemberUnauthorizedError,
 } from "@/server/functions.server";
-import {
-  fetchOrgName,
-  firstLlmModel,
-  listMyOrgIds,
-  llmBaseUrl,
-} from "@/server/habitat";
+import { firstLlmModel, listMyOrgs, llmBaseUrl } from "@/server/habitat";
+import { gatewayTools } from "@/server/mcp";
 import { searchTool } from "@/server/search";
 import { useAppSession } from "@/server/session";
 
@@ -74,23 +70,24 @@ export const Route = createFileRoute("/api/chat")({
 
         try {
           const agent = await memberSession(env, did);
-          const orgDids = await listMyOrgIds(agent);
-          const orgs = await Promise.all(
-            orgDids.map(async (orgDid) => ({
-              did: orgDid,
-              name: (await fetchOrgName(agent, orgDid)) ?? orgDid,
-            })),
-          );
-
-          // The model comes from the first of the member's orgs, through that
-          // org's LLM gateway on pear.
-          const llmOrg = orgs[0]?.did;
-          const model = llmOrg ? await firstLlmModel(agent, llmOrg) : null;
-          if (!llmOrg || !model) {
+          // Everything happens in one org, which the UI sends along with
+          // each message and which must be one the member belongs to.
+          const orgs = await listMyOrgs(agent);
+          const llmOrg = orgs.find(
+            (o) => o.did === params.forwardedProps.org,
+          )?.did;
+          if (!llmOrg) {
+            return Response.json(
+              { message: "Select an organization first." },
+              { status: 400 },
+            );
+          }
+          // The model comes from that org's LLM gateway on pear.
+          const model = await firstLlmModel(agent, llmOrg);
+          if (!model) {
             return Response.json(
               {
-                message:
-                  "None of your organizations has an LLM model configured.",
+                message: "This organization has no LLM model configured.",
               },
               { status: 409 },
             );
@@ -104,6 +101,7 @@ export const Route = createFileRoute("/api/chat")({
             db,
             chatId,
             did,
+            llmOrg,
             text.slice(0, TITLE_MAX_CHARS) || "New chat",
           );
           if (!owned) {
@@ -117,6 +115,19 @@ export const Route = createFileRoute("/api/chat")({
             role: "user",
             content: text,
           });
+
+          // The search tool, plus every tool the member has connected through
+          // the org's MCP gateway (cached; see src/server/mcp.ts).
+          const search = searchTool(agent, llmOrg);
+          const tools = [
+            search,
+            ...(await gatewayTools(
+              agent,
+              env.BRAIN_HABITAT_URL,
+              llmOrg,
+              new Set([search.name]),
+            )),
+          ];
 
           const abortController = new AbortController();
           const stream = chat({
@@ -136,9 +147,9 @@ export const Route = createFileRoute("/api/chat")({
             messages: params.messages,
             threadId: params.threadId,
             systemPrompts: [
-              `You are Brain, an assistant for questions about the user's organizations' data. Search before answering questions about what the organization knows, and cite what you find. The user's organizations: ${orgs.map((o) => `${o.name} (${o.did})`).join(", ") || "none"}.`,
+              `You are Brain, an assistant for questions about the user's organizations' data. Search before answering questions about what the organization knows, and cite what you find. You are working in the organization ${orgs.find((o) => o.did === llmOrg)?.name} (${llmOrg}).`,
             ],
-            tools: [searchTool(agent, orgs)],
+            tools,
             abortController,
             middleware: [
               {

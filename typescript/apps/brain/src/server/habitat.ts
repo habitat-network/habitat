@@ -91,3 +91,25 @@ export async function firstLlmModel(
   const id = body.data?.[0]?.id;
   return typeof id === "string" ? id : null;
 }
+
+// mcpUrl is where pear's MCP gateway serves the org's merged tools (the
+// streamable-HTTP endpoint at /mcp/{org}).
+export function mcpUrl(habitatUrl: string, org: DidString): string {
+  return `${habitatUrl.replace(/\/+$/, "")}/mcp/${org}`;
+}
+
+export interface Org {
+  did: DidString;
+  name: string;
+}
+
+// listMyOrgs lists the orgs the member belongs to, with their names.
+export async function listMyOrgs(agent: Agent): Promise<Org[]> {
+  const dids = await listMyOrgIds(agent);
+  return Promise.all(
+    dids.map(async (did) => ({
+      did,
+      name: (await fetchOrgName(agent, did)) ?? did,
+    })),
+  );
+}

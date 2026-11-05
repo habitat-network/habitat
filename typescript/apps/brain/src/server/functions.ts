@@ -7,7 +7,12 @@ import {
   messagesForChat,
   type ChatSummary,
 } from "../db";
-import { requireMember, resolveHandle } from "./functions.server";
+import {
+  memberSession,
+  requireMember,
+  resolveHandle,
+} from "./functions.server";
+import { listMyOrgs, type Org } from "./habitat";
 import { createOAuthClient, OAUTH_SCOPE } from "./oauth";
 import { useAppSession } from "./session";
 
@@ -65,13 +70,21 @@ export const signOut = createServerFn({ method: "POST" }).handler(async () => {
   }
 });
 
-// listChats returns the member's chats, newest first.
-export const listChats = createServerFn({ method: "GET" }).handler(
-  async (): Promise<ChatSummary[]> => {
+// listOrgs returns the orgs the member belongs to, for the org selector.
+export const listOrgs = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Org[]> => {
     const { did } = await requireMember();
-    return chatsForOwner(getDb(env), did);
+    return listMyOrgs(await memberSession(env, did));
   },
 );
+
+// listChats returns the member's chats in an org, newest first.
+export const listChats = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<ChatSummary[]> => {
+    const { did } = await requireMember();
+    return chatsForOwner(getDb(env), did, data.org);
+  });
 
 export interface ChatMessage {
   id: string;

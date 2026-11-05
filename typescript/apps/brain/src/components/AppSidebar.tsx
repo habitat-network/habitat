@@ -12,16 +12,26 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "internal/components/ui";
-import { BrainIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftRightIcon, BrainIcon, PlusIcon } from "lucide-react";
 import { listChats, type Member } from "@/server/functions";
+import type { Org } from "@/server/habitat";
+import { useOrgStore } from "@/stores/org";
 import { UserMenu } from "./UserMenu";
 
-export function AppSidebar({ member }: { member: Member }) {
+export function AppSidebar({
+  member,
+  org,
+}: {
+  member: Member;
+  org: Org | undefined;
+}) {
+  const selectOrg = useOrgStore((s) => s.selectOrg);
   const navigate = useNavigate();
   const { chat: activeChat } = useParams({ strict: false });
   const { data: chats = [] } = useQuery({
-    queryKey: ["chats"],
-    queryFn: () => listChats(),
+    queryKey: ["chats", org?.did],
+    queryFn: () => listChats({ data: { org: org!.did } }),
+    enabled: !!org,
   });
   // A new chat is just a fresh id: it is stored with its first message.
   const newChat = () =>
@@ -37,8 +47,19 @@ export function AppSidebar({ member }: { member: Member }) {
               <span className="font-semibold">Brain</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {org && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => selectOrg(null)}
+                tooltip="Switch organization"
+              >
+                <ArrowLeftRightIcon />
+                <span className="truncate">{org.name}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={newChat}>
+            <SidebarMenuButton onClick={newChat} disabled={!org}>
               <PlusIcon />
               New chat
             </SidebarMenuButton>

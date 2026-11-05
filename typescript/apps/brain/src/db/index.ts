@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/d1";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { chats, messages, oauthSessions, oauthStates } from "./schema";
 
 export function getDb(env: { DB: D1Database }) {
@@ -16,15 +16,16 @@ export interface ChatSummary {
   createdAt: number;
 }
 
-// chatsForOwner lists a member's chats, newest first.
+// chatsForOwner lists a member's chats in one org, newest first.
 export async function chatsForOwner(
   db: Db,
   ownerDid: string,
+  orgDid: string,
 ): Promise<ChatSummary[]> {
   return db
     .select({ id: chats.id, title: chats.title, createdAt: chats.createdAt })
     .from(chats)
-    .where(eq(chats.ownerDid, ownerDid))
+    .where(and(eq(chats.ownerDid, ownerDid), eq(chats.orgDid, orgDid)))
     .orderBy(desc(chats.createdAt), desc(chats.id));
 }
 
@@ -47,11 +48,12 @@ export async function ensureChat(
   db: Db,
   chatId: string,
   ownerDid: string,
+  orgDid: string,
   title: string,
 ): Promise<boolean> {
   await db
     .insert(chats)
-    .values({ id: chatId, ownerDid, title, createdAt: Date.now() })
+    .values({ id: chatId, ownerDid, orgDid, title, createdAt: Date.now() })
     .onConflictDoNothing();
   return (await chatOwner(db, chatId)) === ownerDid;
 }
