@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_member")({
     // A stored selection the member has since left counts as none.
     const org = orgs.find((o) => o.did === selectedOrg);
     return (
-      <SidebarProvider>
+      <SidebarProvider className="h-svh">
         <AppSidebar member={member} org={org} />
         <SidebarInset>
           <header className="flex h-12 items-center px-3">
