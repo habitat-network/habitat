@@ -392,7 +392,7 @@ importers:
         version: 1.0.0(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(undici@8.10.0)(ws@8.21.3)(zod@4.6.7)
       '@tanstack/ai-react':
         specifier: ^1.0.0
-        version: 1.0.1(@opentelemetry/api@1.10.0)(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)
+        version: 1.0.2(@opentelemetry/api@1.10.0)(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -437,7 +437,7 @@ importers:
         version: 4.6.7
       zustand:
         specifier: 'catalog:'
-        version: 5.0.16(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
+        version: 5.0.16(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8))
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: ^1.53.1
@@ -5090,8 +5090,8 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
 
-  '@tanstack/ai-client@1.0.1':
-    resolution: {integrity: sha512-G/557Gzxwp159EYTSLIQvwn1lVgMeznu8S9OAukB+U/ZTXMwridnsC2hOoYV1OCT6FQsz6TPqz6WHsoilM1P3A==}
+  '@tanstack/ai-client@1.1.0':
+    resolution: {integrity: sha512-XMTdKzB9JG851Sztd/ywaL9D9Mw5DS87nV2i+5/Yq9dT+JKMcGoXCriztyO+djwxHu5ZGY32o9o29zbMMBo9VQ==}
 
   '@tanstack/ai-event-client@1.0.0':
     resolution: {integrity: sha512-RXlk6XkIYU4n25QYoCmETKiFjPnEpwvQv5Ve62pdtHaEVP//VZUdwGSRGCf/PATgwYdib8FT49tPmqnKtXPDhw==}
@@ -5113,11 +5113,11 @@ packages:
     peerDependencies:
       '@tanstack/ai': ^1.0.0
 
-  '@tanstack/ai-react@1.0.1':
-    resolution: {integrity: sha512-jNcTe8kpSgaY0554qkhwPQ08wa8b5y7p0JUhkCpSRb8tzy7Wa4Zd+vWiv7wA6XJTloSrvXphBLNltB0jHRvBMw==}
+  '@tanstack/ai-react@1.0.2':
+    resolution: {integrity: sha512-c4khP6tKUVWUI0rehUuBSJTGJ2lH99qvdkxT6aBxmvhZVCps3icJYso0PCXJTCwEadML3k8j3+7o6159cu42/A==}
     peerDependencies:
       '@mcp-ui/client': ^7
-      '@tanstack/ai': ^1.0.1
+      '@tanstack/ai': ^1.1.0
       '@types/react': '>=18.0.0'
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
@@ -16229,11 +16229,11 @@ snapshots:
       tailwindcss: 4.3.4
       vite: 8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)
 
-  '@tanstack/ai-client@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7)':
+  '@tanstack/ai-client@1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
     dependencies:
-      '@tanstack/ai': 1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-event-client': 1.0.0
-      '@tanstack/ai-utils': 1.0.0
+      '@tanstack/ai': 1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-event-client': 1.0.1
+      '@tanstack/ai-utils': 1.0.1
       '@tanstack/store': 0.11.2
     transitivePeerDependencies:
       - '@opentelemetry/api'
@@ -16272,10 +16272,10 @@ snapshots:
       - ws
       - zod
 
-  '@tanstack/ai-react@1.0.1(@opentelemetry/api@1.10.0)(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)':
+  '@tanstack/ai-react@1.0.2(@opentelemetry/api@1.10.0)(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)':
     dependencies:
       '@tanstack/ai': 1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-client': 1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-client': 1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/markdown': 0.0.13(react@19.2.8)
       '@types/react': 19.2.18
       react: 19.2.8
