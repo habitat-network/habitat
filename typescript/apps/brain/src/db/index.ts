@@ -1,49 +1,59 @@
 import { drizzle } from "drizzle-orm/d1";
 import { asc, desc, eq } from "drizzle-orm";
-import {
-  chats,
-  messages,
-  oauthSessions,
-  oauthStates,
-  syncRepos,
-  syncSpaces,
-} from "./schema";
+import { chats, messages, oauthSessions, oauthStates } from "./schema";
 
 export function getDb(env: { DB: D1Database }) {
   return drizzle(env.DB, {
-    schema: {
-      oauthStates,
-      oauthSessions,
-      syncSpaces,
-      syncRepos,
-      chats,
-      messages,
-    },
+    schema: { oauthStates, oauthSessions, chats, messages },
   });
 }
 
 export type Db = ReturnType<typeof getDb>;
 
 export interface ChatSummary {
-  space: string;
+  id: string;
   title: string;
   createdAt: number;
 }
 
-// chatsForOwner lists a member's synced chats, newest first.
+// chatsForOwner lists a member's chats, newest first.
 export async function chatsForOwner(
   db: Db,
   ownerDid: string,
 ): Promise<ChatSummary[]> {
   return db
-    .select({
-      space: chats.space,
-      title: chats.title,
-      createdAt: chats.createdAt,
-    })
+    .select({ id: chats.id, title: chats.title, createdAt: chats.createdAt })
     .from(chats)
     .where(eq(chats.ownerDid, ownerDid))
-    .orderBy(desc(chats.createdAt), desc(chats.space));
+    .orderBy(desc(chats.createdAt), desc(chats.id));
+}
+
+// chatOwner returns who owns a chat, or undefined if it doesn't exist yet.
+export async function chatOwner(
+  db: Db,
+  chatId: string,
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ ownerDid: chats.ownerDid })
+    .from(chats)
+    .where(eq(chats.id, chatId));
+  return row?.ownerDid;
+}
+
+// ensureChat creates the chat if it doesn't exist (named by title) and
+// reports whether ownerDid owns it. The chat id comes from the browser, so an
+// existing chat owned by someone else is left alone and reported as not owned.
+export async function ensureChat(
+  db: Db,
+  chatId: string,
+  ownerDid: string,
+  title: string,
+): Promise<boolean> {
+  await db
+    .insert(chats)
+    .values({ id: chatId, ownerDid, title, createdAt: Date.now() })
+    .onConflictDoNothing();
+  return (await chatOwner(db, chatId)) === ownerDid;
 }
 
 export interface StoredMessage {
@@ -52,24 +62,34 @@ export interface StoredMessage {
   content: string;
 }
 
-// messagesForSpace lists a chat's synced messages, oldest first. The id is
-// the record key, which is also the id the chat UI knows the message by.
-export async function messagesForSpace(
+// messagesForChat lists a chat's messages, oldest first.
+export async function messagesForChat(
   db: Db,
-  space: string,
+  chatId: string,
 ): Promise<StoredMessage[]> {
-  const rows = await db
+  return db
     .select({
-      uri: messages.uri,
+      id: messages.id,
       role: messages.role,
       content: messages.content,
     })
     .from(messages)
-    .where(eq(messages.space, space))
-    .orderBy(asc(messages.createdAt), asc(messages.uri));
-  return rows.map((r) => ({
-    id: r.uri.slice(r.uri.lastIndexOf("/") + 1),
-    role: r.role,
-    content: r.content,
-  }));
+    .where(eq(messages.chatId, chatId))
+    .orderBy(asc(messages.createdAt), asc(messages.id));
+}
+
+// storeMessage saves one message of a chat. Storing the same id again
+// overwrites it, so a resent message isn't repeated.
+export async function storeMessage(
+  db: Db,
+  chatId: string,
+  message: StoredMessage,
+): Promise<void> {
+  await db
+    .insert(messages)
+    .values({ chatId, ...message, createdAt: Date.now() })
+    .onConflictDoUpdate({
+      target: [messages.chatId, messages.id],
+      set: { role: message.role, content: message.content },
+    });
 }
