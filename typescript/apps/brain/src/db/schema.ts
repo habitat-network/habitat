@@ -4,6 +4,7 @@ import {
   text,
   integer,
   index,
+  primaryKey,
 } from "drizzle-orm/sqlite-core";
 
 // bytes is a BLOB column read back as a plain Uint8Array — same reasoning as
@@ -20,9 +21,8 @@ const bytes = customType<{
 // --- OAuth (src/server/oauth.ts) -------------------------------------------
 //
 // Brain is its own atproto OAuth client of the Habitat instance. It holds a
-// session per signed-in member: the member's own session creates chat spaces,
-// writes their messages, searches as them, and mints the delegation tokens
-// the syncer exchanges for space credentials. `value` is the session's JSON
+// session per signed-in member: the member's own session lists their orgs and
+// searches as them. `value` is the session's JSON
 // (token set plus the DPoP private key), sealed with BRAIN_CREDENTIALS_KEY
 // (src/server/seal.ts), since it's a bearer credential for that DID.
 
@@ -41,22 +41,15 @@ export const oauthSessions = sqliteTable("oauth_sessions", {
   updatedAt: integer("updated_at").notNull(),
 });
 
-// --- Space sync (internal/spaceSync/drizzle's SyncStore) ----------------------
+// --- Chats ----------------------------------------------------------------
 
-// The tables live with DrizzleSyncStore, shared with the other apps; they are
-// re-exported here so drizzle-kit migrates them with this schema.
-export { syncRepos, syncSpaces } from "internal/spaceSync/drizzle";
-
-// --- Chat index (the syncer's SyncSink, src/server/sink.ts) -------------------
-
-// chats is the synced view of every network.habitat.brain.session record:
-// one row per chat space. ownerDid is the space authority, i.e. the member
-// whose chat it is.
+// chats is one row per chat, owned by the signed-in member who started it.
+// `id` is a UUID the browser picks when the member starts a new chat; the row
+// is created with the chat's first message, whose text names it.
 export const chats = sqliteTable(
   "chats",
   {
-    space: text("space").primaryKey(),
-    cid: text("cid").notNull(),
+    id: text("id").primaryKey(),
     ownerDid: text("owner_did").notNull(),
     title: text("title").notNull(),
     createdAt: integer("created_at").notNull(),
@@ -64,22 +57,21 @@ export const chats = sqliteTable(
   (t) => [index("chats_owner_created").on(t.ownerDid, t.createdAt)],
 );
 
-// messages is the synced view of every network.habitat.brain.message record,
-// keyed by the record's own URI. `cid` is the record's CID so a replayed batch
-// (delivery is at-least-once) is a no-op update.
+// messages holds the text of each message of a chat. The id is the one the
+// chat UI knows the message by, so it is only unique within its chat.
 export const messages = sqliteTable(
   "messages",
   {
-    uri: text("uri").primaryKey(),
-    cid: text("cid").notNull(),
-    space: text("space").notNull(),
-    repo: text("repo").notNull(),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    id: text("id").notNull(),
     role: text("role").notNull(),
     content: text("content").notNull(),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [
-    index("messages_space_created").on(t.space, t.createdAt),
-    index("messages_space_repo").on(t.space, t.repo),
+    primaryKey({ columns: [t.chatId, t.id] }),
+    index("messages_chat_created").on(t.chatId, t.createdAt),
   ],
 );

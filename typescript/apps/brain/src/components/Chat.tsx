@@ -27,19 +27,19 @@ function toUIMessage(m: ChatMessage): UIMessage {
 }
 
 // Chat is one chat session: its stored messages, then whatever is said in
-// this visit. The space is the chat's id; the server stores each message in it.
+// this visit. The chat id is the thread id; the server stores each message under it.
 export function Chat({
-  space,
+  chatId,
   initialMessages,
 }: {
-  space: string;
+  chatId: string;
   initialMessages: ChatMessage[];
 }) {
   const queryClient = useQueryClient();
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     connection,
-    threadId: space,
+    threadId: chatId,
     initialMessages: initialMessages.map(toUIMessage),
     onFinish: () => queryClient.invalidateQueries({ queryKey: ["chats"] }),
   });

@@ -10,16 +10,14 @@ import { DrizzleSessionStore, DrizzleStateStore } from "@/db/oauthStores";
 // Brain is a plain atproto OAuth client of the Habitat instance — no sap in
 // between (unlike chalk). Members sign in with their own handle, and the
 // resulting session is stored under their DID, so `client.restore(did)` is how
-// every call made on a member's behalf (including the syncer's delegation
-// tokens for their chat spaces) gets its credentials.
+// every call made on a member's behalf gets its credentials.
 
-// Space scopes per proposal 0016: read every space (members list their orgs,
-// search and the syncer read chat spaces), and write to Brain's own space type.
+// Space scopes per proposal 0016: read every space (members list their orgs
+// and search them).
 export const OAUTH_SCOPE = [
   "atproto",
   "transition:generic",
   "space:*?authority=*&action=read",
-  "space:network.habitat.brain?authority=*&action=create&action=read&action=update&action=delete&manage=create&manage=update&manage=delete",
 ].join(" ");
 
 export const CALLBACK_PATH = "/oauth/callback";

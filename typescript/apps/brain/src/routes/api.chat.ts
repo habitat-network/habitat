@@ -7,18 +7,13 @@ import {
 import { createAnthropicChat } from "@tanstack/ai-anthropic";
 import type { ModelMessage, UIMessage } from "@tanstack/ai";
 import { env, waitUntil } from "cloudflare:workers";
-import type { DidString, SpaceRefString } from "@atproto/syntax";
+import type { DidString } from "@atproto/syntax";
+import { ensureChat, getDb, storeMessage } from "@/db";
 import {
   memberSession,
   MemberUnauthorizedError,
-  ownedChatSpace,
 } from "@/server/functions.server";
-import {
-  fetchOrgName,
-  listMyOrgIds,
-  putMessageRecord,
-  putSessionRecord,
-} from "@/server/habitat";
+import { fetchOrgName, listMyOrgIds } from "@/server/habitat";
 import { searchTool } from "@/server/search";
 import { useAppSession } from "@/server/session";
 
@@ -40,17 +35,17 @@ function textOf(message: UIMessage | ModelMessage): string {
     .join("");
 }
 
-// recordKey makes the key a message is stored under from the id the chat UI
+// messageId makes the id a message is stored under from the id the chat UI
 // gave it, so resending the same message overwrites it instead of repeating it.
-function recordKey(id: string | undefined): string {
+function messageId(id: string | undefined): string {
   return id && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : crypto.randomUUID();
 }
 
 // POST /api/chat: the chat UI's useChat connection. threadId is the chat's
-// space. The route stores the user's message in that space, streams the
-// agent's reply, and stores the reply too once it's complete. The UI reads
-// both back through the syncer (see src/server/functions.ts's
-// getChatMessages), not from here.
+// id. The route stores the user's message in the database (creating the chat,
+// named by that first message), streams the agent's reply, and stores the
+// reply too once it's complete. The UI reads both back through
+// src/server/functions.ts's getChatMessages.
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
@@ -61,10 +56,9 @@ export const Route = createFileRoute("/api/chat")({
           return Response.json({ message: "Sign in first" }, { status: 401 });
         }
         const params = await chatParamsFromRequest(request);
-        let space: SpaceRefString;
-        try {
-          space = ownedChatSpace(params.threadId, did);
-        } catch {
+        // The thread id comes from the browser.
+        const chatId = params.threadId;
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(chatId)) {
           return Response.json({ message: "Chat not found" }, { status: 404 });
         }
         const latest = params.messages[params.messages.length - 1];
@@ -87,20 +81,25 @@ export const Route = createFileRoute("/api/chat")({
 
           const text = textOf(latest);
           const id = "id" in latest ? (latest.id as string) : undefined;
-          await putMessageRecord(agent, did, space, {
-            rkey: recordKey(id),
+          const db = getDb(env);
+          // The first message names the chat.
+          const owned = await ensureChat(
+            db,
+            chatId,
+            did,
+            text.slice(0, TITLE_MAX_CHARS) || "New chat",
+          );
+          if (!owned) {
+            return Response.json(
+              { message: "Chat not found" },
+              { status: 404 },
+            );
+          }
+          await storeMessage(db, chatId, {
+            id: messageId(id),
             role: "user",
             content: text,
           });
-          // The first message names the chat.
-          if (params.messages.length === 1) {
-            await putSessionRecord(
-              agent,
-              did,
-              space,
-              text.slice(0, TITLE_MAX_CHARS) || "New chat",
-            );
-          }
 
           const abortController = new AbortController();
           const stream = chat({
@@ -117,8 +116,8 @@ export const Route = createFileRoute("/api/chat")({
                 onFinish: (_ctx, info) => {
                   if (!info.content) return;
                   waitUntil(
-                    putMessageRecord(agent, did, space, {
-                      rkey: crypto.randomUUID(),
+                    storeMessage(db, chatId, {
+                      id: crypto.randomUUID(),
                       role: "assistant",
                       content: info.content,
                     }).catch((err) =>

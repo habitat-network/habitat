@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   Sidebar,
@@ -11,38 +11,21 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  toast,
 } from "internal/components/ui";
 import { BrainIcon, PlusIcon } from "lucide-react";
-import { createChat, listChats, type Member } from "@/server/functions";
+import { listChats, type Member } from "@/server/functions";
 import { UserMenu } from "./UserMenu";
-
-// How often the chat list is refetched. Chats land in D1 as the syncer runs
-// its passes, so there's nothing to push.
-const CHATS_POLL_MS = 5_000;
 
 export function AppSidebar({ member }: { member: Member }) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { space: activeSpace } = useParams({ strict: false });
+  const { chat: activeChat } = useParams({ strict: false });
   const { data: chats = [] } = useQuery({
     queryKey: ["chats"],
     queryFn: () => listChats(),
-    refetchInterval: CHATS_POLL_MS,
   });
-  const { mutate: newChat, isPending } = useMutation({
-    mutationFn: () => createChat(),
-    onSuccess: async ({ space }) => {
-      await queryClient.invalidateQueries({ queryKey: ["chats"] });
-      await navigate({ to: "/chat/$space", params: { space } });
-    },
-    onError: (error) =>
-      toast.add({
-        type: "error",
-        title: "Couldn't start a chat",
-        description: error.message,
-      }),
-  });
+  // A new chat is just a fresh id: it is stored with its first message.
+  const newChat = () =>
+    navigate({ to: "/chat/$chat", params: { chat: crypto.randomUUID() } });
 
   return (
     <Sidebar>
@@ -55,7 +38,7 @@ export function AppSidebar({ member }: { member: Member }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton disabled={isPending} onClick={() => newChat()}>
+            <SidebarMenuButton onClick={newChat}>
               <PlusIcon />
               New chat
             </SidebarMenuButton>
@@ -68,11 +51,11 @@ export function AppSidebar({ member }: { member: Member }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {chats.map((chat) => (
-                <SidebarMenuItem key={chat.space}>
+                <SidebarMenuItem key={chat.id}>
                   <SidebarMenuButton
-                    isActive={chat.space === activeSpace}
+                    isActive={chat.id === activeChat}
                     render={
-                      <Link to="/chat/$space" params={{ space: chat.space }} />
+                      <Link to="/chat/$chat" params={{ chat: chat.id }} />
                     }
                   >
                     <span className="truncate">{chat.title}</span>
