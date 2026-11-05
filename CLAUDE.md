@@ -5,7 +5,6 @@
 Habitat is building a data ownership layer for organizations, built with AT Protocol primitives (https://atproto.com). This includes identity management, granular access control, and admin authorization for organizations. This is a Go + TypeScript monorepo managed by [Moon](https://moonrepo.dev/).
 
 ## Behavioral rules (always enforced)
-
 - Do what has been asked; nothing more, nothing less
 - NEVER create files unless they're absolutely necessary for achieving your goal
 - NEVER save working files, text/mds, or tests to the root folder
@@ -17,7 +16,6 @@ Habitat is building a data ownership layer for organizations, built with AT Prot
 ## Key Components
 
 **Go binaries (`cmd/`)**
-
 - `pear` — the main application server (auth, routing, permissions, AT Protocol repo ops, OAuth provider/broker)
 - `sap` — standalone sync state tracker: crawls org members' repos and subscribes to their AT Proto event firehose to discover and resync `network.habitat.space` records
 - `pwtool` — manual debugging helper for the argon2id password hashing used by `internal/org`
@@ -26,16 +24,14 @@ Habitat is building a data ownership layer for organizations, built with AT Prot
 **Go packages (`internal/`)**
 
 Identity & org:
-
 - `hive` — identity enrollment/minting and DID management for orgs (did:web-based); also signs habitat-issued service-auth JWTs
 - `org` — (DEPRECATED) use opensocial/ instead to manage orgs
 - `emaildomain` — email-domain → org mappings and email → DID provisioning for Google work-email sign-in (first sign-in becomes org admin); see `identity.EmailResolver`
 - `identity` — serves DID docs and host→DID mapping over HTTP
 - `instance` — instance-admin login/settings server (embedded HTML templates)
-- `opensocial` — partial implementation of https://tangled.org/opensocial.group/proposal/blob/main/proposal.md for interoperable atproto groups.
+- `opensocial` — partial implementation of https://tangled.org/opensocial.group/proposal/blob/main/proposal.md for interoperable atproto groups. 
 
 Auth:
-
 - `authn` — `Method` abstraction for authenticating inbound requests (OAuth, service-auth)
 - `login` — pluggable login `Provider`s (google, password, pds) used by `org`'s login flow
 - `oauthserver` — Habitat's OAuth 2.0 provider (Fosite-based); brokers between client apps and a user's PDS OAuth (see `internal/oauthserver/README.md`)
@@ -43,7 +39,6 @@ Auth:
 - `pdscred` — encrypted storage of PDS OAuth credentials per DID
 
 Data & permissions:
-
 - `pear` — permission-enforcing AT Protocol repo wrapper; historically the core abstraction, but marked for removal in favor of `internal/server` composing `internal/repo` + `internal/permissions` + `internal/spaces` directly (see exclusions in `.testcoverage.yml`) — avoid building new functionality on it
 - `repo` — (DEPRECATED) replaced by `internal/spaces`
 - `permissions` — (DEPRECATED) replaced by `internal/perms`
@@ -56,12 +51,10 @@ Data & permissions:
 - `perms` — wraps the fgastore and opensocial to query, update, and enforce permissions
 
 Sync & networking:
-
 - `p2p` — libp2p-based peer registry/gossip for cross-instance data requests
 - `forwarding` — AT Proto service proxying (`Atproto-Proxy` header) and PDS request forwarding using service-auth JWTs
 
 Shared/infra:
-
 - `server` — top-level Pear HTTP server wiring auth, org, oauthserver, permissions, repo
 - `db` — generic `Store[T]` tx-scoping interface shared by GORM-backed stores
 - `encrypt` — CBOR + NaCl secretbox encryption helpers
@@ -69,19 +62,17 @@ Shared/infra:
 - `utils` — misc HTTP/env/bsky helpers
 
 **Frontend (`frontend/`)**
-
 - React 19 SPA using TanStack Router + TanStack Query, Tailwind CSS 4, Vite
 - This is the org/instance management plane: org create/join, permissions (by lexicon collection and by person), spaces, data/collection browser, onboarding, OAuth login
 
 **TypeScript packages (`typescript/`)**
-
 - `internal/` — shared design system, UI components, auth utilities
 - `api/` — generated AT Protocol client bindings from `lexicons/` via `@atproto/lex-cli` (do not edit manually)
 - `xrpc-openapi-gen` — generates an OpenAPI spec from `lexicons/` for `api-docs`
 - `apps/docs` — collaborative document-editing demo app
 
-**Other top-level dirs**
 
+**Other top-level dirs**
 - `lexicons/` — all lexicon + XRPC endpoint definitions (AT Protocol schemas); source of truth for both `api/habitat` (Go, via `lexgen`) and `typescript/api` (TS, via `@atproto/lex-cli`)
 - `api-docs/` — Docusaurus site rendering the generated OpenAPI spec as API reference docs
 - `website/` — marketing site (Astro); not Moon-managed, pnpm workspace member only
@@ -123,7 +114,6 @@ moon run <project>:format      # format a projects
 ```
 
 **Environment** — in `dev.env` (gitignored):
-
 - `HABITAT_PGURL` — PostgreSQL connection string (defaults to a local SQLite file otherwise)
 - `HABITAT_DOMAIN`, `HABITAT_FRONTEND_DOMAIN`, `DOMAIN` — service domains
 - `NGROK_DOMAIN` — public domain ngrok assigns for `pear:dev`, needed for PDS OAuth
@@ -139,7 +129,6 @@ moon run <project>:format      # format a projects
 Detailed, automatically-enforced conventions live in `.claude/rules/`: `go-conventions.md` (project layout, error handling, typing, library preferences), `go-tests.md` (testing conventions), and `ts-frontend.md` (frontend-scoped rules). Treat those as the authoritative source; the notes below are a quick summary.
 
 **Go**
-
 - Go 1.26. Standard layout: entrypoints in `cmd/`, everything else in `internal/`.
 - Linter: `golangci-lint` (config: `.golangci.yml`), `bodyclose` + `sloglint` enabled
 - No generated files edited manually; run `moon :generate` to regenerate
@@ -147,11 +136,9 @@ Detailed, automatically-enforced conventions live in `.claude/rules/`: `go-conve
 - Use the `go-tdd` skill for new functions/methods/interface implementations
 
 **TypeScript / Frontend**
-
 - Formatter: Prettier 3.6.2; Linter: oxlint 1.28.0 (config: `.oxlintrc.json`)
 - `typescript/api/` is fully generated — never edit files there directly
 
 **General**
-
 - Monorepo tasks defined in `.moon/workspace.yml` and per-project `moon.yml`
 - CI runs `moon ci` on push to main and on PRs
