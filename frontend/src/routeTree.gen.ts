@@ -18,8 +18,6 @@ import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
-import { Route as CommunityCreateRouteImport } from './routes/community/create'
-import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
 import { Route as RequireAuthBlobTestIndexRouteImport } from './routes/_requireAuth/blob-test/index'
 import { Route as RequireAuthOrgsIndexRouteImport } from './routes/_requireAuth/orgs/index'
 import { Route as RequireAuthOrgsOrgRouteImport } from './routes/_requireAuth/orgs/$org'
@@ -96,16 +94,6 @@ const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
   getParentRoute: () => RequireAuthRoute,
-} as any)
-const CommunityCreateRoute = CommunityCreateRouteImport.update({
-  id: '/community/create',
-  path: '/community/create',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginHabitatRoute = LoginHabitatRouteImport.update({
-  id: '/habitat',
-  path: '/habitat',
-  getParentRoute: () => LoginRoute,
 } as any)
 const RequireAuthBlobTestIndexRoute =
   RequireAuthBlobTestIndexRouteImport.update({
@@ -303,13 +291,11 @@ export interface FileRoutesByFullPath {
   '/': typeof RequireAuthIndexRoute
   '/devtools': typeof DevtoolsRoute
   '/explore': typeof ExploreRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
-  '/community/create': typeof CommunityCreateRoute
-  '/login/habitat': typeof LoginHabitatRoute
   '/orgs/$org': typeof RequireAuthOrgsOrgRouteWithChildren
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
@@ -346,12 +332,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/devtools': typeof DevtoolsRoute
   '/explore': typeof ExploreRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
-  '/community/create': typeof CommunityCreateRoute
-  '/login/habitat': typeof LoginHabitatRoute
   '/': typeof RequireAuthIndexRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
@@ -388,13 +372,11 @@ export interface FileRoutesById {
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/devtools': typeof DevtoolsRoute
   '/explore': typeof ExploreRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
-  '/community/create': typeof CommunityCreateRoute
-  '/login/habitat': typeof LoginHabitatRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
   '/_requireAuth/orgs/$org': typeof RequireAuthOrgsOrgRouteWithChildren
   '/_requireAuth/pear-test/view': typeof RequireAuthPearTestViewRoute
@@ -440,8 +422,6 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/data'
     | '/permissions'
-    | '/community/create'
-    | '/login/habitat'
     | '/orgs/$org'
     | '/pear-test/view'
     | '/permissions/lexicons'
@@ -482,8 +462,6 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
-    | '/community/create'
-    | '/login/habitat'
     | '/'
     | '/pear-test/view'
     | '/permissions/people'
@@ -524,8 +502,6 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/_requireAuth/data'
     | '/_requireAuth/permissions'
-    | '/community/create'
-    | '/login/habitat'
     | '/_requireAuth/'
     | '/_requireAuth/orgs/$org'
     | '/_requireAuth/pear-test/view'
@@ -565,10 +541,9 @@ export interface RootRouteChildren {
   RequireAuthRoute: typeof RequireAuthRouteWithChildren
   DevtoolsRoute: typeof DevtoolsRoute
   ExploreRoute: typeof ExploreRoute
-  LoginRoute: typeof LoginRouteWithChildren
+  LoginRoute: typeof LoginRoute
   OauthLoginRoute: typeof OauthLoginRoute
   OnboardRoute: typeof OnboardRoute
-  CommunityCreateRoute: typeof CommunityCreateRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -635,20 +610,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/permissions'
       preLoaderRoute: typeof RequireAuthPermissionsRouteImport
       parentRoute: typeof RequireAuthRoute
-    }
-    '/community/create': {
-      id: '/community/create'
-      path: '/community/create'
-      fullPath: '/community/create'
-      preLoaderRoute: typeof CommunityCreateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login/habitat': {
-      id: '/login/habitat'
-      path: '/habitat'
-      fullPath: '/login/habitat'
-      preLoaderRoute: typeof LoginHabitatRouteImport
-      parentRoute: typeof LoginRoute
     }
     '/_requireAuth/blob-test/': {
       id: '/_requireAuth/blob-test/'
@@ -1028,24 +989,13 @@ const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
   RequireAuthRouteChildren,
 )
 
-interface LoginRouteChildren {
-  LoginHabitatRoute: typeof LoginHabitatRoute
-}
-
-const LoginRouteChildren: LoginRouteChildren = {
-  LoginHabitatRoute: LoginHabitatRoute,
-}
-
-const LoginRouteWithChildren = LoginRoute._addFileChildren(LoginRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   RequireAuthRoute: RequireAuthRouteWithChildren,
   DevtoolsRoute: DevtoolsRoute,
   ExploreRoute: ExploreRoute,
-  LoginRoute: LoginRouteWithChildren,
+  LoginRoute: LoginRoute,
   OauthLoginRoute: OauthLoginRoute,
   OnboardRoute: OnboardRoute,
-  CommunityCreateRoute: CommunityCreateRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

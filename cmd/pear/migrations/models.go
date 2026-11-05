@@ -1,20 +1,15 @@
 package migrations
 
 import (
-	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/llmgateway"
-	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
@@ -28,20 +23,15 @@ import (
 func Models() []any {
 	models := make([]any, 0)
 	for _, set := range [][]any{
-		clique.Models(),
 		emaildomain.Models(),
 		hive.Models(),
 		instance.Models(),
 		keyval.Models(),
 		llmgateway.Models(),
-		login.Models(),
 		mcpgateway.Models(),
 		notify.Models(),
 		oauthserver.Models(),
 		opensocial.Models(),
-		org.Models(),
-		permissions.Models(),
-		repo.Models(),
 		spaces.Models(),
 	} {
 		models = append(models, set...)

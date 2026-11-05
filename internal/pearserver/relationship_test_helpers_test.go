@@ -6,6 +6,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
+	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -21,7 +22,7 @@ func newRelationshipServer(
 	t.Helper()
 	ts := pearserver_testutil.NewTestServer(t,
 		pearserver_testutil.WithValidator(
-			authntest.NewSuccessValidatorWithOrg(caller, org),
+			authntest.NewSuccessValidator(&authn.CredentialInfo{Subject: caller}),
 		),
 	)
 	return ts

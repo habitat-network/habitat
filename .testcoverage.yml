@@ -28,14 +28,10 @@ exclude:
     - ^internal/utils
     - dummy_.*\.go
     - ^internal/oauthserver # This is mostly interface satisfying
-    - ^internal/server # This is mostly pass-throughs to pear, but we should remove this and add tests since there is non-trivial logic in there.
-    - ^internal/node # Pass-throughs
-    - internal/org/public.go
     - testutil/
     - internal/search/searchtest # Test helper that starts Meilisearch
     - internal/keyval/keyvaltest # Test helper that starts Postgres
     - internal/mcpgateway/mcpgatewaytest # Test helper that fakes an OAuth MCP server
-    - internal/pear # Outdated will remove this package soon
     - api/
     # Each service names its GORM models in a `migrations` package, which the
     # tests that migrate with it already cover.

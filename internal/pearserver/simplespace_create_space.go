@@ -41,19 +41,18 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		skey = parsedKey
 	}
 
-	callerOrg := credInfo.Org.DID()
 	if input.Did != "" {
 		parsedDID, ok := httpx.ParseDIDInput(ctx, w, input.Did, "did")
 		if !ok {
 			return
 		}
-		if parsedDID != credInfo.Subject && parsedDID != callerOrg {
-			httpx.WriteInvalidRequest(ctx, w, "only caller did or caller org are allowed", nil)
+		if parsedDID != credInfo.Subject {
+			httpx.WriteInvalidRequest(ctx, w, "only the caller did is allowed", nil)
 			return
 		}
 	}
 
-	uri, err := p.simpleStore.CreateSpace(ctx, callerOrg, credInfo.Subject, spaceType, skey)
+	uri, err := p.simpleStore.CreateSpace(ctx, credInfo.Subject, spaceType, skey)
 	if errors.Is(err, simplespace.ErrSpaceAlreadyExists) {
 		httpx.WriteError(ctx, w, "SpaceAlreadyExists", "" /* msg */, http.StatusBadRequest)
 		return

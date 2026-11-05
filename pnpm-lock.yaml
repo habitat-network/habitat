@@ -44,7 +44,7 @@ catalogs:
       version: 4.3.3
     '@tanstack/devtools-vite':
       specifier: ^0.8.5
-      version: 0.8.5
+      version: 0.8.6
     '@tanstack/pacer':
       specifier: ^0.22.0
       version: 0.22.0
@@ -302,7 +302,7 @@ importers:
         version: 4.3.3(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
       '@tanstack/devtools-vite':
         specifier: 'catalog:'
-        version: 0.8.5(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
+        version: 0.8.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
       '@testing-library/dom':
         specifier: 'catalog:'
         version: 10.4.2
@@ -383,7 +383,7 @@ importers:
         version: 1.0.0(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
       '@tanstack/ai-react':
         specifier: ^1.0.0
-        version: 1.0.0(@opentelemetry/api@1.10.0)(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)
+        version: 1.0.1(@opentelemetry/api@1.10.0)(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -604,7 +604,7 @@ importers:
         version: 4.3.3(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
       '@tanstack/devtools-vite':
         specifier: 'catalog:'
-        version: 0.8.5(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
+        version: 0.8.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.5
@@ -925,7 +925,7 @@ importers:
         version: 4.3.3(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
       '@tanstack/devtools-vite':
         specifier: 'catalog:'
-        version: 0.8.5(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
+        version: 0.8.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
       '@testing-library/dom':
         specifier: 'catalog:'
         version: 10.4.2
@@ -5088,17 +5088,17 @@ packages:
       '@anthropic-ai/vertex-sdk':
         optional: true
 
-  '@tanstack/ai-client@1.0.0':
-    resolution: {integrity: sha512-lPba8LAMmJn7X/D6LongAR4RfwWv/6I/XJPiYKZ8C235VKQMN1ZszhswyFOCIDYJzgzO1N7azHTwoEwSohR48Q==}
+  '@tanstack/ai-client@1.0.1':
+    resolution: {integrity: sha512-G/557Gzxwp159EYTSLIQvwn1lVgMeznu8S9OAukB+U/ZTXMwridnsC2hOoYV1OCT6FQsz6TPqz6WHsoilM1P3A==}
 
   '@tanstack/ai-event-client@1.0.0':
     resolution: {integrity: sha512-RXlk6XkIYU4n25QYoCmETKiFjPnEpwvQv5Ve62pdtHaEVP//VZUdwGSRGCf/PATgwYdib8FT49tPmqnKtXPDhw==}
 
-  '@tanstack/ai-react@1.0.0':
-    resolution: {integrity: sha512-PFX+M5JoP69/16UnkT4MOL6iRNywi8QVecaDdRJLwX2MnVHjFArD6HFFyU7LOgf5IxLuqXd8XpODI6imgVRrDA==}
+  '@tanstack/ai-react@1.0.1':
+    resolution: {integrity: sha512-jNcTe8kpSgaY0554qkhwPQ08wa8b5y7p0JUhkCpSRb8tzy7Wa4Zd+vWiv7wA6XJTloSrvXphBLNltB0jHRvBMw==}
     peerDependencies:
       '@mcp-ui/client': ^7
-      '@tanstack/ai': ^1.0.0
+      '@tanstack/ai': ^1.0.1
       '@types/react': '>=18.0.0'
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
@@ -5120,8 +5120,8 @@ packages:
       '@opentelemetry/api':
         optional: true
 
-  '@tanstack/devtools-bundler-core@0.1.3':
-    resolution: {integrity: sha512-F0tlxIyfFqXkZ1mJP1EjtkiSeJA+ztXY2AYOHf7r4goCIEAOp86N9PFJ/yv8vu1TnmxGS6vKsZCS3Kyls9xQQA==}
+  '@tanstack/devtools-bundler-core@0.1.4':
+    resolution: {integrity: sha512-NaDbpESGyGLV4XPbLsL1b7XeGnYovbnRjoTZ9LoAwllaaposdcrgtBsAcbdr0n4p+mltEVrUB6AFpvAmjj0VGQ==}
     engines: {node: '>=18'}
 
   '@tanstack/devtools-client@0.0.8':
@@ -5148,8 +5148,8 @@ packages:
     peerDependencies:
       solid-js: '>=1.9.7'
 
-  '@tanstack/devtools-vite@0.8.5':
-    resolution: {integrity: sha512-xaifCEmiwwzizlbp973oISXNsnmuU/BugLa66gryAZaPJJ/qo1kJd2DxY5X960eHwmyIS3SN0KYrL3/aRhucmA==}
+  '@tanstack/devtools-vite@0.8.6':
+    resolution: {integrity: sha512-CkaVqh3P7cJmQ6mMIxQfEmmR8gwlmgRCcoiWOMLigHaPobrrwTqsZvKqvYRHBybZ3ZT1ZSBj5TwlP7ukJJcRlg==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
@@ -16293,7 +16293,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@tanstack/ai-client@1.0.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
+  '@tanstack/ai-client@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7)':
     dependencies:
       '@tanstack/ai': 1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/ai-event-client': 1.0.0
@@ -16307,10 +16307,10 @@ snapshots:
     dependencies:
       '@tanstack/devtools-event-client': 0.4.4
 
-  '@tanstack/ai-react@1.0.0(@opentelemetry/api@1.10.0)(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)':
+  '@tanstack/ai-react@1.0.1(@opentelemetry/api@1.10.0)(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)':
     dependencies:
       '@tanstack/ai': 1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-client': 1.0.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-client': 1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/markdown': 0.0.13(react@19.2.8)
       '@types/react': 19.2.18
       react: 19.2.8
@@ -16337,7 +16337,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@tanstack/devtools-bundler-core@0.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)':
+  '@tanstack/devtools-bundler-core@0.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)':
     dependencies:
       '@tanstack/devtools-client': 0.0.8
       '@tanstack/devtools-event-bus': 0.4.3
@@ -16376,9 +16376,9 @@ snapshots:
     transitivePeerDependencies:
       - csstype
 
-  '@tanstack/devtools-vite@0.8.5(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))':
+  '@tanstack/devtools-vite@0.8.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))':
     dependencies:
-      '@tanstack/devtools-bundler-core': 0.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)
+      '@tanstack/devtools-bundler-core': 0.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)
       '@tanstack/devtools-client': 0.0.8
       '@tanstack/devtools-event-bus': 0.4.3
       chalk: 5.6.2
