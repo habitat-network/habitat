@@ -27,6 +27,7 @@ package mcpgateway
 
 import (
 	"errors"
+	"net/http"
 	"net/url"
 	"regexp"
 
@@ -169,9 +170,12 @@ type ServerUpdate struct {
 	URL         *string
 }
 
-// Downstream is how pear reaches a member's connected MCP server: its URL and
-// the headers that authorize the member's requests to it.
+// Downstream is how pear reaches a member's connected MCP server: its URL,
+// the headers that authorize the member's requests to it, and the HTTP client
+// to make them with (the store's, so they're restricted the same way as its
+// own requests to the server).
 type Downstream struct {
 	URL     string
 	Headers map[string]string
+	Client  *http.Client
 }

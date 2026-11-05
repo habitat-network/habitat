@@ -618,7 +618,7 @@ func (s *store) Downstream(
 		return nil, err
 	}
 	if row.AuthType == AuthTypeManual {
-		return &Downstream{URL: row.URL}, nil
+		return &Downstream{URL: row.URL, Client: s.client}, nil
 	}
 	token, err := s.token(ctx, row, did)
 	if err != nil {
@@ -630,7 +630,8 @@ func (s *store) Downstream(
 		}
 	}
 	return &Downstream{
-		URL: row.URL,
+		URL:    row.URL,
+		Client: s.client,
 		Headers: map[string]string{
 			"Authorization": token.oauth2().Type() + " " + token.AccessToken,
 		},

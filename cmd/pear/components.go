@@ -361,13 +361,19 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	simpleStore := simplespace.NewStore(database, spacesStore, permStore)
 
 	// Store for org-configured MCP servers and members' OAuth tokens for them.
+	// Org admins choose the servers' URLs, so OAuth discovery and token
+	// requests only reach public addresses unless allowed for development.
+	mcpClient := httpx.NewPublicClient()
+	if cmd.Bool(fMCPAllowPrivateNets) {
+		mcpClient = httpx.NewClient()
+	}
 	mcpGatewayStore, err := mcpgateway.NewStore(
 		database,
 		encryptedKV,
 		kv,
 		credKey,
 		opensocialStore,
-		httpx.NewClient(),
+		mcpClient,
 		"https://"+domain+pearserver.MCPOAuthCallbackPath,
 	)
 	if err != nil {

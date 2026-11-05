@@ -36,6 +36,7 @@ var (
 	fSearchMinScore        = "search_min_score"
 	fMCPTextOverrides      = "mcp_text_overrides"
 	fLoginHintCookieDomain = "login_hint_cookie_domain"
+	fMCPAllowPrivateNets   = "mcp_allow_private_networks"
 )
 
 var profiles []string
@@ -198,6 +199,11 @@ func getFlags() []cli.Flag {
 			Name:    fLoginHintCookieDomain,
 			Usage:   "Parent domain (e.g. habitat.network) to scope the signed-in user's login-hint cookie to, so apps on its subdomains can read it and skip asking for a handle. Must cover --domain. Empty keeps the cookie on pear's own host",
 			Sources: getSources(fLoginHintCookieDomain),
+		},
+		&cli.BoolFlag{
+			Name:    fMCPAllowPrivateNets,
+			Usage:   "Development only: let org MCP servers and their authorization servers live on loopback or private-network addresses, which pear otherwise refuses to connect to.",
+			Sources: getSources(fMCPAllowPrivateNets),
 		},
 	}
 }

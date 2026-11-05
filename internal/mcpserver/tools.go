@@ -446,12 +446,16 @@ func splitNamespacedTool(name string) (serverName, toolName string, ok bool) {
 type downstream struct {
 	url     string
 	headers map[string]string
+	// client makes the requests; nil means http.DefaultTransport.
+	client *http.Client
 }
 
 // headerRoundTripper adds static headers to every outgoing request,
-// authorizing calls to a connected MCP server on the caller's behalf.
+// authorizing calls to a connected MCP server on the caller's behalf, then
+// sends it with base.
 type headerRoundTripper struct {
 	headers map[string]string
+	base    http.RoundTripper
 }
 
 func (t headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -459,15 +463,19 @@ func (t headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	for name, value := range t.headers {
 		req.Header.Set(name, value)
 	}
-	return http.DefaultTransport.RoundTrip(req)
+	return t.base.RoundTrip(req)
 }
 
 // connectToServer opens an MCP client session to d.
 func connectToServer(ctx context.Context, d downstream) (*mcp.ClientSession, error) {
+	base := http.DefaultTransport
+	if d.client != nil && d.client.Transport != nil {
+		base = d.client.Transport
+	}
 	client := mcp.NewClient(&mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}, nil)
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
 		Endpoint:   d.url,
-		HTTPClient: &http.Client{Transport: headerRoundTripper{headers: d.headers}},
+		HTTPClient: &http.Client{Transport: headerRoundTripper{headers: d.headers, base: base}},
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("connect to mcp server: %w", err)
@@ -510,7 +518,7 @@ func listConnectedServers(
 				if err != nil {
 					return downstream{}, fmt.Errorf("reach %s: %w", server.Name, err)
 				}
-				return downstream{url: d.URL, headers: d.Headers}, nil
+				return downstream{url: d.URL, headers: d.Headers, client: d.Client}, nil
 			},
 		}
 	}

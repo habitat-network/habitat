@@ -196,7 +196,9 @@ func TestManualServer(t *testing.T) {
 
 	d, err := s.Downstream(t.Context(), alice, org, "docs")
 	require.NoError(t, err)
-	require.Equal(t, &mcpgateway.Downstream{URL: "https://docs.example.com/mcp"}, d)
+	require.Equal(t, "https://docs.example.com/mcp", d.URL)
+	require.Empty(t, d.Headers)
+	require.NotNil(t, d.Client)
 
 	// Its URL can change.
 	newURL, desc := "https://docs2.example.com/mcp", "New docs"
