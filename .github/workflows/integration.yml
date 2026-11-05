@@ -26,12 +26,11 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm install --frozen-lockfile --filter e2e... && pnpm --dir e2e exec playwright install --with-deps chromium
 
-      # Builds the pear image, starts it in a testcontainer and runs the
-      # Playwright suite in e2e/.
+      # Builds the pear image (via the harness), starts it in a testcontainer
+      # and runs the Playwright suite. Run directly rather than through moon:
+      # moon skips runInCI:false tasks when CI=true, which GitHub always sets.
       - name: Run integration tests
-        run: moon run e2e:test
-        env:
-          CI: "true"
+        run: pnpm --dir e2e exec playwright test
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
