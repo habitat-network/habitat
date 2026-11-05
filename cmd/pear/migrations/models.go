@@ -6,7 +6,9 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/keyval"
+	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -31,7 +33,9 @@ func Models() []any {
 		hive.Models(),
 		instance.Models(),
 		keyval.Models(),
+		llmgateway.Models(),
 		login.Models(),
+		mcpgateway.Models(),
 		notify.Models(),
 		oauthserver.Models(),
 		opensocial.Models(),

@@ -8,13 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms/fake"
 
-	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/keyval"
-	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/llmgateway"
-	"github.com/habitat-network/habitat/internal/opensocial"
-	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 )
 
 type fakeModel struct {
@@ -24,35 +20,24 @@ type fakeModel struct {
 
 func (fakeModel) Close() error { return nil }
 
-func newStore(t *testing.T, orgs ...syntax.DID) (*llmgateway.Store, *[]llmgateway.ModelConfig) {
+func newStore(t *testing.T) (*llmgateway.Store, *[]llmgateway.ModelConfig) {
 	t.Helper()
-	spaces := spaces_testutil.NewTestStore(
-		t, spaces_testutil.WithDB(pear_testutil.NewPearDB(t)),
-	)
-	for _, org := range orgs {
-		_, err := spaces.CreateSpace(t.Context(), org, opensocial.MembersSpaceType, "self")
-		require.NoError(t, err)
-	}
-	kv := keyval_testutil.New(t)
-	creds, err := keyval.NewEncrypted(
-		kv.Namespace(llmgateway.CredentialsNamespace),
-		encrypt.TestKey,
-	)
-	require.NoError(t, err)
 	var built []llmgateway.ModelConfig
 	factory := func(_ context.Context, c llmgateway.ModelConfig) (llmgateway.Model, error) {
 		built = append(built, c)
 		return fakeModel{LLM: fake.NewFakeLLM([]string{"hi"}), config: c}, nil
 	}
-	return llmgateway.NewStore(
-		spaces, creds, kv.Namespace(llmgateway.CredentialsNamespace), factory,
-	), &built
+	s, err := llmgateway.NewStore(
+		db_testutil.NewDB(t, llmgateway.Models()), encrypt.TestKey, factory,
+	)
+	require.NoError(t, err)
+	return s, &built
 }
 
 func TestStoreConnectionLifecycle(t *testing.T) {
 	orgA := syntax.DID("did:web:a.example.com")
 	orgB := syntax.DID("did:web:b.example.com")
-	s, built := newStore(t, orgA, orgB)
+	s, built := newStore(t)
 
 	conn, err := s.Add(t.Context(), orgA, llmgateway.NewConnection{
 		Name: "gpt", Provider: llmgateway.ProviderOpenAI, Model: "gpt-4o", APIKey: "sk-secret",
@@ -117,7 +102,7 @@ func TestStoreConnectionLifecycle(t *testing.T) {
 
 func TestStoreAddValidation(t *testing.T) {
 	org := syntax.DID("did:web:a.example.com")
-	s, _ := newStore(t, org)
+	s, _ := newStore(t)
 	valid := llmgateway.NewConnection{
 		Name: "gpt", Provider: llmgateway.ProviderOpenAI, Model: "gpt-4o", APIKey: "k",
 	}
@@ -150,4 +135,50 @@ func TestStoreAddValidation(t *testing.T) {
 			require.True(t, llmgateway.IsConfigError(err))
 		})
 	}
+}
+
+func TestNewStoreRejectsBadKey(t *testing.T) {
+	_, err := llmgateway.NewStore(db_testutil.NewDB(t, llmgateway.Models()), []byte("short"), nil)
+	require.Error(t, err)
+}
+
+func TestStoreKeepsAPIKeyEncrypted(t *testing.T) {
+	db := db_testutil.NewDB(t, llmgateway.Models())
+	s, err := llmgateway.NewStore(db, encrypt.TestKey, nil)
+	require.NoError(t, err)
+	org := syntax.DID("did:web:a.example.com")
+	_, err = s.Add(t.Context(), org, llmgateway.NewConnection{
+		Name: "gpt", Provider: llmgateway.ProviderOpenAI, Model: "gpt-4o", APIKey: "sk-secret",
+	})
+	require.NoError(t, err)
+	var stored string
+	require.NoError(t, db.Raw("SELECT api_key_enc FROM llm_connections").Scan(&stored).Error)
+	require.NotEmpty(t, stored)
+	require.NotContains(t, stored, "sk-secret")
+}
+
+func TestStoreUpdateValidation(t *testing.T) {
+	org := syntax.DID("did:web:a.example.com")
+	s, _ := newStore(t)
+	_, err := s.Add(t.Context(), org, llmgateway.NewConnection{
+		Name: "local", Provider: llmgateway.ProviderOllama, Model: "llama3",
+		BaseURL: "http://localhost:11434",
+	})
+	require.NoError(t, err)
+
+	blank, badURL, key := " ", "ftp://x", "k"
+	_, err = s.Update(t.Context(), org, "local", llmgateway.ConnectionUpdate{Model: &blank})
+	require.ErrorIs(t, err, llmgateway.ErrMissingModel)
+	_, err = s.Update(t.Context(), org, "local", llmgateway.ConnectionUpdate{BaseURL: &badURL})
+	require.ErrorIs(t, err, llmgateway.ErrInvalidBaseURL)
+	_, err = s.Update(t.Context(), org, "local", llmgateway.ConnectionUpdate{APIKey: &key})
+	require.ErrorIs(t, err, llmgateway.ErrAPIKeyNotSupported)
+	_, err = s.Update(t.Context(), org, "nope", llmgateway.ConnectionUpdate{})
+	require.ErrorIs(t, err, llmgateway.ErrConnectionNotFound)
+
+	desc := "on-prem"
+	updated, err := s.Update(t.Context(), org, "local", llmgateway.ConnectionUpdate{Description: &desc})
+	require.NoError(t, err)
+	require.Equal(t, "on-prem", updated.Description)
+	require.Equal(t, "llama3", updated.Model)
 }

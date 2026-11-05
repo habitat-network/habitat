@@ -173,8 +173,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		app.SpacesStore,
 		app.PermStore,
 		mcpSearcher,
-		app.NangoClient,
-		app.OpensocialStore,
 		app.MCPGatewayStore,
 		app.BlobStore,
 		app.HiveDir,

@@ -3,9 +3,8 @@ package pearserver
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
-
-	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -52,14 +51,17 @@ func (p *PearServer) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	server, err := p.mcpGatewayStore.UpdateServer(
 		ctx,
 		org,
-		syntax.RecordKey(input.Id),
+		mcpgateway.ServerName(input.Id),
 		update,
 	)
-	if errors.Is(err, opensocial.ErrMcpServerNotFound) {
+	if errors.Is(err, mcpgateway.ErrServerNotFound) {
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
 		return
-	} else if err != nil {
+	} else if mcpgateway.IsConfigError(err) {
 		httpx.WriteInvalidRequest(ctx, w, "update mcp server", err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("update mcp server: %w", err))
 		return
 	}
 

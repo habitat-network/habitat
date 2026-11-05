@@ -11,6 +11,7 @@ type NetworkHabitatMcpDefsServer struct {
 	Description   string `json:"description,omitempty"`
 	Id            string `json:"id"`
 	Name          string `json:"name"`
+	Url           string `json:"url,omitempty"`
 }
 
 // MarshalJSON sets $type to "network.habitat.mcp.defs#server" before encoding.

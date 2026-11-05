@@ -146,13 +146,7 @@ func (p *PearServer) completeChat(
 	opts []llms.CallOption,
 ) {
 	ctx := r.Context()
-	id, err := syntax.ParseRecordKey(req.Model)
-	if err != nil {
-		writeOpenAIError(w, http.StatusNotFound, "invalid_request_error", "model_not_found",
-			fmt.Sprintf("the model %q does not exist", req.Model))
-		return
-	}
-	model, err := p.llmStore.Model(ctx, org, id)
+	model, err := p.llmStore.Model(ctx, org, llmgateway.ConnectionID(req.Model))
 	if errors.Is(err, llmgateway.ErrConnectionNotFound) {
 		writeOpenAIError(w, http.StatusNotFound, "invalid_request_error", "model_not_found",
 			fmt.Sprintf("the model %q does not exist", req.Model))

@@ -1,349 +1,432 @@
-// Package mcpgateway lets org admins configure MCP (Model Context Protocol)
-// servers for their org, and lets org members opt in to authorizing with
-// those servers. An admin adds a server by entering its name, description,
-// URL and AuthType, which are written as a network.habitat.mcp.server record
-// in the org's opensocial members space (see internal/opensocial). Nobody
-// signs in while adding it.
-//
-//   - AuthTypeOAuth: each member later connects with StartAuthorization,
-//     which is brokered entirely through Nango
-//     (https://nango.dev/docs/guides/auth/mcp-auth) via its mcp-generic
-//     connector with the server's URL pre-filled. The connector
-//     discovers/registers with the server's authorization server per the
-//     MCP authorization spec. This package stores no credentials; it asks
-//     Nango whether a given user is connected.
-//   - AuthTypeManual: the server needs no auth, and every member is
-//     connected automatically.
-//
-// A server's name doubles as its ID and, in internal/mcpserver, the
-// namespace its tools are exposed under, so it's restricted to a limited
-// character set (see validateServerName) and unique within the org across
-// both auth types. For OAuth servers, Nango's own integration key (needed to
-// actually talk to Nango, and globally unique across the whole Nango
-// environment, unlike name) is derived deterministically from the org and
-// name and stored on the record.
 package mcpgateway
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
-	"regexp"
-	"slices"
+	"log/slog"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
+	"gorm.io/gorm"
 
-	"github.com/habitat-network/habitat/internal/nango"
-	"github.com/habitat-network/habitat/internal/opensocial"
+	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/keyval"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// ErrManualServer is returned by the per-member authorization calls on a
-// manually configured server, which has no per-member connection.
-var ErrManualServer = errors.New("mcp server is configured manually and needs no sign-in")
+// TokensNamespace is the keyval namespace each member's OAuth tokens for an
+// org's MCP servers are stored under, keyed by tokenKey.
+const TokensNamespace = "mcp_oauth_tokens"
 
-// ErrNotConnected is returned when disconnecting from a server the caller has no
-// connection to.
-var ErrNotConnected = errors.New("not connected to mcp server")
+// FlowsNamespace is the keyval namespace in-progress authorizations are
+// stored under, keyed by their OAuth state, for flowTTL.
+const FlowsNamespace = "mcp_oauth_flows"
 
-// serverNamePattern restricts MCP server names to a limited, predictable
-// character set: they double as this server's record key and, in
-// internal/mcpserver, the namespace its tools are exposed under.
-var serverNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+// flowTTL is how long a member has to finish authorizing with a server once
+// they've started.
+const flowTTL = 10 * time.Minute
 
-// ErrInvalidServerName is returned when a server name doesn't match
-// serverNamePattern.
-var ErrInvalidServerName = errors.New(
-	"name must be 1-64 characters, using only letters, digits, hyphens, and underscores",
-)
+// expirySkew is how long before its expiry an access token is refreshed, so
+// it doesn't expire in flight.
+const expirySkew = time.Minute
 
-// ErrServerNameTaken is returned when adding a server whose name is already
-// used by another server in the same org.
-var ErrServerNameTaken = errors.New("a server with this name already exists for this org")
+// serverRow is the GORM model for an org's MCP server.
+type serverRow struct {
+	OrgDID      syntax.DID `gorm:"column:org_did;primaryKey;size:255"`
+	Name        ServerName `gorm:"column:name;primaryKey;size:64"`
+	Description string     `gorm:"column:description;not null;default:''"`
+	URL         string     `gorm:"column:url;not null"`
+	AuthType    AuthType   `gorm:"column:auth_type;not null"`
+	// Generation is random, and new each time a server is added. Members'
+	// tokens are bound to it, so a removed server's tokens, which keyval
+	// can't enumerate to delete, never reach one re-added under its name.
+	Generation string `gorm:"column:generation;not null"`
 
-func validateServerName(name string) error {
-	if !serverNamePattern.MatchString(name) {
-		return ErrInvalidServerName
+	// The OAuth client configuration of AuthTypeOAuth servers (see
+	// oauthConfig), discovered and registered when the server is added.
+	OAuthResource              string           `gorm:"column:oauth_resource;not null;default:''"`
+	OAuthIssuer                string           `gorm:"column:oauth_issuer;not null;default:''"`
+	OAuthAuthURL               string           `gorm:"column:oauth_auth_url;not null;default:''"`
+	OAuthTokenURL              string           `gorm:"column:oauth_token_url;not null;default:''"`
+	OAuthIssParameterSupported bool             `gorm:"column:oauth_iss_parameter_supported;not null;default:false"`
+	OAuthScopes                string           `gorm:"column:oauth_scopes;not null;default:''"`
+	OAuthClientID              string           `gorm:"column:oauth_client_id;not null;default:''"`
+	OAuthAuthStyle             oauth2.AuthStyle `gorm:"column:oauth_auth_style;not null;default:0"`
+	// OAuthClientSecretEnc is the client secret encrypted with
+	// encrypt.EncryptCBOR, or empty for a public client.
+	OAuthClientSecretEnc string `gorm:"column:oauth_client_secret_enc;not null;default:''"`
+
+	CreatedAt time.Time `gorm:"column:created_at;not null"`
+	UpdatedAt time.Time `gorm:"column:updated_at;not null"`
+}
+
+func (serverRow) TableName() string { return "mcp_servers" }
+
+// Models returns the GORM models this package persists, for db.Migrate.
+func Models() []any { return []any{&serverRow{}} }
+
+func (r *serverRow) server() *Server {
+	return &Server{
+		OrgID:       r.OrgDID,
+		Name:        r.Name,
+		Description: r.Description,
+		AuthType:    r.AuthType,
+		URL:         r.URL,
 	}
-	return nil
 }
 
-// NangoKeyFor deterministically derives a Nango integration unique_key for
-// orgID's server named id. Combining the two guarantees global uniqueness
-// (org DIDs are globally unique, and id is unique within an org) without
-// needing to invent and thread through a separate identifier. Exported so
-// tests outside this package can compute the same value.
-func NangoKeyFor(orgID syntax.DID, id syntax.RecordKey) string {
-	return orgID.String() + ":" + string(id)
+// storedToken is a member's OAuth tokens for a server, as stored in keyval.
+type storedToken struct {
+	// Generation is the serverRow.Generation the tokens were issued for.
+	Generation   string
+	AccessToken  string
+	TokenType    string
+	RefreshToken string
+	Expiry       time.Time
 }
 
-// OrgMcpServerStore is the subset of opensocial.Store the gateway needs to
-// read and write org MCP server configuration.
-type OrgMcpServerStore interface {
-	PutMcpServer(
-		ctx context.Context,
-		orgDID syntax.DID,
-		server *opensocial.McpServer,
-	) (*opensocial.McpServer, error)
-	GetMcpServer(
-		ctx context.Context,
-		orgDID syntax.DID,
-		id syntax.RecordKey,
-	) (*opensocial.McpServer, error)
-	ListMcpServers(ctx context.Context, orgDID syntax.DID) ([]*opensocial.McpServer, error)
-	UpdateMcpServer(
-		ctx context.Context,
-		orgDID syntax.DID,
-		id syntax.RecordKey,
-		description, serverURL *string,
-	) (*opensocial.McpServer, error)
-	RemoveMcpServer(ctx context.Context, orgDID syntax.DID, id syntax.RecordKey) error
-	// ListMemberSpaces lists the members spaces of every org user belongs
-	// to.
+func (t *storedToken) oauth2() *oauth2.Token {
+	return &oauth2.Token{
+		AccessToken:  t.AccessToken,
+		TokenType:    t.TokenType,
+		RefreshToken: t.RefreshToken,
+		Expiry:       t.Expiry,
+	}
+}
+
+// flow is an in-progress authorization, as stored in keyval.
+type flow struct {
+	OrgID      syntax.DID
+	Server     ServerName
+	Generation string
+	DID        syntax.DID
+	Verifier   string
+}
+
+// tokenKey keys did's tokens for orgID's server name. Org DIDs are globally
+// unique and a server's name is unique within its org, so the triple is too.
+func tokenKey(orgID syntax.DID, name ServerName, did syntax.DID) string {
+	return orgID.String() + "|" + string(name) + "|" + did.String()
+}
+
+// OrgMemberships lists the orgs a user belongs to, by their members spaces.
+// See opensocial.Store for the concrete implementation.
+type OrgMemberships interface {
 	ListMemberSpaces(ctx context.Context, user syntax.DID) ([]habitat_syntax.SpaceURI, error)
 }
 
-// NangoClient is the subset of Nango's backend API the gateway needs. See
-// internal/nango.Client for the concrete implementation.
-type NangoClient interface {
-	// CreateIntegration creates a Nango Integration backed by the
-	// mcp-generic provider, identified by uniqueKey.
-	CreateIntegration(ctx context.Context, uniqueKey string) error
-	// DeleteIntegration deletes a Nango Integration.
-	DeleteIntegration(ctx context.Context, uniqueKey string) error
-	// CreateConnectSession starts a Nango Connect session scoped to the
-	// Integration identified by uniqueKey, returning a session token for
-	// the frontend's Nango Connect UI.
-	// A non-empty serverURL pre-fills the session's MCP server URL.
-	CreateConnectSession(
-		ctx context.Context,
-		uniqueKey string,
-		endUserID, orgID, serverURL string,
-	) (string, error)
-	// GetConnection fetches a Connection's live details, including the MCP
-	// server URL it was made with.
-	GetConnection(
-		ctx context.Context,
-		connectionID, providerConfigKey string,
-	) (*nango.ConnectionDetails, error)
-	// ListConnections lists the MCP connections tagged with endUserID.
-	ListConnections(ctx context.Context, endUserID string) ([]nango.Connection, error)
-	// DeleteConnection deletes a Nango Connection.
-	DeleteConnection(ctx context.Context, connectionID, providerConfigKey string) error
+// CompletedAuthorization is the server a member just connected to.
+type CompletedAuthorization struct {
+	OrgID  syntax.DID
+	Server ServerName
+	DID    syntax.DID
 }
 
-// Server is an org's MCP server of either AuthType, as exposed through the
-// API.
-type Server struct {
-	ID          syntax.RecordKey
-	Name        string
-	Description string
-	AuthType    AuthType
-}
-
-func serverFromRecord(s *opensocial.McpServer) *Server {
-	return &Server{
-		ID:          s.ID,
-		Name:        s.Name,
-		Description: s.Description,
-		AuthType:    authTypeOf(s.AuthType),
-	}
-}
-
-// ServerWithStatus is an org's MCP server, along with whether a particular
-// caller has connected to it. Manual servers are always connected.
-type ServerWithStatus struct {
-	Server    *Server
-	Connected bool
-}
-
-// ServerUpdate is a partial update to an org's MCP server. Nil fields are
-// left unchanged. URL applies only to manual servers.
-type ServerUpdate struct {
-	Description *string
-	URL         *string
-}
-
-// Store manages MCP server configuration and per-user Nango connections for orgs.
+// Store manages org MCP server configuration and members' connections to
+// those servers.
 type Store interface {
-	// AddServer adds an MCP server to orgID, reached at serverURL, by
-	// writing its record. For an OAuth server it also registers a Nango
-	// Integration, which members then connect to with StartAuthorization.
-	// name must match validateServerName and be unused within orgID.
-	AddServer(
-		ctx context.Context,
-		orgID syntax.DID,
-		name, description, serverURL string,
-		authType AuthType,
-	) (*Server, error)
+	// AddServer adds an MCP server to orgID. For an OAuth server it first
+	// discovers the server's authorization server and registers pear as a
+	// client of it; nobody signs in yet.
+	AddServer(ctx context.Context, orgID syntax.DID, server NewServer) (*Server, error)
 	// UpdateServer updates an existing org MCP server. It returns
-	// opensocial.ErrMcpServerNotFound if there's no such server.
+	// ErrServerNotFound if there's no such server.
 	UpdateServer(
 		ctx context.Context,
 		orgID syntax.DID,
-		id syntax.RecordKey,
+		name ServerName,
 		update ServerUpdate,
 	) (*Server, error)
-	// RemoveServer deletes an org's MCP server, and for an OAuth server its
-	// Nango Integration.
-	RemoveServer(ctx context.Context, orgID syntax.DID, id syntax.RecordKey) error
-	// ListServers lists the MCP servers configured for an org, along with
-	// whether did has connected to each one.
+	// RemoveServer deletes an org's MCP server. Members' tokens for it are
+	// left behind but never used again (see serverRow.Generation).
+	RemoveServer(ctx context.Context, orgID syntax.DID, name ServerName) error
+	// ListServers lists the MCP servers configured for an org, sorted by
+	// name, along with whether did has connected to each one.
 	ListServers(ctx context.Context, orgID syntax.DID, did syntax.DID) ([]*ServerWithStatus, error)
 
-	// StartAuthorization begins a Nango Connect session for did to connect to
-	// an existing org MCP server, returning a session token for the
-	// frontend's Nango Connect UI.
+	// StartAuthorization begins connecting did to orgID's OAuth server name,
+	// returning the authorization URL to send did's browser to. The
+	// authorization server redirects back to pear's callback, which calls
+	// CompleteAuthorization.
 	StartAuthorization(
 		ctx context.Context,
 		did syntax.DID,
 		orgID syntax.DID,
-		id syntax.RecordKey,
-	) (sessionToken string, err error)
-	// DisconnectServer deletes did's Nango connection to orgID's MCP server id.
-	DisconnectServer(
+		name ServerName,
+	) (authorizationURL string, err error)
+	// CompleteAuthorization finishes the authorization identified by state,
+	// exchanging code for did's tokens and storing them. iss is the
+	// authorization response's iss parameter, if any. It returns
+	// ErrAuthorizationNotFound for an unknown, used or expired state.
+	CompleteAuthorization(
+		ctx context.Context,
+		state, code, iss string,
+	) (*CompletedAuthorization, error)
+	// DisconnectServer deletes did's tokens for orgID's OAuth server name, or
+	// returns ErrNotConnected if there are none.
+	DisconnectServer(ctx context.Context, did syntax.DID, orgID syntax.DID, name ServerName) error
+
+	// ListConnectedServers lists the servers did can reach: every manual
+	// server, and every OAuth server did has connected to, of every org did
+	// belongs to.
+	ListConnectedServers(ctx context.Context, did syntax.DID) ([]*Server, error)
+	// Downstream returns how to reach orgID's server name on did's behalf,
+	// refreshing did's access token if it's about to expire. It returns
+	// ErrNotConnected if did isn't connected to it.
+	Downstream(
 		ctx context.Context,
 		did syntax.DID,
 		orgID syntax.DID,
-		id syntax.RecordKey,
-	) error
-	// ListManualServersForMember lists the manual servers of every org did
-	// belongs to, including their URLs, for pear's own MCP
-	// client to connect with.
-	ListManualServersForMember(ctx context.Context, did syntax.DID) ([]*ManualServer, error)
+		name ServerName,
+	) (*Downstream, error)
 }
 
 type store struct {
-	nango   NangoClient
-	records OrgMcpServerStore
+	db        *gorm.DB
+	tokens    keyval.EncryptedStore
+	rawTokens keyval.Store
+	flows     keyval.EncryptedStore
+	key       []byte
+	orgs      OrgMemberships
+	client    *http.Client
+	// callbackURL is pear's OAuth redirect URI, where authorization servers
+	// send members' browsers back to.
+	callbackURL string
+	// refreshes collapses concurrent refreshes of the same tokens within this
+	// process, since a rotating refresh token can only be redeemed once.
+	refreshes singleflight.Group
 }
 
-// NewStore constructs a Store. nangoClient brokers the OAuth flow and
-// connection state; records reads/writes server configuration.
-func NewStore(nangoClient NangoClient, records OrgMcpServerStore) (Store, error) {
-	if nangoClient == nil {
-		return nil, fmt.Errorf("nango client is required")
+// NewStore returns a Store keeping server configuration in db, with client
+// secrets encrypted with key, and members' tokens and in-progress
+// authorizations in encKV, deleting through kv. encKV and kv must be the same
+// backing store; the store namespaces both itself. client makes every request
+// to MCP servers and their authorization servers, and callbackURL is the
+// absolute URL pear serves its OAuth callback at.
+func NewStore(
+	db *gorm.DB,
+	encKV keyval.EncryptedStore,
+	kv keyval.Store,
+	key []byte,
+	orgs OrgMemberships,
+	client *http.Client,
+	callbackURL string,
+) (Store, error) {
+	if _, err := encrypt.EncryptCBOR(nil, key); err != nil {
+		return nil, fmt.Errorf("mcpgateway: invalid encryption key: %w", err)
 	}
-	if records == nil {
-		return nil, fmt.Errorf("org mcp server store is required")
+	if orgs == nil {
+		return nil, errors.New("mcpgateway: org memberships are required")
 	}
-	return &store{nango: nangoClient, records: records}, nil
+	if client == nil {
+		return nil, errors.New("mcpgateway: http client is required")
+	}
+	if err := validateServerURL(callbackURL); err != nil {
+		return nil, fmt.Errorf("mcpgateway: callback url: %w", err)
+	}
+	return &store{
+		db:          db,
+		tokens:      encKV.Namespace(TokensNamespace),
+		rawTokens:   kv.Namespace(TokensNamespace),
+		flows:       encKV.Namespace(FlowsNamespace),
+		key:         key,
+		orgs:        orgs,
+		client:      client,
+		callbackURL: callbackURL,
+	}, nil
 }
 
-// checkNameFree returns ErrServerNameTaken if orgID already has a server of
-// either AuthType with the given id.
-func (s *store) checkNameFree(ctx context.Context, orgID syntax.DID, id syntax.RecordKey) error {
-	if _, err := s.records.GetMcpServer(ctx, orgID, id); err == nil {
-		return fmt.Errorf("%w: %q", ErrServerNameTaken, id)
-	} else if !errors.Is(err, opensocial.ErrMcpServerNotFound) {
-		return fmt.Errorf("checking existing server: %w", err)
+func (s *store) getRow(ctx context.Context, orgID syntax.DID, name ServerName) (*serverRow, error) {
+	var row serverRow
+	err := s.db.WithContext(ctx).
+		Where("org_did = ? AND name = ?", orgID, name).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrServerNotFound
+	} else if err != nil {
+		return nil, fmt.Errorf("get mcp server: %w", err)
 	}
-	return nil
+	return &row, nil
 }
 
-// getOAuth returns orgID's OAuth server id, or ErrManualServer if it's a
+// getOAuthRow returns orgID's OAuth server name, or ErrManualServer if it's a
 // manual server.
-func (s *store) getOAuth(
+func (s *store) getOAuthRow(
 	ctx context.Context,
 	orgID syntax.DID,
-	id syntax.RecordKey,
-) (*opensocial.McpServer, error) {
-	server, err := s.records.GetMcpServer(ctx, orgID, id)
+	name ServerName,
+) (*serverRow, error) {
+	row, err := s.getRow(ctx, orgID, name)
 	if err != nil {
 		return nil, err
 	}
-	if authTypeOf(server.AuthType) == AuthTypeManual {
+	if row.AuthType != AuthTypeOAuth {
 		return nil, ErrManualServer
 	}
-	return server, nil
+	return row, nil
 }
 
-func (s *store) AddServer(
-	ctx context.Context,
-	orgID syntax.DID,
-	name, description, serverURL string,
-	authType AuthType,
-) (*Server, error) {
-	if err := validateServerName(name); err != nil {
+func (s *store) oauthConfig(row *serverRow) (*oauthConfig, error) {
+	cfg := &oauthConfig{
+		Resource:              row.OAuthResource,
+		Issuer:                row.OAuthIssuer,
+		AuthURL:               row.OAuthAuthURL,
+		TokenURL:              row.OAuthTokenURL,
+		IssParameterSupported: row.OAuthIssParameterSupported,
+		Scopes:                strings.Fields(row.OAuthScopes),
+		ClientID:              row.OAuthClientID,
+		AuthStyle:             row.OAuthAuthStyle,
+	}
+	if row.OAuthClientSecretEnc != "" {
+		if err := encrypt.DecryptCBOR(
+			row.OAuthClientSecretEnc,
+			s.key,
+			&cfg.ClientSecret,
+		); err != nil {
+			return nil, fmt.Errorf("decrypt mcp server client secret: %w", err)
+		}
+	}
+	return cfg, nil
+}
+
+func (s *store) AddServer(ctx context.Context, orgID syntax.DID, ns NewServer) (*Server, error) {
+	if err := validateServerName(ns.Name); err != nil {
 		return nil, err
 	}
-	if err := validateServerURL(serverURL); err != nil {
+	if err := validateServerURL(ns.URL); err != nil {
 		return nil, err
 	}
-	if authType != AuthTypeOAuth && authType != AuthTypeManual {
-		return nil, fmt.Errorf("%w: %q", ErrInvalidAuthType, authType)
+	if ns.AuthType != AuthTypeOAuth && ns.AuthType != AuthTypeManual {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidAuthType, ns.AuthType)
 	}
-	id := syntax.RecordKey(name)
-	if err := s.checkNameFree(ctx, orgID, id); err != nil {
+	if ns.ClientSecret != "" && ns.ClientID == "" {
+		return nil, ErrClientSecretWithoutID
+	}
+	if ns.ClientID != "" && ns.AuthType != AuthTypeOAuth {
+		return nil, ErrClientNotSupported
+	}
+	name := ServerName(ns.Name)
+	// Checked up front, before registering a client nobody would use.
+	if _, err := s.getRow(ctx, orgID, name); err == nil {
+		return nil, fmt.Errorf("%w: %q", ErrServerNameTaken, name)
+	} else if !errors.Is(err, ErrServerNotFound) {
 		return nil, err
 	}
 
-	record := &opensocial.McpServer{
-		ID:          id,
+	row := &serverRow{
+		OrgDID:      orgID,
 		Name:        name,
-		Description: description,
-		AuthType:    string(authType),
-		ServerURL:   serverURL,
+		Description: ns.Description,
+		URL:         ns.URL,
+		AuthType:    ns.AuthType,
+		Generation:  rand.Text(),
 	}
-	if authType == AuthTypeOAuth {
-		record.NangoKey = NangoKeyFor(orgID, id)
-		if err := s.nango.CreateIntegration(ctx, record.NangoKey); err != nil {
-			return nil, fmt.Errorf("create nango integration: %w", err)
+	if ns.AuthType == AuthTypeOAuth {
+		var preregistered *preregisteredClient
+		if ns.ClientID != "" {
+			preregistered = &preregisteredClient{ID: ns.ClientID, Secret: ns.ClientSecret}
+		}
+		cfg, err := discoverOAuth(ctx, s.client, ns.URL, s.callbackURL, preregistered)
+		if err != nil {
+			return nil, err
+		}
+		row.OAuthResource = cfg.Resource
+		row.OAuthIssuer = cfg.Issuer
+		row.OAuthAuthURL = cfg.AuthURL
+		row.OAuthTokenURL = cfg.TokenURL
+		row.OAuthIssParameterSupported = cfg.IssParameterSupported
+		row.OAuthScopes = strings.Join(cfg.Scopes, " ")
+		row.OAuthClientID = cfg.ClientID
+		row.OAuthAuthStyle = cfg.AuthStyle
+		if cfg.ClientSecret != "" {
+			if row.OAuthClientSecretEnc, err = encrypt.EncryptCBOR(
+				cfg.ClientSecret,
+				s.key,
+			); err != nil {
+				return nil, fmt.Errorf("encrypt mcp server client secret: %w", err)
+			}
 		}
 	}
-	server, err := s.records.PutMcpServer(ctx, orgID, record)
-	if err != nil {
-		if record.NangoKey != "" {
-			_ = s.nango.DeleteIntegration(ctx, record.NangoKey)
-		}
-		return nil, err
+	err := s.db.WithContext(ctx).Create(row).Error
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return nil, fmt.Errorf("%w: %q", ErrServerNameTaken, name)
+	} else if err != nil {
+		return nil, fmt.Errorf("insert mcp server: %w", err)
 	}
-	return serverFromRecord(server), nil
+	return row.server(), nil
 }
 
 func (s *store) UpdateServer(
 	ctx context.Context,
 	orgID syntax.DID,
-	id syntax.RecordKey,
+	name ServerName,
 	update ServerUpdate,
 ) (*Server, error) {
-	if update.URL != nil {
-		// An OAuth server's URL is whatever its Nango connections were made
-		// with, so it can't be changed here.
-		existing, err := s.records.GetMcpServer(ctx, orgID, id)
-		if err != nil {
-			return nil, err
-		}
-		if authTypeOf(existing.AuthType) != AuthTypeManual {
-			return nil, fmt.Errorf("url applies only to manual servers")
+	row, err := s.getRow(ctx, orgID, name)
+	if err != nil {
+		return nil, err
+	}
+	if update.Description != nil {
+		row.Description = *update.Description
+	}
+	if update.URL != nil && *update.URL != row.URL {
+		if row.AuthType != AuthTypeManual {
+			return nil, ErrURLImmutable
 		}
 		if err := validateServerURL(*update.URL); err != nil {
 			return nil, err
 		}
+		row.URL = *update.URL
 	}
-	server, err := s.records.UpdateMcpServer(ctx, orgID, id, update.Description, update.URL)
-	if err != nil {
-		return nil, err
+	if err := s.db.WithContext(ctx).Save(row).Error; err != nil {
+		return nil, fmt.Errorf("update mcp server: %w", err)
 	}
-	return serverFromRecord(server), nil
+	return row.server(), nil
 }
 
-func (s *store) RemoveServer(ctx context.Context, orgID syntax.DID, id syntax.RecordKey) error {
-	server, err := s.records.GetMcpServer(ctx, orgID, id)
-	if err != nil {
-		return err
+func (s *store) RemoveServer(ctx context.Context, orgID syntax.DID, name ServerName) error {
+	res := s.db.WithContext(ctx).
+		Where("org_did = ? AND name = ?", orgID, name).
+		Delete(&serverRow{})
+	if res.Error != nil {
+		return fmt.Errorf("delete mcp server: %w", res.Error)
 	}
-	if err := s.records.RemoveMcpServer(ctx, orgID, id); err != nil {
-		return err
-	}
-	if authTypeOf(server.AuthType) == AuthTypeManual {
-		return nil
-	}
-	if err := s.nango.DeleteIntegration(ctx, server.NangoKey); err != nil {
-		return fmt.Errorf("delete nango integration: %w", err)
+	if res.RowsAffected == 0 {
+		return ErrServerNotFound
 	}
 	return nil
+}
+
+func (s *store) listRows(ctx context.Context, orgID syntax.DID) ([]serverRow, error) {
+	var rows []serverRow
+	if err := s.db.WithContext(ctx).
+		Where("org_did = ?", orgID).
+		Order("name").
+		Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list mcp servers: %w", err)
+	}
+	return rows, nil
+}
+
+// connected reports whether did can reach row: always for a manual server,
+// and for an OAuth server if did holds tokens issued for it.
+func (s *store) connected(ctx context.Context, row *serverRow, did syntax.DID) (bool, error) {
+	if row.AuthType == AuthTypeManual {
+		return true, nil
+	}
+	_, err := s.token(ctx, row, did)
+	if errors.Is(err, ErrNotConnected) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *store) ListServers(
@@ -351,110 +434,263 @@ func (s *store) ListServers(
 	orgID syntax.DID,
 	did syntax.DID,
 ) ([]*ServerWithStatus, error) {
-	servers, err := s.records.ListMcpServers(ctx, orgID)
+	rows, err := s.listRows(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}
-
-	var connected map[string]bool
-	if slices.ContainsFunc(servers, func(server *opensocial.McpServer) bool {
-		return authTypeOf(server.AuthType) == AuthTypeOAuth
-	}) {
-		connections, err := s.nango.ListConnections(ctx, did.String())
+	out := make([]*ServerWithStatus, len(rows))
+	for i := range rows {
+		connected, err := s.connected(ctx, &rows[i], did)
 		if err != nil {
-			return nil, fmt.Errorf("list nango connections: %w", err)
+			return nil, err
 		}
-		connected = make(map[string]bool, len(connections))
-		for _, conn := range connections {
-			connected[conn.ProviderConfigKey] = true
-		}
+		out[i] = &ServerWithStatus{Server: rows[i].server(), Connected: connected}
 	}
-
-	out := make([]*ServerWithStatus, len(servers))
-	for i, server := range servers {
-		out[i] = &ServerWithStatus{
-			Server: serverFromRecord(server),
-			Connected: authTypeOf(server.AuthType) == AuthTypeManual ||
-				connected[server.NangoKey],
-		}
-	}
-	slices.SortFunc(out, func(a, b *ServerWithStatus) int {
-		return strings.Compare(string(a.Server.ID), string(b.Server.ID))
-	})
 	return out, nil
+}
+
+// token returns did's tokens for row, or ErrNotConnected if did has none
+// issued for it.
+func (s *store) token(ctx context.Context, row *serverRow, did syntax.DID) (*storedToken, error) {
+	var t storedToken
+	err := s.tokens.GetEncrypted(ctx, tokenKey(row.OrgDID, row.Name, did), &t)
+	if errors.Is(err, keyval.ErrNotFound) {
+		return nil, ErrNotConnected
+	} else if err != nil {
+		return nil, fmt.Errorf("get mcp server tokens: %w", err)
+	}
+	if t.Generation != row.Generation {
+		return nil, ErrNotConnected
+	}
+	return &t, nil
+}
+
+func (s *store) putToken(
+	ctx context.Context,
+	row *serverRow,
+	did syntax.DID,
+	token *oauth2.Token,
+) error {
+	if err := s.tokens.PutEncrypted(ctx, tokenKey(row.OrgDID, row.Name, did), storedToken{
+		Generation:   row.Generation,
+		AccessToken:  token.AccessToken,
+		TokenType:    token.TokenType,
+		RefreshToken: token.RefreshToken,
+		Expiry:       token.Expiry,
+	}, keyval.NoExpiry); err != nil {
+		return fmt.Errorf("store mcp server tokens: %w", err)
+	}
+	return nil
+}
+
+func (s *store) deleteToken(
+	ctx context.Context,
+	orgID syntax.DID,
+	name ServerName,
+	did syntax.DID,
+) error {
+	err := s.rawTokens.Delete(ctx, tokenKey(orgID, name, did))
+	if err != nil && !errors.Is(err, keyval.ErrNotFound) {
+		return fmt.Errorf("delete mcp server tokens: %w", err)
+	}
+	return nil
 }
 
 func (s *store) StartAuthorization(
 	ctx context.Context,
 	did syntax.DID,
 	orgID syntax.DID,
-	id syntax.RecordKey,
+	name ServerName,
 ) (string, error) {
-	server, err := s.getOAuth(ctx, orgID, id)
+	row, err := s.getOAuthRow(ctx, orgID, name)
 	if err != nil {
 		return "", err
 	}
-	token, err := s.nango.CreateConnectSession(
-		ctx, server.NangoKey, did.String(), orgID.String(), server.ServerURL,
-	)
+	cfg, err := s.oauthConfig(row)
 	if err != nil {
-		return "", fmt.Errorf("create nango connect session: %w", err)
+		return "", err
 	}
-	return token, nil
+	state := rand.Text()
+	verifier := oauth2.GenerateVerifier()
+	if err := s.flows.PutEncrypted(ctx, state, flow{
+		OrgID:      orgID,
+		Server:     name,
+		Generation: row.Generation,
+		DID:        did,
+		Verifier:   verifier,
+	}, flowTTL); err != nil {
+		return "", fmt.Errorf("store mcp authorization: %w", err)
+	}
+	return cfg.authorizationURL(s.callbackURL, state, verifier), nil
+}
+
+func (s *store) CompleteAuthorization(
+	ctx context.Context,
+	state, code, iss string,
+) (*CompletedAuthorization, error) {
+	if state == "" {
+		return nil, ErrAuthorizationNotFound
+	}
+	// Consumed first, so a state can't be replayed even if exchanging fails.
+	var f flow
+	err := s.flows.ConsumeEncrypted(ctx, state, &f)
+	if errors.Is(err, keyval.ErrNotFound) {
+		return nil, ErrAuthorizationNotFound
+	} else if err != nil {
+		return nil, fmt.Errorf("get mcp authorization: %w", err)
+	}
+	completed := &CompletedAuthorization{OrgID: f.OrgID, Server: f.Server, DID: f.DID}
+	row, err := s.getOAuthRow(ctx, f.OrgID, f.Server)
+	if errors.Is(err, ErrServerNotFound) || (err == nil && row.Generation != f.Generation) {
+		// Removed, and maybe re-added, while the member was authorizing.
+		return completed, ErrServerNotFound
+	} else if err != nil {
+		return completed, err
+	}
+	cfg, err := s.oauthConfig(row)
+	if err != nil {
+		return completed, err
+	}
+	if err := cfg.checkIssuer(iss); err != nil {
+		return completed, err
+	}
+	if code == "" {
+		return completed, fmt.Errorf("%w: no authorization code", ErrAuthorizationFailed)
+	}
+	token, err := cfg.exchange(ctx, s.client, s.callbackURL, code, f.Verifier)
+	if err != nil {
+		return completed, err
+	}
+	if err := s.putToken(ctx, row, f.DID, token); err != nil {
+		return completed, err
+	}
+	return completed, nil
 }
 
 func (s *store) DisconnectServer(
-	ctx context.Context, did syntax.DID, orgID syntax.DID, id syntax.RecordKey,
+	ctx context.Context,
+	did syntax.DID,
+	orgID syntax.DID,
+	name ServerName,
 ) error {
-	server, err := s.getOAuth(ctx, orgID, id)
+	row, err := s.getOAuthRow(ctx, orgID, name)
 	if err != nil {
 		return err
 	}
-	connections, err := s.nango.ListConnections(ctx, did.String())
-	if err != nil {
-		return fmt.Errorf("list nango connections: %w", err)
+	if _, err := s.token(ctx, row, did); err != nil {
+		return err
 	}
-	for _, conn := range connections {
-		if conn.ProviderConfigKey == server.NangoKey {
-			if err := s.nango.DeleteConnection(
-				ctx,
-				conn.ConnectionID,
-				server.NangoKey,
-			); err != nil {
-				return fmt.Errorf("delete nango connection: %w", err)
-			}
-			return nil
-		}
-	}
-	return ErrNotConnected
+	return s.deleteToken(ctx, orgID, name, did)
 }
 
-func (s *store) ListManualServersForMember(
-	ctx context.Context,
-	did syntax.DID,
-) ([]*ManualServer, error) {
-	memberSpaces, err := s.records.ListMemberSpaces(ctx, did)
+func (s *store) ListConnectedServers(ctx context.Context, did syntax.DID) ([]*Server, error) {
+	memberSpaces, err := s.orgs.ListMemberSpaces(ctx, did)
 	if err != nil {
 		return nil, fmt.Errorf("list member spaces: %w", err)
 	}
-	var out []*ManualServer
+	var out []*Server
 	for _, space := range memberSpaces {
-		orgID := space.SpaceOwner()
-		servers, err := s.records.ListMcpServers(ctx, orgID)
+		rows, err := s.listRows(ctx, space.SpaceOwner())
 		if err != nil {
 			return nil, err
 		}
-		for _, server := range servers {
-			if authTypeOf(server.AuthType) != AuthTypeManual {
-				continue
+		for i := range rows {
+			connected, err := s.connected(ctx, &rows[i], did)
+			if err != nil {
+				return nil, err
 			}
-			out = append(out, &ManualServer{
-				OrgID:       orgID,
-				ID:          server.ID,
-				Description: server.Description,
-				URL:         server.ServerURL,
-			})
+			if connected {
+				out = append(out, rows[i].server())
+			}
 		}
 	}
 	return out, nil
+}
+
+func (s *store) Downstream(
+	ctx context.Context,
+	did syntax.DID,
+	orgID syntax.DID,
+	name ServerName,
+) (*Downstream, error) {
+	row, err := s.getRow(ctx, orgID, name)
+	if err != nil {
+		return nil, err
+	}
+	if row.AuthType == AuthTypeManual {
+		return &Downstream{URL: row.URL}, nil
+	}
+	token, err := s.token(ctx, row, did)
+	if err != nil {
+		return nil, err
+	}
+	if !token.Expiry.IsZero() && time.Until(token.Expiry) < expirySkew {
+		if token, err = s.refresh(ctx, row, did, token); err != nil {
+			return nil, err
+		}
+	}
+	return &Downstream{
+		URL: row.URL,
+		Headers: map[string]string{
+			"Authorization": token.oauth2().Type() + " " + token.AccessToken,
+		},
+	}, nil
+}
+
+// refresh redeems token's refresh token for new tokens and stores them,
+// before any caller uses them: a rotated refresh token that isn't stored would
+// leave did disconnected at the next refresh. If the authorization server no
+// longer honors the refresh token, did's tokens are deleted and refresh
+// returns ErrNotConnected.
+//
+// Concurrent refreshes within this process share one request. Refreshes on
+// other pear instances aren't coordinated, so with a server that rotates
+// refresh tokens, a race between two instances can disconnect did.
+func (s *store) refresh(
+	ctx context.Context,
+	row *serverRow,
+	did syntax.DID,
+	token *storedToken,
+) (*storedToken, error) {
+	if token.RefreshToken == "" {
+		return nil, fmt.Errorf("%w: access token expired", ErrNotConnected)
+	}
+	key := tokenKey(row.OrgDID, row.Name, did)
+	v, err, _ := s.refreshes.Do(key, func() (any, error) {
+		// Another caller may have refreshed since this one read the tokens.
+		if current, err := s.token(ctx, row, did); err == nil &&
+			time.Until(current.Expiry) >= expirySkew {
+			return current, nil
+		}
+		cfg, err := s.oauthConfig(row)
+		if err != nil {
+			return nil, err
+		}
+		refreshed, err := cfg.refresh(ctx, s.client, token.RefreshToken)
+		if errors.Is(err, errInvalidGrant) {
+			slog.InfoContext(ctx, "mcp: refresh token rejected; disconnecting",
+				"org", row.OrgDID.String(), "server", string(row.Name), "did", did.String())
+			if err := s.deleteToken(ctx, row.OrgDID, row.Name, did); err != nil {
+				return nil, err
+			}
+			return nil, fmt.Errorf("%w: sign-in expired", ErrNotConnected)
+		} else if err != nil {
+			return nil, err
+		}
+		if err := s.putToken(ctx, row, did, refreshed); err != nil {
+			return nil, err
+		}
+		return &storedToken{
+			Generation:   row.Generation,
+			AccessToken:  refreshed.AccessToken,
+			TokenType:    refreshed.TokenType,
+			RefreshToken: refreshed.RefreshToken,
+			Expiry:       refreshed.Expiry,
+		}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	refreshed, _ := v.(*storedToken)
+	return refreshed, nil
 }

@@ -23,6 +23,12 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
   ),
   url: /*#__PURE__*/ l.string({ format: 'uri' }),
   authType: /*#__PURE__*/ l.string<{ knownValues: ['oauth', 'manual'] }>(),
+  clientId: /*#__PURE__*/ l.optional(
+    /*#__PURE__*/ l.string({ maxLength: 2000 }),
+  ),
+  clientSecret: /*#__PURE__*/ l.optional(
+    /*#__PURE__*/ l.string({ maxLength: 2000 }),
+  ),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -38,7 +44,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Add an MCP server to the org by writing its record. Nobody signs in to it yet: for an oauth server this registers a Nango integration, and each member then connects with startAuthorization; a manual server needs no auth, so every member is connected to it automatically. Requires service-auth. Requires the mcp.configure action. */
+/** Add an MCP server to the org. Nobody signs in to it yet: for an oauth server pear discovers its authorization server and registers itself as a client, by dynamic client registration unless clientId is given, and each member then connects with startAuthorization; a manual server needs no auth, so every member is connected to it automatically. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }
