@@ -1,45 +1,45 @@
 import { test, expect } from "../harness/fixtures";
 
-// Full OAuth sign-in as an org member: handle -> password -> consent -> the
-// client's redirect_uri with an authorization code. Replaces the old Go/Selenium
-// TestPearOAuthFlow, but uses a password org so no external PDS is needed.
+// Member sign-in as far as it can go without a real identity provider: the
+// OAuth authorize request lands on pear's sign-in prompt, a work email is
+// resolved to the org that owns its domain, and the browser is sent to that
+// org's login provider (Google). Google itself is stubbed out.
 test.describe("member login", () => {
-  test("signs in with handle and password and is redirected back with a code", async ({
+  test("sends a member of an email-domain org to Google", async ({
     page,
     seed,
     mcpClient,
     memberLogin,
   }) => {
-    const { url, state } = mcpClient.authorizeUrl();
-    // Nothing listens on the redirect URI; the test only needs to see the redirect.
-    await page.route(`${mcpClient.redirectUri}**`, (route) =>
-      route.fulfill({ status: 200, body: "callback" }),
+    await page.route("https://accounts.google.com/**", (route) =>
+      route.fulfill({ status: 200, body: "google" }),
     );
 
-    await page.goto(url);
-    await memberLogin.enterHandle(seed.org.adminHandle);
-    await memberLogin.enterPassword(seed.org.adminPassword);
-    await memberLogin.authorize();
+    await page.goto(mcpClient.authorizeUrl().url);
+    await expect(page).toHaveURL(/\/ui\/login\/mcp/);
+    await memberLogin.submitIdentifier(`alice@${seed.org.domain}`);
 
-    await page.waitForURL(`${mcpClient.redirectUri}**`);
-    const callback = new URL(page.url());
-    expect(callback.searchParams.get("state")).toBe(state);
-    expect(callback.searchParams.get("code")).toBeTruthy();
+    await page.waitForURL("https://accounts.google.com/**");
+    const google = new URL(page.url());
+    expect(google.searchParams.get("client_id")).toBe("e2e-google-client-id");
+    expect(google.searchParams.get("login_hint")).toBe(
+      `alice@${seed.org.domain}`,
+    );
+    expect(google.searchParams.get("redirect_uri")).toBe(
+      "https://localhost/oauth-callback",
+    );
   });
 
-  test("shows an error for a wrong password", async ({
+  test("rejects an email at a domain no org owns", async ({
     page,
-    createOrg,
     mcpClient,
     memberLogin,
   }) => {
-    const org = await createOrg();
     await page.goto(mcpClient.authorizeUrl().url);
-    await memberLogin.enterHandle(org.adminHandle);
-    await memberLogin.enterPassword("wrong-password");
+    await memberLogin.submitIdentifier("alice@unclaimed.test");
 
-    await memberLogin.expectPasswordError();
-    await expect(page).toHaveURL(/\/ui\/login\/habitat/);
+    await memberLogin.expectError("Couldn't sign in with that handle");
+    await expect(page).toHaveURL(/\/ui\/login\/mcp/);
   });
 
   test("rejects an unknown handle", async ({
@@ -48,10 +48,8 @@ test.describe("member login", () => {
     memberLogin,
   }) => {
     await page.goto(mcpClient.authorizeUrl().url);
-    await memberLogin.enterHandle("nobody.nowhere.localhost");
+    await memberLogin.submitIdentifier("nobody.nowhere.localhost");
 
-    await expect(
-      page.getByText("Couldn't sign in with that handle"),
-    ).toBeVisible();
+    await memberLogin.expectError("Couldn't sign in with that handle");
   });
 });

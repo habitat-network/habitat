@@ -1,21 +1,18 @@
 /** Thin client for the unauthenticated pear endpoints the tests use to set up state. */
 
 export interface CreateOrgInput {
-  /** Becomes the org's handle domain: <adminHandle>.<subdomain>.<instance domain> */
-  subdomain: string;
-  name?: string;
-  adminHandle?: string;
-  adminPassword?: string;
-  contactEmail?: string;
+  /** The org's handle label, e.g. "acme" -> acme.<instance domain>. Unique per instance. */
+  handle: string;
+  /** Email domain whose members sign in to the org with Google, e.g. "acme.test". Unique per instance. */
+  domain?: string;
 }
 
 export interface Org {
-  orgId: string;
-  adminDid: string;
-  /** Full handle to sign in with, e.g. admin.acme.localhost */
-  adminHandle: string;
-  adminPassword: string;
-  name: string;
+  /** The org's DID, e.g. did:web:abc123.localhost */
+  did: string;
+  handle: string;
+  /** Members sign in with <anything>@<domain>. */
+  domain: string;
 }
 
 export class PearApi {
@@ -30,36 +27,24 @@ export class PearApi {
     return fetch(`${this.baseUrl}${path}`);
   }
 
+  /**
+   * Creates an org whose members sign in with Google using an email at its
+   * domain (network.habitat.emaildomain.createOrg, which needs no auth).
+   */
   async createOrg(input: CreateOrgInput): Promise<Org> {
-    const adminPassword = input.adminPassword ?? "correct-horse-battery";
-    const res = await fetch(`${this.baseUrl}/xrpc/network.habitat.org.create`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: input.name ?? input.subdomain,
-        admin_handle: input.adminHandle ?? "admin",
-        admin_password: adminPassword,
-        contact_email:
-          input.contactEmail ?? `admin@${input.subdomain}.example.com`,
-        login_method: "password",
-        handle_subdomain: input.subdomain,
-      }),
-    });
+    const domain = input.domain ?? `${input.handle}.test`;
+    const res = await fetch(
+      `${this.baseUrl}/xrpc/network.habitat.emaildomain.createOrg`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ handle: input.handle, domain }),
+      },
+    );
     if (!res.ok)
       throw new Error(`createOrg ${res.status}: ${await res.text()}`);
-    const body = (await res.json()) as {
-      org_id: string;
-      admin_did: string;
-      admin_handle: string;
-      name: string;
-    };
-    return {
-      orgId: body.org_id,
-      adminDid: body.admin_did,
-      adminHandle: body.admin_handle,
-      adminPassword,
-      name: body.name,
-    };
+    const { org } = (await res.json()) as { org: string };
+    return { did: org, handle: input.handle, domain };
   }
 
   /** Fetches a path with a Host header, to hit pear's host-routed endpoints (DID docs, handles). */

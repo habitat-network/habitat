@@ -16,18 +16,17 @@ const repoRoot = path.resolve(
   "../..",
 );
 
-/** Password of the instance admin on the instance under test. */
-export const ADMIN_PASSWORD = "e2e-admin-password";
-
 // Throwaway secrets for the test instance only. Same values pear:dev uses.
 const PEAR_ENV = {
   HABITAT_DOMAIN: "localhost",
   HABITAT_PORT: "8000",
-  HABITAT_ADMIN_PASSWORD: ADMIN_PASSWORD,
   HABITAT_SPACE_SIGNING_KEY: "z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd",
   HABITAT_PDS_CRED_ENCRYPT_KEY: "WRlpsucNQl8AVO1qNN+T+hzbVtYjdoF21QfF+0uDJSM=",
   HABITAT_OAUTH_SERVER_SECRET: "KFLA79A/GPPsxz+y5kk7dLX2Nxxe7RM9Ik96rD2tO4c=",
   HABITAT_OAUTH_CLIENT_SECRET: "RL4fcDJiumyAEMJ5US0WWu/QKDallQAZ/2GJHz99d4Y=",
+  // Enables the Google login method. Fake: tests stop at the redirect to Google.
+  HABITAT_GOOGLE_CLIENT_ID: "e2e-google-client-id",
+  HABITAT_GOOGLE_CLIENT_SECRET: "e2e-google-client-secret",
 };
 
 /**
@@ -67,7 +66,7 @@ ${site} {
 }
 
 /**
- * Starts a fresh pear (empty SQLite database, migrations applied) behind a
+ * Starts a fresh pear (empty database, migrations applied) behind a
  * Caddy TLS proxy and waits until it is healthy. Which flavour runs is picked
  * from the environment:
  *
@@ -77,7 +76,8 @@ ${site} {
  *  - PEAR_BINARY=<path>               run a locally built pear binary and the
  *                                     caddy on PATH (CADDY_BIN to override);
  *                                     no Docker needed
- *  - default                          run pear and caddy:2 in testcontainers
+ *  - default                          run pear (on Postgres) and caddy:2 in
+ *                                     testcontainers
  */
 export async function startPear(): Promise<PearInstance> {
   if (process.env.PEAR_ADDRESS && process.env.PEAR_TLS_ADDRESS) {
@@ -96,8 +96,31 @@ export async function startPear(): Promise<PearInstance> {
 async function startContainers(): Promise<PearInstance> {
   const image = ensureImage();
   const network: StartedNetwork = await new Network().start();
+  // The pear image is built without cgo, so it cannot use the SQLite driver
+  // that local runs default to; like production it needs Postgres.
+  const postgres = await new GenericContainer("postgres:16-alpine")
+    .withEnvironment({
+      POSTGRES_DB: "habitat",
+      POSTGRES_USER: "habitat",
+      POSTGRES_PASSWORD: "habitat",
+    })
+    .withNetwork(network)
+    .withNetworkAliases("postgres")
+    // The entrypoint restarts postgres once after init, hence two occurrences.
+    .withWaitStrategy(
+      Wait.forLogMessage(/database system is ready to accept connections/, 2),
+    )
+    .start();
+  const pearLogs: string[] = [];
   const pear = await new GenericContainer(image)
-    .withEnvironment(PEAR_ENV)
+    .withEnvironment({
+      ...PEAR_ENV,
+      HABITAT_DB:
+        "postgres://habitat:habitat@postgres:5432/habitat?sslmode=disable",
+    })
+    .withLogConsumer((stream) => {
+      stream.on("data", (line) => pearLogs.push(String(line)));
+    })
     .withNetwork(network)
     .withNetworkAliases("pear")
     .withExposedPorts(8000)
@@ -106,8 +129,11 @@ async function startContainers(): Promise<PearInstance> {
     .withWaitStrategy(Wait.forHttp("/health", 8000).forStatusCode(200))
     .withStartupTimeout(60_000)
     .start()
-    .catch((err) => {
-      throw new Error(`pear container failed to start: ${err}`);
+    .catch(async (err) => {
+      await postgres.stop();
+      throw new Error(
+        `pear container failed to start: ${err}\n--- pear logs ---\n${pearLogs.slice(-60).join("")}`,
+      );
     });
   const caddy = await new GenericContainer("caddy:2-alpine")
     .withNetwork(network)
@@ -122,6 +148,7 @@ async function startContainers(): Promise<PearInstance> {
     .start()
     .catch(async (err) => {
       await pear.stop();
+      await postgres.stop();
       throw new Error(`caddy container failed to start: ${err}`);
     });
   return {
@@ -131,6 +158,7 @@ async function startContainers(): Promise<PearInstance> {
       await dumpLogs(pear);
       await caddy.stop();
       await pear.stop();
+      await postgres.stop();
       await network.stop();
     },
   };
