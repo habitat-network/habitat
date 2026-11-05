@@ -15,9 +15,12 @@
     "@atproto/lex": "catalog:",
     "@atproto/oauth-client": "0.0.0-spaces-alpha-20261029171913",
     "@atproto/syntax": "catalog:",
+    "@cfworker/json-schema": "^4.1.6",
     "@habitat-network/habitat": "workspace:*",
+    "@modelcontextprotocol/client": "^2.4.0",
     "@posthog/react": "^1.11.3",
     "@tanstack/ai": "^1.0.0",
+    "@tanstack/ai-mcp": "^1.1.0",
     "@tanstack/ai-openai": "1.0.0",
     "@tanstack/ai-react": "^1.0.0",
     "@tanstack/react-query": "catalog:",
@@ -33,7 +36,8 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "tailwindcss": "catalog:",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.53.1",

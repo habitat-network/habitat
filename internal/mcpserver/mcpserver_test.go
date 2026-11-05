@@ -573,6 +573,30 @@ func TestMCPServerRejectsInvalidOrgPath(t *testing.T) {
 	}
 }
 
+// atproto OAuth clients send their access token under the DPoP scheme; the
+// endpoint accepts it like a bearer token and still rejects unknown ones.
+func TestMCPServerAcceptsDPoPScheme(t *testing.T) {
+	spacesStore, permStore := setupStores(t)
+	srv := New(
+		fakeTokens{}, spacesStore, permStore, nil,
+		nil, nil,
+		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
+	)
+
+	status := func(authorization string) int {
+		req := httptest.NewRequest(http.MethodPost, Path+"/did:plc:owner", http.NoBody)
+		req.Header.Set("Authorization", authorization)
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		return rec.Code
+	}
+	require.NotEqual(t, http.StatusUnauthorized, status("DPoP did:plc:owner"))
+	require.NotEqual(t, http.StatusUnauthorized, status("dpop did:plc:owner"))
+	require.NotEqual(t, http.StatusUnauthorized, status("Bearer did:plc:owner"))
+	require.Equal(t, http.StatusUnauthorized, status("DPoP invalid"))
+	require.Equal(t, http.StatusUnauthorized, status("Basic did:plc:owner"))
+}
+
 func TestMCPServerProtectedResourceMetadataIsPerOrg(t *testing.T) {
 	spacesStore, permStore := setupStores(t)
 	srv := New(

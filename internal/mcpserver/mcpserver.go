@@ -221,6 +221,15 @@ func New(
 			http.NotFound(w, r)
 			return
 		}
+		// atproto OAuth clients present their access token under the DPoP
+		// scheme, which the go-sdk's bearer middleware rejects. The token is
+		// validated the same way under either scheme (see verifyToken), so
+		// accept both by presenting a DPoP token as a bearer token.
+		if scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " "); ok &&
+			strings.EqualFold(scheme, "DPoP") {
+			r = r.Clone(r.Context())
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
 		auth.RequireBearerToken(verifyToken(tokens), &auth.RequireBearerTokenOptions{
 			ResourceMetadataURL: origin + ProtectedResourceMetadataPath + "/" + org.String(),
 			// ValidateRaw already enforces token expiry (via fosite's

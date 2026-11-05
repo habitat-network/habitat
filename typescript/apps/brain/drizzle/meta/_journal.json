@@ -15,6 +15,13 @@
       "when": 1793897241446,
       "tag": "0001_chats_in_db",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793904443212,
+      "tag": "0002_shallow_tarot",
+      "breakpoints": true
     }
   ]
 }

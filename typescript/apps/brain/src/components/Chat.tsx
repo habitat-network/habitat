@@ -14,6 +14,7 @@ import {
 import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import { useState } from "react";
 import type { ChatMessage } from "@/server/functions";
+import { useOrgStore } from "@/stores/org";
 
 // The connection is created once: useChat treats a new one as a new chat.
 const connection = fetchServerSentEvents("/api/chat");
@@ -36,6 +37,7 @@ export function Chat({
   initialMessages: ChatMessage[];
 }) {
   const queryClient = useQueryClient();
+  const org = useOrgStore((s) => s.selectedOrg);
   const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     connection,
@@ -47,7 +49,8 @@ export function Chat({
   const submit = () => {
     const text = input.trim();
     if (!text || isLoading) return;
-    sendMessage(text);
+    // The org rides along as a forwarded prop; the route checks it.
+    sendMessage(text, { body: { org } });
     setInput("");
   };
 

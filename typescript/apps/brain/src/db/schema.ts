@@ -51,10 +51,14 @@ export const chats = sqliteTable(
   {
     id: text("id").primaryKey(),
     ownerDid: text("owner_did").notNull(),
+    // The org the chat happens in: its search, models and tools.
+    orgDid: text("org_did").notNull().default(""),
     title: text("title").notNull(),
     createdAt: integer("created_at").notNull(),
   },
-  (t) => [index("chats_owner_created").on(t.ownerDid, t.createdAt)],
+  (t) => [
+    index("chats_owner_org_created").on(t.ownerDid, t.orgDid, t.createdAt),
+  ],
 );
 
 // messages holds the text of each message of a chat. The id is the one the
