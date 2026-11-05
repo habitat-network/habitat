@@ -33,7 +33,7 @@ catalog:
   '@atproto/common-web': 0.0.0-spaces-alpha-20261029171913
   '@atproto/crypto': 0.0.0-spaces-alpha-20261029171913
   '@atproto/identity': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex': 0.0.0-spaces-alpha-20261029171913
+  '@atproto/lex': 0.4.4
   '@atproto/lex-server': 0.0.0-spaces-alpha-20261029171913
   '@atproto/lexicon': 0.0.0-spaces-alpha-20261029171913
   '@atproto/oauth-types': 0.0.0-spaces-alpha-20261029171913
