@@ -24,7 +24,7 @@ jobs:
           auto-install: true
 
       - name: Install Playwright browsers
-        run: moon run e2e:install && pnpm --dir e2e exec playwright install --with-deps chromium
+        run: pnpm install --frozen-lockfile --filter e2e... && pnpm --dir e2e exec playwright install --with-deps chromium
 
       # Builds the pear image, starts it in a testcontainer and runs the
       # Playwright suite in e2e/.
