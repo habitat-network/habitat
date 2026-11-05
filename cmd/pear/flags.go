@@ -36,6 +36,10 @@ var (
 	fMCPTextOverrides      = "mcp_text_overrides"
 	fLoginHintCookieDomain = "login_hint_cookie_domain"
 	fMCPAllowPrivateNets   = "mcp_allow_private_networks"
+	fMCPGoogleDriveID      = "mcp_google_drive_client_id"
+	fMCPGoogleDriveSecret  = "mcp_google_drive_client_secret"
+	fMCPSlackID            = "mcp_slack_client_id"
+	fMCPSlackSecret        = "mcp_slack_client_secret"
 )
 
 var profiles []string
@@ -198,6 +202,26 @@ func getFlags() []cli.Flag {
 			Name:    fMCPAllowPrivateNets,
 			Usage:   "Development only: let org MCP servers and their authorization servers live on loopback or private-network addresses, which pear otherwise refuses to connect to.",
 			Sources: getSources(fMCPAllowPrivateNets),
+		},
+		&cli.StringFlag{
+			Name:    fMCPGoogleDriveID,
+			Usage:   "OAuth client ID pear uses for the Google Drive MCP preset, shared by all orgs. Register it with pear's /mcp-oauth/callback as a redirect URI. Unset disables the preset",
+			Sources: getSources(fMCPGoogleDriveID),
+		},
+		&cli.StringFlag{
+			Name:    fMCPGoogleDriveSecret,
+			Usage:   "OAuth client secret for the Google Drive MCP preset",
+			Sources: getSources(fMCPGoogleDriveSecret),
+		},
+		&cli.StringFlag{
+			Name:    fMCPSlackID,
+			Usage:   "OAuth client ID pear uses for the Slack MCP preset, shared by all orgs. Unset disables the preset",
+			Sources: getSources(fMCPSlackID),
+		},
+		&cli.StringFlag{
+			Name:    fMCPSlackSecret,
+			Usage:   "OAuth client secret for the Slack MCP preset",
+			Sources: getSources(fMCPSlackSecret),
 		},
 	}
 }

@@ -102,22 +102,30 @@ export const removeMcpServerMutationOptions = (
     },
   });
 
-// startMcpAuthorizationMutationOptions begins authorizing the caller against
-// an existing org-configured oauth MCP server, identified by the mutation's id
-// variable. It resolves to the server's authorization URL, for the caller to
-// open; pear stores their tokens once they approve. Nothing changes until
-// then, so there's nothing to invalidate here.
+// startMcpAuthorizationMutationOptions begins connecting the caller to an
+// existing org-configured MCP server, identified by the mutation's id. For an
+// oauth server it resolves to the server's authorization URL, for the caller to
+// open; pear stores their tokens once they approve, so there's nothing to
+// invalidate yet. For a token server, token is the caller's own access token:
+// pear stores it, which connects the caller right away, so it resolves to
+// undefined after refetching the servers.
 export const startMcpAuthorizationMutationOptions = (
   authManager: AuthManager,
   org: DidString,
 ) =>
   mutationOptions({
-    mutationFn: async (id: string) => {
+    mutationFn: async (
+      { id, token }: { id: string; token?: string },
+      { client },
+    ) => {
       const response = await xrpc(
         pearAgent(authManager, `${org}#habitat`),
         network.habitat.mcp.startAuthorization.main,
-        { body: { org, id } },
+        { body: { org, id, token } },
       );
+      if (token) {
+        await client.invalidateQueries({ queryKey: mcpServersQueryKey(org) });
+      }
       return response.body.authorizationUrl;
     },
   });

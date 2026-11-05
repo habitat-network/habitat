@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Begin authorizing the caller against an org-configured oauth MCP server. Returns the server's authorization URL, for the caller's browser to open; once they approve, the authorization server redirects back to pear, which stores the caller's tokens. Requires service-auth. Callable by any org member.",
+      "description": "Begin connecting the caller to an org-configured MCP server. For an oauth server, returns the server's authorization URL, for the caller's browser to open; once they approve, the authorization server redirects back to pear, which stores the caller's tokens. For a token server, the caller's access token (for example a personal access token) is required in token; pear stores it, which connects the caller right away, and returns no URL. Requires service-auth. Callable by any org member.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -21,6 +21,11 @@
             },
             "id": {
               "type": "string"
+            },
+            "token": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "token servers only: the caller's own access token for the server, sent to it as a bearer token. Stored encrypted and never returned."
             }
           }
         }
@@ -29,14 +34,12 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "authorizationUrl"
-          ],
+          "required": [],
           "properties": {
             "authorizationUrl": {
               "type": "string",
               "format": "uri",
-              "description": "Where to send the caller's browser to authorize pear with the server. It's valid for 10 minutes and can be used once."
+              "description": "oauth servers only: where to send the caller's browser to authorize pear with the server. It's valid for 10 minutes and can be used once. Omitted for a token server, which is connected as soon as the call returns."
             }
           }
         }

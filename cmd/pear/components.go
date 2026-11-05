@@ -321,6 +321,16 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		opensocialStore,
 		mcpClient,
 		"https://"+domain+pearserver.MCPOAuthCallbackPath,
+		mcpgateway.WithPresetClients(map[mcpgateway.Preset]mcpgateway.PresetClient{
+			mcpgateway.PresetGoogleDrive: {
+				ID:     cmd.String(fMCPGoogleDriveID),
+				Secret: cmd.String(fMCPGoogleDriveSecret),
+			},
+			mcpgateway.PresetSlack: {
+				ID:     cmd.String(fMCPSlackID),
+				Secret: cmd.String(fMCPSlackSecret),
+			},
+		}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("setup mcp gateway store: %w", err)

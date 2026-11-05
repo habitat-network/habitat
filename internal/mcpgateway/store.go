@@ -150,15 +150,18 @@ type Store interface {
 	// name, along with whether did has connected to each one.
 	ListServers(ctx context.Context, orgID syntax.DID, did syntax.DID) ([]*ServerWithStatus, error)
 
-	// StartAuthorization begins connecting did to orgID's OAuth server name,
-	// returning the authorization URL to send did's browser to. The
-	// authorization server redirects back to pear's callback, which calls
-	// CompleteAuthorization.
+	// StartAuthorization begins connecting did to orgID's server name. For
+	// an OAuth server it returns the authorization URL to send did's browser
+	// to (token must be empty); the authorization server redirects back to
+	// pear's callback, which calls CompleteAuthorization. For a token server
+	// it stores token as did's access token, which connects did right away,
+	// and returns no URL; the token is required.
 	StartAuthorization(
 		ctx context.Context,
 		did syntax.DID,
 		orgID syntax.DID,
 		name ServerName,
+		token string,
 	) (authorizationURL string, err error)
 	// CompleteAuthorization finishes the authorization identified by state,
 	// exchanging code for did's tokens and storing them. iss is the
@@ -168,7 +171,7 @@ type Store interface {
 		ctx context.Context,
 		state, code, iss string,
 	) (*CompletedAuthorization, error)
-	// DisconnectServer deletes did's tokens for orgID's OAuth server name, or
+	// DisconnectServer deletes did's tokens for orgID's OAuth or token server name, or
 	// returns ErrNotConnected if there are none.
 	DisconnectServer(ctx context.Context, did syntax.DID, orgID syntax.DID, name ServerName) error
 
@@ -198,6 +201,8 @@ type store struct {
 	// callbackURL is pear's OAuth redirect URI, where authorization servers
 	// send members' browsers back to.
 	callbackURL string
+	// presetClients are the OAuth clients pear holds for its presets.
+	presetClients map[Preset]PresetClient
 	// refreshes collapses concurrent refreshes of the same tokens within this
 	// process, since a rotating refresh token can only be redeemed once.
 	refreshes singleflight.Group
@@ -217,6 +222,7 @@ func NewStore(
 	orgs OrgMemberships,
 	client *http.Client,
 	callbackURL string,
+	opts ...Option,
 ) (Store, error) {
 	if _, err := encrypt.EncryptCBOR(nil, key); err != nil {
 		return nil, fmt.Errorf("mcpgateway: invalid encryption key: %w", err)
@@ -230,7 +236,7 @@ func NewStore(
 	if err := validateServerURL(callbackURL); err != nil {
 		return nil, fmt.Errorf("mcpgateway: callback url: %w", err)
 	}
-	return &store{
+	s := &store{
 		db:          db,
 		tokens:      encKV.Namespace(TokensNamespace),
 		rawTokens:   kv.Namespace(TokensNamespace),
@@ -239,7 +245,11 @@ func NewStore(
 		orgs:        orgs,
 		client:      client,
 		callbackURL: callbackURL,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
 }
 
 func (s *store) getRow(ctx context.Context, orgID syntax.DID, name ServerName) (*serverRow, error) {
@@ -272,6 +282,23 @@ func (s *store) getOAuthRow(
 	return row, nil
 }
 
+// getMemberRow returns orgID's server name that members connect to
+// individually (oauth or token), or ErrManualServer if it's a manual server.
+func (s *store) getMemberRow(
+	ctx context.Context,
+	orgID syntax.DID,
+	name ServerName,
+) (*serverRow, error) {
+	row, err := s.getRow(ctx, orgID, name)
+	if err != nil {
+		return nil, err
+	}
+	if row.AuthType == AuthTypeManual {
+		return nil, ErrManualServer
+	}
+	return row, nil
+}
+
 func (s *store) oauthConfig(row *serverRow) (*oauthConfig, error) {
 	cfg := &oauthConfig{
 		Resource:              row.OAuthResource,
@@ -296,13 +323,17 @@ func (s *store) oauthConfig(row *serverRow) (*oauthConfig, error) {
 }
 
 func (s *store) AddServer(ctx context.Context, orgID syntax.DID, ns NewServer) (*Server, error) {
+	if err := s.applyPreset(&ns); err != nil {
+		return nil, err
+	}
 	if err := validateServerName(ns.Name); err != nil {
 		return nil, err
 	}
 	if err := validateServerURL(ns.URL); err != nil {
 		return nil, err
 	}
-	if ns.AuthType != AuthTypeOAuth && ns.AuthType != AuthTypeManual {
+	if ns.AuthType != AuthTypeOAuth && ns.AuthType != AuthTypeManual &&
+		ns.AuthType != AuthTypeToken {
 		return nil, fmt.Errorf("%w: %q", ErrInvalidAuthType, ns.AuthType)
 	}
 	if ns.ClientSecret != "" && ns.ClientID == "" {
@@ -501,10 +532,24 @@ func (s *store) StartAuthorization(
 	did syntax.DID,
 	orgID syntax.DID,
 	name ServerName,
+	token string,
 ) (string, error) {
-	row, err := s.getOAuthRow(ctx, orgID, name)
+	row, err := s.getMemberRow(ctx, orgID, name)
 	if err != nil {
 		return "", err
+	}
+	if row.AuthType == AuthTypeToken {
+		if token == "" {
+			return "", ErrTokenRequired
+		}
+		// A personal access token has no expiry or refresh token.
+		return "", s.putToken(ctx, row, did, &oauth2.Token{
+			AccessToken: token,
+			TokenType:   "Bearer",
+		})
+	}
+	if token != "" {
+		return "", ErrTokenNotSupported
 	}
 	cfg, err := s.oauthConfig(row)
 	if err != nil {
@@ -573,7 +618,7 @@ func (s *store) DisconnectServer(
 	orgID syntax.DID,
 	name ServerName,
 ) error {
-	row, err := s.getOAuthRow(ctx, orgID, name)
+	row, err := s.getMemberRow(ctx, orgID, name)
 	if err != nil {
 		return err
 	}

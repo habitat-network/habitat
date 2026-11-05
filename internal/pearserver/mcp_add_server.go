@@ -31,7 +31,7 @@ func (p *PearServer) AddServer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if input.Name == "" || input.Url == "" || input.AuthType == "" {
+	if input.Name == "" || (input.Preset == "" && (input.Url == "" || input.AuthType == "")) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required fields", nil)
 		return
 	}
@@ -44,6 +44,7 @@ func (p *PearServer) AddServer(w http.ResponseWriter, r *http.Request) {
 		Description:  input.Description,
 		URL:          input.Url,
 		AuthType:     mcpgateway.AuthType(input.AuthType),
+		Preset:       mcpgateway.Preset(input.Preset),
 		ClientID:     input.ClientId,
 		ClientSecret: input.ClientSecret,
 	})

@@ -22,9 +22,9 @@ type Server = {
   description?: string
 
   /**
-   * How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth, run by pear, which stores their tokens encrypted. manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically.
+   * How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth, run by pear, which stores their tokens encrypted. token: each member supplies their own access token (such as a personal access token) with startAuthorization, which pear stores encrypted and sends to the server as a bearer token. manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically.
    */
-  authType: 'oauth' | 'manual' | l.UnknownString
+  authType: 'oauth' | 'token' | 'manual' | l.UnknownString
 
   /**
    * The server's streamable HTTP endpoint.
@@ -44,7 +44,9 @@ const server = /*#__PURE__*/ l.typedObject<Server>(
     description: /*#__PURE__*/ l.optional(
       /*#__PURE__*/ l.string({ maxLength: 2000 }),
     ),
-    authType: /*#__PURE__*/ l.string<{ knownValues: ['oauth', 'manual'] }>(),
+    authType: /*#__PURE__*/ l.string<{
+      knownValues: ['oauth', 'token', 'manual']
+    }>(),
     url: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'uri' })),
   }),
 )
