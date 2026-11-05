@@ -52,3 +52,28 @@ func TestProtectedResourceMetadataFallsBackToServerRoot(t *testing.T) {
 	require.Equal(t, []string{"http://127.0.0.1:1"}, prm.AuthorizationServers)
 	require.Equal(t, "http://127.0.0.1:1/mcp?x=1", prm.Resource)
 }
+
+func TestDiscoverOAuthRejectsInvalidURL(t *testing.T) {
+	_, err := discoverOAuth(
+		t.Context(),
+		nil,
+		"file:///etc/passwd",
+		"https://pear.example.com/cb",
+		nil,
+	)
+	require.ErrorIs(t, err, ErrInvalidServerURL)
+}
+
+func TestServerURLPattern(t *testing.T) {
+	for u, want := range map[string]bool{
+		"https://mcp.example.com":         true,
+		"https://mcp.example.com/mcp?x=1": true,
+		"http://localhost:8080/mcp":       true,
+		"https://u:p@mcp.example.com/mcp": false,
+		"ftp://mcp.example.com":           false,
+		"https:///mcp":                    false,
+		"https://mcp.example.com/a b":     false,
+	} {
+		require.Equal(t, want, serverURLPattern.MatchString(u), u)
+	}
+}

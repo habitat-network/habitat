@@ -80,6 +80,14 @@ func discoverOAuth(
 	serverURL, redirectURL string,
 	preregistered *preregisteredClient,
 ) (*oauthConfig, error) {
+	// Callers validate serverURL already; checking it again here, right
+	// before requesting it, lets static analysis (CodeQL's request-forgery
+	// query) see that the admin-supplied URL is checked. What it can reach is
+	// limited by client, which in pear only dials public addresses (see
+	// httpx.NewPublicClient).
+	if !serverURLPattern.MatchString(serverURL) {
+		return nil, ErrInvalidServerURL
+	}
 	challenges, err := probeChallenges(ctx, client, serverURL)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrOAuthDiscovery, err)

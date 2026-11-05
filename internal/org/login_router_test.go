@@ -219,8 +219,8 @@ func TestLoginRouterPDSFallback(t *testing.T) {
 
 		_, _, key, err := router.Authorize(t.Context(), unknown)
 		require.NoError(t, err)
-		// The PDS is asked to sign in any account, not a specific one.
-		require.Empty(t, pds.loginHint)
+		// The PDS is asked to sign in as the DID the login hint resolved to.
+		require.Equal(t, unknown.String(), pds.loginHint)
 
 		require.NoError(t, router.Exchange(t.Context(), unknown, url.Values{}, key))
 		require.Equal(t, 1, pds.exchanges)
@@ -232,7 +232,7 @@ func TestLoginRouterPDSFallback(t *testing.T) {
 
 		_, _, key, err := router.Authorize(t.Context(), unknown)
 		require.NoError(t, err)
-		require.Empty(t, pds.loginHint)
+		require.Equal(t, unknown.String(), pds.loginHint)
 		require.NoError(t, router.Exchange(t.Context(), unknown, url.Values{}, key))
 	})
 

@@ -192,22 +192,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		Path("/.well-known/atproto-did").
 		HandlerFunc(idServer.ServeHandle)
 
-	mux.HandleFunc("/admin/login", app.InstanceAdminServer.ServeLoginPage).Methods("GET")
-	mux.HandleFunc("/admin/login", app.InstanceAdminServer.HandleLogin).Methods("POST")
-	mux.HandleFunc("/admin/logout", app.InstanceAdminServer.HandleLogout).Methods("POST")
-	mux.HandleFunc("/admin", app.InstanceAdminServer.ServeAdminHome).Methods("GET")
-	mux.HandleFunc("/admin/config", app.InstanceAdminServer.ServeConfig).Methods("GET")
-	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", app.InstanceAdminServer.GetSettings)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.admin.updateSettings",
-		app.InstanceAdminServer.UpdateSettings,
-	)
-	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", app.InstanceAdminServer.IssueInvite)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.instance.describeInstance",
-		app.InstanceAdminServer.DescribeInstance,
-	)
-
 	hostPublicKey, err := app.HostKey.PublicKey()
 	if err != nil {
 		return fmt.Errorf("failed to get host public key: %w", err)

@@ -136,6 +136,10 @@ func TestAddServerValidation(t *testing.T) {
 			mcpgateway.NewServer{Name: "x", URL: "not a url", AuthType: "manual"},
 			mcpgateway.ErrInvalidServerURL,
 		},
+		"url with credentials": {
+			mcpgateway.NewServer{Name: "x", URL: "https://u:p@x.example.com", AuthType: "manual"},
+			mcpgateway.ErrInvalidServerURL,
+		},
 		"bad auth type": {
 			mcpgateway.NewServer{Name: "x", URL: "https://x.example.com", AuthType: "magic"},
 			mcpgateway.ErrInvalidAuthType,

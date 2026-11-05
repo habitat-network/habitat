@@ -122,9 +122,15 @@ func validateServerName(name string) error {
 	return nil
 }
 
+// serverURLPattern matches an absolute http(s) URL with a host and no
+// userinfo (credentials belong in the OAuth client or the members' tokens, not
+// the URL).
+var serverURLPattern = regexp.MustCompile(`^https?://[^/?#@\s]+(?:[/?#]\S*)?$`)
+
 func validateServerURL(serverURL string) error {
 	u, err := url.Parse(serverURL)
-	if err != nil || !u.IsAbs() || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	if err != nil || !u.IsAbs() || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+		!serverURLPattern.MatchString(serverURL) {
 		return ErrInvalidServerURL
 	}
 	return nil

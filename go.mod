@@ -5,7 +5,7 @@ go 1.26.3
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
 	github.com/dslipak/pdf v0.0.2
-	github.com/dunglas/httpsfv v1.1.0
+	github.com/dunglas/httpsfv v1.1.2
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-querystring v1.1.0
@@ -259,7 +259,6 @@ require (
 )
 
 require (
-	github.com/alexedwards/argon2id v1.0.0
 	github.com/bradenaw/juniper v0.15.3
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

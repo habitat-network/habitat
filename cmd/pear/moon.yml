@@ -6,11 +6,12 @@ tasks:
     - pear-pages:build
   # Applies pending migrations to the local database; the server doesn't migrate on startup.
   migrate:
-    # Runs from the workspace root like the air-run server, so both use the same default SQLite file.
+    # Runs from the project directory like the air-run dev server, so both use
+    # the same default SQLite file (cmd/pear/repo.db).
     command: go
     args:
     - run
-    - ./cmd/pear
+    - .
     - migrate
     env: &devEnv
       HABITAT_PORT: '8000'
@@ -32,21 +33,21 @@ tasks:
       # Allow MCP servers running on this machine.
       HABITAT_MCP_ALLOW_PRIVATE_NETWORKS: 'true'
     options:
-      runFromWorkspaceRoot: true
       envFile:
       - /dev.env
     preset: utility
   # Runs a pear task against the local database (backfills and other operator-run work):
   #   moon run pear:run -- <task> [args]
   run:
+    # Runs from the project directory like pear:migrate and pear:dev, so it
+    # opens the same default SQLite file.
     command: go
     args:
     - run
-    - ./cmd/pear
+    - .
     - run
     env: *devEnv
     options:
-      runFromWorkspaceRoot: true
       envFile:
       - /dev.env
     preset: utility
