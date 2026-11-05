@@ -73,7 +73,8 @@ Shared/infra:
 - `api-docs/` — Docusaurus site rendering the generated OpenAPI spec as API reference docs
 - `website/` — marketing site (Astro); not Moon-managed, pnpm workspace member only
 - `templates/web-app` — Moon generator template for scaffolding new TanStack/Vite apps (`moon generate web-app`)
-- `integration/` — separate Go module with end-to-end tests against a live `pear` instance via testcontainers; runs only via manual `workflow_dispatch` (not part of `moon ci`)
+- `e2e/` — Playwright end-to-end tests (TypeScript) against a real `pear` started with testcontainers; `harness/` holds the fixtures, page objects and seed data, `tests/` the specs. Runs via `moon run e2e:test` and the `Integration Tests` workflow (not part of `moon ci`)
+- `integration/` — separate Go module that now only holds the manually-run `mcp-evals` CLI
 - `docs/superpowers/` — in-progress design specs and plans
 - `infra/docker-compose.yml` — local Postgres for development
 
