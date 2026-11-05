@@ -16,7 +16,6 @@ import (
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	sap_testutil "github.com/habitat-network/habitat/pkg/sap/testutil"
 
-	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -133,7 +132,7 @@ func TestSap(t *testing.T) {
 				habitat_syntax.SpaceURI(input.Space).URI(),
 				syntax.DID(input.Repo),
 				syntax.TID(input.RepoRev),
-				input.Hash,
+				input.Data,
 				syntax.TID(input.SpaceRev),
 				syntax.TID(input.PrevSpaceRev),
 			))
@@ -374,10 +373,9 @@ func TestSapTrackSpace(t *testing.T) {
 	require.Equal(t, int64(1), repoCount)
 }
 
-// TestSapSpaceCredential verifies SpaceCredential mints, through a session
-// with recorded access to the space, a credential the space's host accepts for
-// a read — here a caller other than the session itself (no DID of its own)
-// reading a record with it.
+// TestSapSpaceCredential verifies sap's credential manager mints, through a
+// session with recorded access to the space, a key-bound credential the
+// space's host accepts for a signed read.
 func TestSapSpaceCredential(t *testing.T) {
 	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -438,15 +436,10 @@ func TestSapSpaceCredential(t *testing.T) {
 	}))
 	require.NoError(t, s.TrackSpace(t.Context(), space.URI(), author, "sess1"))
 
-	cred, err := s.SpaceCredential(t.Context(), space)
+	client, err := s.credentials.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
-	require.Equal(t, pear.server.URL, cred.Host)
+	require.Equal(t, pear.server.URL, client.Host)
 
-	client := &atclient.APIClient{
-		Client:  http.DefaultClient,
-		Host:    cred.Host,
-		Headers: http.Header{"Authorization": []string{"Bearer " + cred.Token}},
-	}
 	var out habitat.NetworkHabitatSpaceGetRecordOutput
 	require.NoError(t, client.Get(t.Context(), "network.habitat.space.getRecord", map[string]any{
 		"space":      space.URI().String(),
@@ -600,8 +593,7 @@ func setupPear(t *testing.T) *pearHost {
 	notifyStore, err := notify.NewStore(db)
 	require.NoError(t, err)
 
-	// Managed authors sign with their own hive keys.
-	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.WithMemberSigner(orgHive))
+	spacesStore := spaces_testutil.NewTestStore(t)
 
 	require.NoError(t, err)
 
@@ -615,8 +607,8 @@ func setupPear(t *testing.T) *pearHost {
 	// tests publish sap's service into.
 	dir := identity.NewMockDirectory()
 	// The pear host serves its spaces surface through the consolidated
-	// PearServer (via its test util), sharing the member-signer store and
-	// orgHive so managed authors sign with their own hive keys.
+	// PearServer (via its test util), sharing orgHive so managed authors'
+	// commit MACs are keyed by their own hive KEM keys.
 	ts := pearserver_testutil.NewTestServer(t,
 		pearserver_testutil.WithDB(db),
 		pearserver_testutil.WithSpaceStore(spacesStore),

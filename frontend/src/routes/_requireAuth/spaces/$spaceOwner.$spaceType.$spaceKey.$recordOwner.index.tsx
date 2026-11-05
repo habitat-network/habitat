@@ -144,14 +144,14 @@ function MemberRecords() {
   );
 }
 
-// LatestCommitCard shows the host-signed commit over this repo's state in the
-// space: the revision it covers, and the raw crypto material behind it.
+// LatestCommitCard shows the commit over this repo's state in the
+// space: the revision it covers, and the digest of that state.
 function LatestCommitCard({ commit }: { commit: SpaceCommit | null }) {
   if (!commit) {
     return (
       <Card>
         <CardContent className="py-6 text-center text-sm text-muted-foreground">
-          No signed commit for this repo in this space yet.
+          No commit for this repo in this space yet.
         </CardContent>
       </Card>
     );
@@ -168,10 +168,7 @@ function LatestCommitCard({ commit }: { commit: SpaceCommit | null }) {
       </CardHeader>
       <CardContent>
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
-          <CommitField label="Hash" value={commit.hash} />
-          <CommitField label="MAC" value={commit.mac} />
-          <CommitField label="IKM" value={commit.ikm} />
-          <CommitField label="Signature" value={commit.sig} />
+          <CommitField label="Data" value={commit.data} />
         </dl>
       </CardContent>
     </Card>
@@ -179,7 +176,7 @@ function LatestCommitCard({ commit }: { commit: SpaceCommit | null }) {
 }
 
 // uint8ArrayToBase64 re-encodes a decoded lexicon bytes field back to base64
-// for display. Commit fields are small fixed-size digests/signatures, so a
+// for display. Commit fields are small fixed-size digests, so a
 // plain loop is fine — no need to pull in a chunked/streaming encoder.
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -230,7 +227,7 @@ function CollectionSection({
       });
     },
     async onSuccess() {
-      // Deleting a record moves the repo's head, so the signed commit shown
+      // Deleting a record moves the repo's head, so the commit shown
       // above the collections is stale too.
       await Promise.all([
         queryClient.invalidateQueries(

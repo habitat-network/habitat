@@ -18,7 +18,7 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
   repo: /*#__PURE__*/ l.string({ format: 'did' }),
   repoRev: /*#__PURE__*/ l.string({ format: 'tid' }),
-  hash: /*#__PURE__*/ l.bytes(),
+  data: /*#__PURE__*/ l.bytes(),
   spaceRev: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'tid' })),
   prevSpaceRev: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string({ format: 'tid' }),

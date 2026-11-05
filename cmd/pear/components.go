@@ -231,12 +231,19 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		slog.InfoContext(ctx, "google login provider enabled")
 	}
 
-	// Habitat's single host signing key signs permissioned-repo commits for repo
-	// owners on external PDSes (habitat-managed owners sign with their own hive
-	// key instead). Optional: if unset, host-signed commits are omitted.
+	// Habitat's single host signing key signs delegation tokens and space
+	// credentials.
 	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
 	if err != nil {
 		return nil, fmt.Errorf("parse space-host signing key: %w", err)
+	}
+	// The host's KEM key keys permissioned-repo commit MACs for repo owners on
+	// external PDSes (habitat-managed owners use their own hive KEM key
+	// instead). It is derived from the host key rather than configured, so it
+	// needs no secret of its own, but is a dedicated key all the same.
+	hostKEMKey, err := spacecommit.DeriveKEMKey(hostKey)
+	if err != nil {
+		return nil, fmt.Errorf("derive host kem key: %w", err)
 	}
 
 	notifyStore, err := notify.NewStore(database.WithContext(ctx))
@@ -277,7 +284,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	spacesStore, err := spaces.NewStore(
 		database.WithContext(ctx),
 		notifiers,
-		spacecommit.NewAuthority(hostKey, hive),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("setup spaces store: %w", err)
@@ -341,12 +347,14 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	}
 
 	permStore := perms.NewStore(database, spacesStore, fgaStore, opensocialStore)
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
+	credentialRevocations := authn.NewCredentialRevocations(
+		kv.Namespace("space_credential_revoked"),
+	)
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, credentialRevocations)
 	validator := authn.NewValidator(
 		oauthServer,
 		serviceAuth,
 		spaceCredential,
-		authn.NewDelegationTokenAuthMethod(hiveDir, permStore, hostKey),
 		permStore,
 	)
 
@@ -403,7 +411,9 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		orgStore,
 		emailDomainStore,
 		hostKey,
+		hostKEMKey,
 		notifyStore,
+		notifier,
 		blobBucket,
 		blobStore,
 		spacesStore,
@@ -414,6 +424,8 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		cliqueStore,
 		permStore,
 		validator,
+		credentialRevocations,
+		kv.Namespace("space_delegation_spent"),
 		simpleStore,
 		nangoClient,
 		mcpGatewayStore,

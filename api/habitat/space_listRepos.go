@@ -23,8 +23,8 @@ type NetworkHabitatSpaceListReposOutput struct {
 // NetworkHabitatSpaceListReposRepo represents a repo object
 type NetworkHabitatSpaceListReposRepo struct {
 	LexiconTypeID string       `json:"$type"`
+	Data          atdata.Bytes `json:"data"`
 	Did           string       `json:"did"`
-	Hash          atdata.Bytes `json:"hash"`
 	RepoRev       string       `json:"repoRev"`
 	Rev           string       `json:"rev,omitempty"`
 	SpaceRev      string       `json:"spaceRev"`

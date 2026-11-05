@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+      "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and a response that includes the commit carries its MAC in the Atproto-Space-Mac response header.",
       "parameters": {
         "type": "params",
         "required": ["space", "repo"],
@@ -57,8 +57,8 @@
             },
             "commit": {
               "type": "ref",
-              "ref": "network.habitat.space.defs#signedCommit",
-              "description": "The account's current signed commit. Included when the response reaches the head of the oplog; omitted on backfill responses."
+              "ref": "network.habitat.space.defs#commit",
+              "description": "The account's current commit. Included when the response reaches the head of the oplog; omitted on backfill responses."
             },
             "cursor": {
               "type": "string"
@@ -70,7 +70,11 @@
         { "name": "SpaceNotFound" },
         { "name": "RepoTakendown" },
         { "name": "RepoSuspended" },
-        { "name": "RepoDeactivated" }
+        { "name": "RepoDeactivated" },
+        {
+          "name": "BadSpaceMac",
+          "description": "The Atproto-Space-Want-Mac header is missing or malformed, names an unsupported type or version, or carries an invalid key share."
+        }
       ]
     },
     "opEntry": {
@@ -79,7 +83,7 @@
       "required": ["rev", "collection", "rkey", "cid", "prev"],
       "nullable": ["cid", "prev"],
       "properties": {
-        "rev": { 
+        "rev": {
           "type": "string",
           "format": "tid"
         },

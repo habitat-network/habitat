@@ -290,27 +290,6 @@ func (s *server) handleTrackSpace(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleSpaceCredential returns a space credential for the space query param,
-// and the space host it is valid against, via Sap.SpaceCredential — minted
-// through whichever tracked session has recorded access to the space, so a
-// caller with no session of its own for the space (e.g. chalk reading a doc's
-// blob while handling an outbox webhook) can read the space's host directly.
-func (s *server) handleSpaceCredential(w http.ResponseWriter, r *http.Request) {
-	space, ok := httpx.ParseSpaceURIInput(r.Context(), w, r.URL.Query().Get("space"), "space")
-	if !ok {
-		return
-	}
-	cred, err := s.sap.SpaceCredential(r.Context(), space)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("space credential: %s", err), http.StatusBadGateway)
-		return
-	}
-	httpx.WriteJSON(r.Context(), w, map[string]string{
-		"credential": cred.Token,
-		"host":       cred.Host,
-	})
-}
-
 // handleRecrawl retriggers a crawl for a session via Sap.Recrawl, discarding
 // any progress from a previous crawl and re-running discovery from the top.
 // Internal endpoint, for operators to unstick a session whose crawl is stuck
@@ -359,7 +338,7 @@ func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 		Repo    string       `json:"repo"`
 		Rev     string       `json:"rev"`
 		RepoRev string       `json:"repoRev"`
-		Hash    atdata.Bytes `json:"hash"`
+		Data    atdata.Bytes `json:"data"`
 		// SpaceRev and PrevSpaceRev are the space host's revision sequence;
 		// absent from hosts that predate it.
 		SpaceRev     string `json:"spaceRev"`
@@ -405,9 +384,52 @@ func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.sap.NotifyWrite(
-		r.Context(), spaceURI, repoDID, rev, req.Hash, spaceRev, prevSpaceRev,
+		r.Context(), spaceURI, repoDID, rev, req.Data, spaceRev, prevSpaceRev,
 	); err != nil {
 		http.Error(w, fmt.Sprintf("notify write: %s", err), http.StatusInternalServerError)
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, map[string]string{})
+}
+
+// handleNotifySpaceDeleted receives network.habitat.space.notifySpaceDeleted
+// deliveries and drops everything sap holds for the space. The space host
+// retries a delivery until it gets a success or a permanent error, so a
+// failure to drop answers 500 to have it retried, and a space sap doesn't
+// track succeeds: deliveries can repeat.
+func (s *server) handleNotifySpaceDeleted(w http.ResponseWriter, r *http.Request) {
+	tokenStr, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok {
+		http.Error(w, "missing bearer token", http.StatusUnauthorized)
+		return
+	}
+	nsid := syntax.NSID("network.habitat.space.notifySpaceDeleted")
+	iss, err := s.notifyValidator.Validate(r.Context(), tokenStr, &nsid)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid service auth: %s", err), http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Space string `json:"space"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	space, ok := httpx.ParseSpaceURIInput(r.Context(), w, req.Space, "space")
+	if !ok {
+		return
+	}
+	// Only the space's authority may delete it; anyone else could otherwise
+	// wipe sap's copy of a space they merely know the URI of.
+	if iss.String() != space.SpaceOwner().String() {
+		http.Error(w, "issuer is not the space authority", http.StatusForbidden)
+		return
+	}
+
+	if err := s.sap.NotifySpaceDeleted(r.Context(), space.URI()); err != nil {
+		http.Error(w, fmt.Sprintf("notify space deleted: %s", err), http.StatusInternalServerError)
 		return
 	}
 	httpx.WriteJSON(r.Context(), w, map[string]string{})

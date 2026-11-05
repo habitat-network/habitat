@@ -8,6 +8,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -23,7 +24,7 @@ func (p *PearServer) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_, ok = p.validator.Request(
+	cred, ok := p.validator.Request(
 		authn.WithMethods(
 			authn.ValidatorMethodOAuth,
 			authn.ValidatorMethodServiceAuth,
@@ -38,6 +39,10 @@ func (p *PearServer) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	mac, ok := p.requestMAC(w, r, cred, repoDID, spacecommit.CommitMACType)
+	if !ok {
+		return
+	}
 
 	commit, err := p.spacesStore.RepoHeadCommit(ctx, spaceURI, repoDID)
 	if err != nil {
@@ -49,13 +54,17 @@ func (p *PearServer) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if httpx.IsComAtprotoRequest(r) {
-		signed := commit.ToComAtprotoXRPC()
-		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceGetLatestCommitOutput{Commit: signed})
+	if err := mac.setCommit(w, *commit); err != nil {
+		httpx.WriteServerError(ctx, w, err)
 		return
 	}
-	signed := commit.ToXRPC()
+	if httpx.IsComAtprotoRequest(r) {
+		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceGetLatestCommitOutput{
+			Commit: commit.ToComAtprotoXRPC(),
+		})
+		return
+	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetLatestCommitOutput{
-		Commit: &signed,
+		Commit: new(commit.ToXRPC()),
 	})
 }

@@ -16,7 +16,7 @@ type NetworkHabitatSpaceListRepoOpsParams struct {
 
 // NetworkHabitatSpaceListRepoOpsOutput represents the output for network.habitat.space.listRepoOps
 type NetworkHabitatSpaceListRepoOpsOutput struct {
-	Commit *NetworkHabitatSpaceDefsSignedCommit    `json:"commit,omitempty"`
+	Commit *NetworkHabitatSpaceDefsCommit          `json:"commit,omitempty"`
 	Cursor string                                  `json:"cursor,omitempty"`
 	Ops    []NetworkHabitatSpaceListRepoOpsOpEntry `json:"ops"`
 }

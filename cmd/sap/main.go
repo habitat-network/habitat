@@ -144,13 +144,16 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	// reachable since the user's PDS redirects to them, so they are served on
 	// their own port. The org and channel endpoints are served on a separate
 	// internal port so the user can restrict access to trusted services.
-	// The DID document and notifyWrite receiver are public too: space hosts
+	// The DID document and notification receivers are public too: space hosts
 	// resolve and deliver to them over the public network.
 	oauthMux := http.NewServeMux()
 	oauthMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
 	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
 	oauthMux.HandleFunc("/.well-known/did.json", server.handleDIDDoc)
 	oauthMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
+	oauthMux.HandleFunc(
+		"/xrpc/network.habitat.space.notifySpaceDeleted", server.handleNotifySpaceDeleted,
+	)
 
 	webhookURL := cmd.String(fWebhookURL)
 
@@ -160,7 +163,6 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux.HandleFunc("/session/list", server.handleListSessions)
 	internalMux.HandleFunc("/space/track", server.handleTrackSpace)
 	internalMux.HandleFunc("/session/recrawl", server.handleRecrawl)
-	internalMux.HandleFunc("/space/credential", server.handleSpaceCredential)
 	if webhookURL == "" {
 		// The outbox is single-consumer (see outbox.Outbox.Watch): once the
 		// webhook consumer is draining it, a /channel client polling the
@@ -208,6 +210,9 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		combinedMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
 		combinedMux.HandleFunc("/.well-known/did.json", server.handleDIDDoc)
 		combinedMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
+		combinedMux.HandleFunc(
+			"/xrpc/network.habitat.space.notifySpaceDeleted", server.handleNotifySpaceDeleted,
+		)
 		eg.Go(func() error {
 			return serve(ctx, fmt.Sprintf(":%s", port), combinedMux)
 		})

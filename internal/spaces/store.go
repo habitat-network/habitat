@@ -38,6 +38,18 @@ type space struct {
 	CreatedAt time.Time
 }
 
+// deletedSpace is a deleted space's tombstone. It outlives the space so that
+// getSpaceCredential keeps answering SpaceDeleted to syncers that missed the
+// notifySpaceDeleted, and so pending notifySpaceDeleted retries can tell a
+// space that is still deleted from one recreated since. Recreating the space
+// removes it.
+type deletedSpace struct {
+	Owner     syntax.DID              `gorm:"primaryKey"`
+	Type      syntax.NSID             `gorm:"primaryKey"`
+	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
+	DeletedAt time.Time
+}
+
 type spaceRecord struct {
 	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
@@ -146,6 +158,9 @@ type Store interface {
 		filterType *syntax.NSID,
 	) ([]habitat_syntax.SpaceURI, error)
 	CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
+	// IsSpaceDeleted reports whether the space was deleted and hasn't been
+	// recreated since. A space that never existed is not deleted.
+	IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
 
 	// Member operations
 	ListRepos(
@@ -170,6 +185,8 @@ type Store interface {
 	// never learn about it. hash is the repo's reported commit digest (not a
 	// raw LtHash state, since this host never computed it). Forwards the
 	// notification to any syncers registered for repo, same as a local write.
+	// A rev at or behind the repo's tracked rev is ignored: nothing is saved
+	// or forwarded.
 	RegisterRemoteWrite(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -213,7 +230,7 @@ type Store interface {
 		repo syntax.DID,
 		collection *syntax.NSID,
 	) ([]Record, error)
-	// RepoSnapshot returns a repo's signed head commit together with its record
+	// RepoSnapshot returns a repo's head commit together with its record
 	// blocks, read as of the same point: on Postgres both reads happen inside
 	// the same advisory-locked transaction PutRecord/DeleteRecord use, so a
 	// concurrent write cannot land between them, and the commit is built from
@@ -223,7 +240,7 @@ type Store interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
-	) (commit *spacecommit.SignedCommit, blocks []recordBlock, err error)
+	) (commit *spacecommit.Commit, blocks []recordBlock, err error)
 	DeleteRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -258,18 +275,18 @@ type Store interface {
 	//
 	// ListRepoOps returns a repo's operations within a space after a given
 	// revision, ordered by revision ascending, for incremental sync. When this
-	// page reaches the head of the oplog, commit is the signed commit over
+	// page reaches the head of the oplog, commit is the commit over
 	// exactly the state these ops leave the caller at — the head is read inside
 	// the same locked transaction as the ops, so it can never describe a write
 	// that landed between the two reads. commit is nil when the page does not
-	// reach the head, or the repo has no records to sign a commit over.
+	// reach the head, or the repo has no records to commit over.
 	ListRepoOps(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
 		since string,
 		limit int,
-	) (ops []Record, commit *spacecommit.SignedCommit, err error)
+	) (ops []Record, commit *spacecommit.Commit, err error)
 
 	// RepoHead returns a repo's current head revision and LtHash commit hash.
 	// found is false when the repo holds no records in the space.
@@ -286,13 +303,13 @@ type Store interface {
 	// compare it with their own cursor to find repos they are behind on.
 	ListRepoHeads(ctx context.Context) ([]RepoHead, error)
 
-	// RepoHeadCommit returns the signed commit over a repo's current head
+	// RepoHeadCommit returns the commit over a repo's current head
 	// state. commit is nil when the repo holds no records in the space.
 	RepoHeadCommit(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
-	) (commit *spacecommit.SignedCommit, err error)
+	) (commit *spacecommit.Commit, err error)
 
 	// WithTx returns a copy of the store scoped to the given transaction, so its
 	// DB writes participate in a caller-managed transaction. FGA writes are not
@@ -391,24 +408,20 @@ type store struct {
 	db       *gorm.DB
 	clock    *syntax.TIDClock
 	notifier Notifier
-	commit   *spacecommit.Authority
 }
 
 var _ Store = &store{}
 
 // NewStore creates a spaces store. notifier may be nil to disable notifyWrite
-// delivery. commit signs the repo-head commits RepoSnapshot, ListRepoOps, and
-// RepoHeadCommit build.
+// delivery.
 func NewStore(
 	db *gorm.DB,
 	notifier Notifier,
-	commit *spacecommit.Authority,
 ) (*store, error) {
 	return &store{
 		db:       db,
 		clock:    syntax.NewTIDClock(0),
 		notifier: notifier,
-		commit:   commit,
 	}, nil
 }
 
@@ -418,7 +431,6 @@ func (s *store) WithTx(tx *gorm.DB) Store {
 		db:       tx,
 		clock:    s.clock,
 		notifier: s.notifier,
-		commit:   s.commit,
 	}
 }
 
@@ -440,13 +452,25 @@ func (s *store) CreateSpace(
 
 	uri := habitat_syntax.ConstructSpaceURI(authority, spaceType, skey)
 	span.SetAttributes(telemetry.Space(uri))
-	err = s.db.WithContext(ctx).Create(&space{
-		Owner: authority,
-		Type:  spaceType,
-		Skey:  skey,
-	}).Error
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&space{
+			Owner: authority,
+			Type:  spaceType,
+			Skey:  skey,
+		}).Error; err != nil {
+			return err
+		}
+		// Recreating a deleted space makes it a new space: it no longer
+		// answers SpaceDeleted, and pending deletion notices for the old one
+		// stop rather than purge syncers' copies of this one.
+		return tx.
+			Where("owner = ? AND type = ? AND skey = ?", authority, spaceType, skey).
+			Delete(&deletedSpace{}).Error
+	})
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return "", ErrSpaceAlreadyExists
+	} else if err != nil {
+		return "", err
 	}
 
 	return uri, nil
@@ -492,6 +516,19 @@ func (s *store) CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceUR
 	}
 
 	return true, nil
+}
+
+// IsSpaceDeleted implements [Store].
+func (s *store) IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).
+		Model(&deletedSpace{}).
+		Where("owner = ? AND type = ? AND skey = ?", uri.SpaceOwner(), uri.SpaceType(), uri.Skey()).
+		Count(&count).Error
+	if err != nil {
+		return false, fmt.Errorf("check space deleted: %w", err)
+	}
+	return count > 0, nil
 }
 
 // spaceURIPattern builds a LIKE pattern matching the stored space URIs with the
@@ -704,11 +741,22 @@ func (s *store) RegisterRemoteWrite(
 	}
 
 	var prevSpaceRev, spaceRev syntax.TID
+	stale := false
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
 		}
-		var err error
+		// Revs are TIDs, which sort lexically in time order. A notification
+		// at or behind the repo's tracked rev is late or replayed: ignore it
+		// rather than roll the repo back, per the spaces proposal.
+		var current spaceRepo
+		err := tx.Where("space = ? AND repo = ?", uri, repo).First(&current).Error
+		if err == nil && current.Rev >= rev {
+			stale = true
+			return nil
+		} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("load repo: %w", err)
+		}
 		prevSpaceRev, spaceRev, err = s.advanceSpaceRev(tx, uri)
 		if err != nil {
 			return err
@@ -717,6 +765,9 @@ func (s *store) RegisterRemoteWrite(
 	})
 	if err != nil {
 		return fmt.Errorf("register remote write: %w", err)
+	}
+	if stale {
+		return nil
 	}
 
 	// Best-effort: forward to registered syncers, same as a local write.
@@ -1009,7 +1060,7 @@ func (s *store) RepoSnapshot(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
-) (commit *spacecommit.SignedCommit, blocks []recordBlock, err error) {
+) (commit *spacecommit.Commit, blocks []recordBlock, err error) {
 	ctx, span := tracer.Start(ctx, "spaces.RepoSnapshot", trace.WithAttributes(
 		telemetry.Space(uri),
 		telemetry.Repo(repo),
@@ -1066,11 +1117,8 @@ func (s *store) RepoSnapshot(
 	if revision == "" {
 		return nil, nil, nil
 	}
-	signed, err := s.commit.Build(ctx, uri, repo, revision, hash)
-	if err != nil {
-		return nil, nil, fmt.Errorf("build commit: %w", err)
-	}
-	return &signed, blocks, nil
+	commit = new(spacecommit.New(uri, repo, revision, hash))
+	return commit, blocks, nil
 }
 
 func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (err error) {
@@ -1113,12 +1161,24 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 			return ErrSpaceNotFound
 		}
 
-		return nil
+		// Keep a tombstone so the space answers SpaceDeleted from now on.
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "owner"}, {Name: "type"}, {Name: "skey"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{"deleted_at"}),
+		}).Create(&deletedSpace{
+			Owner:     uri.SpaceOwner(),
+			Type:      uri.SpaceType(),
+			Skey:      uri.Skey(),
+			DeletedAt: time.Now(),
+		}).Error
 	})
 	if err != nil {
 		return err
 	}
-	// Best-effort: tell registered syncers the space is gone.
+	// Tell registered syncers the space is gone. The notifier persists and
+	// retries the deliveries; see notify.Deliverer.
 	s.notifier.NotifySpaceDeleted(ctx, uri)
 	return nil
 }
@@ -1129,7 +1189,7 @@ func (s *store) ListRepoOps(
 	repo syntax.DID,
 	since string,
 	limit int,
-) (records []Record, commit *spacecommit.SignedCommit, err error) {
+) (records []Record, commit *spacecommit.Commit, err error) {
 	ctx, span := tracer.Start(ctx, "spaces.ListRepoOps", trace.WithAttributes(
 		telemetry.Space(uri),
 		telemetry.Repo(repo),
@@ -1202,11 +1262,7 @@ func (s *store) ListRepoOps(
 		}
 	}
 	if len(rows) < limit && headFound {
-		signed, err := s.commit.Build(ctx, uri, repo, headRev.String(), headHash)
-		if err != nil {
-			return nil, nil, fmt.Errorf("build commit: %w", err)
-		}
-		commit = &signed
+		commit = new(spacecommit.New(uri, repo, headRev.String(), headHash))
 	}
 	return records, commit, nil
 }
@@ -1247,7 +1303,7 @@ func (s *store) RepoHeadCommit(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
-) (commit *spacecommit.SignedCommit, err error) {
+) (commit *spacecommit.Commit, err error) {
 	rev, hash, found, err := s.RepoHead(ctx, uri, repo)
 	if err != nil {
 		return nil, err
@@ -1255,11 +1311,7 @@ func (s *store) RepoHeadCommit(
 	if !found {
 		return nil, nil
 	}
-	signed, err := s.commit.Build(ctx, uri, repo, rev, hash)
-	if err != nil {
-		return nil, fmt.Errorf("build commit: %w", err)
-	}
-	return &signed, nil
+	return new(spacecommit.New(uri, repo, rev, hash)), nil
 }
 
 func (s *store) DeleteRecord(
@@ -1591,5 +1643,5 @@ func (s *store) ApplyWrites(
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}}
+	return []any{&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}, &deletedSpace{}}
 }

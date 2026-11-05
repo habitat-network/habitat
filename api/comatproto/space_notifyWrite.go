@@ -6,7 +6,7 @@ import "github.com/bluesky-social/indigo/atproto/atdata"
 
 // ComAtprotoSpaceNotifyWriteInput represents the input for com.atproto.space.notifyWrite
 type ComAtprotoSpaceNotifyWriteInput struct {
-	Hash         atdata.Bytes `json:"hash"`
+	Data         atdata.Bytes `json:"data"`
 	PrevSpaceRev string       `json:"prevSpaceRev,omitempty"`
 	Repo         string       `json:"repo"`
 	RepoRev      string       `json:"repoRev"`

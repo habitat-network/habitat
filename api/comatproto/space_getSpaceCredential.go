@@ -5,6 +5,8 @@ package comatproto
 // ComAtprotoSpaceGetSpaceCredentialInput represents the input for com.atproto.space.getSpaceCredential
 type ComAtprotoSpaceGetSpaceCredentialInput struct {
 	ClientAttestation string `json:"clientAttestation,omitempty"`
+	CredentialKid     string `json:"credentialKid"`
+	DelegationToken   string `json:"delegationToken,omitempty"`
 	Space             string `json:"space"`
 }
 

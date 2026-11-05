@@ -440,6 +440,32 @@ func TestListRepos_RemoteWrite(t *testing.T) {
 	require.NotEqual(t, digest, byDID[owner].Hash)
 }
 
+// TestRegisterRemoteWrite_IgnoresStaleRev verifies a notification at or
+// behind the tracked rev doesn't roll the repo back or advance the space rev.
+func TestRegisterRemoteWrite_IgnoresStaleRev(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	newer := []byte(strings.Repeat("n", 32))
+	require.NoError(t, s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev2", newer))
+	spaceRev, _, err := s.ListReposSince(t.Context(), uri, "")
+	require.NoError(t, err)
+
+	for _, rev := range []syntax.TID{"3lrev1", "3lrev2"} {
+		err = s.RegisterRemoteWrite(t.Context(), uri, alice, rev, []byte(strings.Repeat("o", 32)))
+		require.NoError(t, err)
+	}
+
+	gotSpaceRev, repos, err := s.ListReposSince(t.Context(), uri, "")
+	require.NoError(t, err)
+	require.Equal(t, spaceRev, gotSpaceRev)
+	require.Len(t, repos, 1)
+	require.Equal(t, "3lrev2", repos[0].Rev)
+	require.Equal(t, newer, repos[0].Hash)
+}
+
 func TestRegisterRemoteWrite_SpaceNotFound(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
@@ -962,6 +988,39 @@ func TestDeleteSpace(t *testing.T) {
 	records, err := s.ListRecords(t.Context(), uri, owner, nil)
 	require.NoError(t, err)
 	require.Len(t, records, 0)
+}
+
+func TestDeleteSpace_TombstoneUntilRecreated(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "tombstone")
+	require.NoError(t, err)
+	deleted, err := s.IsSpaceDeleted(t.Context(), uri)
+	require.NoError(t, err)
+	require.False(t, deleted, "a live space is not deleted")
+
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+	deleted, err = s.IsSpaceDeleted(t.Context(), uri)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	// Recreating it under the same type and skey makes it a new space.
+	_, err = s.CreateSpace(t.Context(), orgID, groupType, "tombstone")
+	require.NoError(t, err)
+	deleted, err = s.IsSpaceDeleted(t.Context(), uri)
+	require.NoError(t, err)
+	require.False(t, deleted)
+
+	// And deleting it again leaves a fresh tombstone.
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+	deleted, err = s.IsSpaceDeleted(t.Context(), uri)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	never := habitat_syntax.ConstructSpaceURI(orgID, groupType, "never")
+	deleted, err = s.IsSpaceDeleted(t.Context(), never)
+	require.NoError(t, err)
+	require.False(t, deleted, "a space that never existed is not deleted")
 }
 
 func TestDeleteSpace_NonExistent(t *testing.T) {
@@ -1559,7 +1618,10 @@ func TestSpaceRevSequencesWrites(t *testing.T) {
 	put(owner, "a")
 	put(alice, "b")
 	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "a"))
-	require.NoError(t, s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev", []byte("d")))
+	require.NoError(
+		t,
+		s.RegisterRemoteWrite(t.Context(), uri, alice, syntax.NewTIDNow(0), []byte("d")),
+	)
 
 	// Each write advances the space revision, and names the revision it
 	// replaced as its previous one, so a receiver can spot a gap.

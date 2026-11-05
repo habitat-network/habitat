@@ -60,7 +60,7 @@ func (p *PearServer) ListRepos(w http.ResponseWriter, r *http.Request) {
 		for i, repo := range repos {
 			views[i] = comatproto.ComAtprotoSpaceListReposRepo{
 				Did:      repo.DID.String(),
-				Hash:     repo.Hash,
+				Data:     repo.Hash,
 				RepoRev:  repo.Rev,
 				SpaceRev: repo.SpaceRev.String(),
 			}
@@ -76,7 +76,7 @@ func (p *PearServer) ListRepos(w http.ResponseWriter, r *http.Request) {
 		repoViews[i] = habitat.NetworkHabitatSpaceListReposRepo{
 			Did:      r.DID.String(),
 			Rev:      r.Rev,
-			Hash:     r.Hash,
+			Data:     r.Hash,
 			RepoRev:  r.Rev,
 			SpaceRev: r.SpaceRev.String(),
 		}

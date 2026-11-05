@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
+import { notificationErrorStatus } from "internal/spaceSync";
 import { notifySpaceDeleted, notifyWrite } from "@/server/sync";
 
 // Inbound space notifications from space hosts. The body and Authorization
@@ -28,9 +29,12 @@ export const Route = createFileRoute("/xrpc/$nsid")({
               return xrpcError(501, "MethodNotImplemented", params.nsid);
           }
         } catch (err) {
+          // Space authorities retry a notification on 5xx and give up on
+          // 4xx, so only a rejected caller or a malformed body is a 4xx.
+          const status = notificationErrorStatus(err);
           return xrpcError(
-            401,
-            "AuthenticationRequired",
+            status,
+            XRPC_ERRORS[status],
             err instanceof Error ? err.message : String(err),
           );
         }
@@ -39,6 +43,12 @@ export const Route = createFileRoute("/xrpc/$nsid")({
     },
   },
 });
+
+const XRPC_ERRORS = {
+  400: "InvalidRequest",
+  401: "AuthenticationRequired",
+  500: "InternalServerError",
+} as const;
 
 function xrpcError(status: number, error: string, message: string) {
   return Response.json({ error, message }, { status });
