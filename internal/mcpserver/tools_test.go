@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/mcpgateway"
@@ -372,4 +373,34 @@ func TestMCPServerToolsCall_UnreachableConnectedServer(t *testing.T) {
 	_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "linear:ping"})
 	require.ErrorContains(t, err, "not connected")
 	require.Contains(t, toolNames(t, session), "get_record")
+}
+
+// Connected servers' tools are listed in the order the servers are, however
+// long each takes to list.
+func TestMCPServerToolsList_KeepsServerOrder(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+
+	servers := newFakeConnectedServers()
+	names := []mcpgateway.ServerName{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+	for _, name := range names {
+		servers.connect(caller, testOrg, name, newFakeMCPServer(t).URL, nil)
+	}
+	httpServer := newConnectedServerTestServer(t, servers)
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	var pings []string
+	for _, name := range toolNames(t, session) {
+		if strings.HasSuffix(name, ":ping") {
+			pings = append(pings, name)
+		}
+	}
+	want := make([]string, len(names))
+	for i, name := range names {
+		want[i] = string(name) + ":ping"
+	}
+	require.Equal(t, want, pings)
 }

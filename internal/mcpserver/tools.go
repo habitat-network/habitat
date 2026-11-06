@@ -14,6 +14,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -555,24 +556,47 @@ func mergeConnectedToolsMiddleware(
 			servers := listConnectedServers(
 				ctx, connectedServers, extra.TokenInfo.UserID, org,
 			)
-			for _, server := range servers {
-				tools, err := listToolsForServer(ctx, server)
-				if err != nil {
-					slog.WarnContext(
-						ctx, "mcp: listing tools for connected server",
-						"server", server.name, "err", err,
-					)
-					continue
-				}
+			for i, tools := range listToolsForServers(ctx, servers) {
 				for _, tool := range tools {
 					namespaced := *tool
-					namespaced.Name = namespaceTool(server.name, tool.Name)
+					namespaced.Name = namespaceTool(servers[i].name, tool.Name)
 					listResult.Tools = append(listResult.Tools, &namespaced)
 				}
 			}
 			return listResult, nil
 		}
 	}
+}
+
+// maxConcurrentToolLists bounds how many connected servers one tools/list
+// lists the tools of at once.
+const maxConcurrentToolLists = 8
+
+// listToolsForServers lists each of servers' tools, unnamespaced, in the
+// same order as servers. Each server is a round trip or more (connecting,
+// maybe refreshing a token, listing), so they're listed concurrently, and
+// tools/list takes as long as the slowest rather than all of them together. A
+// server that can't be listed is logged and has no tools.
+func listToolsForServers(ctx context.Context, servers []connectedServer) [][]*mcp.Tool {
+	out := make([][]*mcp.Tool, len(servers))
+	var g errgroup.Group
+	g.SetLimit(maxConcurrentToolLists)
+	for i, server := range servers {
+		g.Go(func() error {
+			tools, err := listToolsForServer(ctx, server)
+			if err != nil {
+				slog.WarnContext(
+					ctx, "mcp: listing tools for connected server",
+					"server", server.name, "err", err,
+				)
+				return nil
+			}
+			out[i] = tools
+			return nil
+		})
+	}
+	_ = g.Wait()
+	return out
 }
 
 // listToolsForServer connects to server and lists its tools, unnamespaced.
