@@ -8,6 +8,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -116,4 +117,40 @@ func TestStoredTokenNeedsRefresh(t *testing.T) {
 	require.False(t, (&storedToken{Expiry: time.Now().Add(time.Hour)}).needsRefresh())
 	require.True(t, (&storedToken{Expiry: time.Now().Add(time.Second)}).needsRefresh())
 	require.True(t, (&storedToken{Expiry: time.Now().Add(-time.Hour)}).needsRefresh())
+}
+
+// An expired access token without a refresh token can't be renewed, so the
+// member has to connect again; their tokens are left for them to replace.
+func TestRefreshWithoutRefreshToken(t *testing.T) {
+	fake := mcpgatewaytest.New(t)
+	did := syntax.DID("did:plc:alice")
+	s, row := newConnectedStore(t, fake, did)
+	require.NoError(t, s.putToken(t.Context(), row, did, &oauth2.Token{
+		AccessToken: "expired", TokenType: "Bearer", Expiry: time.Now().Add(-time.Hour),
+	}))
+
+	_, err := s.Downstream(t.Context(), did, row.OrgDID, row.Name)
+	require.ErrorIs(t, err, ErrNotConnected)
+	require.Zero(t, fake.RefreshCount())
+}
+
+// Whatever case the authorization server gives the token type in, the
+// downstream request carries a well-formed bearer Authorization header.
+func TestDownstreamTokenTypes(t *testing.T) {
+	fake := mcpgatewaytest.New(t)
+	did := syntax.DID("did:plc:alice")
+	s, row := newConnectedStore(t, fake, did)
+
+	for tokenType, want := range map[string]string{
+		"":       "Bearer x",
+		"bearer": "Bearer x",
+		"Bearer": "Bearer x",
+	} {
+		require.NoError(t, s.putToken(t.Context(), row, did, &oauth2.Token{
+			AccessToken: "x", TokenType: tokenType,
+		}))
+		d, err := s.Downstream(t.Context(), did, row.OrgDID, row.Name)
+		require.NoError(t, err)
+		require.Equal(t, want, d.Headers["Authorization"], tokenType)
+	}
 }

@@ -16,6 +16,8 @@ import (
 	"github.com/tmc/langchaingo/llms/fake"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
@@ -364,5 +366,57 @@ func TestServerLlmOpenAICompatibleAPI(t *testing.T) {
 			require.Equal(t, http.StatusBadGateway, w.Code)
 			require.Contains(t, w.Body.String(), "upstream boom")
 		}
+	})
+}
+
+// The OpenAI-compatible API serves an org's models only to its members, and
+// reports refusals in OpenAI's error format.
+func TestServerLlmOpenAICompatibleAPIAuth(t *testing.T) {
+	ts := newOpenSocialServer(t, admin)
+	orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+	require.NoError(t, err)
+	_, err = ts.LLMStore.Add(t.Context(), syntax.DID(orgDID), llmgateway.NewConnection{
+		Name: "gpt", Provider: llmgateway.ProviderOpenAI, Model: "gpt-4o", APIKey: "k",
+	})
+	require.NoError(t, err)
+
+	get := func(ts *pearserver_testutil.TestServer, org string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/llm/"+org+"/v1/models", http.NoBody)
+		w := httptest.NewRecorder()
+		ts.Server.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("a non-member is refused", func(t *testing.T) {
+		w := get(newOpenSocialServerAs(t, ts, bob, authn.ValidatorMethodOAuth), orgDID)
+		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Contains(t, w.Body.String(), `"code":"not_a_member"`)
+	})
+
+	t.Run("another org's models aren't listed", func(t *testing.T) {
+		otherDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "other", bob)
+		require.NoError(t, err)
+		w := get(newOpenSocialServerAs(t, ts, bob, authn.ValidatorMethodOAuth), otherDID)
+		require.Equal(t, http.StatusOK, w.Code)
+		var list llmgateway.ModelList
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &list))
+		require.Empty(t, list.Data)
+	})
+
+	t.Run("the org must be a DID", func(t *testing.T) {
+		w := get(ts, "acme.example.com")
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		require.Contains(t, w.Body.String(), `"code":"invalid_org"`)
+	})
+
+	t.Run("an unauthenticated caller is refused", func(t *testing.T) {
+		unauthed := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithDB(ts.DB),
+			pearserver_testutil.WithFGA(ts.FGA),
+			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
+			pearserver_testutil.WithValidator(authntest.NewFailureValidator()),
+		)
+		w := get(unauthed, orgDID)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }

@@ -74,7 +74,7 @@ func (f *fakeConnectedServers) Downstream(
 }
 
 // newFakeMCPServer stands in for a downstream MCP server the caller has
-// connected to, exposing a single "ping" tool.
+// connected to, exposing a "ping" tool and an "echo" tool.
 //
 // If authorization is given, requests without it as their Authorization
 // header are refused.
@@ -91,6 +91,23 @@ func newFakeMCPServer(t *testing.T, authorization ...string) *httptest.Server {
 		return nil, struct {
 			Message string `json:"message"`
 		}{Message: "pong"}, nil
+	})
+	type echoInput struct {
+		Text string `json:"text"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "echo",
+		Description: "Echoes text, failing on an empty one.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, in echoInput) (*mcp.CallToolResult, any, error) {
+		if in.Text == "" {
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{&mcp.TextContent{Text: "nothing to echo"}},
+			}, nil, nil
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: in.Text}},
+		}, nil, nil
 	})
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return srv
@@ -300,4 +317,59 @@ func countOf(names []string, name string) int {
 		}
 	}
 	return n
+}
+
+// Arguments reach the connected server as given, and its results, including
+// tool errors, come back as it sent them.
+func TestMCPServerToolsCall_PassesThroughArgumentsAndToolErrors(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+
+	fake := newFakeMCPServer(t)
+	servers := newFakeConnectedServers()
+	servers.connect(caller, testOrg, "cloudflare", fake.URL, nil)
+	httpServer := newConnectedServerTestServer(t, servers)
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "cloudflare:echo", Arguments: map[string]any{"text": "hello"},
+	})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	require.Equal(t, "hello", res.Content[0].(*mcp.TextContent).Text)
+
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "cloudflare:echo", Arguments: map[string]any{"text": ""},
+	})
+	require.NoError(t, err)
+	require.True(t, res.IsError)
+	require.Equal(t, "nothing to echo", res.Content[0].(*mcp.TextContent).Text)
+
+	// A tool the connected server doesn't have is its error to report.
+	_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "cloudflare:nope"})
+	require.Error(t, err)
+}
+
+// A call to a connected server pear can't reach on the caller's behalf (say
+// their sign-in expired) fails, without affecting pear's own tools.
+func TestMCPServerToolsCall_UnreachableConnectedServer(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+
+	fake := newFakeMCPServer(t)
+	servers := newFakeConnectedServers()
+	servers.connect(caller, testOrg, "linear", fake.URL, nil)
+	servers.unreachable["linear"] = mcpgateway.ErrNotConnected
+	httpServer := newConnectedServerTestServer(t, servers)
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "linear:ping"})
+	require.ErrorContains(t, err, "not connected")
+	require.Contains(t, toolNames(t, session), "get_record")
 }

@@ -273,7 +273,11 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	fail := s.failTokens
 	s.mu.Unlock()
 	if fail {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "temporarily_unavailable"})
+		writeJSON(
+			w,
+			http.StatusServiceUnavailable,
+			map[string]string{"error": "temporarily_unavailable"},
+		)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
