@@ -18,5 +18,5 @@
     "typescript": "catalog:",
     "vite": "catalog:"
   },
-  "packageManager": "pnpm@11.27.1"
+  "packageManager": "pnpm@11.28.11"
 }
