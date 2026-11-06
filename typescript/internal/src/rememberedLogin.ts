@@ -19,7 +19,7 @@ export interface RememberedLogin {
 // can see the cookie. The cookie value is base64url(JSON) + "." + signature;
 // only pear checks the signature, so treat the result as untrusted input.
 export function readRememberedLogin(
-  cookies: string = document.cookie,
+  cookies: string = typeof document === "undefined" ? "" : document.cookie,
 ): RememberedLogin | undefined {
   for (const part of cookies.split(";")) {
     const [name, ...rest] = part.trim().split("=");
