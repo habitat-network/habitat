@@ -234,10 +234,10 @@ func TestManualServer(t *testing.T) {
 	_, err = s.UpdateServer(t.Context(), org, "docs", mcpgateway.ServerUpdate{URL: &badURL})
 	require.ErrorIs(t, err, mcpgateway.ErrInvalidServerURL)
 
-	connected, err := s.ListConnectedServers(t.Context(), alice)
+	connected, err := s.ListConnectedServers(t.Context(), alice, org)
 	require.NoError(t, err)
 	require.Len(t, connected, 1)
-	connected, err = s.ListConnectedServers(t.Context(), nobody)
+	connected, err = s.ListConnectedServers(t.Context(), nobody, org)
 	require.NoError(t, err)
 	require.Empty(t, connected)
 
@@ -278,10 +278,10 @@ func TestOAuthServerConnectFlow(t *testing.T) {
 	listed, err = s.ListServers(t.Context(), org, bob)
 	require.NoError(t, err)
 	require.False(t, listed[0].Connected)
-	connected, err := s.ListConnectedServers(t.Context(), alice)
+	connected, err := s.ListConnectedServers(t.Context(), alice, org)
 	require.NoError(t, err)
 	require.Len(t, connected, 1)
-	connected, err = s.ListConnectedServers(t.Context(), bob)
+	connected, err = s.ListConnectedServers(t.Context(), bob, org)
 	require.NoError(t, err)
 	require.Empty(t, connected)
 
@@ -503,4 +503,26 @@ func TestDownstreamRefreshOutageKeepsConnection(t *testing.T) {
 	fake.FailTokenRequests(false)
 	_, err = s.Downstream(t.Context(), alice, org, "linear")
 	require.NoError(t, err)
+}
+
+// Members only reach the servers of orgs they belong to, one org at a time.
+func TestListConnectedServersIsPerOrg(t *testing.T) {
+	s := newStore(t)
+	other := syntax.DID("did:web:other.example.com")
+	for _, o := range []syntax.DID{org, other} {
+		_, err := s.AddServer(t.Context(), o, mcpgateway.NewServer{
+			Name: "docs", URL: "https://docs.example.com/mcp", AuthType: mcpgateway.AuthTypeManual,
+		})
+		require.NoError(t, err)
+	}
+
+	connected, err := s.ListConnectedServers(t.Context(), alice, org)
+	require.NoError(t, err)
+	require.Len(t, connected, 1)
+	require.Equal(t, org, connected[0].OrgID)
+
+	// alice isn't a member of other.
+	connected, err = s.ListConnectedServers(t.Context(), alice, other)
+	require.NoError(t, err)
+	require.Empty(t, connected)
 }

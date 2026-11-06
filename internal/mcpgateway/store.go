@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -195,10 +196,10 @@ type Store interface {
 	// returns ErrNotConnected if there are none.
 	DisconnectServer(ctx context.Context, did syntax.DID, orgID syntax.DID, name ServerName) error
 
-	// ListConnectedServers lists the servers did can reach: every manual
-	// server, and every OAuth server did has connected to, of every org did
-	// belongs to.
-	ListConnectedServers(ctx context.Context, did syntax.DID) ([]*Server, error)
+	// ListConnectedServers lists the servers of orgID that did can reach:
+	// every manual server, and every OAuth or token server did has connected
+	// to. It lists none if did isn't a member of orgID.
+	ListConnectedServers(ctx context.Context, did syntax.DID, orgID syntax.DID) ([]*Server, error)
 	// Downstream returns how to reach orgID's server name on did's behalf,
 	// refreshing did's access token if it's about to expire. It returns
 	// ErrNotConnected if did isn't connected to it.
@@ -645,25 +646,32 @@ func (s *store) DisconnectServer(
 	return s.deleteToken(ctx, orgID, name, did)
 }
 
-func (s *store) ListConnectedServers(ctx context.Context, did syntax.DID) ([]*Server, error) {
+func (s *store) ListConnectedServers(
+	ctx context.Context,
+	did syntax.DID,
+	orgID syntax.DID,
+) ([]*Server, error) {
 	memberSpaces, err := s.orgs.ListMemberSpaces(ctx, did)
 	if err != nil {
 		return nil, fmt.Errorf("list member spaces: %w", err)
 	}
+	if !slices.ContainsFunc(memberSpaces, func(space habitat_syntax.SpaceURI) bool {
+		return space.SpaceOwner() == orgID
+	}) {
+		return nil, nil
+	}
+	rows, err := s.listRows(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
 	var out []*Server
-	for _, space := range memberSpaces {
-		rows, err := s.listRows(ctx, space.SpaceOwner())
+	for i := range rows {
+		connected, err := s.connected(ctx, &rows[i], did)
 		if err != nil {
 			return nil, err
 		}
-		for i := range rows {
-			connected, err := s.connected(ctx, &rows[i], did)
-			if err != nil {
-				return nil, err
-			}
-			if connected {
-				out = append(out, rows[i].server())
-			}
+		if connected {
+			out = append(out, rows[i].server())
 		}
 	}
 	return out, nil

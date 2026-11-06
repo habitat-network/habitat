@@ -492,19 +492,23 @@ type connectedServer struct {
 	resolve func(ctx context.Context) (downstream, error)
 }
 
-// listConnectedServers lists caller's connected MCP servers (see
+// listConnectedServers lists caller's connected MCP servers in org (see
 // internal/mcpgateway). If they can't be listed, that's logged and none are
 // returned, so pear's own tools keep working.
+//
+// Only org's servers are listed: the endpoint is org's, and a server's name,
+// which namespaces its tools, is only unique within its org.
 func listConnectedServers(
 	ctx context.Context,
 	servers ConnectedServers,
 	caller string,
+	org syntax.DID,
 ) []connectedServer {
 	if servers == nil {
 		return nil
 	}
 	did := syntax.DID(caller)
-	listed, err := servers.ListConnectedServers(ctx, did)
+	listed, err := servers.ListConnectedServers(ctx, did, org)
 	if err != nil {
 		slog.WarnContext(ctx, "mcp: listing connected servers", "err", err)
 		return nil
@@ -526,11 +530,12 @@ func listConnectedServers(
 }
 
 // mergeConnectedToolsMiddleware merges every tool from the caller's
-// connected MCP servers into this server's own tools/list response,
+// connected MCP servers in org into this server's own tools/list response,
 // namespaced by server name. A server that can't be reached is skipped
 // rather than failing the whole listing.
 func mergeConnectedToolsMiddleware(
 	connectedServers ConnectedServers,
+	org syntax.DID,
 ) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
@@ -548,7 +553,7 @@ func mergeConnectedToolsMiddleware(
 			}
 
 			servers := listConnectedServers(
-				ctx, connectedServers, extra.TokenInfo.UserID,
+				ctx, connectedServers, extra.TokenInfo.UserID, org,
 			)
 			for _, server := range servers {
 				tools, err := listToolsForServer(ctx, server)
@@ -599,6 +604,7 @@ func listToolsForServer(ctx context.Context, server connectedServer) ([]*mcp.Too
 // own dispatch.
 func proxyConnectedToolCallMiddleware(
 	connectedServers ConnectedServers,
+	org syntax.DID,
 ) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
@@ -619,7 +625,7 @@ func proxyConnectedToolCallMiddleware(
 			}
 
 			servers := listConnectedServers(
-				ctx, connectedServers, extra.TokenInfo.UserID,
+				ctx, connectedServers, extra.TokenInfo.UserID, org,
 			)
 			for _, server := range servers {
 				if server.name == serverName {
