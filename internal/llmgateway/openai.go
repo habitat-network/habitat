@@ -560,20 +560,6 @@ func toolCalls(choice *llms.ContentChoice, names ToolNames) []ToolCall {
 	return calls
 }
 
-// ToolCallChunks are choice's tool calls, as a streamed chunk carries them.
-// names are the request's tool names.
-func ToolCallChunks(choice *llms.ContentChoice, names ToolNames) []ChunkToolCall {
-	calls := toolCalls(choice, names)
-	if len(calls) == 0 {
-		return nil
-	}
-	chunks := make([]ChunkToolCall, len(calls))
-	for i, call := range calls {
-		chunks[i] = ChunkToolCall{Index: i, ID: call.ID, Type: call.Type, Function: call.Function}
-	}
-	return chunks
-}
-
 // FinishReason normalizes choice's provider-specific stop reason to OpenAI's:
 // stop, length, tool_calls or content_filter.
 func FinishReason(choice *llms.ContentChoice) string {

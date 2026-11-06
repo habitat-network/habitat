@@ -181,7 +181,7 @@ func (p *PearServer) completeChat(
 		return
 	}
 
-	sse, ok := newSSEWriter(w)
+	stream, ok := newChunkStream(w, completionID, created, req.Model)
 	if !ok {
 		writeOpenAIError(
 			w,
@@ -192,55 +192,47 @@ func (p *PearServer) completeChat(
 		)
 		return
 	}
-	chunk := func(choices []llmgateway.ChunkChoice, usage *llmgateway.Usage) llmgateway.ChatCompletionChunk {
-		return llmgateway.ChatCompletionChunk{
-			ID: completionID, Object: "chat.completion.chunk", Created: created,
-			Model: req.Model, Choices: choices, Usage: usage,
-		}
-	}
-	started := false
+	// The response starts with the first streamed text, so a provider that
+	// fails before sending any gets a proper error response instead.
 	start := func() error {
-		started = true
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.WriteHeader(http.StatusOK)
-		return sse.send(chunk([]llmgateway.ChunkChoice{
+		stream.start()
+		return stream.send([]llmgateway.ChunkChoice{
 			{Delta: llmgateway.ChunkDelta{Role: "assistant"}},
-		}, nil))
+		}, nil)
 	}
 	opts = append(opts, llms.WithStreamingFunc(func(_ context.Context, text []byte) error {
-		if !started {
+		if !stream.started {
 			if err := start(); err != nil {
 				return err
 			}
 		}
-		return sse.send(chunk([]llmgateway.ChunkChoice{
+		return stream.send([]llmgateway.ChunkChoice{
 			{Delta: llmgateway.ChunkDelta{Content: string(text)}},
-		}, nil))
+		}, nil)
 	}))
 	resp, err := model.GenerateContent(ctx, messages, opts...)
 	if err != nil {
-		if !started {
+		if !stream.started {
 			writeUpstreamError(ctx, w, err)
 			return
 		}
 		// The 200 is already sent; surface the failure in the stream, as
 		// OpenAI does.
 		slog.ErrorContext(ctx, "llm stream", "err", err)
-		_ = sse.sendRaw(openAIError{Error: openAIErrorDetail{
+		_ = stream.sendRaw(openAIError{Error: openAIErrorDetail{
 			Message: "upstream error", Type: "server_error",
 		}})
 		return
 	}
-	if !started {
+	if !stream.started {
 		if err := start(); err != nil {
 			return
 		}
 		// The provider answered without streaming any of it.
 		if len(resp.Choices) > 0 && resp.Choices[0].Content != "" {
-			if err := sse.send(chunk([]llmgateway.ChunkChoice{
+			if err := stream.send([]llmgateway.ChunkChoice{
 				{Delta: llmgateway.ChunkDelta{Content: resp.Choices[0].Content}},
-			}, nil)); err != nil {
+			}, nil); err != nil {
 				return
 			}
 		}
@@ -249,15 +241,10 @@ func (p *PearServer) completeChat(
 	if len(resp.Choices) > 0 {
 		reason = llmgateway.FinishReason(resp.Choices[0])
 	}
-	if err := sse.send(chunk([]llmgateway.ChunkChoice{{FinishReason: &reason}}, nil)); err != nil {
+	if err := stream.send([]llmgateway.ChunkChoice{{FinishReason: &reason}}, nil); err != nil {
 		return
 	}
-	if req.StreamOptions != nil && req.StreamOptions.IncludeUsage {
-		if err := sse.send(chunk(nil, llmgateway.UsageOf(resp))); err != nil {
-			return
-		}
-	}
-	_ = sse.done()
+	stream.finish(req.StreamOptions, llmgateway.UsageOf(resp))
 }
 
 // streamCompletion replays an already complete completion as server-sent
@@ -268,7 +255,7 @@ func streamCompletion(
 	completion llmgateway.ChatCompletion,
 	options *llmgateway.StreamOptions,
 ) {
-	sse, ok := newSSEWriter(w)
+	stream, ok := newChunkStream(w, completion.ID, completion.Created, completion.Model)
 	if !ok {
 		writeOpenAIError(
 			w,
@@ -279,15 +266,7 @@ func streamCompletion(
 		)
 		return
 	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.WriteHeader(http.StatusOK)
-	chunk := func(choices []llmgateway.ChunkChoice, usage *llmgateway.Usage) llmgateway.ChatCompletionChunk {
-		return llmgateway.ChatCompletionChunk{
-			ID: completion.ID, Object: "chat.completion.chunk", Created: completion.Created,
-			Model: completion.Model, Choices: choices, Usage: usage,
-		}
-	}
+	stream.start()
 	for _, choice := range completion.Choices {
 		delta := llmgateway.ChunkDelta{Role: "assistant"}
 		if choice.Message.Content != nil {
@@ -306,18 +285,13 @@ func streamCompletion(
 			{{Index: choice.Index, Delta: delta}},
 			{{Index: choice.Index, FinishReason: &reason}},
 		} {
-			if err := sse.send(chunk(choices, nil)); err != nil {
+			if err := stream.send(choices, nil); err != nil {
 				slog.WarnContext(ctx, "write llm stream", "err", err)
 				return
 			}
 		}
 	}
-	if options != nil && options.IncludeUsage {
-		if err := sse.send(chunk(nil, completion.Usage)); err != nil {
-			return
-		}
-	}
-	_ = sse.done()
+	stream.finish(options, completion.Usage)
 }
 
 // writeUpstreamError reports a provider failure. The provider's own message is
@@ -347,10 +321,6 @@ func newSSEWriter(w http.ResponseWriter) (*sseWriter, bool) {
 	return &sseWriter{w: w, flusher: flusher}, true
 }
 
-func (s *sseWriter) send(chunk llmgateway.ChatCompletionChunk) error {
-	return s.sendRaw(chunk)
-}
-
 func (s *sseWriter) sendRaw(v any) error {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -369,4 +339,55 @@ func (s *sseWriter) done() error {
 	}
 	s.flusher.Flush()
 	return nil
+}
+
+// chunkStream streams one chat completion's chunks as server-sent events.
+type chunkStream struct {
+	*sseWriter
+	id      string
+	created int64
+	model   string
+	// started is whether the response's status and headers are sent.
+	started bool
+}
+
+// newChunkStream returns a stream of the chunks of the completion id, created
+// at created by model, or false if w can't stream.
+func newChunkStream(
+	w http.ResponseWriter,
+	id string,
+	created int64,
+	model string,
+) (*chunkStream, bool) {
+	sse, ok := newSSEWriter(w)
+	if !ok {
+		return nil, false
+	}
+	return &chunkStream{sseWriter: sse, id: id, created: created, model: model}, true
+}
+
+// start sends the response's 200 status and event-stream headers.
+func (s *chunkStream) start() {
+	s.started = true
+	s.w.Header().Set("Content-Type", "text/event-stream")
+	s.w.Header().Set("Cache-Control", "no-cache")
+	s.w.WriteHeader(http.StatusOK)
+}
+
+// send sends a chunk of choices and usage.
+func (s *chunkStream) send(choices []llmgateway.ChunkChoice, usage *llmgateway.Usage) error {
+	return s.sendRaw(llmgateway.ChatCompletionChunk{
+		ID: s.id, Object: "chat.completion.chunk", Created: s.created,
+		Model: s.model, Choices: choices, Usage: usage,
+	})
+}
+
+// finish sends usage, if options ask for it, and ends the stream.
+func (s *chunkStream) finish(options *llmgateway.StreamOptions, usage *llmgateway.Usage) {
+	if options != nil && options.IncludeUsage {
+		if err := s.send(nil, usage); err != nil {
+			return
+		}
+	}
+	_ = s.done()
 }
