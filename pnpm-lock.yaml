@@ -92,7 +92,7 @@ catalogs:
       version: 30.0.1
     lucide-react:
       specifier: ^1.34.0
-      version: 1.34.0
+      version: 1.68.0
     react:
       specifier: ^19.2.8
       version: 19.2.8
@@ -277,7 +277,7 @@ importers:
         version: link:../typescript/internal
       lucide-react:
         specifier: 'catalog:'
-        version: 1.34.0(react@19.2.8)
+        version: 1.68.0(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -419,7 +419,7 @@ importers:
         version: 9.0.1
       lucide-react:
         specifier: 'catalog:'
-        version: 1.34.0(react@19.2.8)
+        version: 1.68.0(@types/react@19.2.18)(react@19.2.8)
       posthog-js:
         specifier: ^1.418.10
         version: 1.418.10
@@ -567,7 +567,7 @@ importers:
         version: 0.2.119
       lucide-react:
         specifier: 'catalog:'
-        version: 1.34.0(react@19.2.8)
+        version: 1.68.0(@types/react@19.2.18)(react@19.2.8)
       posthog-js:
         specifier: ^1.418.10
         version: 1.418.10
@@ -694,7 +694,7 @@ importers:
         version: 9.0.1
       lucide-react:
         specifier: 'catalog:'
-        version: 1.34.0(react@19.2.8)
+        version: 1.68.0(@types/react@19.2.18)(react@19.2.8)
       posthog-js:
         specifier: ^1.418.10
         version: 1.418.10
@@ -770,7 +770,7 @@ importers:
         version: link:../../internal
       lucide-react:
         specifier: 'catalog:'
-        version: 1.34.0(react@19.2.8)
+        version: 1.68.0(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -903,7 +903,7 @@ importers:
         version: 4.1.2
       lucide-react:
         specifier: 'catalog:'
-        version: 1.34.0(react@19.2.8)
+        version: 1.68.0(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -8424,10 +8424,14 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.34.0:
-    resolution: {integrity: sha512-vnjGJNI7Htk5+oWW8gXGuaLgwgAb0T6/iZbBrp9JCfRFwdNWZ0YTm3eyxjOLgwN6r8iyAf3UA70zNmBRBNv7yg==}
+  lucide-react@1.68.0:
+    resolution: {integrity: sha512-9i7NKWm2QlOprMhcwkhBOlIt9zB7cp2GIyFY+oMue0EsprolUFxva5rkdBbyfs4k1eejpa0JRnRgVOGiart+Xg==}
     peerDependencies:
+      '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -19844,9 +19848,11 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.34.0(react@19.2.8):
+  lucide-react@1.68.0(@types/react@19.2.18)(react@19.2.8):
     dependencies:
       react: 19.2.8
+    optionalDependencies:
+      '@types/react': 19.2.18
 
   lz-string@1.5.0: {}
 
