@@ -14,6 +14,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -492,19 +493,23 @@ type connectedServer struct {
 	resolve func(ctx context.Context) (downstream, error)
 }
 
-// listConnectedServers lists caller's connected MCP servers (see
+// listConnectedServers lists caller's connected MCP servers in org (see
 // internal/mcpgateway). If they can't be listed, that's logged and none are
 // returned, so pear's own tools keep working.
+//
+// Only org's servers are listed: the endpoint is org's, and a server's name,
+// which namespaces its tools, is only unique within its org.
 func listConnectedServers(
 	ctx context.Context,
 	servers ConnectedServers,
 	caller string,
+	org syntax.DID,
 ) []connectedServer {
 	if servers == nil {
 		return nil
 	}
 	did := syntax.DID(caller)
-	listed, err := servers.ListConnectedServers(ctx, did)
+	listed, err := servers.ListConnectedServers(ctx, did, org)
 	if err != nil {
 		slog.WarnContext(ctx, "mcp: listing connected servers", "err", err)
 		return nil
@@ -526,11 +531,12 @@ func listConnectedServers(
 }
 
 // mergeConnectedToolsMiddleware merges every tool from the caller's
-// connected MCP servers into this server's own tools/list response,
+// connected MCP servers in org into this server's own tools/list response,
 // namespaced by server name. A server that can't be reached is skipped
 // rather than failing the whole listing.
 func mergeConnectedToolsMiddleware(
 	connectedServers ConnectedServers,
+	org syntax.DID,
 ) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
@@ -548,26 +554,49 @@ func mergeConnectedToolsMiddleware(
 			}
 
 			servers := listConnectedServers(
-				ctx, connectedServers, extra.TokenInfo.UserID,
+				ctx, connectedServers, extra.TokenInfo.UserID, org,
 			)
-			for _, server := range servers {
-				tools, err := listToolsForServer(ctx, server)
-				if err != nil {
-					slog.WarnContext(
-						ctx, "mcp: listing tools for connected server",
-						"server", server.name, "err", err,
-					)
-					continue
-				}
+			for i, tools := range listToolsForServers(ctx, servers) {
 				for _, tool := range tools {
 					namespaced := *tool
-					namespaced.Name = namespaceTool(server.name, tool.Name)
+					namespaced.Name = namespaceTool(servers[i].name, tool.Name)
 					listResult.Tools = append(listResult.Tools, &namespaced)
 				}
 			}
 			return listResult, nil
 		}
 	}
+}
+
+// maxConcurrentToolLists bounds how many connected servers one tools/list
+// lists the tools of at once.
+const maxConcurrentToolLists = 8
+
+// listToolsForServers lists each of servers' tools, unnamespaced, in the
+// same order as servers. Each server is a round trip or more (connecting,
+// maybe refreshing a token, listing), so they're listed concurrently, and
+// tools/list takes as long as the slowest rather than all of them together. A
+// server that can't be listed is logged and has no tools.
+func listToolsForServers(ctx context.Context, servers []connectedServer) [][]*mcp.Tool {
+	out := make([][]*mcp.Tool, len(servers))
+	var g errgroup.Group
+	g.SetLimit(maxConcurrentToolLists)
+	for i, server := range servers {
+		g.Go(func() error {
+			tools, err := listToolsForServer(ctx, server)
+			if err != nil {
+				slog.WarnContext(
+					ctx, "mcp: listing tools for connected server",
+					"server", server.name, "err", err,
+				)
+				return nil
+			}
+			out[i] = tools
+			return nil
+		})
+	}
+	_ = g.Wait()
+	return out
 }
 
 // listToolsForServer connects to server and lists its tools, unnamespaced.
@@ -599,6 +628,7 @@ func listToolsForServer(ctx context.Context, server connectedServer) ([]*mcp.Too
 // own dispatch.
 func proxyConnectedToolCallMiddleware(
 	connectedServers ConnectedServers,
+	org syntax.DID,
 ) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
@@ -619,7 +649,7 @@ func proxyConnectedToolCallMiddleware(
 			}
 
 			servers := listConnectedServers(
-				ctx, connectedServers, extra.TokenInfo.UserID,
+				ctx, connectedServers, extra.TokenInfo.UserID, org,
 			)
 			for _, server := range servers {
 				if server.name == serverName {

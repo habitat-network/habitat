@@ -26,11 +26,15 @@ import (
 	"github.com/olgasafonova/mcp-otel-go/mcpotel"
 )
 
-// ConnectedServers lists the MCP servers configured in a caller's orgs (see
-// internal/mcpgateway) that the caller can reach, and says how to reach each
-// on their behalf. See mcpgateway.Store for the concrete implementation.
+// ConnectedServers lists the MCP servers configured in an org (see
+// internal/mcpgateway) that a member can reach, and says how to reach each on
+// their behalf. See mcpgateway.Store for the concrete implementation.
 type ConnectedServers interface {
-	ListConnectedServers(ctx context.Context, did syntax.DID) ([]*mcpgateway.Server, error)
+	ListConnectedServers(
+		ctx context.Context,
+		did syntax.DID,
+		orgID syntax.DID,
+	) ([]*mcpgateway.Server, error)
 	Downstream(
 		ctx context.Context,
 		did syntax.DID,
@@ -111,8 +115,9 @@ func orgFromPath(p, prefix string) (syntax.AtIdentifier, error) {
 //     within the org named in the endpoint's path.
 //     It may be nil when search isn't configured, in which case the tool isn't
 //     offered.
-//   - connectedServers lists the MCP servers of the caller's orgs that the
-//     caller can reach (see internal/mcpgateway): every one's tools are merged into
+//   - connectedServers lists the MCP servers of the org named in the
+//     endpoint's path that the caller can reach (see internal/mcpgateway):
+//     every one's tools are merged into
 //     this server's own tools/list response, namespaced by the server's name
 //     (see namespaceTool), and tools/call for a namespaced tool is proxied
 //     straight through to that server.
@@ -179,8 +184,8 @@ func New(
 			}, searchRecordsHandler(searcher, org))
 		}
 		mcpServer.AddReceivingMiddleware(
-			mergeConnectedToolsMiddleware(connectedServers),
-			proxyConnectedToolCallMiddleware(connectedServers),
+			mergeConnectedToolsMiddleware(connectedServers, org),
+			proxyConnectedToolCallMiddleware(connectedServers, org),
 		)
 		return mcpServer
 	}

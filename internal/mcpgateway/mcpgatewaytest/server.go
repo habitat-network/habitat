@@ -40,12 +40,17 @@ type Server struct {
 	dcr bool
 	// accessTTL is how long issued access tokens live.
 	accessTTL time.Duration
-	clients   map[string]string // client id -> redirect uri
-	codes     map[string]codeGrant
-	access    map[string]time.Time // access token -> expiry
-	refresh   map[string]bool      // live refresh tokens
+	// refreshedTTL is how long access tokens issued by a refresh live; zero
+	// issues them without an expiry. Negative is accessTTL.
+	refreshedTTL time.Duration
+	clients      map[string]string // client id -> redirect uri
+	codes        map[string]codeGrant
+	access       map[string]time.Time // access token -> expiry
+	refresh      map[string]bool      // live refresh tokens
 	// Refreshes counts refresh grants redeemed.
 	Refreshes int
+	// failTokens makes the token endpoint answer with a server error.
+	failTokens bool
 }
 
 type codeGrant struct {
@@ -66,16 +71,24 @@ func WithAccessTokenTTL(ttl time.Duration) Option {
 	return func(s *Server) { s.accessTTL = ttl }
 }
 
+// WithRefreshedTokenTTL sets how long access tokens issued by a refresh
+// live, instead of the WithAccessTokenTTL. Zero issues them without
+// expires_in, as many authorization servers do.
+func WithRefreshedTokenTTL(ttl time.Duration) Option {
+	return func(s *Server) { s.refreshedTTL = ttl }
+}
+
 // New starts a fake OAuth-protected MCP server, stopped when t ends.
 func New(t *testing.T, opts ...Option) *Server {
 	t.Helper()
 	s := &Server{
-		dcr:       true,
-		accessTTL: time.Hour,
-		clients:   make(map[string]string),
-		codes:     make(map[string]codeGrant),
-		access:    make(map[string]time.Time),
-		refresh:   make(map[string]bool),
+		dcr:          true,
+		accessTTL:    time.Hour,
+		refreshedTTL: -1,
+		clients:      make(map[string]string),
+		codes:        make(map[string]codeGrant),
+		access:       make(map[string]time.Time),
+		refresh:      make(map[string]bool),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -247,7 +260,26 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, back.String(), http.StatusFound)
 }
 
+// FailTokenRequests makes the token endpoint fail with a server error, as in
+// an outage, or stops it failing.
+func (s *Server) FailTokenRequests(fail bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failTokens = fail
+}
+
 func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	fail := s.failTokens
+	s.mu.Unlock()
+	if fail {
+		writeJSON(
+			w,
+			http.StatusServiceUnavailable,
+			map[string]string{"error": "temporarily_unavailable"},
+		)
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
 		return
@@ -280,15 +312,31 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported_grant_type"})
 		return
 	}
+	ttl := s.accessTTL
+	if r.Form.Get("grant_type") == "refresh_token" && s.refreshedTTL >= 0 {
+		ttl = s.refreshedTTL
+	}
 	access, refresh := "at-"+rand.Text(), "rt-"+rand.Text()
-	s.access[access] = time.Now().Add(s.accessTTL)
-	s.refresh[refresh] = true
-	writeJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"access_token":  access,
 		"token_type":    "Bearer",
 		"refresh_token": refresh,
-		"expires_in":    int(s.accessTTL.Seconds()),
-	})
+	}
+	if ttl > 0 {
+		s.access[access] = time.Now().Add(ttl)
+		resp["expires_in"] = int(ttl.Seconds())
+	} else {
+		s.access[access] = time.Now().Add(100 * 365 * 24 * time.Hour)
+	}
+	s.refresh[refresh] = true
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// RefreshCount is how many refresh grants have been redeemed.
+func (s *Server) RefreshCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Refreshes
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

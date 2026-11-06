@@ -47,60 +47,69 @@ func (noClose) Close() error { return nil }
 // (OPENAI_API_KEY and the like), so each is passed explicitly.
 func NewModelFactory(client *http.Client) ModelFactory {
 	return func(ctx context.Context, config ModelConfig) (Model, error) {
-		switch config.Provider {
-		case ProviderOpenAI:
-			baseURL := config.BaseURL
-			if baseURL == "" {
-				baseURL = openAIBaseURL
-			}
-			m, err := openai.New(
-				openai.WithToken(config.APIKey),
-				openai.WithModel(config.Model),
-				openai.WithBaseURL(baseURL),
-				openai.WithHTTPClient(client),
-			)
-			if err != nil {
-				return nil, fmt.Errorf("new openai model: %w", err)
-			}
-			return noClose{m}, nil
-		case ProviderAnthropic:
-			opts := []anthropic.Option{
-				anthropic.WithToken(config.APIKey),
-				anthropic.WithModel(config.Model),
-				anthropic.WithHTTPClient(client),
-			}
-			if config.BaseURL != "" {
-				opts = append(opts, anthropic.WithBaseURL(config.BaseURL))
-			}
-			m, err := anthropic.New(opts...)
-			if err != nil {
-				return nil, fmt.Errorf("new anthropic model: %w", err)
-			}
-			return noClose{m}, nil
-		case ProviderGoogle:
-			// googleai has no base URL option: it always calls Google's API.
-			m, err := googleai.New(
-				ctx,
-				googleai.WithAPIKey(config.APIKey),
-				googleai.WithDefaultModel(config.Model),
-				googleai.WithHTTPClient(client),
-			)
-			if err != nil {
-				return nil, fmt.Errorf("new google model: %w", err)
-			}
-			return m, nil
-		case ProviderOllama:
-			m, err := ollama.New(
-				ollama.WithModel(config.Model),
-				ollama.WithServerURL(config.BaseURL),
-				ollama.WithHTTPClient(client),
-			)
-			if err != nil {
-				return nil, fmt.Errorf("new ollama model: %w", err)
-			}
-			return noClose{m}, nil
-		default:
+		spec, ok := providers[config.Provider]
+		if !ok {
 			return nil, fmt.Errorf("%w: %q", ErrInvalidProvider, config.Provider)
 		}
+		m, err := spec.newModel(ctx, client, config)
+		if err != nil {
+			return nil, fmt.Errorf("new %s model: %w", config.Provider, err)
+		}
+		return m, nil
 	}
+}
+
+func newOpenAIModel(_ context.Context, client *http.Client, config ModelConfig) (Model, error) {
+	baseURL := config.BaseURL
+	if baseURL == "" {
+		baseURL = openAIBaseURL
+	}
+	m, err := openai.New(
+		openai.WithToken(config.APIKey),
+		openai.WithModel(config.Model),
+		openai.WithBaseURL(baseURL),
+		openai.WithHTTPClient(client),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return noClose{m}, nil
+}
+
+func newAnthropicModel(_ context.Context, client *http.Client, config ModelConfig) (Model, error) {
+	opts := []anthropic.Option{
+		anthropic.WithToken(config.APIKey),
+		anthropic.WithModel(config.Model),
+		anthropic.WithHTTPClient(client),
+	}
+	if config.BaseURL != "" {
+		opts = append(opts, anthropic.WithBaseURL(config.BaseURL))
+	}
+	m, err := anthropic.New(opts...)
+	if err != nil {
+		return nil, err
+	}
+	return noClose{m}, nil
+}
+
+func newGoogleModel(ctx context.Context, client *http.Client, config ModelConfig) (Model, error) {
+	// googleai has no base URL option: it always calls Google's API.
+	return googleai.New(
+		ctx,
+		googleai.WithAPIKey(config.APIKey),
+		googleai.WithDefaultModel(config.Model),
+		googleai.WithHTTPClient(client),
+	)
+}
+
+func newOllamaModel(_ context.Context, client *http.Client, config ModelConfig) (Model, error) {
+	m, err := ollama.New(
+		ollama.WithModel(config.Model),
+		ollama.WithServerURL(config.BaseURL),
+		ollama.WithHTTPClient(client),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return noClose{m}, nil
 }

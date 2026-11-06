@@ -16,6 +16,8 @@ import (
 	"github.com/tmc/langchaingo/llms/fake"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
@@ -34,6 +36,69 @@ func (failingLLM) GenerateContent(
 	...llms.CallOption,
 ) (*llms.ContentResponse, error) {
 	return nil, errors.New("upstream boom")
+}
+
+// toolCallingLLM calls the first tool it's offered, recording the names of
+// the tools it was offered.
+type toolCallingLLM struct {
+	fakeLLM
+	offered *[]string
+}
+
+func (m toolCallingLLM) GenerateContent(
+	_ context.Context,
+	_ []llms.MessageContent,
+	options ...llms.CallOption,
+) (*llms.ContentResponse, error) {
+	var opts llms.CallOptions
+	for _, opt := range options {
+		opt(&opts)
+	}
+	for _, tool := range opts.Tools {
+		*m.offered = append(*m.offered, tool.Function.Name)
+	}
+	return &llms.ContentResponse{Choices: []*llms.ContentChoice{{
+		StopReason: "tool_use",
+		ToolCalls: []llms.ToolCall{{
+			ID: "call_1", Type: "function",
+			FunctionCall: &llms.FunctionCall{Name: opts.Tools[0].Function.Name, Arguments: "{}"},
+		}},
+	}}}, nil
+}
+
+// nonStreamingLLM answers without calling the streaming function, as some
+// providers do.
+type nonStreamingLLM struct{ fakeLLM }
+
+func (nonStreamingLLM) GenerateContent(
+	context.Context,
+	[]llms.MessageContent,
+	...llms.CallOption,
+) (*llms.ContentResponse, error) {
+	return &llms.ContentResponse{Choices: []*llms.ContentChoice{{Content: "all at once"}}}, nil
+}
+
+// sseChunks parses a streamed chat completion's chunks, checking each choice
+// index appears at most once per chunk, as OpenAI clients expect.
+func sseChunks(t *testing.T, body string) []llmgateway.ChatCompletionChunk {
+	t.Helper()
+	var chunks []llmgateway.ChatCompletionChunk
+	for event := range strings.SplitSeq(strings.TrimSpace(body), "\n\n") {
+		data, ok := strings.CutPrefix(event, "data: ")
+		require.True(t, ok, event)
+		if data == "[DONE]" {
+			continue
+		}
+		var chunk llmgateway.ChatCompletionChunk
+		require.NoError(t, json.Unmarshal([]byte(data), &chunk))
+		seen := map[int]bool{}
+		for _, choice := range chunk.Choices {
+			require.False(t, seen[choice.Index], "choice %d twice in %s", choice.Index, data)
+			seen[choice.Index] = true
+		}
+		chunks = append(chunks, chunk)
+	}
+	return chunks
 }
 
 func fakeModels(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
@@ -192,6 +257,93 @@ func TestServerLlmOpenAICompatibleAPI(t *testing.T) {
 		require.True(t, strings.HasSuffix(body, "data: [DONE]\n\n"))
 	})
 
+	t.Run("passes MCP tool names through providers that reject them", func(t *testing.T) {
+		var offered []string
+		calling := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithDB(ts.DB),
+			pearserver_testutil.WithFGA(ts.FGA),
+			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
+			pearserver_testutil.WithValidator(ts.Validator),
+			pearserver_testutil.WithLLMModelFactory(
+				func(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
+					return toolCallingLLM{fakeLLM{fake.NewFakeLLM(nil)}, &offered}, nil
+				}),
+		)
+		req := httptest.NewRequest(http.MethodPost, "/llm/"+orgDID+"/v1/chat/completions",
+			strings.NewReader(`{"model":"gpt","messages":[{"role":"user","content":"hi"}],`+
+				`"tools":[{"type":"function","function":{"name":"github:get_me"}}]}`))
+		w := httptest.NewRecorder()
+		calling.Server.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		require.Len(t, offered, 1)
+		require.Regexp(t, `^[A-Za-z0-9_-]{1,64}$`, offered[0])
+		var got llmgateway.ChatCompletion
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+		require.Equal(t, "tool_calls", got.Choices[0].FinishReason)
+		require.Equal(t, "github:get_me", got.Choices[0].Message.ToolCalls[0].Function.Name)
+	})
+
+	t.Run("replays a streamed tool call with its finish reason", func(t *testing.T) {
+		var offered []string
+		calling := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithDB(ts.DB),
+			pearserver_testutil.WithFGA(ts.FGA),
+			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
+			pearserver_testutil.WithValidator(ts.Validator),
+			pearserver_testutil.WithLLMModelFactory(
+				func(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
+					return toolCallingLLM{fakeLLM{fake.NewFakeLLM(nil)}, &offered}, nil
+				}),
+		)
+		req := httptest.NewRequest(http.MethodPost, "/llm/"+orgDID+"/v1/chat/completions",
+			strings.NewReader(`{"model":"gpt","stream":true,`+
+				`"messages":[{"role":"user","content":"hi"}],`+
+				`"tools":[{"type":"function","function":{"name":"github:get_me"}}]}`))
+		w := httptest.NewRecorder()
+		calling.Server.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		var reasons []string
+		var calls []llmgateway.ChunkToolCall
+		for _, chunk := range sseChunks(t, w.Body.String()) {
+			first := chunk.Choices[0]
+			calls = append(calls, first.Delta.ToolCalls...)
+			if first.FinishReason != nil {
+				reasons = append(reasons, *first.FinishReason)
+			}
+		}
+		require.Equal(t, []string{"tool_calls"}, reasons)
+		require.Len(t, calls, 1)
+		require.Equal(t, "github:get_me", calls[0].Function.Name)
+	})
+
+	t.Run("streams a reply the provider didn't stream", func(t *testing.T) {
+		quiet := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithDB(ts.DB),
+			pearserver_testutil.WithFGA(ts.FGA),
+			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
+			pearserver_testutil.WithValidator(ts.Validator),
+			pearserver_testutil.WithLLMModelFactory(
+				func(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
+					return nonStreamingLLM{fakeLLM{fake.NewFakeLLM(nil)}}, nil
+				}),
+		)
+		req := httptest.NewRequest(http.MethodPost, "/llm/"+orgDID+"/v1/chat/completions",
+			strings.NewReader(`{"model":"gpt","stream":true,`+
+				`"messages":[{"role":"user","content":"hi"}]}`))
+		w := httptest.NewRecorder()
+		quiet.Server.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		var content strings.Builder
+		for _, chunk := range sseChunks(t, w.Body.String()) {
+			for _, choice := range chunk.Choices {
+				content.WriteString(choice.Delta.Content)
+			}
+		}
+		require.Equal(t, "all at once", content.String())
+	})
+
 	t.Run("upstream failures are bad gateway errors", func(t *testing.T) {
 		failing := pearserver_testutil.NewTestServer(t,
 			pearserver_testutil.WithDB(ts.DB),
@@ -214,5 +366,57 @@ func TestServerLlmOpenAICompatibleAPI(t *testing.T) {
 			require.Equal(t, http.StatusBadGateway, w.Code)
 			require.Contains(t, w.Body.String(), "upstream boom")
 		}
+	})
+}
+
+// The OpenAI-compatible API serves an org's models only to its members, and
+// reports refusals in OpenAI's error format.
+func TestServerLlmOpenAICompatibleAPIAuth(t *testing.T) {
+	ts := newOpenSocialServer(t, admin)
+	orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+	require.NoError(t, err)
+	_, err = ts.LLMStore.Add(t.Context(), syntax.DID(orgDID), llmgateway.NewConnection{
+		Name: "gpt", Provider: llmgateway.ProviderOpenAI, Model: "gpt-4o", APIKey: "k",
+	})
+	require.NoError(t, err)
+
+	get := func(ts *pearserver_testutil.TestServer, org string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/llm/"+org+"/v1/models", http.NoBody)
+		w := httptest.NewRecorder()
+		ts.Server.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("a non-member is refused", func(t *testing.T) {
+		w := get(newOpenSocialServerAs(t, ts, bob, authn.ValidatorMethodOAuth), orgDID)
+		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Contains(t, w.Body.String(), `"code":"not_a_member"`)
+	})
+
+	t.Run("another org's models aren't listed", func(t *testing.T) {
+		otherDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "other", bob)
+		require.NoError(t, err)
+		w := get(newOpenSocialServerAs(t, ts, bob, authn.ValidatorMethodOAuth), otherDID)
+		require.Equal(t, http.StatusOK, w.Code)
+		var list llmgateway.ModelList
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &list))
+		require.Empty(t, list.Data)
+	})
+
+	t.Run("the org must be a DID", func(t *testing.T) {
+		w := get(ts, "acme.example.com")
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		require.Contains(t, w.Body.String(), `"code":"invalid_org"`)
+	})
+
+	t.Run("an unauthenticated caller is refused", func(t *testing.T) {
+		unauthed := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithDB(ts.DB),
+			pearserver_testutil.WithFGA(ts.FGA),
+			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
+			pearserver_testutil.WithValidator(authntest.NewFailureValidator()),
+		)
+		w := get(unauthed, orgDID)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }

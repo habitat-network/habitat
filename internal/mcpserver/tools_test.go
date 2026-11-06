@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/mcpgateway"
@@ -20,41 +21,53 @@ import (
 // satisfying ConnectedServers.
 type fakeConnectedServers struct {
 	servers    map[syntax.DID][]*mcpgateway.Server // member -> servers
-	downstream map[mcpgateway.ServerName]*mcpgateway.Downstream
+	downstream map[serverKey]*mcpgateway.Downstream
 	// unreachable servers fail to resolve.
 	unreachable map[mcpgateway.ServerName]error
+}
+
+// serverKey identifies a server: its name is only unique within its org.
+type serverKey struct {
+	org  syntax.DID
+	name mcpgateway.ServerName
 }
 
 func newFakeConnectedServers() *fakeConnectedServers {
 	return &fakeConnectedServers{
 		servers:     make(map[syntax.DID][]*mcpgateway.Server),
-		downstream:  make(map[mcpgateway.ServerName]*mcpgateway.Downstream),
+		downstream:  make(map[serverKey]*mcpgateway.Downstream),
 		unreachable: make(map[mcpgateway.ServerName]error),
 	}
 }
 
-// connect connects member to the server name at url, sending headers.
+// connect connects member to orgID's server name at url, sending headers.
 func (f *fakeConnectedServers) connect(
 	member syntax.DID, orgID syntax.DID, name mcpgateway.ServerName, url string,
 	headers map[string]string,
 ) {
 	f.servers[member] = append(f.servers[member], &mcpgateway.Server{OrgID: orgID, Name: name})
-	f.downstream[name] = &mcpgateway.Downstream{URL: url, Headers: headers}
+	f.downstream[serverKey{orgID, name}] = &mcpgateway.Downstream{URL: url, Headers: headers}
 }
 
 func (f *fakeConnectedServers) ListConnectedServers(
-	_ context.Context, did syntax.DID,
+	_ context.Context, did syntax.DID, orgID syntax.DID,
 ) ([]*mcpgateway.Server, error) {
-	return f.servers[did], nil
+	var out []*mcpgateway.Server
+	for _, server := range f.servers[did] {
+		if server.OrgID == orgID {
+			out = append(out, server)
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeConnectedServers) Downstream(
-	_ context.Context, _ syntax.DID, _ syntax.DID, name mcpgateway.ServerName,
+	_ context.Context, _ syntax.DID, orgID syntax.DID, name mcpgateway.ServerName,
 ) (*mcpgateway.Downstream, error) {
 	if err, ok := f.unreachable[name]; ok {
 		return nil, err
 	}
-	d, ok := f.downstream[name]
+	d, ok := f.downstream[serverKey{orgID, name}]
 	if !ok {
 		return nil, mcpgateway.ErrNotConnected
 	}
@@ -62,7 +75,7 @@ func (f *fakeConnectedServers) Downstream(
 }
 
 // newFakeMCPServer stands in for a downstream MCP server the caller has
-// connected to, exposing a single "ping" tool.
+// connected to, exposing a "ping" tool and an "echo" tool.
 //
 // If authorization is given, requests without it as their Authorization
 // header are refused.
@@ -79,6 +92,23 @@ func newFakeMCPServer(t *testing.T, authorization ...string) *httptest.Server {
 		return nil, struct {
 			Message string `json:"message"`
 		}{Message: "pong"}, nil
+	})
+	type echoInput struct {
+		Text string `json:"text"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "echo",
+		Description: "Echoes text, failing on an empty one.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, in echoInput) (*mcp.CallToolResult, any, error) {
+		if in.Text == "" {
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{&mcp.TextContent{Text: "nothing to echo"}},
+			}, nil, nil
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: in.Text}},
+		}, nil, nil
 	})
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return srv
@@ -132,7 +162,7 @@ func TestMCPServerToolsList_MergesConnectedServerTools(t *testing.T) {
 
 	fake := newFakeMCPServer(t)
 	servers := newFakeConnectedServers()
-	servers.connect(caller, "did:web:org1.example", "cloudflare", fake.URL, nil)
+	servers.connect(caller, testOrg, "cloudflare", fake.URL, nil)
 	httpServer := newConnectedServerTestServer(t, servers)
 
 	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
@@ -150,8 +180,8 @@ func TestMCPServerToolsList_SkipsUnreachableConnectedServer(t *testing.T) {
 
 	fake := newFakeMCPServer(t)
 	servers := newFakeConnectedServers()
-	servers.connect(caller, "did:web:org1.example", "cloudflare", fake.URL, nil)
-	servers.connect(caller, "did:web:org1.example", "broken", fake.URL, nil)
+	servers.connect(caller, testOrg, "cloudflare", fake.URL, nil)
+	servers.connect(caller, testOrg, "broken", fake.URL, nil)
 	servers.unreachable["broken"] = errors.New("token refresh failed")
 	httpServer := newConnectedServerTestServer(t, servers)
 
@@ -181,7 +211,7 @@ func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
 
 	fake := newFakeMCPServer(t)
 	servers := newFakeConnectedServers()
-	servers.connect(caller, "did:web:org1.example", "cloudflare", fake.URL, nil)
+	servers.connect(caller, testOrg, "cloudflare", fake.URL, nil)
 	httpServer := newConnectedServerTestServer(t, servers)
 
 	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
@@ -232,7 +262,7 @@ func TestMCPServerTools_OAuthServer(t *testing.T) {
 	protected := newFakeMCPServer(t, "Bearer secret")
 
 	servers := newFakeConnectedServers()
-	servers.connect(caller, "did:web:org1.example", "linear", protected.URL,
+	servers.connect(caller, testOrg, "linear", protected.URL,
 		map[string]string{"Authorization": "Bearer secret"})
 	httpServer := newConnectedServerTestServer(t, servers)
 
@@ -244,4 +274,133 @@ func TestMCPServerTools_OAuthServer(t *testing.T) {
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "linear:ping"})
 	require.NoError(t, err)
 	require.False(t, res.IsError)
+}
+
+// The endpoint of one org offers only that org's connected servers' tools, and
+// calls go to that org's server even when another of the caller's orgs has one
+// of the same name.
+func TestMCPServerTools_ScopedToEndpointOrg(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+	otherOrg := syntax.DID("did:plc:other-org")
+
+	ours := newFakeMCPServer(t, "Bearer ours")
+	theirs := newFakeMCPServer(t, "Bearer theirs")
+	servers := newFakeConnectedServers()
+	servers.connect(caller, otherOrg, "github", theirs.URL,
+		map[string]string{"Authorization": "Bearer theirs"})
+	servers.connect(caller, otherOrg, "slack", theirs.URL,
+		map[string]string{"Authorization": "Bearer theirs"})
+	servers.connect(caller, testOrg, "github", ours.URL,
+		map[string]string{"Authorization": "Bearer ours"})
+	httpServer := newConnectedServerTestServer(t, servers)
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	names := toolNames(t, session)
+	require.Equal(t, 1, countOf(names, "github:ping"), names)
+	require.NotContains(t, names, "slack:ping")
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "github:ping"})
+	require.NoError(t, err)
+	require.False(t, res.IsError, "%+v", res)
+	_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "slack:ping"})
+	require.Error(t, err)
+}
+
+func countOf(names []string, name string) int {
+	n := 0
+	for _, got := range names {
+		if got == name {
+			n++
+		}
+	}
+	return n
+}
+
+// Arguments reach the connected server as given, and its results, including
+// tool errors, come back as it sent them.
+func TestMCPServerToolsCall_PassesThroughArgumentsAndToolErrors(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+
+	fake := newFakeMCPServer(t)
+	servers := newFakeConnectedServers()
+	servers.connect(caller, testOrg, "cloudflare", fake.URL, nil)
+	httpServer := newConnectedServerTestServer(t, servers)
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "cloudflare:echo", Arguments: map[string]any{"text": "hello"},
+	})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	require.Equal(t, "hello", res.Content[0].(*mcp.TextContent).Text)
+
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "cloudflare:echo", Arguments: map[string]any{"text": ""},
+	})
+	require.NoError(t, err)
+	require.True(t, res.IsError)
+	require.Equal(t, "nothing to echo", res.Content[0].(*mcp.TextContent).Text)
+
+	// A tool the connected server doesn't have is its error to report.
+	_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "cloudflare:nope"})
+	require.Error(t, err)
+}
+
+// A call to a connected server pear can't reach on the caller's behalf (say
+// their sign-in expired) fails, without affecting pear's own tools.
+func TestMCPServerToolsCall_UnreachableConnectedServer(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+
+	fake := newFakeMCPServer(t)
+	servers := newFakeConnectedServers()
+	servers.connect(caller, testOrg, "linear", fake.URL, nil)
+	servers.unreachable["linear"] = mcpgateway.ErrNotConnected
+	httpServer := newConnectedServerTestServer(t, servers)
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "linear:ping"})
+	require.ErrorContains(t, err, "not connected")
+	require.Contains(t, toolNames(t, session), "get_record")
+}
+
+// Connected servers' tools are listed in the order the servers are, however
+// long each takes to list.
+func TestMCPServerToolsList_KeepsServerOrder(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+
+	servers := newFakeConnectedServers()
+	names := []mcpgateway.ServerName{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+	for _, name := range names {
+		servers.connect(caller, testOrg, name, newFakeMCPServer(t).URL, nil)
+	}
+	httpServer := newConnectedServerTestServer(t, servers)
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	var pings []string
+	for _, name := range toolNames(t, session) {
+		if strings.HasSuffix(name, ":ping") {
+			pings = append(pings, name)
+		}
+	}
+	want := make([]string, len(names))
+	for i, name := range names {
+		want[i] = string(name) + ":ping"
+	}
+	require.Equal(t, want, pings)
 }

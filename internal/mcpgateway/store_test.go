@@ -234,10 +234,10 @@ func TestManualServer(t *testing.T) {
 	_, err = s.UpdateServer(t.Context(), org, "docs", mcpgateway.ServerUpdate{URL: &badURL})
 	require.ErrorIs(t, err, mcpgateway.ErrInvalidServerURL)
 
-	connected, err := s.ListConnectedServers(t.Context(), alice)
+	connected, err := s.ListConnectedServers(t.Context(), alice, org)
 	require.NoError(t, err)
 	require.Len(t, connected, 1)
-	connected, err = s.ListConnectedServers(t.Context(), nobody)
+	connected, err = s.ListConnectedServers(t.Context(), nobody, org)
 	require.NoError(t, err)
 	require.Empty(t, connected)
 
@@ -278,10 +278,10 @@ func TestOAuthServerConnectFlow(t *testing.T) {
 	listed, err = s.ListServers(t.Context(), org, bob)
 	require.NoError(t, err)
 	require.False(t, listed[0].Connected)
-	connected, err := s.ListConnectedServers(t.Context(), alice)
+	connected, err := s.ListConnectedServers(t.Context(), alice, org)
 	require.NoError(t, err)
 	require.Len(t, connected, 1)
-	connected, err = s.ListConnectedServers(t.Context(), bob)
+	connected, err = s.ListConnectedServers(t.Context(), bob, org)
 	require.NoError(t, err)
 	require.Empty(t, connected)
 
@@ -453,4 +453,76 @@ func TestTokenServer(t *testing.T) {
 	require.NoError(t, s.DisconnectServer(t.Context(), alice, org, "github"))
 	_, err = s.Downstream(t.Context(), alice, org, "github")
 	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
+}
+
+// Concurrent callers needing a refresh all get working tokens: none redeems a
+// refresh token another has already rotated.
+func TestDownstreamConcurrentRefreshes(t *testing.T) {
+	fake := mcpgatewaytest.New(t, mcpgatewaytest.WithAccessTokenTTL(30*time.Second))
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
+	require.NoError(t, err)
+	connect(t, s, fake, alice, "linear")
+
+	const callers = 16
+	errs := make(chan error, callers)
+	for range callers {
+		go func() {
+			_, err := s.Downstream(t.Context(), alice, org, "linear")
+			errs <- err
+		}()
+	}
+	for range callers {
+		require.NoError(t, <-errs)
+	}
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.NoError(t, err)
+}
+
+// A refresh the authorization server fails without rejecting the grant (an
+// outage) leaves the member connected, to retry later.
+func TestDownstreamRefreshOutageKeepsConnection(t *testing.T) {
+	fake := mcpgatewaytest.New(t, mcpgatewaytest.WithAccessTokenTTL(30*time.Second))
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
+	require.NoError(t, err)
+	connect(t, s, fake, alice, "linear")
+
+	fake.FailTokenRequests(true)
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, mcpgateway.ErrNotConnected)
+	listed, err := s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.True(t, listed[0].Connected)
+
+	fake.FailTokenRequests(false)
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.NoError(t, err)
+}
+
+// Members only reach the servers of orgs they belong to, one org at a time.
+func TestListConnectedServersIsPerOrg(t *testing.T) {
+	s := newStore(t)
+	other := syntax.DID("did:web:other.example.com")
+	for _, o := range []syntax.DID{org, other} {
+		_, err := s.AddServer(t.Context(), o, mcpgateway.NewServer{
+			Name: "docs", URL: "https://docs.example.com/mcp", AuthType: mcpgateway.AuthTypeManual,
+		})
+		require.NoError(t, err)
+	}
+
+	connected, err := s.ListConnectedServers(t.Context(), alice, org)
+	require.NoError(t, err)
+	require.Len(t, connected, 1)
+	require.Equal(t, org, connected[0].OrgID)
+
+	// alice isn't a member of other.
+	connected, err = s.ListConnectedServers(t.Context(), alice, other)
+	require.NoError(t, err)
+	require.Empty(t, connected)
 }
