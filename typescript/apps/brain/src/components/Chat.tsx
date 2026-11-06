@@ -5,6 +5,9 @@ import {
   Badge,
   Card,
   CardContent,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
@@ -16,8 +19,16 @@ import {
   SelectValue,
   Spinner,
 } from "internal/components/ui";
-import { ArrowUpIcon, SquareIcon } from "lucide-react";
-import { useState } from "react";
+import {
+  ArrowUpIcon,
+  BrainIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  SquareIcon,
+  WrenchIcon,
+  XIcon,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { listModels, type ChatMessage } from "@/server/functions";
 import { useOrgStore } from "@/stores/org";
 
@@ -30,6 +41,106 @@ function toUIMessage(m: ChatMessage): UIMessage {
     role: m.role,
     parts: [{ type: "text", content: m.content }],
   };
+}
+
+type ToolCallPart = Extract<UIMessage["parts"][number], { type: "tool-call" }>;
+
+function pretty(value: unknown): string {
+  if (typeof value === "string") {
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      return value;
+    }
+  }
+  return JSON.stringify(value, null, 2);
+}
+
+function ToolCallStatus({ state }: { state: ToolCallPart["state"] }) {
+  if (state === "error") {
+    return (
+      <Badge variant="destructive">
+        <XIcon /> Failed
+      </Badge>
+    );
+  }
+  if (state === "complete") {
+    return (
+      <Badge variant="secondary">
+        <CheckIcon /> Done
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline">
+      <Spinner />
+      {state === "input-streaming" || state === "awaiting-input"
+        ? "Preparing"
+        : "Running"}
+    </Badge>
+  );
+}
+
+// ToolCall is one collapsible card: the tool's name and status up top, its
+// arguments and result inside.
+function ToolCall({
+  part,
+  message,
+}: {
+  part: ToolCallPart;
+  message: UIMessage;
+}) {
+  const result = message.parts.find(
+    (p) => p.type === "tool-result" && p.toolCallId === part.id,
+  );
+  const output =
+    part.output ??
+    (result?.type === "tool-result" ? result.content : undefined);
+  return (
+    <Collapsible className="group/tool w-full rounded-xl border bg-muted/30 text-sm">
+      <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left">
+        <WrenchIcon className="size-3.5 text-muted-foreground" />
+        <span className="flex-1 truncate font-mono text-xs">{part.name}</span>
+        <ToolCallStatus state={part.state} />
+        <ChevronRightIcon className="size-4 text-muted-foreground transition-transform group-data-[open]/tool:rotate-90" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-2 border-t px-3 py-2">
+        <div>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">
+            Arguments
+          </p>
+          <pre className="max-h-48 overflow-auto rounded-lg bg-muted p-2 font-mono text-xs">
+            {part.arguments ? pretty(part.arguments) : "—"}
+          </pre>
+        </div>
+        {output !== undefined && (
+          <div>
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              Result
+            </p>
+            <pre className="max-h-64 overflow-auto rounded-lg bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
+              {pretty(output)}
+            </pre>
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function Thinking({ content, active }: { content: string; active: boolean }) {
+  return (
+    <Collapsible className="group/think w-full text-sm text-muted-foreground">
+      <CollapsibleTrigger className="flex items-center gap-2">
+        <BrainIcon className="size-3.5" />
+        {active ? "Thinking…" : "Thought"}
+        <ChevronRightIcon className="size-4 transition-transform group-data-[open]/think:rotate-90" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-1 border-l pl-3 whitespace-pre-wrap">
+        {content}
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 // Chat is one chat session: its stored messages, then whatever is said in
@@ -72,88 +183,134 @@ export function Chat({
     setInput("");
   };
 
+  // Keep the newest message in view while it streams.
+  const bottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, isLoading]);
+
+  const last = messages.at(-1);
+  // Nothing visible has streamed in for this turn yet.
+  const waiting =
+    isLoading &&
+    (last?.role !== "assistant" ||
+      !last.parts.some((p) => p.type === "text" && p.content)) &&
+    // The thinking part shows its own status while it streams.
+    last?.parts.at(-1)?.type !== "thinking";
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 p-4">
-      <div className="flex flex-1 flex-col gap-4">
-        {messages.map((message) => (
-          <Card
-            key={message.id}
-            size="sm"
-            className={message.role === "user" ? "self-end" : "self-start"}
-          >
-            <CardContent className="flex flex-col gap-2">
-              {message.parts.map((part, i) => {
-                if (part.type === "text") {
-                  return (
-                    <p key={i} className="whitespace-pre-wrap">
-                      {part.content}
-                    </p>
-                  );
-                }
-                if (part.type === "tool-call") {
-                  return (
-                    <Badge key={part.id} variant="secondary">
-                      {part.name}
-                    </Badge>
-                  );
-                }
-                return null;
-              })}
-            </CardContent>
-          </Card>
-        ))}
-        {isLoading && <Spinner />}
-        {error && <p className="text-destructive">{error.message}</p>}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
+          {messages.map((message, mi) =>
+            message.role === "user" ? (
+              <Card key={message.id} size="sm" className="max-w-[85%] self-end">
+                <CardContent>
+                  {message.parts.map((part, i) =>
+                    part.type === "text" ? (
+                      <p key={i} className="whitespace-pre-wrap">
+                        {part.content}
+                      </p>
+                    ) : null,
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div key={message.id} className="flex flex-col gap-2">
+                {message.parts.map((part, i) => {
+                  if (part.type === "text") {
+                    return (
+                      <p key={i} className="whitespace-pre-wrap">
+                        {part.content}
+                      </p>
+                    );
+                  }
+                  if (part.type === "tool-call") {
+                    return (
+                      <ToolCall key={part.id} part={part} message={message} />
+                    );
+                  }
+                  if (part.type === "thinking" && part.content) {
+                    return (
+                      <Thinking
+                        key={i}
+                        content={part.content}
+                        active={
+                          isLoading &&
+                          mi === messages.length - 1 &&
+                          i === message.parts.length - 1
+                        }
+                      />
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            ),
+          )}
+          {waiting && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner /> Thinking…
+            </div>
+          )}
+          {error && <p className="text-destructive">{error.message}</p>}
+          <div ref={bottomRef} />
+        </div>
       </div>
-      <InputGroup>
-        <InputGroupTextarea
-          value={input}
-          placeholder="Ask about your organization's data…"
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-        />
-        <InputGroupAddon align="block-end">
-          {models.length > 0 && (
-            <Select value={model} onValueChange={(value) => selectModel(value)}>
-              <SelectTrigger size="sm" aria-label="Model">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {models.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {isLoading ? (
-            <InputGroupButton
-              variant="default"
-              size="icon-sm"
-              aria-label="Stop"
-              onClick={stop}
-            >
-              <SquareIcon />
-            </InputGroupButton>
-          ) : (
-            <InputGroupButton
-              variant="default"
-              size="icon-sm"
-              aria-label="Send"
-              disabled={!input.trim()}
-              onClick={submit}
-            >
-              <ArrowUpIcon />
-            </InputGroupButton>
-          )}
-        </InputGroupAddon>
-      </InputGroup>
+      <div className="mx-auto w-full max-w-3xl shrink-0 bg-background p-4 pt-2">
+        <InputGroup>
+          <InputGroupTextarea
+            value={input}
+            placeholder="Ask about your organization's data…"
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+          <InputGroupAddon align="block-end">
+            {models.length > 0 && (
+              <Select
+                value={model}
+                onValueChange={(value) => selectModel(value)}
+              >
+                <SelectTrigger size="sm" aria-label="Model">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {isLoading ? (
+              <InputGroupButton
+                variant="default"
+                size="icon-sm"
+                aria-label="Stop"
+                onClick={stop}
+              >
+                <SquareIcon />
+              </InputGroupButton>
+            ) : (
+              <InputGroupButton
+                variant="default"
+                size="icon-sm"
+                aria-label="Send"
+                disabled={!input.trim()}
+                onClick={submit}
+              >
+                <ArrowUpIcon />
+              </InputGroupButton>
+            )}
+          </InputGroupAddon>
+        </InputGroup>
+      </div>
     </div>
   );
 }
