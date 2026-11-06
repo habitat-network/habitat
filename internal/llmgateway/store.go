@@ -73,6 +73,9 @@ var (
 	// ErrInvalidBaseURL is returned for a base URL that isn't an absolute
 	// http(s) URL, or a missing one for a provider that needs it.
 	ErrInvalidBaseURL = errors.New("base URL must be an absolute http or https URL")
+	// ErrBaseURLNotSupported is returned when giving a base URL to a provider
+	// that can't be reached at any other URL.
+	ErrBaseURLNotSupported = errors.New("this provider doesn't take a base URL")
 	// ErrMissingAPIKey is returned when a provider that needs an API key would
 	// be left without one.
 	ErrMissingAPIKey = errors.New("this provider requires an API key")
@@ -103,6 +106,11 @@ func validateBaseURL(provider Provider, baseURL string) error {
 		}
 		return nil
 	}
+	// langchaingo's googleai always calls Google's API, so a base URL would
+	// be silently ignored.
+	if provider == ProviderGoogle {
+		return ErrBaseURLNotSupported
+	}
 	u, err := url.Parse(baseURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return ErrInvalidBaseURL
@@ -118,6 +126,7 @@ func IsConfigError(err error) bool {
 		errors.Is(err, ErrInvalidProvider) ||
 		errors.Is(err, ErrMissingModel) ||
 		errors.Is(err, ErrInvalidBaseURL) ||
+		errors.Is(err, ErrBaseURLNotSupported) ||
 		errors.Is(err, ErrMissingAPIKey) ||
 		errors.Is(err, ErrAPIKeyNotSupported)
 }
