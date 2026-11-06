@@ -36,6 +36,34 @@ func (failingLLM) GenerateContent(
 	return nil, errors.New("upstream boom")
 }
 
+// toolCallingLLM calls the first tool it's offered, recording the names of
+// the tools it was offered.
+type toolCallingLLM struct {
+	fakeLLM
+	offered *[]string
+}
+
+func (m toolCallingLLM) GenerateContent(
+	_ context.Context,
+	_ []llms.MessageContent,
+	options ...llms.CallOption,
+) (*llms.ContentResponse, error) {
+	var opts llms.CallOptions
+	for _, opt := range options {
+		opt(&opts)
+	}
+	for _, tool := range opts.Tools {
+		*m.offered = append(*m.offered, tool.Function.Name)
+	}
+	return &llms.ContentResponse{Choices: []*llms.ContentChoice{{
+		StopReason: "tool_use",
+		ToolCalls: []llms.ToolCall{{
+			ID: "call_1", Type: "function",
+			FunctionCall: &llms.FunctionCall{Name: opts.Tools[0].Function.Name, Arguments: "{}"},
+		}},
+	}}}, nil
+}
+
 func fakeModels(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
 	return fakeLLM{fake.NewFakeLLM([]string{"hello there"})}, nil
 }
@@ -190,6 +218,33 @@ func TestServerLlmOpenAICompatibleAPI(t *testing.T) {
 		body := w.Body.String()
 		require.Contains(t, body, `"content":"hello there"`)
 		require.True(t, strings.HasSuffix(body, "data: [DONE]\n\n"))
+	})
+
+	t.Run("passes MCP tool names through providers that reject them", func(t *testing.T) {
+		var offered []string
+		calling := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithDB(ts.DB),
+			pearserver_testutil.WithFGA(ts.FGA),
+			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
+			pearserver_testutil.WithValidator(ts.Validator),
+			pearserver_testutil.WithLLMModelFactory(
+				func(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
+					return toolCallingLLM{fakeLLM{fake.NewFakeLLM(nil)}, &offered}, nil
+				}),
+		)
+		req := httptest.NewRequest(http.MethodPost, "/llm/"+orgDID+"/v1/chat/completions",
+			strings.NewReader(`{"model":"gpt","messages":[{"role":"user","content":"hi"}],`+
+				`"tools":[{"type":"function","function":{"name":"github:get_me"}}]}`))
+		w := httptest.NewRecorder()
+		calling.Server.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		require.Len(t, offered, 1)
+		require.Regexp(t, `^[A-Za-z0-9_-]{1,64}$`, offered[0])
+		var got llmgateway.ChatCompletion
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+		require.Equal(t, "tool_calls", got.Choices[0].FinishReason)
+		require.Equal(t, "github:get_me", got.Choices[0].Message.ToolCalls[0].Function.Name)
 	})
 
 	t.Run("upstream failures are bad gateway errors", func(t *testing.T) {

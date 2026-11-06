@@ -8,9 +8,12 @@ package llmgateway
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/tmc/langchaingo/llms"
@@ -294,7 +297,7 @@ func (m ChatMessage) toLangchain() (llms.MessageContent, error) {
 				ID:   call.ID,
 				Type: "function",
 				FunctionCall: &llms.FunctionCall{
-					Name:      call.Function.Name,
+					Name:      providerToolName(call.Function.Name),
 					Arguments: call.Function.Arguments,
 				},
 			})
@@ -308,7 +311,7 @@ func (m ChatMessage) toLangchain() (llms.MessageContent, error) {
 			Role: llms.ChatMessageTypeTool,
 			Parts: []llms.ContentPart{llms.ToolCallResponse{
 				ToolCallID: m.ToolCallID,
-				Name:       m.Name,
+				Name:       providerToolName(m.Name),
 				Content:    m.Content.text(),
 			}},
 		}, nil
@@ -387,7 +390,7 @@ func (r *ChatCompletionRequest) CallOptions() ([]llms.CallOption, error) {
 			tools[i] = llms.Tool{
 				Type: "function",
 				Function: &llms.FunctionDefinition{
-					Name:        tool.Function.Name,
+					Name:        providerToolName(tool.Function.Name),
 					Description: tool.Function.Description,
 					Parameters:  params,
 					Strict:      tool.Function.Strict,
@@ -441,17 +444,68 @@ func toolChoice(raw json.RawMessage) (any, error) {
 	}
 	return llms.ToolChoice{
 		Type:     "function",
-		Function: &llms.FunctionReference{Name: named.Function.Name},
+		Function: &llms.FunctionReference{Name: providerToolName(named.Function.Name)},
 	}, nil
 }
 
+// providerToolNamePattern matches the tool names every provider accepts:
+// OpenAI's and Anthropic's limits, which Google's and Ollama's are looser than.
+var providerToolNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+var invalidToolNameChars = regexp.MustCompile(`[^A-Za-z0-9_-]`)
+
+// providerToolName is the name a request's tool name is sent to providers
+// under. Names they all accept are sent as they are. Others, such as the
+// "server:tool" names pear's MCP endpoint gives connected servers' tools,
+// which OpenAI and Anthropic reject, are sent under an alias: the name with
+// unaccepted characters replaced, shortened to fit, and suffixed with a hash
+// of the name so aliases of different names don't collide. The alias is a
+// function of the name alone, so it's the same in every message of a
+// conversation; [ToolNames] maps it back.
+func providerToolName(name string) string {
+	if name == "" || providerToolNamePattern.MatchString(name) {
+		return name
+	}
+	sum := sha256.Sum256([]byte(name))
+	suffix := "_" + hex.EncodeToString(sum[:4])
+	safe := invalidToolNameChars.ReplaceAllString(name, "_")
+	if maxLen := 64 - len(suffix); len(safe) > maxLen {
+		safe = safe[:maxLen]
+	}
+	return safe + suffix
+}
+
+// ToolNames maps the names a request's tools were sent to the provider under
+// (see providerToolName) back to the request's own names.
+type ToolNames map[string]string
+
+// ToolNames returns the names r's tools were sent to the provider under,
+// mapped to r's own.
+func (r *ChatCompletionRequest) ToolNames() ToolNames {
+	names := make(ToolNames, len(r.Tools))
+	for _, tool := range r.Tools {
+		names[providerToolName(tool.Function.Name)] = tool.Function.Name
+	}
+	return names
+}
+
+// original is the request's name for the tool the provider called name. A
+// name the request didn't send is returned as is.
+func (n ToolNames) original(name string) string {
+	if original, ok := n[name]; ok {
+		return original
+	}
+	return name
+}
+
 // ChatCompletionFor translates resp to the OpenAI format. id, created and
-// model identify the completion.
+// model identify the completion, and names are the request's tool names.
 func ChatCompletionFor(
 	resp *llms.ContentResponse,
 	id string,
 	created int64,
 	model string,
+	names ToolNames,
 ) ChatCompletion {
 	completion := ChatCompletion{
 		ID:      id,
@@ -470,7 +524,7 @@ func ChatCompletionFor(
 			Message: ResponseMessage{
 				Role:      "assistant",
 				Content:   content,
-				ToolCalls: toolCalls(choice),
+				ToolCalls: toolCalls(choice, names),
 			},
 			FinishReason: FinishReason(choice),
 		}
@@ -479,7 +533,7 @@ func ChatCompletionFor(
 	return completion
 }
 
-func toolCalls(choice *llms.ContentChoice) []ToolCall {
+func toolCalls(choice *llms.ContentChoice, names ToolNames) []ToolCall {
 	if len(choice.ToolCalls) == 0 {
 		return nil
 	}
@@ -492,7 +546,7 @@ func toolCalls(choice *llms.ContentChoice) []ToolCall {
 			ID:   call.ID,
 			Type: "function",
 			Function: FunctionCall{
-				Name:      call.FunctionCall.Name,
+				Name:      names.original(call.FunctionCall.Name),
 				Arguments: call.FunctionCall.Arguments,
 			},
 		})
@@ -501,8 +555,9 @@ func toolCalls(choice *llms.ContentChoice) []ToolCall {
 }
 
 // ToolCallChunks are choice's tool calls, as a streamed chunk carries them.
-func ToolCallChunks(choice *llms.ContentChoice) []ChunkToolCall {
-	calls := toolCalls(choice)
+// names are the request's tool names.
+func ToolCallChunks(choice *llms.ContentChoice, names ToolNames) []ChunkToolCall {
+	calls := toolCalls(choice, names)
 	if len(calls) == 0 {
 		return nil
 	}

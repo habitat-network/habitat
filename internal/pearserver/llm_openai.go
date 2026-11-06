@@ -170,7 +170,9 @@ func (p *PearServer) completeChat(
 			writeUpstreamError(ctx, w, err)
 			return
 		}
-		completion := llmgateway.ChatCompletionFor(resp, completionID, created, req.Model)
+		completion := llmgateway.ChatCompletionFor(
+			resp, completionID, created, req.Model, req.ToolNames(),
+		)
 		if req.Stream {
 			streamCompletion(ctx, w, completion, req.StreamOptions)
 			return
