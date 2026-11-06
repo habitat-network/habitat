@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -41,11 +42,24 @@ export default function SignInForm({
   const {
     register,
     handleSubmit,
+    getValues,
+    setValue,
     formState: { errors },
   } = useForm<SignInFormData>();
   // Fall back to whoever last signed in through pear on this domain, so a
   // returning user only has to press Sign In.
-  const remembered = defaultHandle ? undefined : readRememberedLogin();
+  // Read after mount rather than during render: apps like chalk render this
+  // form on the server, where there is no document.cookie.
+  useEffect(() => {
+    if (defaultHandle || getValues("loginHint")) {
+      return;
+    }
+    const remembered = readRememberedLogin();
+    const hint = remembered?.handle ?? remembered?.did;
+    if (hint) {
+      setValue("loginHint", hint);
+    }
+  }, [defaultHandle, getValues, setValue]);
   const {
     mutate: login,
     isPending,
@@ -69,9 +83,7 @@ export default function SignInForm({
                     {...register("loginHint", {
                       required: "Handle or email is required",
                     })}
-                    defaultValue={
-                      defaultHandle ?? remembered?.handle ?? remembered?.did
-                    }
+                    defaultValue={defaultHandle}
                     placeholder="alice.bsky.social or you@company.com"
                   />
                   <FieldError
