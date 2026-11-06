@@ -1,6 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import {
+  listMcpServers,
+  startMcpAuthorization,
+  type McpServerWithStatus,
+} from "internal/mcp";
+import type { DidString } from "@atproto/syntax";
+import {
   chatOwner,
   chatsForOwner,
   getDb,
@@ -118,5 +124,29 @@ export const getChatMessages = createServerFn({ method: "GET" })
       r.role === "user" || r.role === "assistant"
         ? [{ id: r.id, role: r.role, content: r.content }]
         : [],
+    );
+  });
+
+// listOrgMcpServers returns the org's MCP servers, each with whether the
+// member has connected their own credential to it.
+export const listOrgMcpServers = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<McpServerWithStatus[]> => {
+    const { did } = await requireMember();
+    return listMcpServers(await memberSession(env, did), data.org as DidString);
+  });
+
+// startMcpConnect begins connecting the member to one of the org's MCP
+// servers. For an oauth server it returns the authorization URL to open; for
+// a token server, passing the member's token connects them right away.
+export const startMcpConnect = createServerFn({ method: "POST" })
+  .validator((input: { org: string; id: string; token?: string }) => input)
+  .handler(async ({ data }): Promise<string | undefined> => {
+    const { did } = await requireMember();
+    return startMcpAuthorization(
+      await memberSession(env, did),
+      data.org as DidString,
+      data.id,
+      data.token,
     );
   });

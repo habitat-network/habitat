@@ -24,6 +24,10 @@
       "types": "./src/authManager.ts",
       "import": "./src/authManager.ts"
     },
+    "./mcp": {
+      "types": "./src/mcp/index.ts",
+      "import": "./src/mcp/index.ts"
+    },
     "./hooks": {
       "types": "./src/hooks/index.ts",
       "import": "./src/hooks/index.ts"
