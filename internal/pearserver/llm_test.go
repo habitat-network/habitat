@@ -64,6 +64,41 @@ func (m toolCallingLLM) GenerateContent(
 	}}}, nil
 }
 
+// nonStreamingLLM answers without calling the streaming function, as some
+// providers do.
+type nonStreamingLLM struct{ fakeLLM }
+
+func (nonStreamingLLM) GenerateContent(
+	context.Context,
+	[]llms.MessageContent,
+	...llms.CallOption,
+) (*llms.ContentResponse, error) {
+	return &llms.ContentResponse{Choices: []*llms.ContentChoice{{Content: "all at once"}}}, nil
+}
+
+// sseChunks parses a streamed chat completion's chunks, checking each choice
+// index appears at most once per chunk, as OpenAI clients expect.
+func sseChunks(t *testing.T, body string) []llmgateway.ChatCompletionChunk {
+	t.Helper()
+	var chunks []llmgateway.ChatCompletionChunk
+	for event := range strings.SplitSeq(strings.TrimSpace(body), "\n\n") {
+		data, ok := strings.CutPrefix(event, "data: ")
+		require.True(t, ok, event)
+		if data == "[DONE]" {
+			continue
+		}
+		var chunk llmgateway.ChatCompletionChunk
+		require.NoError(t, json.Unmarshal([]byte(data), &chunk))
+		seen := map[int]bool{}
+		for _, choice := range chunk.Choices {
+			require.False(t, seen[choice.Index], "choice %d twice in %s", choice.Index, data)
+			seen[choice.Index] = true
+		}
+		chunks = append(chunks, chunk)
+	}
+	return chunks
+}
+
 func fakeModels(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
 	return fakeLLM{fake.NewFakeLLM([]string{"hello there"})}, nil
 }
@@ -245,6 +280,66 @@ func TestServerLlmOpenAICompatibleAPI(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
 		require.Equal(t, "tool_calls", got.Choices[0].FinishReason)
 		require.Equal(t, "github:get_me", got.Choices[0].Message.ToolCalls[0].Function.Name)
+	})
+
+	t.Run("replays a streamed tool call with its finish reason", func(t *testing.T) {
+		var offered []string
+		calling := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithDB(ts.DB),
+			pearserver_testutil.WithFGA(ts.FGA),
+			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
+			pearserver_testutil.WithValidator(ts.Validator),
+			pearserver_testutil.WithLLMModelFactory(
+				func(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
+					return toolCallingLLM{fakeLLM{fake.NewFakeLLM(nil)}, &offered}, nil
+				}),
+		)
+		req := httptest.NewRequest(http.MethodPost, "/llm/"+orgDID+"/v1/chat/completions",
+			strings.NewReader(`{"model":"gpt","stream":true,`+
+				`"messages":[{"role":"user","content":"hi"}],`+
+				`"tools":[{"type":"function","function":{"name":"github:get_me"}}]}`))
+		w := httptest.NewRecorder()
+		calling.Server.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		var reasons []string
+		var calls []llmgateway.ChunkToolCall
+		for _, chunk := range sseChunks(t, w.Body.String()) {
+			first := chunk.Choices[0]
+			calls = append(calls, first.Delta.ToolCalls...)
+			if first.FinishReason != nil {
+				reasons = append(reasons, *first.FinishReason)
+			}
+		}
+		require.Equal(t, []string{"tool_calls"}, reasons)
+		require.Len(t, calls, 1)
+		require.Equal(t, "github:get_me", calls[0].Function.Name)
+	})
+
+	t.Run("streams a reply the provider didn't stream", func(t *testing.T) {
+		quiet := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithDB(ts.DB),
+			pearserver_testutil.WithFGA(ts.FGA),
+			pearserver_testutil.WithSpaceStore(ts.SpaceStore),
+			pearserver_testutil.WithValidator(ts.Validator),
+			pearserver_testutil.WithLLMModelFactory(
+				func(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
+					return nonStreamingLLM{fakeLLM{fake.NewFakeLLM(nil)}}, nil
+				}),
+		)
+		req := httptest.NewRequest(http.MethodPost, "/llm/"+orgDID+"/v1/chat/completions",
+			strings.NewReader(`{"model":"gpt","stream":true,`+
+				`"messages":[{"role":"user","content":"hi"}]}`))
+		w := httptest.NewRecorder()
+		quiet.Server.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		var content strings.Builder
+		for _, chunk := range sseChunks(t, w.Body.String()) {
+			for _, choice := range chunk.Choices {
+				content.WriteString(choice.Delta.Content)
+			}
+		}
+		require.Equal(t, "all at once", content.String())
 	})
 
 	t.Run("upstream failures are bad gateway errors", func(t *testing.T) {

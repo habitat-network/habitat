@@ -236,6 +236,14 @@ func (p *PearServer) completeChat(
 		if err := start(); err != nil {
 			return
 		}
+		// The provider answered without streaming any of it.
+		if len(resp.Choices) > 0 && resp.Choices[0].Content != "" {
+			if err := sse.send(chunk([]llmgateway.ChunkChoice{
+				{Delta: llmgateway.ChunkDelta{Content: resp.Choices[0].Content}},
+			}, nil)); err != nil {
+				return
+			}
+		}
 	}
 	reason := "stop"
 	if len(resp.Choices) > 0 {
@@ -290,13 +298,18 @@ func streamCompletion(
 				Index: i, ID: call.ID, Type: call.Type, Function: call.Function,
 			})
 		}
+		// The finish reason goes in a chunk of its own, as OpenAI sends it:
+		// clients read one entry per choice index from each chunk (many only
+		// choices[0]), so a second entry for the same index is lost.
 		reason := choice.FinishReason
-		if err := sse.send(chunk([]llmgateway.ChunkChoice{
-			{Index: choice.Index, Delta: delta},
-			{Index: choice.Index, FinishReason: &reason},
-		}, nil)); err != nil {
-			slog.WarnContext(ctx, "write llm stream", "err", err)
-			return
+		for _, choices := range [][]llmgateway.ChunkChoice{
+			{{Index: choice.Index, Delta: delta}},
+			{{Index: choice.Index, FinishReason: &reason}},
+		} {
+			if err := sse.send(chunk(choices, nil)); err != nil {
+				slog.WarnContext(ctx, "write llm stream", "err", err)
+				return
+			}
 		}
 	}
 	if options != nil && options.IncludeUsage {
