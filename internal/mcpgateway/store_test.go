@@ -454,3 +454,53 @@ func TestTokenServer(t *testing.T) {
 	_, err = s.Downstream(t.Context(), alice, org, "github")
 	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
 }
+
+// Concurrent callers needing a refresh all get working tokens: none redeems a
+// refresh token another has already rotated.
+func TestDownstreamConcurrentRefreshes(t *testing.T) {
+	fake := mcpgatewaytest.New(t, mcpgatewaytest.WithAccessTokenTTL(30*time.Second))
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
+	require.NoError(t, err)
+	connect(t, s, fake, alice, "linear")
+
+	const callers = 16
+	errs := make(chan error, callers)
+	for range callers {
+		go func() {
+			_, err := s.Downstream(t.Context(), alice, org, "linear")
+			errs <- err
+		}()
+	}
+	for range callers {
+		require.NoError(t, <-errs)
+	}
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.NoError(t, err)
+}
+
+// A refresh the authorization server fails without rejecting the grant (an
+// outage) leaves the member connected, to retry later.
+func TestDownstreamRefreshOutageKeepsConnection(t *testing.T) {
+	fake := mcpgatewaytest.New(t, mcpgatewaytest.WithAccessTokenTTL(30*time.Second))
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
+	require.NoError(t, err)
+	connect(t, s, fake, alice, "linear")
+
+	fake.FailTokenRequests(true)
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, mcpgateway.ErrNotConnected)
+	listed, err := s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.True(t, listed[0].Connected)
+
+	fake.FailTokenRequests(false)
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.NoError(t, err)
+}

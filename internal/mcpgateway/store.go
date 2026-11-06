@@ -36,6 +36,10 @@ const flowTTL = 10 * time.Minute
 // it doesn't expire in flight.
 const expirySkew = time.Minute
 
+// refreshTimeout bounds a token refresh, which outlives the request that
+// started it (see store.refresh).
+const refreshTimeout = 30 * time.Second
+
 // serverRow is the GORM model for an org's MCP server.
 type serverRow struct {
 	OrgDID      syntax.DID `gorm:"column:org_did;primaryKey;size:255"`
@@ -89,6 +93,22 @@ type storedToken struct {
 	TokenType    string
 	RefreshToken string
 	Expiry       time.Time
+}
+
+func newStoredToken(generation string, token *oauth2.Token) *storedToken {
+	return &storedToken{
+		Generation:   generation,
+		AccessToken:  token.AccessToken,
+		TokenType:    token.TokenType,
+		RefreshToken: token.RefreshToken,
+		Expiry:       token.Expiry,
+	}
+}
+
+// needsRefresh reports whether t's access token expires within expirySkew.
+// Tokens without an expiry, such as personal access tokens, never do.
+func (t *storedToken) needsRefresh() bool {
+	return !t.Expiry.IsZero() && time.Until(t.Expiry) < expirySkew
 }
 
 func (t *storedToken) oauth2() *oauth2.Token {
@@ -502,13 +522,10 @@ func (s *store) putToken(
 	did syntax.DID,
 	token *oauth2.Token,
 ) error {
-	if err := s.tokens.PutEncrypted(ctx, tokenKey(row.OrgDID, row.Name, did), storedToken{
-		Generation:   row.Generation,
-		AccessToken:  token.AccessToken,
-		TokenType:    token.TokenType,
-		RefreshToken: token.RefreshToken,
-		Expiry:       token.Expiry,
-	}, keyval.NoExpiry); err != nil {
+	if err := s.tokens.PutEncrypted(
+		ctx, tokenKey(row.OrgDID, row.Name, did), newStoredToken(row.Generation, token),
+		keyval.NoExpiry,
+	); err != nil {
 		return fmt.Errorf("store mcp server tokens: %w", err)
 	}
 	return nil
@@ -669,8 +686,8 @@ func (s *store) Downstream(
 	if err != nil {
 		return nil, err
 	}
-	if !token.Expiry.IsZero() && time.Until(token.Expiry) < expirySkew {
-		if token, err = s.refresh(ctx, row, did, token); err != nil {
+	if token.needsRefresh() {
+		if token, err = s.refresh(ctx, row, did); err != nil {
 			return nil, err
 		}
 	}
@@ -683,7 +700,7 @@ func (s *store) Downstream(
 	}, nil
 }
 
-// refresh redeems token's refresh token for new tokens and stores them,
+// refresh redeems did's refresh token for new tokens and stores them,
 // before any caller uses them: a rotated refresh token that isn't stored would
 // leave did disconnected at the next refresh. If the authorization server no
 // longer honors the refresh token, did's tokens are deleted and refresh
@@ -696,23 +713,33 @@ func (s *store) refresh(
 	ctx context.Context,
 	row *serverRow,
 	did syntax.DID,
-	token *storedToken,
 ) (*storedToken, error) {
-	if token.RefreshToken == "" {
-		return nil, fmt.Errorf("%w: access token expired", ErrNotConnected)
-	}
 	key := tokenKey(row.OrgDID, row.Name, did)
+	// The refresh is shared by every caller waiting on it, and once the
+	// authorization server has rotated the refresh token the new one must be
+	// stored, so it isn't cut short when the caller that started it goes away.
+	// refreshTimeout bounds it instead.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), refreshTimeout)
+	defer cancel()
 	v, err, _ := s.refreshes.Do(key, func() (any, error) {
-		// Another caller may have refreshed since this one read the tokens.
-		if current, err := s.token(ctx, row, did); err == nil &&
-			time.Until(current.Expiry) >= expirySkew {
+		// Read the tokens again, rather than using the caller's copy: another
+		// caller may have refreshed them since, rotating the refresh token the
+		// caller read.
+		current, err := s.token(ctx, row, did)
+		if err != nil {
+			return nil, err
+		}
+		if !current.needsRefresh() {
 			return current, nil
+		}
+		if current.RefreshToken == "" {
+			return nil, fmt.Errorf("%w: access token expired", ErrNotConnected)
 		}
 		cfg, err := s.oauthConfig(row)
 		if err != nil {
 			return nil, err
 		}
-		refreshed, err := cfg.refresh(ctx, s.client, token.RefreshToken)
+		refreshed, err := cfg.refresh(ctx, s.client, current.RefreshToken)
 		if errors.Is(err, errInvalidGrant) {
 			slog.InfoContext(ctx, "mcp: refresh token rejected; disconnecting",
 				"org", row.OrgDID.String(), "server", string(row.Name), "did", did.String())
@@ -726,13 +753,7 @@ func (s *store) refresh(
 		if err := s.putToken(ctx, row, did, refreshed); err != nil {
 			return nil, err
 		}
-		return &storedToken{
-			Generation:   row.Generation,
-			AccessToken:  refreshed.AccessToken,
-			TokenType:    refreshed.TokenType,
-			RefreshToken: refreshed.RefreshToken,
-			Expiry:       refreshed.Expiry,
-		}, nil
+		return newStoredToken(row.Generation, refreshed), nil
 	})
 	if err != nil {
 		return nil, err
