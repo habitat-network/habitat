@@ -1,14 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import type { AuthManager } from "internal";
+import {
+  McpTokenDialog,
+  startMcpAuthorization,
+  useMcpConnect,
+} from "internal/mcp";
+import { pearAgent } from "@/queries/pearAgent";
 import type { DidString } from "@atproto/lex";
 import {
   addMcpServerMutationOptions,
   disconnectMcpServerMutationOptions,
   mcpServersQueryKey,
   removeMcpServerMutationOptions,
-  startMcpAuthorizationMutationOptions,
   type McpServerWithStatus,
 } from "@/queries/mcp";
 import { MCP_CONNECTORS, type McpConnector } from "@/lib/mcpConnectors";
@@ -62,10 +67,6 @@ interface AddServerFormValues {
 interface ConnectorFormValues {
   name: string;
 }
-
-// The type of the message pear's MCP OAuth callback page posts to the window
-// that opened it (pearserver.mcpOAuthCallbackMessageType in Go).
-const OAUTH_CALLBACK_MESSAGE_TYPE = "habitat-mcp-oauth";
 
 // pear's MCP OAuth callback (pearserver.MCPOAuthCallbackPath in Go), which
 // admins register as the redirect URI of a pre-registered client.
@@ -199,85 +200,22 @@ function ConnectionCell({
   authManager: AuthManager;
 }) {
   const queryClient = useQueryClient();
-  // The popup the member authorizes in, while it's open. Its lifecycle
-  // belongs to the browser rather than to a mutation, so it's tracked
-  // separately.
-  const [popup, setPopup] = useState<Window | null>(null);
-  const pollRef = useRef<number | undefined>(undefined);
-
-  // Once the popup closes, whether the member finished or gave up, refetch
-  // the servers' connected status.
-  useEffect(() => {
-    if (!popup) return;
-    const done = () => {
-      window.clearInterval(pollRef.current);
-      setPopup(null);
-      void queryClient.invalidateQueries({
-        queryKey: mcpServersQueryKey(org),
-      });
-    };
-    const onMessage = (event: MessageEvent) => {
-      if (
-        event.source === popup &&
-        event.data?.type === OAUTH_CALLBACK_MESSAGE_TYPE
-      ) {
-        done();
-      }
-    };
-    window.addEventListener("message", onMessage);
-    pollRef.current = window.setInterval(() => {
-      if (popup.closed) done();
-    }, 500);
-    return () => {
-      window.removeEventListener("message", onMessage);
-      window.clearInterval(pollRef.current);
-    };
-  }, [popup, org, queryClient]);
+  const {
+    connect,
+    connecting,
+    error: startError,
+  } = useMcpConnect({
+    start: (id) =>
+      startMcpAuthorization(pearAgent(authManager, `${org}#habitat`), org, id),
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: mcpServersQueryKey(org) }),
+  });
 
   const {
     mutate: disconnect,
     isPending: disconnecting,
     error: disconnectError,
   } = useMutation(disconnectMcpServerMutationOptions(authManager, org));
-
-  const {
-    mutate: startAuthorization,
-    isPending: starting,
-    error: startError,
-  } = useMutation(startMcpAuthorizationMutationOptions(authManager, org));
-
-  const authorize = () => {
-    // Opened right away, in the click's handler, so pop-up blockers allow
-    // it; it's pointed at the authorization URL once pear returns one.
-    const opened = window.open(
-      "",
-      "habitat-mcp-oauth",
-      "popup,width=600,height=720",
-    );
-    if (!opened) {
-      toast.add({
-        type: "error",
-        title: "Allow pop-ups for this site to connect",
-      });
-      return;
-    }
-    startAuthorization(
-      { id: server.id },
-      {
-        onSuccess(authorizationUrl) {
-          if (!authorizationUrl) {
-            opened.close();
-            return;
-          }
-          opened.location.href = authorizationUrl;
-          setPopup(opened);
-        },
-        onError() {
-          opened.close();
-        },
-      },
-    );
-  };
 
   if (server.authType === "manual") {
     return <Badge variant="secondary">Shared</Badge>;
@@ -305,10 +243,24 @@ function ConnectionCell({
   }
 
   if (server.authType === "token") {
-    return <TokenDialog org={org} server={server} authManager={authManager} />;
+    return (
+      <McpTokenDialog
+        serverName={server.name}
+        save={async (token) => {
+          await startMcpAuthorization(
+            pearAgent(authManager, `${org}#habitat`),
+            org,
+            server.id,
+            token,
+          );
+          await queryClient.invalidateQueries({
+            queryKey: mcpServersQueryKey(org),
+          });
+        }}
+      />
+    );
   }
 
-  const connecting = starting || popup !== null;
   return (
     <div className="flex flex-col gap-1">
       <Button
@@ -316,7 +268,7 @@ function ConnectionCell({
         size="sm"
         className="self-start"
         disabled={connecting}
-        onClick={authorize}
+        onClick={() => connect(server.id)}
       >
         {connecting ? "Connecting…" : "Connect"}
       </Button>
@@ -330,92 +282,6 @@ function ConnectionCell({
 // AddServerDialog first asks which connector to add, then shows the form for
 // it: a connector-specific one for a known connector (see mcpConnectors.ts), or
 // the generic one for a custom server.
-// TokenDialog connects the caller to a token server with their own access
-// token, such as a GitHub personal access token.
-function TokenDialog({
-  org,
-  server,
-  authManager,
-}: {
-  org: DidString;
-  server: McpServerWithStatus["server"];
-  authManager: AuthManager;
-}) {
-  const [open, setOpen] = useState(false);
-  const {
-    register,
-    handleSubmit,
-    reset: resetForm,
-    formState: { isValid },
-  } = useForm<{ token: string }>({
-    mode: "onChange",
-    defaultValues: { token: "" },
-  });
-  const {
-    mutate: connect,
-    isPending,
-    error,
-    reset: resetMutation,
-  } = useMutation(startMcpAuthorizationMutationOptions(authManager, org));
-
-  const submit = handleSubmit(({ token }) =>
-    connect(
-      { id: server.id, token },
-      {
-        onSuccess() {
-          setOpen(false);
-          resetForm();
-        },
-      },
-    ),
-  );
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) {
-          resetForm();
-          resetMutation();
-        }
-      }}
-    >
-      <DialogTrigger render={<Button variant="outline" size="sm" />}>
-        Add token
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Connect to {server.name}</DialogTitle>
-        </DialogHeader>
-        <form className="flex flex-col gap-4" onSubmit={submit}>
-          <Field>
-            <FieldLabel htmlFor="mcp-token">Access token</FieldLabel>
-            <Input
-              id="mcp-token"
-              type="password"
-              autoComplete="off"
-              autoFocus
-              {...register("token", { required: "Enter your token." })}
-            />
-            <p className="text-xs text-muted-foreground">
-              Your own token for this server, such as a personal access token.
-              It&apos;s stored encrypted, used only for your requests, and never
-              shown again.
-            </p>
-          </Field>
-          <FieldError errors={error ? [{ message: error.message }] : []} />
-          <DialogFooter>
-            <Button type="submit" disabled={isPending || !isValid}>
-              {isPending ? "Connecting…" : "Connect"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function AddServerDialog({
   org,
   authManager,
