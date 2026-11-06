@@ -21,7 +21,7 @@
     "@posthog/react": "^1.11.3",
     "@tanstack/ai": "^1.0.0",
     "@tanstack/ai-mcp": "^1.1.0",
-    "@tanstack/ai-openai": "1.0.0",
+    "@tanstack/ai-openai": "1.1.1",
     "@tanstack/ai-react": "^1.0.0",
     "@tanstack/markdown": "^1.2.0",
     "@tanstack/react-query": "catalog:",
