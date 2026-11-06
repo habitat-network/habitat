@@ -8,7 +8,7 @@
     {
       "binding": "DB",
       "database_name": "brain",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "57434a39-0d31-48db-8f4a-2522d07b45b6",
       "migrations_dir": "drizzle",
     },
   ],
