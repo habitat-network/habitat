@@ -46,8 +46,8 @@ catalogs:
       specifier: ^0.8.5
       version: 0.8.6
     '@tanstack/pacer':
-      specifier: ^0.22.0
-      version: 0.22.0
+      specifier: ^0.23.0
+      version: 0.23.1
     '@tanstack/react-devtools':
       specifier: ^0.10.8
       version: 0.10.14
@@ -870,7 +870,7 @@ importers:
         version: link:../habitat
       '@tanstack/pacer':
         specifier: 'catalog:'
-        version: 0.22.0
+        version: 0.23.1
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -5220,9 +5220,9 @@ packages:
     peerDependencies:
       '@tanstack/ai': ^1.1.0
 
-  '@tanstack/pacer@0.22.0':
-    resolution: {integrity: sha512-Zq23KOn30tFiA6ZYWihs5x++ttHkOIcnIIjRrJq05tGrYx9+iHsmVaj8jb7UJVemEI+JRWGzJ9C+50YV4nRz0w==}
-    engines: {node: '>=18'}
+  '@tanstack/pacer@0.23.1':
+    resolution: {integrity: sha512-ROZj19aPPGYebeRPhFZNRlqNaR2e4vkcLbgiXfbi5uJu8WiW/etsYmkcAcoSQRGOwGZbbioWRX7xssewDRVRhw==}
+    engines: {node: '>=20'}
 
   '@tanstack/query-core@5.102.8':
     resolution: {integrity: sha512-ZNjkJ33CqvPNec/6lZBnHqLc3EVGPZ9ySLhYahU9TcuRFdmwXewuj0c4hwSWcGHqEUwcSrKeZ+oGcvPBqXcQcg==}
@@ -16418,7 +16418,7 @@ snapshots:
       - ws
       - zod
 
-  '@tanstack/pacer@0.22.0':
+  '@tanstack/pacer@0.23.1':
     dependencies:
       '@tanstack/devtools-event-client': 0.5.0
       '@tanstack/store': 0.11.2
