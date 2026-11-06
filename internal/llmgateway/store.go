@@ -17,9 +17,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -48,10 +48,38 @@ const (
 // Providers lists every supported Provider.
 var Providers = []Provider{ProviderOpenAI, ProviderAnthropic, ProviderGoogle, ProviderOllama}
 
-// needsAPIKey reports whether p's API rejects unauthenticated calls, so a
-// connection to it can't work without a key.
-func (p Provider) needsAPIKey() bool {
-	return p != ProviderOllama
+// baseURLRule is whether a provider's connections take a base URL.
+type baseURLRule int
+
+const (
+	// baseURLOptional providers have a default URL, which a base URL
+	// overrides (for a proxy or a compatible API).
+	baseURLOptional baseURLRule = iota
+	// baseURLRequired providers have no default URL.
+	baseURLRequired
+	// baseURLUnsupported providers can't be reached at any other URL.
+	baseURLUnsupported
+)
+
+// providerSpec is what pear knows about a Provider: what its connections
+// need, and how to call it. Supporting a new provider is adding it to
+// Providers and here.
+type providerSpec struct {
+	// needsAPIKey is whether its API rejects unauthenticated calls, so a
+	// connection to it can't work without a key; otherwise it takes none.
+	needsAPIKey bool
+	baseURL     baseURLRule
+	// newModel builds a connection's model, calling it over client.
+	newModel func(ctx context.Context, client *http.Client, config ModelConfig) (Model, error)
+}
+
+var providers = map[Provider]providerSpec{
+	ProviderOpenAI:    {needsAPIKey: true, baseURL: baseURLOptional, newModel: newOpenAIModel},
+	ProviderAnthropic: {needsAPIKey: true, baseURL: baseURLOptional, newModel: newAnthropicModel},
+	// langchaingo's googleai always calls Google's API, so a base URL would
+	// be silently ignored.
+	ProviderGoogle: {needsAPIKey: true, baseURL: baseURLUnsupported, newModel: newGoogleModel},
+	ProviderOllama: {needsAPIKey: false, baseURL: baseURLRequired, newModel: newOllamaModel},
 }
 
 var (
@@ -100,15 +128,14 @@ func validateName(name string) error {
 }
 
 func validateBaseURL(provider Provider, baseURL string) error {
+	rule := providers[provider].baseURL
 	if baseURL == "" {
-		if provider == ProviderOllama {
-			return fmt.Errorf("%w: ollama needs its server's URL", ErrInvalidBaseURL)
+		if rule == baseURLRequired {
+			return fmt.Errorf("%w: %s needs its server's URL", ErrInvalidBaseURL, provider)
 		}
 		return nil
 	}
-	// langchaingo's googleai always calls Google's API, so a base URL would
-	// be silently ignored.
-	if provider == ProviderGoogle {
+	if rule == baseURLUnsupported {
 		return ErrBaseURLNotSupported
 	}
 	u, err := url.Parse(baseURL)
@@ -226,7 +253,7 @@ func (s *Store) Add(ctx context.Context, org syntax.DID, c NewConnection) (*Conn
 	if err := validateName(c.Name); err != nil {
 		return nil, err
 	}
-	if !slices.Contains(Providers, c.Provider) {
+	if _, ok := providers[c.Provider]; !ok {
 		return nil, fmt.Errorf("%w: %q", ErrInvalidProvider, c.Provider)
 	}
 	if strings.TrimSpace(c.Model) == "" {
@@ -261,10 +288,11 @@ func (s *Store) Add(ctx context.Context, org syntax.DID, c NewConnection) (*Conn
 }
 
 func validateAPIKey(provider Provider, apiKey string) error {
-	if apiKey == "" && provider.needsAPIKey() {
+	needsAPIKey := providers[provider].needsAPIKey
+	if apiKey == "" && needsAPIKey {
 		return ErrMissingAPIKey
 	}
-	if apiKey != "" && !provider.needsAPIKey() {
+	if apiKey != "" && !needsAPIKey {
 		return ErrAPIKeyNotSupported
 	}
 	return nil
