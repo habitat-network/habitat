@@ -23,6 +23,7 @@
     "@tanstack/ai-mcp": "^1.1.0",
     "@tanstack/ai-openai": "1.0.0",
     "@tanstack/ai-react": "^1.0.0",
+    "@tanstack/markdown": "^1.2.0",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "^1.168.47",

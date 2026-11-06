@@ -393,6 +393,9 @@ importers:
       '@tanstack/ai-react':
         specifier: ^1.0.0
         version: 1.0.2(@opentelemetry/api@1.10.0)(@tanstack/ai@1.0.1(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)
+      '@tanstack/markdown':
+        specifier: ^1.2.0
+        version: 1.2.0(react@19.2.8)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -3210,15 +3213,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@exodus/bytes@1.15.1':
-    resolution: {integrity: sha512-S6mL0yNB/Abt9Ei4tq8gDhcczc4S3+vQ4ra7vxnAf+YHC02srtqxKKZghx2Dq6p0e66THKwR6r8N6P95wEty7Q==}
-    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
-    peerDependencies:
-      '@noble/hashes': ^1.8.0 || ^2.0.0
-    peerDependenciesMeta:
-      '@noble/hashes':
-        optional: true
-
   '@exodus/bytes@1.16.0':
     resolution: {integrity: sha512-IcpW84uEn3N7ETtNZMlxKhfl6Pec8rUNGOTBtWbK1FKhJxIFAptZyVrvVRVBimAJxJCgc3PxepxkdWWG4DVzfA==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
@@ -5206,6 +5200,17 @@ packages:
 
   '@tanstack/markdown@0.0.13':
     resolution: {integrity: sha512-ZSQP2ulBvlPzdpZeRheBJnaELo7e4ET/D/XrfgweHyqhhLMN5vUJJAUl7ufSRd7GlfO/vwdzjKPh0E0JwqJkDA==}
+    peerDependencies:
+      octane: '>=0.1.12'
+      react: '>=18'
+    peerDependenciesMeta:
+      octane:
+        optional: true
+      react:
+        optional: true
+
+  '@tanstack/markdown@1.2.0':
+    resolution: {integrity: sha512-8ZaMDLvp7iUuo7R5Ot+yvX/h1ZN8Cq2p38iL+X9uOkIKVFw3IjgP62dXT6+dp/Nk522qsuSDCJNdt2F4fZvVXQ==}
     peerDependencies:
       octane: '>=0.1.12'
       react: '>=18'
@@ -7884,6 +7889,7 @@ packages:
   image-size@2.0.2:
     resolution: {integrity: sha512-IRqXKlaXwgSMAMtpNzZa1ZAe8m+Sa1770Dhk8VkSsP9LS+iHD62Zd8FQKs8fbPiagBE7BzoFX23cxFnwshpV6w==}
     engines: {node: '>=16.x'}
+    deprecated: Use latest 2.x please
     hasBin: true
 
   immer@11.1.15:
@@ -14692,10 +14698,6 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@exodus/bytes@1.15.1(@noble/hashes@2.3.0)':
-    optionalDependencies:
-      '@noble/hashes': 2.3.0
-
   '@exodus/bytes@1.16.0(@noble/hashes@2.3.0)':
     optionalDependencies:
       '@noble/hashes': 2.3.0
@@ -16401,6 +16403,10 @@ snapshots:
   '@tanstack/history@1.162.5': {}
 
   '@tanstack/markdown@0.0.13(react@19.2.8)':
+    optionalDependencies:
+      react: 19.2.8
+
+  '@tanstack/markdown@1.2.0(react@19.2.8)':
     optionalDependencies:
       react: 19.2.8
 
@@ -19271,7 +19277,7 @@ snapshots:
 
   html-encoding-sniffer@7.0.0(@noble/hashes@2.3.0):
     dependencies:
-      '@exodus/bytes': 1.15.1(@noble/hashes@2.3.0)
+      '@exodus/bytes': 1.16.0(@noble/hashes@2.3.0)
     transitivePeerDependencies:
       - '@noble/hashes'
 
