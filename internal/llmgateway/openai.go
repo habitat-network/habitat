@@ -382,9 +382,15 @@ func (r *ChatCompletionRequest) CallOptions() ([]llms.CallOption, error) {
 			}
 			var params any
 			if len(tool.Function.Parameters) > 0 {
-				if err := json.Unmarshal(tool.Function.Parameters, &params); err != nil {
+				// parameters is a JSON Schema, which is always an object (or
+				// null, for none).
+				var schema map[string]any
+				if err := json.Unmarshal(tool.Function.Parameters, &schema); err != nil {
 					return nil, fmt.Errorf("%w: tools[%d].function.parameters: %w",
 						ErrInvalidChatRequest, i, err)
+				}
+				if schema != nil {
+					params = schema
 				}
 			}
 			tools[i] = llms.Tool{
