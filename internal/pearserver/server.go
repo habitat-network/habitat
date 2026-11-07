@@ -15,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pearapp"
@@ -60,6 +61,8 @@ type PearServer struct {
 	simpleStore     *simplespace.Store
 	notifyStore     notify.Store
 	mcpGatewayStore mcpgateway.Store
+	// mcpSearcher answers mcp.search over members' connected MCP servers.
+	mcpSearcher *mcpsearch.Searcher
 
 	// llmStore holds each org's LLM model connections.
 	llmStore *llmgateway.Store
@@ -105,11 +108,14 @@ func New(app *pearapp.App) *PearServer {
 		notifyStore:           app.NotifyStore,
 		clientMeta:            app.ClientMetadata,
 		mcpGatewayStore:       app.MCPGatewayStore,
-		llmStore:              app.LLMStore,
-		pdsForwarding:         app.PDSForwarding,
-		emailDomainStore:      app.EmailDomainStore,
-		searcher:              app.Searcher,
-		searchConfig:          app.SearchConfig,
+		mcpSearcher: mcpsearch.NewSearcher(
+			app.MCPGatewayStore, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
+		),
+		llmStore:         app.LLMStore,
+		pdsForwarding:    app.PDSForwarding,
+		emailDomainStore: app.EmailDomainStore,
+		searcher:         app.Searcher,
+		searchConfig:     app.SearchConfig,
 	}
 	ps.registerRoutes()
 	return ps
