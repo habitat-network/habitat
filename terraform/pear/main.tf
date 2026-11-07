@@ -46,28 +46,32 @@ locals {
   cloudsql_instance = "virtual-charger-477003-g0:us-west1:pear-db-usw1"
 
   secret_env = {
-    HABITAT_DB                   = "habitat-pgurl"
-    HABITAT_PDS_CRED_ENCRYPT_KEY = "habitat-pds-cred-encrypt-key"
-    HABITAT_OAUTH_CLIENT_SECRET  = "habitat-oauth-client-secret"
-    HABITAT_OAUTH_SERVER_SECRET  = "habitat-oauth-server-secret"
-    HABITAT_GOOGLE_CLIENT_SECRET = "habitat-google-client-secret"
-    HABITAT_SPACE_SIGNING_KEY    = "habitat-space-signing-key"
-    HABITAT_NANGO_SECRET_KEY     = "habitat-nango-secret-key"
-    OTEL_EXPORTER_OTLP_HEADERS   = "habitat-otlp-headers"
-    HABITAT_MEILISEARCH_API_KEY  = "habitat-meilisearch-key"
-    HABITAT_EMBEDDER_API_KEY     = "azure-embedder-api-key"
+    HABITAT_DB                             = "habitat-pgurl"
+    HABITAT_PDS_CRED_ENCRYPT_KEY           = "habitat-pds-cred-encrypt-key"
+    HABITAT_OAUTH_CLIENT_SECRET            = "habitat-oauth-client-secret"
+    HABITAT_OAUTH_SERVER_SECRET            = "habitat-oauth-server-secret"
+    HABITAT_GOOGLE_CLIENT_SECRET           = "habitat-google-client-secret"
+    HABITAT_SPACE_SIGNING_KEY              = "habitat-space-signing-key"
+    HABITAT_NANGO_SECRET_KEY               = "habitat-nango-secret-key"
+    OTEL_EXPORTER_OTLP_HEADERS             = "habitat-otlp-headers"
+    HABITAT_MEILISEARCH_API_KEY            = "habitat-meilisearch-key"
+    HABITAT_EMBEDDER_API_KEY               = "azure-embedder-api-key"
+    HABITAT_MCP_GOOGLE_DRIVE_CLIENT_SECRET = "habitat-mcp-google-drive-client-secret"
+    HABITAT_MCP_SLACK_CLIENT_SECRET        = "habitat-mcp-slack-client-secret"
   }
 
   plain_env = {
-    HABITAT_DOMAIN              = "pear.habitat.network"
-    HABITAT_HIVE_DOMAIN         = "id.habitat.network"
-    HABITAT_BLOB_BUCKET         = "gs://pear-blobs"
-    HABITAT_GOOGLE_CLIENT_ID    = "953995456319-667186r9ng84t5m4ibdne3380idub1ha.apps.googleusercontent.com"
-    OTEL_EXPORTER_OTLP_ENDPOINT = "https://otlp-gateway-prod-us-west-0.grafana.net/otlp"
-    HABITAT_MEILISEARCH_URL     = data.terraform_remote_state.meilisearch.outputs.meilisearch_url
-    HABITAT_EMBEDDER_URL        = "https://habitat-network-dev.openai.azure.com/openai/v1/embeddings"
-    HABITAT_EMBEDDER_MODEL      = "text-embedding-3-small"
-    HABITAT_EMBEDDER_DIMENSIONS = "1536"
+    HABITAT_DOMAIN                     = "pear.habitat.network"
+    HABITAT_HIVE_DOMAIN                = "id.habitat.network"
+    HABITAT_BLOB_BUCKET                = "gs://pear-blobs"
+    HABITAT_GOOGLE_CLIENT_ID           = "953995456319-667186r9ng84t5m4ibdne3380idub1ha.apps.googleusercontent.com"
+    HABITAT_MCP_GOOGLE_DRIVE_CLIENT_ID = "953995456319-64eika35n8v6ve30fi5p2jq3t1qp12k0.apps.googleusercontent.com"
+    HABITAT_MCP_SLACK_CLIENT_ID        = "12439309385335.12527812000899"
+    OTEL_EXPORTER_OTLP_ENDPOINT        = "https://otlp-gateway-prod-us-west-0.grafana.net/otlp"
+    HABITAT_MEILISEARCH_URL            = data.terraform_remote_state.meilisearch.outputs.meilisearch_url
+    HABITAT_EMBEDDER_URL               = "https://habitat-network-dev.openai.azure.com/openai/v1/embeddings"
+    HABITAT_EMBEDDER_MODEL             = "text-embedding-3-small"
+    HABITAT_EMBEDDER_DIMENSIONS        = "1536"
   }
 }
 
