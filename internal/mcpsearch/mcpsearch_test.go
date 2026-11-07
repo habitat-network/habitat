@@ -212,8 +212,20 @@ func TestSearcherSearchMergesServersInParallel(t *testing.T) {
 	}, res.Items[0])
 	require.Equal(t, []Source{
 		{ServerURL: beta, ServerName: "beta", Provider: "beta-search", Status: StatusOK, Count: 1},
-		{ServerURL: beta, ServerName: "beta", Provider: "beta-structured", Status: StatusOK, Count: 1},
-		{ServerURL: alpha, ServerName: "alpha", Provider: "alpha-search", Status: StatusOK, Count: 1},
+		{
+			ServerURL:  beta,
+			ServerName: "beta",
+			Provider:   "beta-structured",
+			Status:     StatusOK,
+			Count:      1,
+		},
+		{
+			ServerURL:  alpha,
+			ServerName: "alpha",
+			Provider:   "alpha-search",
+			Status:     StatusOK,
+			Count:      1,
+		},
 	}, res.Sources)
 }
 

@@ -68,16 +68,19 @@ func TestToolProviderNormalize(t *testing.T) {
 
 func TestCanonicalURL(t *testing.T) {
 	for raw, want := range map[string]string{
-		"https://Example.COM/mcp/":             "https://example.com/mcp",
-		"https://example.com:443/mcp":          "https://example.com/mcp",
-		"http://example.com:80/mcp#frag":       "http://example.com/mcp",
-		"http://example.com:8080/mcp?x=1":      "http://example.com:8080/mcp?x=1",
-		" https://api.githubcopilot.com/mcp/ ": "https://api.githubcopilot.com/mcp",
+		"https://Example.COM/mcp/":           "https://example.com/mcp",
+		"https://example.com:443/mcp":        "https://example.com/mcp",
+		"http://example.com:80/mcp#frag":     "http://example.com/mcp",
+		"http://example.com:8080/mcp?x=1":    "http://example.com:8080/mcp?x=1",
+		"https://api.githubcopilot.com/mcp/": "https://api.githubcopilot.com/mcp",
 	} {
 		got, err := CanonicalURL(raw)
 		require.NoError(t, err, raw)
 		require.Equal(t, want, got, raw)
 	}
+	trimmed, err := CanonicalURL("  https://example.com/mcp\n")
+	require.NoError(t, err)
+	require.Equal(t, "https://example.com/mcp", trimmed, "surrounding whitespace is ignored")
 	for _, raw := range []string{"", "/mcp", "ftp://example.com", "https://"} {
 		_, err := CanonicalURL(raw)
 		require.Error(t, err, raw)
@@ -172,7 +175,11 @@ func TestGitHubProviders(t *testing.T) {
 func TestSlackProvider(t *testing.T) {
 	p := providerByID(t, "slack-messages")
 	require.Equal(t, "slack_search_public_and_private", p.ToolName())
-	require.Equal(t, map[string]any{"query": "launch"}, p.Arguments(Query{Text: "launch", Limit: 5}))
+	require.Equal(
+		t,
+		map[string]any{"query": "launch"},
+		p.Arguments(Query{Text: "launch", Limit: 5}),
+	)
 	items, err := p.Normalize(textResult("# Results\n- #general: launch is Tuesday"))
 	require.NoError(t, err)
 	require.Equal(t, []Item{{Snippet: "# Results\n- #general: launch is Tuesday"}}, items)

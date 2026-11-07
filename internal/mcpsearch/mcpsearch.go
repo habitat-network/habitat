@@ -342,7 +342,11 @@ func (s *Searcher) searchServer(
 				t.sources[i].Status, t.sources[i].Error = classify(ctx, err)
 				return nil
 			}
-			source := ItemSource{ServerURL: t.server.URL, ServerName: t.server.Name, Provider: p.ID()}
+			source := ItemSource{
+				ServerURL:  t.server.URL,
+				ServerName: t.server.Name,
+				Provider:   p.ID(),
+			}
 			for j := range items {
 				items[j].Source = source
 				items[j].Snippet = truncate(items[j].Snippet, maxSnippetRunes)
