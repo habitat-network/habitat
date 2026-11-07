@@ -1,0 +1,148 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.search",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Search the caller's connected MCP servers in an org at once: pear calls every known search tool of each requested server in parallel, as the caller, and merges their results into one list. A server pear knows no search tool for, that the caller isn't connected to (or whose sign-in expired), that fails or that doesn't answer in time is reported in sources without failing the search. Requires service-auth. Callable by any org member.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "query"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community whose MCP servers to search."
+            },
+            "query": {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "What to search for, typically a few keywords."
+            },
+            "servers": {
+              "type": "array",
+              "maxLength": 50,
+              "items": {
+                "type": "string",
+                "format": "uri"
+              },
+              "description": "URLs of the servers to search, as configured in the org (see network.habitat.mcp.defs#server). Omitted or empty searches every connected server pear knows a search tool for."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "How many results to ask each search tool for, and the most kept from each. Defaults to 10."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "items",
+            "sources"
+          ],
+          "properties": {
+            "items": {
+              "type": "array",
+              "description": "Results, grouped by server in the order requested, then by search tool, each group in its tool's own ranking.",
+              "items": {
+                "type": "ref",
+                "ref": "#item"
+              }
+            },
+            "sources": {
+              "type": "array",
+              "description": "How searching each requested server went: one entry per search tool called, or one for a server none was called on.",
+              "items": {
+                "type": "ref",
+                "ref": "#source"
+              }
+            }
+          }
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "required": [
+        "serverUrl",
+        "provider"
+      ],
+      "properties": {
+        "serverUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "serverId": {
+          "type": "string",
+          "description": "The id of the org's server the result came from."
+        },
+        "provider": {
+          "type": "string",
+          "description": "The search tool the result came from, e.g. github-issues."
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "description": "Where to open the result, if the tool gave one."
+        },
+        "snippet": {
+          "type": "string",
+          "description": "Context from the result, up to 2000 characters."
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "serverUrl",
+        "status",
+        "count"
+      ],
+      "properties": {
+        "serverUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "serverId": {
+          "type": "string",
+          "description": "The org's server with this URL; omitted if the caller has none."
+        },
+        "provider": {
+          "type": "string",
+          "description": "The search tool called; omitted when none was."
+        },
+        "status": {
+          "type": "string",
+          "knownValues": [
+            "ok",
+            "not_connected",
+            "unsupported",
+            "timeout",
+            "error"
+          ],
+          "description": "ok: the tool answered (possibly with no results). not_connected: the caller has no usable connection to this server; they never connected, or their sign-in expired. unsupported: pear knows no search tool for this server. timeout: the server didn't answer in time. error: the server or tool failed."
+        },
+        "error": {
+          "type": "string",
+          "description": "What went wrong, for any status but ok."
+        },
+        "count": {
+          "type": "integer",
+          "description": "How many results the tool returned."
+        }
+      }
+    }
+  }
+}
