@@ -3,6 +3,7 @@ package mcpgateway
 import (
 	"bytes"
 	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,21 +34,51 @@ const clientName = "Habitat"
 const maxTokenResponseBytes = 1 << 20
 
 // oauthConfig is how pear talks OAuth to an MCP server's authorization server:
-// discovered, and registered with, when the server is added.
+// discovered, and registered with, when the server is added. It's stored on
+// the server's row (see serverRow.OAuth), all but the client secret, which is
+// stored encrypted beside it.
 type oauthConfig struct {
 	// Resource is the server's canonical resource identifier (RFC 8707),
 	// sent with every authorization and token request.
-	Resource string
-	Issuer   string
-	AuthURL  string
-	TokenURL string
+	Resource string `gorm:"column:resource;not null;default:''"`
+	Issuer   string `gorm:"column:issuer;not null;default:''"`
+	AuthURL  string `gorm:"column:auth_url;not null;default:''"`
+	TokenURL string `gorm:"column:token_url;not null;default:''"`
 	// IssParameterSupported is whether the authorization server sends iss in
 	// its authorization responses (RFC 9207).
-	IssParameterSupported bool
-	Scopes                []string
-	ClientID              string
-	ClientSecret          string
-	AuthStyle             oauth2.AuthStyle
+	IssParameterSupported bool             `gorm:"column:iss_parameter_supported;not null;default:false"`
+	Scopes                scopes           `gorm:"column:scopes;not null;default:''"`
+	ClientID              string           `gorm:"column:client_id;not null;default:''"`
+	AuthStyle             oauth2.AuthStyle `gorm:"column:auth_style;not null;default:0"`
+	// ClientSecret is empty for a public client. It isn't a column: see
+	// serverRow.OAuthClientSecretEnc.
+	ClientSecret string `gorm:"-"`
+}
+
+// scopes are OAuth scopes, stored as OAuth writes them: space-separated.
+type scopes []string
+
+// GormDataType stores scopes in a string column.
+func (scopes) GormDataType() string { return "string" }
+
+// Value implements driver.Valuer.
+func (s scopes) Value() (driver.Value, error) {
+	return strings.Join(s, " "), nil
+}
+
+// Scan implements sql.Scanner.
+func (s *scopes) Scan(src any) error {
+	switch v := src.(type) {
+	case string:
+		*s = strings.Fields(v)
+	case []byte:
+		*s = strings.Fields(string(v))
+	case nil:
+		*s = nil
+	default:
+		return fmt.Errorf("scan scopes: unsupported type %T", src)
+	}
+	return nil
 }
 
 func (c *oauthConfig) oauth2Config(redirectURL string) *oauth2.Config {

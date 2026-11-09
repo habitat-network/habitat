@@ -316,7 +316,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	mcpGatewayStore, err := mcpgateway.NewStore(
 		database,
 		encryptedKV,
-		kv,
 		credKey,
 		opensocialStore,
 		mcpClient,
