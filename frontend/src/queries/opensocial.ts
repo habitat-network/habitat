@@ -248,16 +248,21 @@ export function orgProfileQueryOptions(
           spaceCredentialQueryOptions(aboutSpace, authManager),
         );
         const agent = spaceAgent(cred);
-        const response = await xrpc(agent, com.atproto.space.getRecord.main, {
+        // listRecords, not getRecord: a space-credential getRecord must carry
+        // an Atproto-Space-Want-Mac key share (400 BadSpaceMac otherwise),
+        // which this client doesn't send, and the failure was swallowed below
+        // as "no profile".
+        const response = await xrpc(agent, com.atproto.space.listRecords.main, {
           validateResponse: false,
           params: {
             space: aboutSpace as SpaceRefString,
             repo: org as DidString,
             collection: "community.opensocial.profile" as NsidString,
-            rkey: "self",
           },
         });
-        const value = response.body.value as {
+        const record = response.body.records.find((r) => r.rkey === "self");
+        if (!record) return null;
+        const value = record.value as {
           name: string;
           description?: string;
           avatar?: BlobRef;
@@ -460,18 +465,19 @@ export function orgPermissionsQueryOptions(
       try {
         const response = await xrpc(
           spaceAgent(cred),
-          com.atproto.space.getRecord.main,
+          com.atproto.space.listRecords.main,
           {
             validateResponse: false,
             params: {
               space: membersSpace as SpaceRefString,
               repo: org,
               collection: "community.opensocial.permissions" as NsidString,
-              rkey: "self",
             },
           },
         );
-        const value = response.body.value as {
+        // See orgProfileQueryOptions: getRecord needs a Want-Mac header.
+        const record = response.body.records.find((r) => r.rkey === "self");
+        const value = (record?.value ?? {}) as {
           bindings?: ActionBinding[];
           assignable?: AssignableBinding[];
         };
