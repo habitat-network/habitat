@@ -31,23 +31,6 @@ import (
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 )
 
-// ConnectedServers lists the MCP servers of an org that a member can reach,
-// and says how to reach each on their behalf. See mcpgateway.Store for the
-// concrete implementation.
-type ConnectedServers interface {
-	ListConnectedServers(
-		ctx context.Context,
-		did syntax.DID,
-		orgID syntax.DID,
-	) ([]*mcpgateway.Server, error)
-	Downstream(
-		ctx context.Context,
-		did syntax.DID,
-		orgID syntax.DID,
-		name mcpgateway.ServerName,
-	) (*mcpgateway.Downstream, error)
-}
-
 const (
 	// DefaultLimit is how many items each search tool is asked for when the
 	// query gives no limit.
@@ -56,13 +39,10 @@ const (
 	MaxLimit = 50
 	// DefaultTimeout bounds each server's searches, from connecting to it to
 	// its slowest search tool answering.
-	DefaultTimeout = 10 * time.Second
+	DefaultTimeout = mcpgateway.DefaultServerTimeout
 	// maxSnippetRunes caps each item's snippet, since some tools return
 	// whole documents (an issue's body, say) as the text of a result.
 	maxSnippetRunes = 2000
-	// maxConcurrentServers bounds how many servers one search reaches at
-	// once.
-	maxConcurrentServers = 8
 )
 
 var (
@@ -149,7 +129,7 @@ type Result struct {
 
 // Searcher runs federated searches.
 type Searcher struct {
-	servers  ConnectedServers
+	servers  mcpgateway.ConnectedServers
 	registry *Registry
 	timeout  time.Duration
 }
@@ -165,7 +145,11 @@ func WithTimeout(timeout time.Duration) Option {
 
 // NewSearcher returns a Searcher reaching members' servers through servers,
 // with the search tools in registry.
-func NewSearcher(servers ConnectedServers, registry *Registry, opts ...Option) *Searcher {
+func NewSearcher(
+	servers mcpgateway.ConnectedServers,
+	registry *Registry,
+	opts ...Option,
+) *Searcher {
 	s := &Searcher{servers: servers, registry: registry, timeout: DefaultTimeout}
 	for _, opt := range opts {
 		opt(s)
@@ -175,10 +159,13 @@ func NewSearcher(servers ConnectedServers, registry *Registry, opts ...Option) *
 
 // target is one requested server, and its outcome.
 type target struct {
-	url     string
-	server  *mcpgateway.Server
-	sources []Source
-	items   [][]Item // per provider
+	url    string
+	server *mcpgateway.Server
+	// providers are the search tools to call on server; none if it isn't
+	// searched.
+	providers []Provider
+	sources   []Source
+	items     [][]Item // per provider
 }
 
 // Search searches the servers of org at serverURLs as caller, calling every
@@ -188,9 +175,6 @@ type target struct {
 // It fails only for an invalid query or URL, if caller's servers can't be
 // listed, or if ctx is done; any one server's failure is reported in its
 // Sources instead.
-//
-// ctx must not carry the values of an inbound MCP request; see
-// mcpgateway.Downstream.Connect.
 func (s *Searcher) Search(
 	ctx context.Context,
 	caller syntax.DID,
@@ -239,31 +223,28 @@ func (s *Searcher) Search(
 	}
 
 	targets := make([]*target, len(requested))
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(maxConcurrentServers)
+	var searched []*target
 	for i, u := range requested {
 		t := &target{url: u, server: byURL[u]}
 		targets[i] = t
-		providers := s.registry.ForURL(u)
-		switch {
+		switch t.providers = s.registry.ForURL(u); {
 		case t.server == nil:
 			t.sources = []Source{{
 				ServerURL: u, Status: StatusNotConnected,
 				Error: "not connected to an mcp server with this url",
 			}}
-		case len(providers) == 0:
+		case len(t.providers) == 0:
 			t.sources = []Source{{
 				ServerURL: t.server.URL, ServerName: t.server.Name, Status: StatusUnsupported,
 				Error: "no known search tool for this server",
 			}}
 		default:
-			g.Go(func() error {
-				s.searchServer(gctx, caller, t, providers, q)
-				return nil
-			})
+			searched = append(searched, t)
 		}
 	}
-	_ = g.Wait()
+	mcpgateway.ForEach(ctx, searched, s.timeout, func(ctx context.Context, _ int, t *target) {
+		s.searchServer(ctx, caller, t, q)
+	})
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -295,68 +276,48 @@ func canonicalURLs(urls []string) ([]string, error) {
 	return out, nil
 }
 
-// searchServer reaches t's server once, then calls each of providers' tools
-// on it concurrently, filling in t's sources and items. Everything is bounded
-// by the searcher's timeout.
-func (s *Searcher) searchServer(
-	ctx context.Context,
-	caller syntax.DID,
-	t *target,
-	providers []Provider,
-	q Query,
-) {
-	ctx, cancel := context.WithTimeout(ctx, s.timeout)
-	defer cancel()
-
-	t.sources = make([]Source, len(providers))
-	t.items = make([][]Item, len(providers))
-	for i, p := range providers {
+// searchServer reaches t's server once, then calls each of t's providers'
+// tools on it concurrently, filling in t's sources and items. ctx bounds
+// everything, with the searcher's timeout.
+func (s *Searcher) searchServer(ctx context.Context, caller syntax.DID, t *target, q Query) {
+	t.sources = make([]Source, len(t.providers))
+	t.items = make([][]Item, len(t.providers))
+	for i, p := range t.providers {
 		t.sources[i] = Source{ServerURL: t.server.URL, ServerName: t.server.Name, Provider: p.ID()}
 	}
-	failAll := func(err error) {
+
+	err := mcpgateway.WithSession(ctx, s.servers, caller, t.server,
+		func(ctx context.Context, session *mcp.ClientSession) error {
+			var g errgroup.Group
+			for i, p := range t.providers {
+				g.Go(func() error {
+					items, err := callProvider(ctx, session, p, q)
+					if err != nil {
+						t.sources[i].Status, t.sources[i].Error = classify(ctx, err)
+						return nil
+					}
+					source := ItemSource{
+						ServerURL:  t.server.URL,
+						ServerName: t.server.Name,
+						Provider:   p.ID(),
+					}
+					for j := range items {
+						items[j].Source = source
+						items[j].Snippet = truncate(items[j].Snippet, maxSnippetRunes)
+					}
+					t.items[i] = items
+					t.sources[i].Status, t.sources[i].Count = StatusOK, len(items)
+					return nil
+				})
+			}
+			return g.Wait()
+		})
+	if err != nil {
+		// The server couldn't be reached at all.
 		for i := range t.sources {
 			t.sources[i].Status, t.sources[i].Error = classify(ctx, err)
 		}
 	}
-
-	d, err := s.servers.Downstream(ctx, caller, t.server.OrgID, t.server.Name)
-	if err != nil {
-		failAll(err)
-		return
-	}
-	session, err := d.Connect(ctx)
-	if err != nil {
-		failAll(err)
-		return
-	}
-	// Closing ends the session with a DELETE to the server, which the go-sdk
-	// gives up to 5s, past this server's timeout if it's slow or hung. Nothing
-	// here waits on the outcome, so close in the background.
-	defer func() { go func() { _ = session.Close() }() }()
-
-	var g errgroup.Group
-	for i, p := range providers {
-		g.Go(func() error {
-			items, err := callProvider(ctx, session, p, q)
-			if err != nil {
-				t.sources[i].Status, t.sources[i].Error = classify(ctx, err)
-				return nil
-			}
-			source := ItemSource{
-				ServerURL:  t.server.URL,
-				ServerName: t.server.Name,
-				Provider:   p.ID(),
-			}
-			for j := range items {
-				items[j].Source = source
-				items[j].Snippet = truncate(items[j].Snippet, maxSnippetRunes)
-			}
-			t.items[i] = items
-			t.sources[i].Status, t.sources[i].Count = StatusOK, len(items)
-			return nil
-		})
-	}
-	_ = g.Wait()
 }
 
 // errToolFailed is returned when a search tool answers with an error result.
