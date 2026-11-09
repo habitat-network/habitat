@@ -1,6 +1,7 @@
 import { P256Keypair } from "@atproto/crypto";
 import {
   COMMIT_MAC_TYPE,
+  RECORD_MAC_TYPE,
   WANT_MAC_HEADER,
   createSpaceSigHeaders,
   formatWantMacHeader,
@@ -55,5 +56,15 @@ export async function wantCommitMacHeaders(): Promise<Record<string, string>> {
   const ephemeral = await P256Keypair.create();
   return {
     [WANT_MAC_HEADER]: formatWantMacHeader(COMMIT_MAC_TYPE, ephemeral.did()),
+  };
+}
+
+// wantRecordMacHeaders is wantCommitMacHeaders for single-record reads
+// (getRecord) made with a space credential: the host rejects them with
+// BadSpaceMac without the header. The response's MAC is likewise not checked.
+export async function wantRecordMacHeaders(): Promise<Record<string, string>> {
+  const ephemeral = await P256Keypair.create();
+  return {
+    [WANT_MAC_HEADER]: formatWantMacHeader(RECORD_MAC_TYPE, ephemeral.did()),
   };
 }
