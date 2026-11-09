@@ -150,7 +150,13 @@ func (s *toolSyncer) sync(ctx context.Context, org, caller syntax.DID) error {
 					Description: tool.Description, Definition: def,
 				}
 			}
-			if err := s.catalog.ReplaceServer(ctx, org, caller, server.name, catalogTools); err != nil {
+			if err := s.catalog.ReplaceServer(
+				ctx,
+				org,
+				caller,
+				server.name,
+				catalogTools,
+			); err != nil {
 				return fmt.Errorf("index tools of %s: %w", server.name, err)
 			}
 			return nil
