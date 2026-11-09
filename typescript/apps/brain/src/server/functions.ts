@@ -1,29 +1,44 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import {
+  listMcpServers,
+  startMcpAuthorization,
+  type McpServerWithStatus,
+} from "internal/mcp";
+import { xrpc } from "@atproto/lex";
+import type { DidString } from "@atproto/syntax";
+import { network } from "api";
+import {
+  chatOwner,
   chatsForOwner,
   getDb,
-  messagesForSpace,
+  messagesForChat,
   type ChatSummary,
 } from "../db";
 import {
   memberSession,
-  ownedChatSpace,
   requireMember,
   resolveHandle,
 } from "./functions.server";
-import { createChatSpace, listMyChatSpaces } from "./habitat";
+import {
+  getConfigAccess,
+  listLlmConnections,
+  listLlmModels,
+  listMyOrgs,
+  type ConfigAccess,
+  type LlmConnection,
+  type McpServer,
+  type Org,
+} from "./habitat";
 import { createOAuthClient, OAUTH_SCOPE } from "./oauth";
 import { useAppSession } from "./session";
-import { watchSpaces } from "./sync";
 
 // Every export below is a createServerFn wrapper, safe to import from route
 // components: the client bundle only gets RPC stubs (see chalk's
 // functions.ts for the longer version of this note).
 
 // completeOAuth finishes the OAuth flow that just redirected back to
-// /oauth/callback: it sets the session cookie and starts syncing the chats
-// the member already has (e.g. created on another deployment).
+// /oauth/callback: it sets the session cookie.
 export const completeOAuth = createServerFn({ method: "POST" })
   .validator((input: { params: Record<string, string> }) => input)
   .handler(async ({ data }): Promise<{ to: "/" }> => {
@@ -32,15 +47,6 @@ export const completeOAuth = createServerFn({ method: "POST" })
     );
     const session = await useAppSession();
     await session.update({ did: oauthSession.did });
-    try {
-      await watchSpaces(
-        env,
-        await listMyChatSpaces(oauthSession, oauthSession.did),
-      );
-    } catch (err) {
-      // Not worth failing the sign-in: the next sign-in tries again.
-      console.error("[brain] watching existing chats", err);
-    }
     return { to: "/" };
   });
 
@@ -81,24 +87,32 @@ export const signOut = createServerFn({ method: "POST" }).handler(async () => {
   }
 });
 
-// listChats returns the member's synced chats, newest first.
-export const listChats = createServerFn({ method: "GET" }).handler(
-  async (): Promise<ChatSummary[]> => {
+// listOrgs returns the orgs the member belongs to, for the org selector.
+export const listOrgs = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Org[]> => {
     const { did } = await requireMember();
-    return chatsForOwner(getDb(env), did);
+    return listMyOrgs(await memberSession(env, did));
   },
 );
 
-// createChat makes a new, empty chat: its own space, owned by the member. The
-// chat shows up in listChats once its first message names it.
-export const createChat = createServerFn({ method: "POST" }).handler(
-  async (): Promise<{ space: string }> => {
+// listModels returns the ids of the LLM models an org offers the member, for
+// the model picker.
+export const listModels = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<string[]> => {
     const { did } = await requireMember();
-    const space = await createChatSpace(await memberSession(env, did), did);
-    await watchSpaces(env, [space]);
-    return { space };
-  },
-);
+    const agent = await memberSession(env, did);
+    const org = (await listMyOrgs(agent)).find((o) => o.did === data.org);
+    return org ? listLlmModels(agent, org.did) : [];
+  });
+
+// listChats returns the member's chats in an org, newest first.
+export const listChats = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<ChatSummary[]> => {
+    const { did } = await requireMember();
+    return chatsForOwner(getDb(env), did, data.org);
+  });
 
 export interface ChatMessage {
   id: string;
@@ -106,16 +120,147 @@ export interface ChatMessage {
   content: string;
 }
 
-// getChatMessages returns a chat's synced messages, oldest first.
+// getChatMessages returns a chat's messages, oldest first. A chat that
+// doesn't exist yet (a new one, before its first message) has none.
 export const getChatMessages = createServerFn({ method: "GET" })
-  .validator((input: { space: string }) => input)
+  .validator((input: { chat: string }) => input)
   .handler(async ({ data }): Promise<ChatMessage[]> => {
     const { did } = await requireMember();
-    const space = ownedChatSpace(data.space, did);
-    const rows = await messagesForSpace(getDb(env), space);
+    const db = getDb(env);
+    const owner = await chatOwner(db, data.chat);
+    if (owner === undefined) return [];
+    if (owner !== did) throw new Error("Chat not found");
+    const rows = await messagesForChat(db, data.chat);
     return rows.flatMap((r) =>
       r.role === "user" || r.role === "assistant"
         ? [{ id: r.id, role: r.role, content: r.content }]
         : [],
+    );
+  });
+
+// listOrgMcpServers returns the org's MCP servers, each with whether the
+// member has connected their own credential to it.
+export const listOrgMcpServers = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<McpServerWithStatus[]> => {
+    const { did } = await requireMember();
+    return listMcpServers(await memberSession(env, did), data.org as DidString);
+  });
+
+// startMcpConnect begins connecting the member to one of the org's MCP
+// servers. For an oauth server it returns the authorization URL to open; for
+// a token server, passing the member's token connects them right away.
+export const startMcpConnect = createServerFn({ method: "POST" })
+  .validator((input: { org: string; id: string; token?: string }) => input)
+  .handler(async ({ data }): Promise<string | undefined> => {
+    const { did } = await requireMember();
+    return startMcpAuthorization(
+      await memberSession(env, did),
+      data.org as DidString,
+      data.id,
+      data.token,
+    );
+  });
+
+// getOrgConfigAccess says whether the member may configure the org's MCP
+// servers and models, to decide whether to show the controls.
+export const getOrgConfigAccess = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<ConfigAccess> => {
+    const { did } = await requireMember();
+    return getConfigAccess(
+      await memberSession(env, did),
+      data.org as DidString,
+      did,
+    );
+  });
+
+type WithOrg<T> = { org: string } & Omit<T, "org">;
+
+// The functions below are the org-admin configuration calls, each made as the
+// member: pear enforces the mcp.configure / community.configure action.
+
+export const addMcpServer = createServerFn({ method: "POST" })
+  .validator(
+    (input: WithOrg<network.habitat.mcp.addServer.$InputBody>) => input,
+  )
+  .handler(async ({ data }): Promise<McpServer> => {
+    const { did } = await requireMember();
+    const response = await xrpc(
+      await memberSession(env, did),
+      network.habitat.mcp.addServer.main,
+      { body: { ...data, org: data.org as DidString } },
+    );
+    return response.body.server;
+  });
+
+export const removeMcpServer = createServerFn({ method: "POST" })
+  .validator((input: { org: string; id: string }) => input)
+  .handler(async ({ data }): Promise<void> => {
+    const { did } = await requireMember();
+    await xrpc(
+      await memberSession(env, did),
+      network.habitat.mcp.removeServer.main,
+      { body: { org: data.org as DidString, id: data.id } },
+    );
+  });
+
+export const disconnectMcpServer = createServerFn({ method: "POST" })
+  .validator((input: { org: string; id: string }) => input)
+  .handler(async ({ data }): Promise<void> => {
+    const { did } = await requireMember();
+    await xrpc(
+      await memberSession(env, did),
+      network.habitat.mcp.disconnectServer.main,
+      { body: { org: data.org as DidString, id: data.id } },
+    );
+  });
+
+export const listOrgLlmConnections = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<LlmConnection[]> => {
+    const { did } = await requireMember();
+    return listLlmConnections(
+      await memberSession(env, did),
+      data.org as DidString,
+    );
+  });
+
+export const addLlmConnection = createServerFn({ method: "POST" })
+  .validator(
+    (input: WithOrg<network.habitat.llm.addConnection.$InputBody>) => input,
+  )
+  .handler(async ({ data }): Promise<LlmConnection> => {
+    const { did } = await requireMember();
+    const response = await xrpc(
+      await memberSession(env, did),
+      network.habitat.llm.addConnection.main,
+      { body: { ...data, org: data.org as DidString } },
+    );
+    return response.body.connection;
+  });
+
+export const updateLlmConnection = createServerFn({ method: "POST" })
+  .validator(
+    (input: WithOrg<network.habitat.llm.updateConnection.$InputBody>) => input,
+  )
+  .handler(async ({ data }): Promise<LlmConnection> => {
+    const { did } = await requireMember();
+    const response = await xrpc(
+      await memberSession(env, did),
+      network.habitat.llm.updateConnection.main,
+      { body: { ...data, org: data.org as DidString } },
+    );
+    return response.body.connection;
+  });
+
+export const removeLlmConnection = createServerFn({ method: "POST" })
+  .validator((input: { org: string; id: string }) => input)
+  .handler(async ({ data }): Promise<void> => {
+    const { did } = await requireMember();
+    await xrpc(
+      await memberSession(env, did),
+      network.habitat.llm.removeConnection.main,
+      { body: { org: data.org as DidString, id: data.id } },
     );
   });

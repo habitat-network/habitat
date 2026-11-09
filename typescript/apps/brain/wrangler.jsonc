@@ -1,21 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "brain",
-  "main": "src/server/entry.ts",
+  "main": "@tanstack/react-start/server-entry",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "brain",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "57434a39-0d31-48db-8f4a-2522d07b45b6",
       "migrations_dir": "drizzle",
     },
   ],
-  // Runs the sync passes that have come due (src/server/sync.ts's
-  // runDueSpaces). Inbound space notifications and uploads sync their own
-  // spaces straight away; this catches up everything else.
-  "triggers": { "crons": ["* * * * *"] },
   // These `vars` are the real deployment's values, not local dev's — same
   // reason as chalk's wrangler.jsonc: `@cloudflare/vite-plugin` bakes the
   // top-level config into the build regardless of `--env`, so local dev

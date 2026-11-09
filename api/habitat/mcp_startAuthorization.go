@@ -4,11 +4,12 @@ package habitat
 
 // NetworkHabitatMcpStartAuthorizationInput represents the input for network.habitat.mcp.startAuthorization
 type NetworkHabitatMcpStartAuthorizationInput struct {
-	Id  string `json:"id"`
-	Org string `json:"org"`
+	Id    string `json:"id"`
+	Org   string `json:"org"`
+	Token string `json:"token,omitempty"`
 }
 
 // NetworkHabitatMcpStartAuthorizationOutput represents the output for network.habitat.mcp.startAuthorization
 type NetworkHabitatMcpStartAuthorizationOutput struct {
-	AuthorizationUrl string `json:"authorizationUrl"`
+	AuthorizationUrl string `json:"authorizationUrl,omitempty"`
 }

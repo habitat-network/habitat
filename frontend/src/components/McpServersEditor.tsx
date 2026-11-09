@@ -1,16 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import type { AuthManager } from "internal";
+import {
+  McpTokenDialog,
+  startMcpAuthorization,
+  useMcpConnect,
+} from "internal/mcp";
+import { pearAgent } from "@/queries/pearAgent";
 import type { DidString } from "@atproto/lex";
 import {
   addMcpServerMutationOptions,
   disconnectMcpServerMutationOptions,
   mcpServersQueryKey,
   removeMcpServerMutationOptions,
-  startMcpAuthorizationMutationOptions,
   type McpServerWithStatus,
 } from "@/queries/mcp";
+import { MCP_CONNECTORS, type McpConnector } from "@/lib/mcpConnectors";
 import {
   Badge,
   Button,
@@ -58,9 +64,9 @@ interface AddServerFormValues {
   clientSecret: string;
 }
 
-// The type of the message pear's MCP OAuth callback page posts to the window
-// that opened it (pearserver.mcpOAuthCallbackMessageType in Go).
-const OAUTH_CALLBACK_MESSAGE_TYPE = "habitat-mcp-oauth";
+interface ConnectorFormValues {
+  name: string;
+}
 
 // pear's MCP OAuth callback (pearserver.MCPOAuthCallbackPath in Go), which
 // admins register as the redirect URI of a pre-registered client.
@@ -194,78 +200,22 @@ function ConnectionCell({
   authManager: AuthManager;
 }) {
   const queryClient = useQueryClient();
-  // The popup the member authorizes in, while it's open. Its lifecycle
-  // belongs to the browser rather than to a mutation, so it's tracked
-  // separately.
-  const [popup, setPopup] = useState<Window | null>(null);
-  const pollRef = useRef<number | undefined>(undefined);
-
-  // Once the popup closes, whether the member finished or gave up, refetch
-  // the servers' connected status.
-  useEffect(() => {
-    if (!popup) return;
-    const done = () => {
-      window.clearInterval(pollRef.current);
-      setPopup(null);
-      void queryClient.invalidateQueries({
-        queryKey: mcpServersQueryKey(org),
-      });
-    };
-    const onMessage = (event: MessageEvent) => {
-      if (
-        event.source === popup &&
-        event.data?.type === OAUTH_CALLBACK_MESSAGE_TYPE
-      ) {
-        done();
-      }
-    };
-    window.addEventListener("message", onMessage);
-    pollRef.current = window.setInterval(() => {
-      if (popup.closed) done();
-    }, 500);
-    return () => {
-      window.removeEventListener("message", onMessage);
-      window.clearInterval(pollRef.current);
-    };
-  }, [popup, org, queryClient]);
+  const {
+    connect,
+    connecting,
+    error: startError,
+  } = useMcpConnect({
+    start: (id) =>
+      startMcpAuthorization(pearAgent(authManager, `${org}#habitat`), org, id),
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: mcpServersQueryKey(org) }),
+  });
 
   const {
     mutate: disconnect,
     isPending: disconnecting,
     error: disconnectError,
   } = useMutation(disconnectMcpServerMutationOptions(authManager, org));
-
-  const {
-    mutate: startAuthorization,
-    isPending: starting,
-    error: startError,
-  } = useMutation(startMcpAuthorizationMutationOptions(authManager, org));
-
-  const authorize = () => {
-    // Opened right away, in the click's handler, so pop-up blockers allow
-    // it; it's pointed at the authorization URL once pear returns one.
-    const opened = window.open(
-      "",
-      "habitat-mcp-oauth",
-      "popup,width=600,height=720",
-    );
-    if (!opened) {
-      toast.add({
-        type: "error",
-        title: "Allow pop-ups for this site to connect",
-      });
-      return;
-    }
-    startAuthorization(server.id, {
-      onSuccess(authorizationUrl) {
-        opened.location.href = authorizationUrl;
-        setPopup(opened);
-      },
-      onError() {
-        opened.close();
-      },
-    });
-  };
 
   if (server.authType === "manual") {
     return <Badge variant="secondary">Shared</Badge>;
@@ -292,7 +242,25 @@ function ConnectionCell({
     );
   }
 
-  const connecting = starting || popup !== null;
+  if (server.authType === "token") {
+    return (
+      <McpTokenDialog
+        serverName={server.name}
+        save={async (token) => {
+          await startMcpAuthorization(
+            pearAgent(authManager, `${org}#habitat`),
+            org,
+            server.id,
+            token,
+          );
+          await queryClient.invalidateQueries({
+            queryKey: mcpServersQueryKey(org),
+          });
+        }}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1">
       <Button
@@ -300,7 +268,7 @@ function ConnectionCell({
         size="sm"
         className="self-start"
         disabled={connecting}
-        onClick={authorize}
+        onClick={() => connect(server.id)}
       >
         {connecting ? "Connecting…" : "Connect"}
       </Button>
@@ -311,6 +279,9 @@ function ConnectionCell({
   );
 }
 
+// AddServerDialog first asks which connector to add, then shows the form for
+// it: a connector-specific one for a known connector (see mcpConnectors.ts), or
+// the generic one for a custom server.
 function AddServerDialog({
   org,
   authManager,
@@ -319,12 +290,196 @@ function AddServerDialog({
   authManager: AuthManager;
 }) {
   const [open, setOpen] = useState(false);
+  const [choice, setChoice] = useState<McpConnector | "custom" | null>(null);
 
+  const close = () => {
+    setOpen(false);
+    setChoice(null);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setChoice(null);
+      }}
+    >
+      <DialogTrigger render={<Button size="sm" />}>Add server</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {choice === null
+              ? "Add an MCP server"
+              : choice === "custom"
+                ? "Add a custom MCP server"
+                : `Connect ${choice.name}`}
+          </DialogTitle>
+        </DialogHeader>
+        {choice === null ? (
+          <ConnectorPicker onSelect={setChoice} />
+        ) : choice === "custom" ? (
+          <CustomServerForm
+            org={org}
+            authManager={authManager}
+            onBack={() => setChoice(null)}
+            onDone={close}
+          />
+        ) : (
+          <ConnectorForm
+            connector={choice}
+            org={org}
+            authManager={authManager}
+            onBack={() => setChoice(null)}
+            onDone={close}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConnectorPicker({
+  onSelect,
+}: {
+  onSelect: (choice: McpConnector | "custom") => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {MCP_CONNECTORS.map((connector) => (
+        <Button
+          key={connector.id}
+          variant="outline"
+          className="h-auto justify-start py-3 text-left"
+          onClick={() => onSelect(connector)}
+        >
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">{connector.name}</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {connector.description}
+            </span>
+          </div>
+        </Button>
+      ))}
+      <Button
+        variant="outline"
+        className="h-auto justify-start py-3 text-left"
+        onClick={() => onSelect("custom")}
+      >
+        <div className="flex flex-col gap-1">
+          <span className="font-medium">Custom server</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            Connect any MCP server by URL.
+          </span>
+        </div>
+      </Button>
+    </div>
+  );
+}
+
+// ConnectorForm asks only for a name; pear fills in the rest from the
+// connector's preset.
+function ConnectorForm({
+  connector,
+  org,
+  authManager,
+  onBack,
+  onDone,
+}: {
+  connector: McpConnector;
+  org: DidString;
+  authManager: AuthManager;
+  onBack: () => void;
+  onDone: () => void;
+}) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isValid },
+  } = useForm<ConnectorFormValues>({
+    mode: "onChange",
+    defaultValues: { name: connector.defaultName },
+  });
+
+  const {
+    mutate: add,
+    isPending: adding,
+    error,
+  } = useMutation(addMcpServerMutationOptions(authManager, org));
+
+  const submit = handleSubmit(({ name }) => {
+    add(
+      {
+        name,
+        description: connector.description,
+        preset: connector.preset,
+      },
+      { onSuccess: onDone },
+    );
+  });
+
+  return (
+    <form className="flex flex-col gap-4" onSubmit={submit}>
+      <p className="text-sm text-muted-foreground">
+        {connector.description}{" "}
+        {connector.memberAuth === "token"
+          ? `Each member adds their own ${connector.name} access token afterward.`
+          : `Each member signs in with their own ${connector.name} account afterward.`}{" "}
+        <a
+          href={connector.docsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="underline"
+        >
+          Learn more
+        </a>
+      </p>
+      <Field>
+        <FieldLabel htmlFor="mcp-name">Name</FieldLabel>
+        <Input
+          id="mcp-name"
+          {...register("name", {
+            required: "Enter a name.",
+            pattern: {
+              value: SERVER_NAME_PATTERN,
+              message: "Use 1-64 letters, numbers, hyphens, or underscores.",
+            },
+          })}
+        />
+        <FieldError errors={[errors.name]} />
+        <p className="text-xs text-muted-foreground">
+          Unique within this community, and can't be changed later.
+        </p>
+      </Field>
+      <FieldError errors={error ? [{ message: error.message }] : []} />
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onBack}>
+          Back
+        </Button>
+        <Button type="submit" disabled={adding || !isValid}>
+          {adding ? "Adding…" : `Add ${connector.name}`}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+// CustomServerForm is the generic form for any MCP server by URL.
+function CustomServerForm({
+  org,
+  authManager,
+  onBack,
+  onDone,
+}: {
+  org: DidString;
+  authManager: AuthManager;
+  onBack: () => void;
+  onDone: () => void;
+}) {
   const {
     register,
     handleSubmit,
     control,
-    reset: resetForm,
     formState: { errors, isValid },
   } = useForm<AddServerFormValues>({
     mode: "onChange",
@@ -343,13 +498,7 @@ function AddServerDialog({
     mutate: add,
     isPending: adding,
     error,
-    reset: resetMutation,
   } = useMutation(addMcpServerMutationOptions(authManager, org));
-
-  const reset = () => {
-    resetForm();
-    resetMutation();
-  };
 
   // Adding a server registers pear with its authorization server, if it has
   // one, but nobody signs in here. For an oauth server, members (including
@@ -367,160 +516,141 @@ function AddServerDialog({
           clientId: (oauth && clientId) || undefined,
           clientSecret: (oauth && clientId && clientSecret) || undefined,
         },
-        {
-          onSuccess() {
-            setOpen(false);
-            reset();
-          },
-        },
+        { onSuccess: onDone },
       );
     },
   );
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) reset();
-      }}
-    >
-      <DialogTrigger render={<Button size="sm" />}>Add server</DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add an MCP server</DialogTitle>
-        </DialogHeader>
-        <form className="flex flex-col gap-4" onSubmit={submit}>
-          <Field>
-            <FieldLabel htmlFor="mcp-name">Name</FieldLabel>
-            <Input
-              id="mcp-name"
-              placeholder="cloudflare"
-              autoFocus
-              {...register("name", {
-                required: "Enter a name.",
-                pattern: {
-                  value: SERVER_NAME_PATTERN,
-                  message:
-                    "Use 1-64 letters, numbers, hyphens, or underscores.",
-                },
-              })}
-            />
-            <FieldError errors={[errors.name]} />
-            <p className="text-xs text-muted-foreground">
-              Letters, numbers, hyphens, and underscores only. Unique within
-              this community, and can't be changed later.
-            </p>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="mcp-description">
-              Description (optional)
-            </FieldLabel>
-            <Input id="mcp-description" {...register("description")} />
-          </Field>
-          <Field>
-            <FieldLabel>How members connect</FieldLabel>
-            <Controller
-              control={control}
-              name="authType"
-              render={({ field: { value, onChange } }) => (
-                <RadioGroup
-                  value={value}
-                  onValueChange={(next) =>
-                    onChange(next === "manual" ? "manual" : "oauth")
-                  }
-                >
-                  <FieldLabel htmlFor="mcp-auth-oauth">
-                    <Field orientation="horizontal">
-                      <FieldContent>
-                        <FieldTitle>Sign in with OAuth</FieldTitle>
-                        <FieldDescription>
-                          Each member signs in with their own account. Use this
-                          for servers that support MCP sign-in.
-                        </FieldDescription>
-                      </FieldContent>
-                      <RadioGroupItem value="oauth" id="mcp-auth-oauth" />
-                    </Field>
-                  </FieldLabel>
-                  <FieldLabel htmlFor="mcp-auth-manual">
-                    <Field orientation="horizontal">
-                      <FieldContent>
-                        <FieldTitle>No auth</FieldTitle>
-                        <FieldDescription>
-                          Every member connects to it automatically. Use this
-                          for servers that don't require sign-in.
-                        </FieldDescription>
-                      </FieldContent>
-                      <RadioGroupItem value="manual" id="mcp-auth-manual" />
-                    </Field>
-                  </FieldLabel>
-                </RadioGroup>
-              )}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="mcp-url">Server URL</FieldLabel>
-            <Input
-              id="mcp-url"
-              type="url"
-              placeholder="https://mcp.example.com/mcp"
-              {...register("url", {
-                required: "Enter the server's URL.",
-                validate: (value) =>
-                  isUri(value) ||
-                  "Enter a full URL, like https://mcp.example.com/mcp.",
-              })}
-            />
-            <FieldError errors={[errors.url]} />
-            <p className="text-xs text-muted-foreground">
-              Everyone in this community can see this URL.
-            </p>
-          </Field>
-          {authType === "oauth" && (
-            <>
-              <Field>
-                <FieldLabel htmlFor="mcp-client-id">
-                  Client ID (optional)
-                </FieldLabel>
-                <Input
-                  id="mcp-client-id"
-                  autoComplete="off"
-                  {...register("clientId")}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Only needed if the server doesn&apos;t let Habitat register
-                  itself. Register a client with redirect URI{" "}
-                  <span className="font-mono break-all">
-                    {OAUTH_CALLBACK_URL}
-                  </span>{" "}
-                  and enter its ID here.
-                </p>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="mcp-client-secret">
-                  Client secret (optional)
-                </FieldLabel>
-                <Input
-                  id="mcp-client-secret"
-                  type="password"
-                  autoComplete="off"
-                  {...register("clientSecret")}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Stored encrypted, and never shown again.
-                </p>
-              </Field>
-            </>
+    <form className="flex flex-col gap-4" onSubmit={submit}>
+      <Field>
+        <FieldLabel htmlFor="mcp-name">Name</FieldLabel>
+        <Input
+          id="mcp-name"
+          placeholder="cloudflare"
+          autoFocus
+          {...register("name", {
+            required: "Enter a name.",
+            pattern: {
+              value: SERVER_NAME_PATTERN,
+              message: "Use 1-64 letters, numbers, hyphens, or underscores.",
+            },
+          })}
+        />
+        <FieldError errors={[errors.name]} />
+        <p className="text-xs text-muted-foreground">
+          Letters, numbers, hyphens, and underscores only. Unique within this
+          community, and can't be changed later.
+        </p>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="mcp-description">
+          Description (optional)
+        </FieldLabel>
+        <Input id="mcp-description" {...register("description")} />
+      </Field>
+      <Field>
+        <FieldLabel>How members connect</FieldLabel>
+        <Controller
+          control={control}
+          name="authType"
+          render={({ field: { value, onChange } }) => (
+            <RadioGroup
+              value={value}
+              onValueChange={(next) =>
+                onChange(next === "manual" ? "manual" : "oauth")
+              }
+            >
+              <FieldLabel htmlFor="mcp-auth-oauth">
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldTitle>Sign in with OAuth</FieldTitle>
+                    <FieldDescription>
+                      Each member signs in with their own account. Use this for
+                      servers that support MCP sign-in.
+                    </FieldDescription>
+                  </FieldContent>
+                  <RadioGroupItem value="oauth" id="mcp-auth-oauth" />
+                </Field>
+              </FieldLabel>
+              <FieldLabel htmlFor="mcp-auth-manual">
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldTitle>No auth</FieldTitle>
+                    <FieldDescription>
+                      Every member connects to it automatically. Use this for
+                      servers that don't require sign-in.
+                    </FieldDescription>
+                  </FieldContent>
+                  <RadioGroupItem value="manual" id="mcp-auth-manual" />
+                </Field>
+              </FieldLabel>
+            </RadioGroup>
           )}
-          <FieldError errors={error ? [{ message: error.message }] : []} />
-          <DialogFooter>
-            <Button type="submit" disabled={adding || !isValid}>
-              {adding ? "Adding…" : "Add server"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="mcp-url">Server URL</FieldLabel>
+        <Input
+          id="mcp-url"
+          type="url"
+          placeholder="https://mcp.example.com/mcp"
+          {...register("url", {
+            required: "Enter the server's URL.",
+            validate: (value) =>
+              isUri(value) ||
+              "Enter a full URL, like https://mcp.example.com/mcp.",
+          })}
+        />
+        <FieldError errors={[errors.url]} />
+        <p className="text-xs text-muted-foreground">
+          Everyone in this community can see this URL.
+        </p>
+      </Field>
+      {authType === "oauth" && (
+        <>
+          <Field>
+            <FieldLabel htmlFor="mcp-client-id">
+              Client ID (optional)
+            </FieldLabel>
+            <Input
+              id="mcp-client-id"
+              autoComplete="off"
+              {...register("clientId")}
+            />
+            <p className="text-xs text-muted-foreground">
+              Only needed if the server doesn&apos;t let Habitat register
+              itself. Register a client with redirect URI{" "}
+              <span className="font-mono break-all">{OAUTH_CALLBACK_URL}</span>{" "}
+              and enter its ID here.
+            </p>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="mcp-client-secret">
+              Client secret (optional)
+            </FieldLabel>
+            <Input
+              id="mcp-client-secret"
+              type="password"
+              autoComplete="off"
+              {...register("clientSecret")}
+            />
+            <p className="text-xs text-muted-foreground">
+              Stored encrypted, and never shown again.
+            </p>
+          </Field>
+        </>
+      )}
+      <FieldError errors={error ? [{ message: error.message }] : []} />
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onBack}>
+          Back
+        </Button>
+        <Button type="submit" disabled={adding || !isValid}>
+          {adding ? "Adding…" : "Add server"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 

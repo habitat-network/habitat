@@ -26,19 +26,6 @@ import (
 	"github.com/olgasafonova/mcp-otel-go/mcpotel"
 )
 
-// ConnectedServers lists the MCP servers configured in a caller's orgs (see
-// internal/mcpgateway) that the caller can reach, and says how to reach each
-// on their behalf. See mcpgateway.Store for the concrete implementation.
-type ConnectedServers interface {
-	ListConnectedServers(ctx context.Context, did syntax.DID) ([]*mcpgateway.Server, error)
-	Downstream(
-		ctx context.Context,
-		did syntax.DID,
-		orgID syntax.DID,
-		name mcpgateway.ServerName,
-	) (*mcpgateway.Downstream, error)
-}
-
 // RecordSearcher runs a record search as a caller. See search.Searcher for
 // the concrete implementation.
 type RecordSearcher interface {
@@ -111,8 +98,9 @@ func orgFromPath(p, prefix string) (syntax.AtIdentifier, error) {
 //     within the org named in the endpoint's path.
 //     It may be nil when search isn't configured, in which case the tool isn't
 //     offered.
-//   - connectedServers lists the MCP servers of the caller's orgs that the
-//     caller can reach (see internal/mcpgateway): every one's tools are merged into
+//   - connectedServers lists the MCP servers of the org named in the
+//     endpoint's path that the caller can reach (see internal/mcpgateway):
+//     every one's tools are merged into
 //     this server's own tools/list response, namespaced by the server's name
 //     (see namespaceTool), and tools/call for a namespaced tool is proxied
 //     straight through to that server.
@@ -127,7 +115,7 @@ func New(
 	spacesStore spaces.Store,
 	permStore perms.Store,
 	searcher RecordSearcher,
-	connectedServers ConnectedServers,
+	connectedServers mcpgateway.ConnectedServers,
 	blobs spaces.BlobStore,
 	dir identity.Directory,
 	origin string,
@@ -179,8 +167,8 @@ func New(
 			}, searchRecordsHandler(searcher, org))
 		}
 		mcpServer.AddReceivingMiddleware(
-			mergeConnectedToolsMiddleware(connectedServers),
-			proxyConnectedToolCallMiddleware(connectedServers),
+			mergeConnectedToolsMiddleware(connectedServers, org),
+			proxyConnectedToolCallMiddleware(connectedServers, org),
 		)
 		return mcpServer
 	}
@@ -220,6 +208,15 @@ func New(
 		if err != nil {
 			http.NotFound(w, r)
 			return
+		}
+		// atproto OAuth clients present their access token under the DPoP
+		// scheme, which the go-sdk's bearer middleware rejects. The token is
+		// validated the same way under either scheme (see verifyToken), so
+		// accept both by presenting a DPoP token as a bearer token.
+		if scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " "); ok &&
+			strings.EqualFold(scheme, "DPoP") {
+			r = r.Clone(r.Context())
+			r.Header.Set("Authorization", "Bearer "+token)
 		}
 		auth.RequireBearerToken(verifyToken(tokens), &auth.RequireBearerTokenOptions{
 			ResourceMetadataURL: origin + ProtectedResourceMetadataPath + "/" + org.String(),

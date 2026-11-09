@@ -7,30 +7,26 @@ they can read.
 
 ## How it fits together
 
-- **A chat is a space.** Each chat session is its own space (type
-  `network.habitat.brain`) owned by the member, created through
-  `network.habitat.simplespace.createSpace`. Nothing is shared. The space holds
-  one `network.habitat.brain.session` record (key `self`, the chat's title,
-  taken from its first message) and one `network.habitat.brain.message` record
-  per message (`role`, `content`, `createdAt`). Only text is stored; tool calls
-  the assistant made are not.
+- **Chats live in D1.** The `chats` table has one row per chat (owned by the
+  member who started it, titled from its first message) and `messages` holds
+  each message's `role` and `content`. Only text is stored; tool calls the
+  assistant made are not. A new chat is just a fresh UUID in the URL: its row is
+  created with its first message.
 - **Chat** (`src/routes/api.chat.ts`): the UI is TanStack AI's `useChat`
-  against this route, with the chat's space URI as the `threadId`. The route
-  writes the user's message to the space, streams the reply from the model,
-  and writes the reply when it finishes. The model is Anthropic's
-  `claude-sonnet-5-5` through `@tanstack/ai-anthropic`.
+  against this route, with the chat's id as the `threadId`. The route
+  writes the user's message to D1, streams the reply from the model, and
+  writes the reply when it finishes. The model comes from the
+  LLM gateway on pear (`/llm/{org}/v1`, OpenAI-compatible) of the member's
+  first org, using the first model that org has configured. Requests go out
+  through the member's own OAuth session. Configure models in pear under
+  Settings → Models.
 - **Search tool** (`src/server/search.ts`): `search({ query, org? })` over the
   records in one of the member's orgs. The system prompt lists the member's
   orgs; `org` can be left out when they belong to just one.
-- **Sync** (`src/server/sync.ts`): the chat list and a chat's history come from
-  `internal/spaceSync`, not from what the chat route wrote. Same shape as Drop:
-  no long-lived process, a `SpaceSyncer` per request, state in D1
-  (`DrizzleSyncStore`), and a cron trigger that runs whatever has come due.
-- **Sink** (`src/server/sink.ts`): applies verified batches to the `chats` and
-  `messages` tables.
 - **OAuth** (`src/server/oauth.ts`): Brain is its own atproto OAuth client of
   the Habitat instance (no sap). Member sessions live in D1, sealed with
-  `BRAIN_CREDENTIALS_KEY`, and the syncer mints its delegation tokens from them.
+  `BRAIN_CREDENTIALS_KEY`; the chat route restores them to list the member's orgs
+  and search as them.
 
 ## Deploy to Cloudflare Workers
 
@@ -43,7 +39,6 @@ pnpm exec wrangler d1 migrations apply brain --remote
 
 pnpm exec wrangler secret put BRAIN_SESSION_SECRET   # 32+ characters
 pnpm exec wrangler secret put BRAIN_CREDENTIALS_KEY  # openssl rand -base64 32
-pnpm exec wrangler secret put ANTHROPIC_API_KEY
 
 pnpm build
 pnpm exec wrangler deploy
@@ -62,7 +57,6 @@ BRAIN_SESSION_SECRET=dev-only-32-char-minimum-secret!!
 BRAIN_CREDENTIALS_KEY=<openssl rand -base64 32>
 BRAIN_BASE_URL=https://brain.local.habitat.network
 BRAIN_HABITAT_URL=https://pear.local.habitat.network
-ANTHROPIC_API_KEY=<your key>
 ```
 
 Regenerate the D1 migration after changing `src/db/schema.ts` with

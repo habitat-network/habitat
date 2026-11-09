@@ -1,13 +1,9 @@
 import { type Agent, xrpc } from "@atproto/lex";
-import { type DidString, SpaceRef, type SpaceRefString } from "@atproto/syntax";
-import { com, network } from "api";
-import { MESSAGE_COLLECTION, SESSION_COLLECTION } from "./sink";
+import { type DidString, type NsidString, SpaceRef } from "@atproto/syntax";
+import { network } from "api";
 
 // Calls Brain makes against the Habitat instance, each as the signed-in
 // member (an OAuthSession is an @atproto/lex Agent).
-
-// CHAT_SPACE_TYPE is the type of the space each chat session lives in.
-export const CHAT_SPACE_TYPE = "network.habitat.brain";
 
 // listMyOrgIds lists every opensocial org the agent's subject belongs to:
 // every community.opensocial.members space it holds a membership in (same
@@ -47,78 +43,6 @@ export async function fetchOrgName(
   }
 }
 
-// listMyChatSpaces lists every chat space the member owns, so signing in on a
-// fresh deployment starts syncing chats created elsewhere.
-export async function listMyChatSpaces(
-  agent: Agent,
-  did: DidString,
-): Promise<SpaceRefString[]> {
-  const { body } = await xrpc(agent, network.habitat.space.listSpaces.main, {
-    params: { did, spaceType: CHAT_SPACE_TYPE },
-  });
-  return body.spaces.map((s) => s.uri as SpaceRefString);
-}
-
-// createChatSpace creates a new space for one chat session, owned by the
-// member. Only the member can read it: nothing is shared.
-export async function createChatSpace(
-  agent: Agent,
-  did: DidString,
-): Promise<SpaceRefString> {
-  const { body } = await xrpc(
-    agent,
-    network.habitat.simplespace.createSpace.main,
-    { body: { did, type: CHAT_SPACE_TYPE } },
-  );
-  return body.uri as SpaceRefString;
-}
-
-// putSessionRecord names the chat. The session record lives under the literal
-// key 'self', so writing it again renames the chat.
-export async function putSessionRecord(
-  agent: Agent,
-  did: DidString,
-  space: SpaceRefString,
-  title: string,
-): Promise<void> {
-  await xrpc(agent, com.atproto.space.putRecord.main, {
-    body: {
-      space,
-      repo: did,
-      collection: SESSION_COLLECTION,
-      rkey: "self",
-      record: {
-        $type: SESSION_COLLECTION,
-        title,
-        createdAt: new Date().toISOString(),
-      },
-    },
-  });
-}
-
-// putMessageRecord stores one message of the chat under the given key.
-export async function putMessageRecord(
-  agent: Agent,
-  did: DidString,
-  space: SpaceRefString,
-  message: { rkey: string; role: "user" | "assistant"; content: string },
-): Promise<void> {
-  await xrpc(agent, com.atproto.space.putRecord.main, {
-    body: {
-      space,
-      repo: did,
-      collection: MESSAGE_COLLECTION,
-      rkey: message.rkey,
-      record: {
-        $type: MESSAGE_COLLECTION,
-        role: message.role,
-        content: message.content,
-        createdAt: new Date().toISOString(),
-      },
-    },
-  });
-}
-
 export interface SearchHit {
   uri: string;
   space: string;
@@ -145,18 +69,123 @@ export async function searchOrgRecords(
   }));
 }
 
-// getDelegationToken mints a delegation token for a space from the
-// subject's own PDS — the input the syncer exchanges for a space credential.
-export async function getDelegationToken(
+// llmBaseUrl is where the org's LLM gateway serves its OpenAI-compatible API
+// (pear's /llm/{org}/v1); the member's own session is the API key.
+export function llmBaseUrl(habitatUrl: string, org: DidString): string {
+  return `${habitatUrl.replace(/\/+$/, "")}/llm/${org}/v1`;
+}
+
+// listLlmModels is the ids of the models the org's LLM gateway offers the
+// member.
+export async function listLlmModels(
   agent: Agent,
-  space: SpaceRefString,
-): Promise<string> {
-  const { body } = await xrpc(
-    agent,
-    com.atproto.space.getDelegationToken.main,
-    {
-      params: { space },
-    },
+  org: DidString,
+): Promise<string[]> {
+  const res = await agent.fetchHandler(`/llm/${org}/v1/models`, {
+    headers: { accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`listing ${org}'s models failed (${res.status})`);
+  }
+  const body = (await res.json()) as { data?: { id?: unknown }[] };
+  return (body.data ?? []).flatMap((m) =>
+    typeof m.id === "string" ? [m.id] : [],
   );
-  return body.token;
+}
+
+// firstLlmModel is the id of the first model the org's LLM gateway offers the
+// member, or null if the org has no connections.
+export async function firstLlmModel(
+  agent: Agent,
+  org: DidString,
+): Promise<string | null> {
+  return (await listLlmModels(agent, org))[0] ?? null;
+}
+
+// mcpUrl is where pear's MCP gateway serves the org's merged tools (the
+// streamable-HTTP endpoint at /mcp/{org}).
+export function mcpUrl(habitatUrl: string, org: DidString): string {
+  return `${habitatUrl.replace(/\/+$/, "")}/mcp/${org}`;
+}
+
+export interface Org {
+  did: DidString;
+  name: string;
+}
+
+// listMyOrgs lists the orgs the member belongs to, with their names.
+export async function listMyOrgs(agent: Agent): Promise<Org[]> {
+  const dids = await listMyOrgIds(agent);
+  return Promise.all(
+    dids.map(async (did) => ({
+      did,
+      name: (await fetchOrgName(agent, did)) ?? did,
+    })),
+  );
+}
+
+export type LlmConnection = network.habitat.llm.defs.Connection;
+export type McpServer = network.habitat.mcp.defs.Server;
+
+// What the member may configure in an org, from the org's
+// community.opensocial permissions record and their own membership roles
+// (mirrors Store.CheckAction in Go: a community without a permissions record
+// falls back to authorizing its admins).
+export interface ConfigAccess {
+  mcp: boolean;
+  models: boolean;
+}
+
+// getConfigAccess reads the member's roles and the org's action bindings from
+// its members space. The server still enforces them; this only decides
+// whether to show the controls.
+export async function getConfigAccess(
+  agent: Agent,
+  org: DidString,
+  member: DidString,
+): Promise<ConfigAccess> {
+  const space = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
+  const read = async (collection: NsidString, rkey: string) => {
+    try {
+      const { body } = await xrpc(agent, network.habitat.space.getRecord.main, {
+        params: { space, repo: org, collection, rkey },
+      });
+      return body.value as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
+  };
+  const [membership, permissions] = await Promise.all([
+    read("community.opensocial.membership" as NsidString, member),
+    read("community.opensocial.permissions" as NsidString, "self"),
+  ]);
+  const roles = (membership?.roles as string[] | undefined) ?? [];
+  const bindings =
+    (permissions?.bindings as { action: string; roles: string[] }[]) ?? [];
+  const allowed = (action: string) =>
+    bindings.length === 0
+      ? roles.includes("admin")
+      : (bindings.find((b) => b.action === action)?.roles ?? []).some((r) =>
+          roles.includes(r),
+        );
+  return {
+    mcp: allowed("mcp.configure"),
+    // Model connections have no action of their own; they are part of
+    // configuring the community.
+    models: allowed("community.configure"),
+  };
+}
+
+export async function listLlmConnections(
+  agent: Agent,
+  org: DidString,
+): Promise<LlmConnection[]> {
+  const { body } = await xrpc(agent, network.habitat.llm.listConnections.main, {
+    params: { org },
+  });
+  return body.connections;
 }

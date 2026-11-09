@@ -1,12 +1,12 @@
 import type { AuthManager } from "internal";
 import { xrpc, type DidString } from "@atproto/lex";
+import { listMcpServers, type McpServerWithStatus } from "internal/mcp";
 import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import { network } from "api";
 import { pearAgent } from "./pearAgent";
 
 export type McpServer = network.habitat.mcp.defs.Server;
-export type McpServerWithStatus =
-  network.habitat.mcp.listServers.ServerWithStatus;
+export type { McpServerWithStatus };
 
 export const mcpServersQueryKey = (org: DidString) =>
   ["mcp", "servers", org] as const;
@@ -21,14 +21,8 @@ export function orgMcpServersQueryOptions(
 ) {
   return queryOptions({
     queryKey: mcpServersQueryKey(org),
-    queryFn: async (): Promise<McpServerWithStatus[]> => {
-      const response = await xrpc(
-        pearAgent(authManager, `${org}#habitat`),
-        network.habitat.mcp.listServers.main,
-        { params: { org } },
-      );
-      return response.body.servers;
-    },
+    queryFn: () =>
+      listMcpServers(pearAgent(authManager, `${org}#habitat`), org),
   });
 }
 
@@ -40,7 +34,7 @@ export function orgMcpServersQueryOptions(
 // addMcpServerMutationOptions adds an MCP server to org: name, description,
 // url and authType, plus an optional pre-registered OAuth client. Nobody signs
 // in yet; for an oauth server, a member connects afterward with
-// startMcpAuthorizationMutationOptions, while a manual server needs no auth
+// startMcpAuthorization (internal/mcp), while a manual server needs no auth
 // and every member is connected automatically. Requires the caller to hold
 // the mcp.configure action.
 export const addMcpServerMutationOptions = (
@@ -99,26 +93,6 @@ export const removeMcpServerMutationOptions = (
         { body: { org, id } },
       );
       await client.invalidateQueries({ queryKey: mcpServersQueryKey(org) });
-    },
-  });
-
-// startMcpAuthorizationMutationOptions begins authorizing the caller against
-// an existing org-configured oauth MCP server, identified by the mutation's id
-// variable. It resolves to the server's authorization URL, for the caller to
-// open; pear stores their tokens once they approve. Nothing changes until
-// then, so there's nothing to invalidate here.
-export const startMcpAuthorizationMutationOptions = (
-  authManager: AuthManager,
-  org: DidString,
-) =>
-  mutationOptions({
-    mutationFn: async (id: string) => {
-      const response = await xrpc(
-        pearAgent(authManager, `${org}#habitat`),
-        network.habitat.mcp.startAuthorization.main,
-        { body: { org, id } },
-      );
-      return response.body.authorizationUrl;
     },
   });
 

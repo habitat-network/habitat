@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { searchTool } from "@/server/search";
 
 const ORG = "did:web:org.example" as const;
-const OTHER = "did:web:other.example" as const;
 const SPACE_URI = "at://did:plc:alice/space/network.habitat.brain/3kchat";
 const RECORD_URI = `${SPACE_URI}/did:plc:alice/network.habitat.brain.message/a`;
 
@@ -34,9 +33,9 @@ const run = (tool: ReturnType<typeof searchTool>, input: unknown) =>
   (tool.execute as (input: unknown) => Promise<unknown>)(input);
 
 describe("searchTool", () => {
-  it("searches the only org by default", async () => {
+  it("searches the org it was made for", async () => {
     const { agent, urls } = fakeAgent();
-    const tool = searchTool(agent, [{ did: ORG, name: "Org" }]);
+    const tool = searchTool(agent, ORG);
     const result = await run(tool, { query: "hello" });
     expect(urls).toHaveLength(1);
     const url = new URL(urls[0], "https://pear.example");
@@ -52,26 +51,5 @@ describe("searchTool", () => {
         },
       ],
     });
-  });
-
-  it("asks which org when the user has several", async () => {
-    const { agent, urls } = fakeAgent();
-    const tool = searchTool(agent, [
-      { did: ORG, name: "Org" },
-      { did: OTHER, name: "Other" },
-    ]);
-    expect(await run(tool, { query: "hello" })).toEqual({
-      error: "Say which organization to search with `org`.",
-    });
-    expect(urls).toEqual([]);
-  });
-
-  it("refuses an org the user isn't in", async () => {
-    const { agent, urls } = fakeAgent();
-    const tool = searchTool(agent, [{ did: ORG, name: "Org" }]);
-    expect(await run(tool, { query: "hello", org: OTHER })).toEqual({
-      error: "The user isn't a member of that organization.",
-    });
-    expect(urls).toEqual([]);
   });
 });

@@ -70,7 +70,7 @@ func connect(
 	name mcpgateway.ServerName,
 ) {
 	t.Helper()
-	authURL, err := s.StartAuthorization(t.Context(), did, org, name)
+	authURL, err := s.StartAuthorization(t.Context(), did, org, name, "")
 	require.NoError(t, err)
 	q := fake.Authorize(t, authURL)
 	done, err := s.CompleteAuthorization(t.Context(), q.Get("state"), q.Get("code"), q.Get("iss"))
@@ -160,6 +160,24 @@ func TestAddServerValidation(t *testing.T) {
 			},
 			mcpgateway.ErrClientNotSupported,
 		},
+		"preset with url": {
+			mcpgateway.NewServer{
+				Name: "x", Preset: mcpgateway.PresetSlack, URL: "https://x.example.com",
+			},
+			mcpgateway.ErrPresetConflict,
+		},
+		"preset with client": {
+			mcpgateway.NewServer{Name: "x", Preset: mcpgateway.PresetSlack, ClientID: "c"},
+			mcpgateway.ErrPresetConflict,
+		},
+		"unknown preset": {
+			mcpgateway.NewServer{Name: "x", Preset: "nope"},
+			mcpgateway.ErrUnknownPreset,
+		},
+		"preset without a client": {
+			mcpgateway.NewServer{Name: "x", Preset: mcpgateway.PresetSlack},
+			mcpgateway.ErrPresetNotConfigured,
+		},
 		"unreachable oauth": {
 			mcpgateway.NewServer{Name: "x", URL: "http://127.0.0.1:1/mcp", AuthType: "oauth"},
 			mcpgateway.ErrOAuthDiscovery,
@@ -190,7 +208,7 @@ func TestManualServer(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	require.True(t, listed[0].Connected)
-	_, err = s.StartAuthorization(t.Context(), alice, org, "docs")
+	_, err = s.StartAuthorization(t.Context(), alice, org, "docs", "")
 	require.ErrorIs(t, err, mcpgateway.ErrManualServer)
 	require.ErrorIs(
 		t,
@@ -216,10 +234,10 @@ func TestManualServer(t *testing.T) {
 	_, err = s.UpdateServer(t.Context(), org, "docs", mcpgateway.ServerUpdate{URL: &badURL})
 	require.ErrorIs(t, err, mcpgateway.ErrInvalidServerURL)
 
-	connected, err := s.ListConnectedServers(t.Context(), alice)
+	connected, err := s.ListConnectedServers(t.Context(), alice, org)
 	require.NoError(t, err)
 	require.Len(t, connected, 1)
-	connected, err = s.ListConnectedServers(t.Context(), nobody)
+	connected, err = s.ListConnectedServers(t.Context(), nobody, org)
 	require.NoError(t, err)
 	require.Empty(t, connected)
 
@@ -260,10 +278,10 @@ func TestOAuthServerConnectFlow(t *testing.T) {
 	listed, err = s.ListServers(t.Context(), org, bob)
 	require.NoError(t, err)
 	require.False(t, listed[0].Connected)
-	connected, err := s.ListConnectedServers(t.Context(), alice)
+	connected, err := s.ListConnectedServers(t.Context(), alice, org)
 	require.NoError(t, err)
 	require.Len(t, connected, 1)
-	connected, err = s.ListConnectedServers(t.Context(), bob)
+	connected, err = s.ListConnectedServers(t.Context(), bob, org)
 	require.NoError(t, err)
 	require.Empty(t, connected)
 
@@ -296,7 +314,7 @@ func TestCompleteAuthorizationRejectsBadResponses(t *testing.T) {
 	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationNotFound)
 
 	start := func() (state, code string) {
-		authURL, err := s.StartAuthorization(t.Context(), alice, org, "linear")
+		authURL, err := s.StartAuthorization(t.Context(), alice, org, "linear", "")
 		require.NoError(t, err)
 		q := fake.Authorize(t, authURL)
 		return q.Get("state"), q.Get("code")
@@ -394,4 +412,117 @@ func TestPreregisteredClient(t *testing.T) {
 	})
 	require.NoError(t, err)
 	connect(t, s, fake, alice, "linear")
+}
+
+func TestTokenServer(t *testing.T) {
+	s := newStore(t)
+	// The GitHub preset is a token server, so it needs no OAuth client.
+	added, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "github", Preset: mcpgateway.PresetGitHub,
+	})
+	require.NoError(t, err)
+	require.Equal(t, mcpgateway.AuthTypeToken, added.AuthType)
+	require.Equal(t, "https://api.githubcopilot.com/mcp/", added.URL)
+
+	listed, err := s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.False(t, listed[0].Connected)
+	_, err = s.Downstream(t.Context(), alice, org, "github")
+	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
+
+	// Connecting needs a token.
+	_, err = s.StartAuthorization(t.Context(), alice, org, "github", "")
+	require.ErrorIs(t, err, mcpgateway.ErrTokenRequired)
+
+	// Storing one connects the member right away, with no URL to visit.
+	authURL, err := s.StartAuthorization(t.Context(), alice, org, "github", "ghp_alice")
+	require.NoError(t, err)
+	require.Empty(t, authURL)
+	listed, err = s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.True(t, listed[0].Connected)
+	d, err := s.Downstream(t.Context(), alice, org, "github")
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"Authorization": "Bearer ghp_alice"}, d.Headers)
+
+	// Tokens are per member.
+	listed, err = s.ListServers(t.Context(), org, bob)
+	require.NoError(t, err)
+	require.False(t, listed[0].Connected)
+
+	require.NoError(t, s.DisconnectServer(t.Context(), alice, org, "github"))
+	_, err = s.Downstream(t.Context(), alice, org, "github")
+	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
+}
+
+// Concurrent callers needing a refresh all get working tokens: none redeems a
+// refresh token another has already rotated.
+func TestDownstreamConcurrentRefreshes(t *testing.T) {
+	fake := mcpgatewaytest.New(t, mcpgatewaytest.WithAccessTokenTTL(30*time.Second))
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
+	require.NoError(t, err)
+	connect(t, s, fake, alice, "linear")
+
+	const callers = 16
+	errs := make(chan error, callers)
+	for range callers {
+		go func() {
+			_, err := s.Downstream(t.Context(), alice, org, "linear")
+			errs <- err
+		}()
+	}
+	for range callers {
+		require.NoError(t, <-errs)
+	}
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.NoError(t, err)
+}
+
+// A refresh the authorization server fails without rejecting the grant (an
+// outage) leaves the member connected, to retry later.
+func TestDownstreamRefreshOutageKeepsConnection(t *testing.T) {
+	fake := mcpgatewaytest.New(t, mcpgatewaytest.WithAccessTokenTTL(30*time.Second))
+	s := newStore(t)
+	_, err := s.AddServer(t.Context(), org, mcpgateway.NewServer{
+		Name: "linear", URL: fake.URL, AuthType: mcpgateway.AuthTypeOAuth,
+	})
+	require.NoError(t, err)
+	connect(t, s, fake, alice, "linear")
+
+	fake.FailTokenRequests(true)
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, mcpgateway.ErrNotConnected)
+	listed, err := s.ListServers(t.Context(), org, alice)
+	require.NoError(t, err)
+	require.True(t, listed[0].Connected)
+
+	fake.FailTokenRequests(false)
+	_, err = s.Downstream(t.Context(), alice, org, "linear")
+	require.NoError(t, err)
+}
+
+// Members only reach the servers of orgs they belong to, one org at a time.
+func TestListConnectedServersIsPerOrg(t *testing.T) {
+	s := newStore(t)
+	other := syntax.DID("did:web:other.example.com")
+	for _, o := range []syntax.DID{org, other} {
+		_, err := s.AddServer(t.Context(), o, mcpgateway.NewServer{
+			Name: "docs", URL: "https://docs.example.com/mcp", AuthType: mcpgateway.AuthTypeManual,
+		})
+		require.NoError(t, err)
+	}
+
+	connected, err := s.ListConnectedServers(t.Context(), alice, org)
+	require.NoError(t, err)
+	require.Len(t, connected, 1)
+	require.Equal(t, org, connected[0].OrgID)
+
+	// alice isn't a member of other.
+	connected, err = s.ListConnectedServers(t.Context(), alice, other)
+	require.NoError(t, err)
+	require.Empty(t, connected)
 }

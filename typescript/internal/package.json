@@ -5,7 +5,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@11.27.1",
+  "packageManager": "pnpm@11.28.11",
   "type": "module",
   "exports": {
     ".": {
@@ -23,6 +23,10 @@
     "./auth": {
       "types": "./src/authManager.ts",
       "import": "./src/authManager.ts"
+    },
+    "./mcp": {
+      "types": "./src/mcp/index.ts",
+      "import": "./src/mcp/index.ts"
     },
     "./hooks": {
       "types": "./src/hooks/index.ts",
@@ -66,7 +70,7 @@
     "boring-avatars": "catalog:",
     "class-variance-authority": "^0.7.1",
     "clsx": "catalog:",
-    "cn": "^0.3.0",
+    "cn": "^0.5.0",
     "date-fns": "^4.4.0",
     "drizzle-orm": "0.45.4",
     "effect": "^4.0.2",

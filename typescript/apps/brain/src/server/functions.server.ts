@@ -1,10 +1,9 @@
 import { redirect } from "@tanstack/react-router";
-import { SpaceRef, type DidString, type SpaceRefString } from "@atproto/syntax";
+import type { DidString } from "@atproto/syntax";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import type { Agent } from "@atproto/lex";
 import type { OAuthSession } from "@atproto/oauth-client";
 import { createOAuthClient } from "./oauth";
-import { CHAT_SPACE_TYPE } from "./habitat";
 import { useAppSession } from "./session";
 
 // Server-only helpers for functions.ts and the server routes, kept apart for
@@ -83,14 +82,4 @@ export async function resolveHandle(
   } catch {
     return null;
   }
-}
-
-// ownedChatSpace checks that space is a chat space owned by did, since the
-// space URI comes from the browser.
-export function ownedChatSpace(space: string, did: string): SpaceRefString {
-  const ref = SpaceRef.parse(space);
-  if (ref.spaceType !== CHAT_SPACE_TYPE || ref.spaceDid !== did) {
-    throw new Error("Chat not found");
-  }
-  return ref.toString();
 }

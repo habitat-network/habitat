@@ -121,6 +121,11 @@ func TestStoreAddValidation(t *testing.T) {
 		"bad base url":     {func(c *llmgateway.NewConnection) { c.Name = "x"; c.BaseURL = "ftp://x" }, llmgateway.ErrInvalidBaseURL},
 		"missing key":      {func(c *llmgateway.NewConnection) { c.Name = "x"; c.APIKey = "" }, llmgateway.ErrMissingAPIKey},
 		"ollama needs url": {func(c *llmgateway.NewConnection) { c.Name = "x"; c.Provider = llmgateway.ProviderOllama; c.APIKey = "" }, llmgateway.ErrInvalidBaseURL},
+		"google takes no base url": {func(c *llmgateway.NewConnection) {
+			c.Name = "x"
+			c.Provider = llmgateway.ProviderGoogle
+			c.BaseURL = "https://proxy.example.com"
+		}, llmgateway.ErrBaseURLNotSupported},
 		"ollama takes no key": {func(c *llmgateway.NewConnection) {
 			c.Name = "x"
 			c.Provider = llmgateway.ProviderOllama
@@ -175,6 +180,14 @@ func TestStoreUpdateValidation(t *testing.T) {
 	require.ErrorIs(t, err, llmgateway.ErrAPIKeyNotSupported)
 	_, err = s.Update(t.Context(), org, "nope", llmgateway.ConnectionUpdate{})
 	require.ErrorIs(t, err, llmgateway.ErrConnectionNotFound)
+
+	_, err = s.Add(t.Context(), org, llmgateway.NewConnection{
+		Name: "gemini", Provider: llmgateway.ProviderGoogle, Model: "gemini-2.5-pro", APIKey: "k",
+	})
+	require.NoError(t, err)
+	proxy := "https://proxy.example.com"
+	_, err = s.Update(t.Context(), org, "gemini", llmgateway.ConnectionUpdate{BaseURL: &proxy})
+	require.ErrorIs(t, err, llmgateway.ErrBaseURLNotSupported)
 
 	desc := "on-prem"
 	updated, err := s.Update(

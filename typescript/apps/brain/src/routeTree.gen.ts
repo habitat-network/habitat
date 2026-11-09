@@ -11,13 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as MemberRouteImport } from './routes/_member'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as DotwellKnownDidDotjsonRouteImport } from './routes/[.]well-known.did[.]json'
 import { Route as MemberIndexRouteImport } from './routes/_member/index'
+import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as OauthCallbackRouteImport } from './routes/oauth.callback'
 import { Route as OauthClientMetadataDotjsonRouteImport } from './routes/oauth.client-metadata[.]json'
-import { Route as XrpcNsidRouteImport } from './routes/xrpc.$nsid'
-import { Route as MemberChatSpaceRouteImport } from './routes/_member/chat.$space'
+import { Route as MemberChatChatRouteImport } from './routes/_member/chat.$chat'
 
 const MemberRoute = MemberRouteImport.update({
   id: '/_member',
@@ -28,14 +27,14 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DotwellKnownDidDotjsonRoute = DotwellKnownDidDotjsonRouteImport.update({
-  id: '/.well-known/did.json',
-  path: '/.well-known/did.json',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const MemberIndexRoute = MemberIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberSettingsRoute = MemberSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => MemberRoute,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -54,91 +53,78 @@ const OauthClientMetadataDotjsonRoute =
     path: '/oauth/client-metadata.json',
     getParentRoute: () => rootRouteImport,
   } as any)
-const XrpcNsidRoute = XrpcNsidRouteImport.update({
-  id: '/xrpc/$nsid',
-  path: '/xrpc/$nsid',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MemberChatSpaceRoute = MemberChatSpaceRouteImport.update({
-  id: '/chat/$space',
-  path: '/chat/$space',
+const MemberChatChatRoute = MemberChatChatRouteImport.update({
+  id: '/chat/$chat',
+  path: '/chat/$chat',
   getParentRoute: () => MemberRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof MemberIndexRoute
   '/login': typeof LoginRoute
-  '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
+  '/settings': typeof MemberSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
-  '/xrpc/$nsid': typeof XrpcNsidRoute
-  '/chat/$space': typeof MemberChatSpaceRoute
+  '/chat/$chat': typeof MemberChatChatRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
-  '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
+  '/settings': typeof MemberSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
-  '/xrpc/$nsid': typeof XrpcNsidRoute
   '/': typeof MemberIndexRoute
-  '/chat/$space': typeof MemberChatSpaceRoute
+  '/chat/$chat': typeof MemberChatChatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_member': typeof MemberRouteWithChildren
   '/login': typeof LoginRoute
-  '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
+  '/_member/settings': typeof MemberSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
-  '/xrpc/$nsid': typeof XrpcNsidRoute
   '/_member/': typeof MemberIndexRoute
-  '/_member/chat/$space': typeof MemberChatSpaceRoute
+  '/_member/chat/$chat': typeof MemberChatChatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
-    | '/.well-known/did.json'
+    | '/settings'
     | '/api/chat'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
-    | '/xrpc/$nsid'
-    | '/chat/$space'
+    | '/chat/$chat'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
-    | '/.well-known/did.json'
+    | '/settings'
     | '/api/chat'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
-    | '/xrpc/$nsid'
     | '/'
-    | '/chat/$space'
+    | '/chat/$chat'
   id:
     | '__root__'
     | '/_member'
     | '/login'
-    | '/.well-known/did.json'
+    | '/_member/settings'
     | '/api/chat'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
-    | '/xrpc/$nsid'
     | '/_member/'
-    | '/_member/chat/$space'
+    | '/_member/chat/$chat'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   MemberRoute: typeof MemberRouteWithChildren
   LoginRoute: typeof LoginRoute
-  DotwellKnownDidDotjsonRoute: typeof DotwellKnownDidDotjsonRoute
   ApiChatRoute: typeof ApiChatRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
   OauthClientMetadataDotjsonRoute: typeof OauthClientMetadataDotjsonRoute
-  XrpcNsidRoute: typeof XrpcNsidRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -157,18 +143,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.well-known/did.json': {
-      id: '/.well-known/did.json'
-      path: '/.well-known/did.json'
-      fullPath: '/.well-known/did.json'
-      preLoaderRoute: typeof DotwellKnownDidDotjsonRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_member/': {
       id: '/_member/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof MemberIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/settings': {
+      id: '/_member/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof MemberSettingsRouteImport
       parentRoute: typeof MemberRoute
     }
     '/api/chat': {
@@ -192,31 +178,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthClientMetadataDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/xrpc/$nsid': {
-      id: '/xrpc/$nsid'
-      path: '/xrpc/$nsid'
-      fullPath: '/xrpc/$nsid'
-      preLoaderRoute: typeof XrpcNsidRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_member/chat/$space': {
-      id: '/_member/chat/$space'
-      path: '/chat/$space'
-      fullPath: '/chat/$space'
-      preLoaderRoute: typeof MemberChatSpaceRouteImport
+    '/_member/chat/$chat': {
+      id: '/_member/chat/$chat'
+      path: '/chat/$chat'
+      fullPath: '/chat/$chat'
+      preLoaderRoute: typeof MemberChatChatRouteImport
       parentRoute: typeof MemberRoute
     }
   }
 }
 
 interface MemberRouteChildren {
+  MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
-  MemberChatSpaceRoute: typeof MemberChatSpaceRoute
+  MemberChatChatRoute: typeof MemberChatChatRoute
 }
 
 const MemberRouteChildren: MemberRouteChildren = {
+  MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
-  MemberChatSpaceRoute: MemberChatSpaceRoute,
+  MemberChatChatRoute: MemberChatChatRoute,
 }
 
 const MemberRouteWithChildren =
@@ -225,11 +206,9 @@ const MemberRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   MemberRoute: MemberRouteWithChildren,
   LoginRoute: LoginRoute,
-  DotwellKnownDidDotjsonRoute: DotwellKnownDidDotjsonRoute,
   ApiChatRoute: ApiChatRoute,
   OauthCallbackRoute: OauthCallbackRoute,
   OauthClientMetadataDotjsonRoute: OauthClientMetadataDotjsonRoute,
-  XrpcNsidRoute: XrpcNsidRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

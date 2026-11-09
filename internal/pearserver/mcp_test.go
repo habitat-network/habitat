@@ -12,8 +12,11 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/mcpgateway/mcpgatewaytest"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 // mcpOAuthCallback plays the authorization server redirecting the member's
@@ -370,5 +373,147 @@ func TestServer_ManualServer(t *testing.T) {
 			&updateOut,
 		)
 		require.Equal(t, http.StatusNotFound, code)
+	})
+}
+
+func TestServer_TokenServer(t *testing.T) {
+	client := httpx_testutil.NewTestXRPCClient(t)
+	adminTS, aliceTS, _ := newSharedOpenSocialServers(t)
+	orgDID, err := adminTS.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+	require.NoError(t, err)
+	require.NoError(
+		t, adminTS.OpenSocialStore.AssignRoles(
+			t.Context(), syntax.DID(orgDID), alice, []string{"member"},
+		),
+	)
+
+	// The GitHub preset needs no OAuth client, since members bring tokens.
+	var addOut habitat.NetworkHabitatMcpAddServerOutput
+	code := client.Procedure(
+		adminTS.Server.AddServer,
+		habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "github", Preset: "github"},
+		&addOut,
+	)
+	require.Equal(t, http.StatusOK, code)
+	require.Equal(t, "token", addOut.Server.AuthType)
+
+	connected := func() bool {
+		var listOut habitat.NetworkHabitatMcpListServersOutput
+		code := client.Query(
+			aliceTS.Server.ListServers, url.Values{"org": []string{orgDID}}, &listOut,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Len(t, listOut.Servers, 1)
+		return listOut.Servers[0].Connected
+	}
+	require.False(t, connected())
+
+	// Connecting without a token is refused; with one, it connects with no
+	// URL to visit.
+	var startOut habitat.NetworkHabitatMcpStartAuthorizationOutput
+	code = client.Procedure(
+		aliceTS.Server.StartAuthorization,
+		habitat.NetworkHabitatMcpStartAuthorizationInput{Org: orgDID, Id: "github"},
+		&startOut,
+	)
+	require.Equal(t, http.StatusBadRequest, code)
+	code = client.Procedure(
+		aliceTS.Server.StartAuthorization,
+		habitat.NetworkHabitatMcpStartAuthorizationInput{
+			Org: orgDID, Id: "github", Token: "ghp_alice",
+		},
+		&startOut,
+	)
+	require.Equal(t, http.StatusOK, code)
+	require.Empty(t, startOut.AuthorizationUrl)
+	require.True(t, connected())
+
+	code = client.Procedure(
+		aliceTS.Server.DisconnectServer,
+		habitat.NetworkHabitatMcpDisconnectServerInput{Org: orgDID, Id: "github"},
+		nil,
+	)
+	require.Equal(t, http.StatusOK, code)
+	require.False(t, connected())
+}
+
+func TestServer_McpSearch(t *testing.T) {
+	client := httpx_testutil.NewTestXRPCClient(t)
+	fake := mcpgatewaytest.New(t)
+	adminTS, aliceTS, sp := newSharedOpenSocialServers(t)
+	orgDID, err := adminTS.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+	require.NoError(t, err)
+	require.NoError(t, adminTS.OpenSocialStore.AssignRoles(
+		t.Context(), syntax.DID(orgDID), alice, []string{"member"},
+	))
+	// alice's servers are only listed once she has joined: written her own
+	// record into the org's members space, as accepting an invite does.
+	_, _, err = sp.PutRecord(
+		t.Context(),
+		habitat_syntax.ConstructSpaceURI(syntax.DID(orgDID), opensocial.MembersSpaceType, "self"),
+		alice, "community.opensocial.acceptance", "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"updatedAt": "2024-01-01T00:00:00Z"}),
+	)
+	require.NoError(t, err)
+	for _, server := range []habitat.NetworkHabitatMcpAddServerInput{
+		{Org: orgDID, Name: "Linear", Url: fake.URL, AuthType: "oauth"},
+		{Org: orgDID, Name: "docs", Url: "https://mcp.example.com/mcp", AuthType: "manual"},
+	} {
+		var addOut habitat.NetworkHabitatMcpAddServerOutput
+		require.Equal(t, http.StatusOK, client.Procedure(adminTS.Server.AddServer, server, &addOut))
+	}
+
+	t.Run("reports servers it can't search without failing", func(t *testing.T) {
+		var out habitat.NetworkHabitatMcpSearchOutput
+		code := client.Procedure(
+			aliceTS.Server.McpSearch,
+			habitat.NetworkHabitatMcpSearchInput{
+				Org: orgDID, Query: "roadmap",
+				Servers: []string{fake.URL, "https://mcp.example.com/mcp/"},
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Empty(t, out.Items)
+		require.Len(t, out.Sources, 2)
+		// alice never signed in to the oauth server, and pear knows no search
+		// tool for the manual one.
+		require.Equal(t, fake.URL, out.Sources[0].ServerUrl)
+		require.Equal(t, "not_connected", out.Sources[0].Status)
+		require.Equal(t, "docs", out.Sources[1].ServerId)
+		require.Equal(t, "unsupported", out.Sources[1].Status)
+	})
+
+	t.Run("searches nothing when no connected server is searchable", func(t *testing.T) {
+		var out habitat.NetworkHabitatMcpSearchOutput
+		code := client.Procedure(
+			aliceTS.Server.McpSearch,
+			habitat.NetworkHabitatMcpSearchInput{Org: orgDID, Query: "roadmap"},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Empty(t, out.Items)
+		require.Empty(t, out.Sources)
+	})
+
+	t.Run("rejects an empty query", func(t *testing.T) {
+		var out habitat.NetworkHabitatMcpSearchOutput
+		code := client.Procedure(
+			aliceTS.Server.McpSearch,
+			habitat.NetworkHabitatMcpSearchInput{Org: orgDID, Query: " "},
+			&out,
+		)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("requires membership", func(t *testing.T) {
+		outsider := newOpenSocialServer(t, syntax.DID("did:plc:outsider"))
+		var out habitat.NetworkHabitatMcpSearchOutput
+		code := client.Procedure(
+			outsider.Server.McpSearch,
+			habitat.NetworkHabitatMcpSearchInput{Org: orgDID, Query: "roadmap"},
+			&out,
+		)
+		require.Equal(t, http.StatusUnauthorized, code)
 	})
 }

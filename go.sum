@@ -281,8 +281,8 @@ github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3 h1:B+8ClL/kCQkRiU82d9xajR
 github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3/go.mod h1:NbCUVmiS4foBGBHOYlCT25+YmGpJ32dZPi75pGEUpj4=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 h1:5VipnvEpbqr2gA2VbM+nYVbkIF28c5ZQfqCBQ5g2xfk=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0/go.mod h1:Hyl3n6Twe1hvtd9XUXDec4pTvgMSEixRuQKPTMH2bNs=
-github.com/habitat-network/habitat/cmd/pear v0.0.0-20261023201409-e62bc3e2d404 h1:m9X5bpBTxMn4dpwBcvibkgY08H5GiRZNAw8JarhJx9s=
-github.com/habitat-network/habitat/cmd/pear v0.0.0-20261023201409-e62bc3e2d404/go.mod h1:jxmpgg9oA3CMJfnOycWU6/zUzwO+EnF737YyI2LfjME=
+github.com/habitat-network/habitat/cmd/pear v0.0.0-20261028213504-1db0bd920a4b h1:ZhAVFMjX4LL1i3HNQR4v3DIZcoqx6UmVR1PPWzUxnGU=
+github.com/habitat-network/habitat/cmd/pear v0.0.0-20261028213504-1db0bd920a4b/go.mod h1:jxmpgg9oA3CMJfnOycWU6/zUzwO+EnF737YyI2LfjME=
 github.com/hashicorp/go-cleanhttp v0.5.2 h1:035FKYIWjmULyFRBKPs8TBQoi0x6d9G4xc9neXJWAZQ=
 github.com/hashicorp/go-cleanhttp v0.5.2/go.mod h1:kO/YDlP8L1346E6Sodw+PrpBSV4/SoxCXGY6BqNFT48=
 github.com/hashicorp/go-hclog v1.6.3 h1:Qr2kF+eVWjTiYmU7Y31tYlP1h0q/X3Nl3tPGdaB11/k=

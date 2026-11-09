@@ -17,6 +17,9 @@
 //     browser to, and CompleteAuthorization, called from pear's OAuth callback.
 //     Each member's tokens are stored in the encrypted keyval store and
 //     refreshed by pear as needed.
+//   - AuthTypeToken: each member supplies their own bearer token (for example
+//     a personal access token) with StartAuthorization, which stores it
+//     encrypted. Pear never refreshes it.
 //   - AuthTypeManual: the server needs no auth, and every member is connected
 //     automatically.
 //
@@ -27,7 +30,6 @@ package mcpgateway
 
 import (
 	"errors"
-	"net/http"
 	"net/url"
 	"regexp"
 
@@ -48,6 +50,10 @@ const (
 	// AuthTypeManual servers are configured once by an org admin with just a
 	// URL and need no auth, so every member shares the same connection.
 	AuthTypeManual AuthType = "manual"
+	// AuthTypeToken servers are reached with a token each member supplies
+	// themselves, such as a personal access token, sent as a bearer token.
+	// Use it for servers without MCP OAuth support.
+	AuthTypeToken AuthType = "token"
 )
 
 var (
@@ -57,6 +63,12 @@ var (
 	// ErrManualServer is returned by the per-member authorization calls on a
 	// manually configured server, which has no per-member connection.
 	ErrManualServer = errors.New("mcp server is configured manually and needs no sign-in")
+	// ErrTokenRequired is returned when connecting to a token server without
+	// a token.
+	ErrTokenRequired = errors.New("this mcp server needs an access token")
+	// ErrTokenNotSupported is returned when giving a token to an oauth
+	// server, which authorizes through the server instead.
+	ErrTokenNotSupported = errors.New("only token servers take an access token")
 	// ErrNotConnected is returned when the caller has no usable connection to
 	// an OAuth server: they never connected, disconnected, or their grant was
 	// revoked.
@@ -71,7 +83,7 @@ var (
 	ErrServerNameTaken = errors.New("a server with this name already exists for this org")
 	// ErrInvalidAuthType is returned when adding a server with an unknown
 	// AuthType.
-	ErrInvalidAuthType = errors.New("auth type must be oauth or manual")
+	ErrInvalidAuthType = errors.New("auth type must be oauth, token or manual")
 	// ErrInvalidServerURL is returned when a server's URL isn't an absolute
 	// http(s) URL.
 	ErrInvalidServerURL = errors.New("url must be an absolute http or https URL")
@@ -106,7 +118,12 @@ func IsConfigError(err error) bool {
 		errors.Is(err, ErrURLImmutable) ||
 		errors.Is(err, ErrClientSecretWithoutID) ||
 		errors.Is(err, ErrClientNotSupported) ||
-		errors.Is(err, ErrOAuthDiscovery)
+		errors.Is(err, ErrOAuthDiscovery) ||
+		errors.Is(err, ErrTokenRequired) ||
+		errors.Is(err, ErrTokenNotSupported) ||
+		errors.Is(err, ErrUnknownPreset) ||
+		errors.Is(err, ErrPresetNotConfigured) ||
+		errors.Is(err, ErrPresetConflict)
 }
 
 // serverNamePattern restricts MCP server names to a limited, predictable
@@ -161,6 +178,10 @@ type NewServer struct {
 	// URL is the server's streamable HTTP endpoint.
 	URL      string
 	AuthType AuthType
+	// Preset adds a known connector instead: its URL, auth type and OAuth
+	// client are filled in, so URL, AuthType, ClientID and ClientSecret must
+	// be empty.
+	Preset Preset
 	// ClientID and ClientSecret are an OAuth client pre-registered with the
 	// server's authorization server, for OAuth servers that don't support
 	// Dynamic Client Registration. Empty registers one dynamically. The
@@ -174,14 +195,4 @@ type NewServer struct {
 type ServerUpdate struct {
 	Description *string
 	URL         *string
-}
-
-// Downstream is how pear reaches a member's connected MCP server: its URL,
-// the headers that authorize the member's requests to it, and the HTTP client
-// to make them with (the store's, so they're restricted the same way as its
-// own requests to the server).
-type Downstream struct {
-	URL     string
-	Headers map[string]string
-	Client  *http.Client
 }

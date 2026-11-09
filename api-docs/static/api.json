@@ -3028,7 +3028,7 @@
           "network.habitat.mcp"
         ],
         "summary": "network.habitat.mcp.addServer",
-        "description": "Add an MCP server to the org. Nobody signs in to it yet: for an oauth server pear discovers its authorization server and registers itself as a client, by dynamic client registration unless clientId is given, and each member then connects with startAuthorization; a manual server needs no auth, so every member is connected to it automatically. Requires service-auth. Requires the mcp.configure action.",
+        "description": "Add an MCP server to the org. Nobody signs in to it yet: for an oauth server pear discovers its authorization server and registers itself as a client, by dynamic client registration unless clientId is given, and each member then connects with startAuthorization; a manual server needs no auth, so every member is connected to it automatically. Either give preset, or give url and authType (and optionally clientId and clientSecret). Requires service-auth. Requires the mcp.configure action.",
         "operationId": "network.habitat.mcp.addServer",
         "security": [
           {
@@ -3043,9 +3043,7 @@
                 "type": "object",
                 "required": [
                   "org",
-                  "name",
-                  "url",
-                  "authType"
+                  "name"
                 ],
                 "properties": {
                   "org": {
@@ -3062,16 +3060,27 @@
                     "type": "string",
                     "maxLength": 2000
                   },
+                  "preset": {
+                    "type": "string",
+                    "description": "A known connector to add. pear fills in its URL and auth type and, for an oauth connector, uses the OAuth client it holds for it, shared by all orgs, so url, authType, clientId and clientSecret must be omitted. Fails if an oauth connector has no client configured on this pear.",
+                    "maxLength": 64,
+                    "enum": [
+                      "google-drive",
+                      "slack",
+                      "github"
+                    ]
+                  },
                   "url": {
                     "type": "string",
-                    "description": "The server's streamable HTTP endpoint.",
+                    "description": "The server's streamable HTTP endpoint. Required unless preset is given, in which case it must be omitted.",
                     "format": "uri"
                   },
                   "authType": {
                     "type": "string",
-                    "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server.",
+                    "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server. Required unless preset is given, in which case it must be omitted.",
                     "enum": [
                       "oauth",
+                      "token",
                       "manual"
                     ]
                   },
@@ -3471,13 +3480,152 @@
         }
       }
     },
+    "/network.habitat.mcp.search": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.search",
+        "description": "Search the caller's connected MCP servers in an org at once: pear calls every known search tool of each requested server in parallel, as the caller, and merges their results into one list. A server pear knows no search tool for, that the caller isn't connected to (or whose sign-in expired), that fails or that doesn't answer in time is reported in sources without failing the search. Requires service-auth. Callable by any org member.",
+        "operationId": "network.habitat.mcp.search",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "query"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community whose MCP servers to search.",
+                    "format": "did"
+                  },
+                  "query": {
+                    "type": "string",
+                    "description": "What to search for, typically a few keywords.",
+                    "maxLength": 1000
+                  },
+                  "servers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "maxItems": 50
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "sources"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.mcp.search.item"
+                      }
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.mcp.search.source"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.mcp.startAuthorization": {
       "post": {
         "tags": [
           "network.habitat.mcp"
         ],
         "summary": "network.habitat.mcp.startAuthorization",
-        "description": "Begin authorizing the caller against an org-configured oauth MCP server. Returns the server's authorization URL, for the caller's browser to open; once they approve, the authorization server redirects back to pear, which stores the caller's tokens. Requires service-auth. Callable by any org member.",
+        "description": "Begin connecting the caller to an org-configured MCP server. For an oauth server, returns the server's authorization URL, for the caller's browser to open; once they approve, the authorization server redirects back to pear, which stores the caller's tokens. For a token server, the caller's access token (for example a personal access token) is required in token; pear stores it, which connects the caller right away, and returns no URL. Requires service-auth. Callable by any org member.",
         "operationId": "network.habitat.mcp.startAuthorization",
         "security": [
           {
@@ -3502,6 +3650,11 @@
                   },
                   "id": {
                     "type": "string"
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "token servers only: the caller's own access token for the server, sent to it as a bearer token. Stored encrypted and never returned.",
+                    "maxLength": 2000
                   }
                 }
               }
@@ -3515,13 +3668,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "authorizationUrl"
-                  ],
+                  "required": [],
                   "properties": {
                     "authorizationUrl": {
                       "type": "string",
-                      "description": "Where to send the caller's browser to authorize pear with the server. It's valid for 10 minutes and can be used once.",
+                      "description": "oauth servers only: where to send the caller's browser to authorize pear with the server. It's valid for 10 minutes and can be used once. Omitted for a token server, which is connected as soon as the call returns.",
                       "format": "uri"
                     }
                   }
@@ -9277,9 +9428,10 @@
           },
           "authType": {
             "type": "string",
-            "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth, run by pear, which stores their tokens encrypted. manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically.",
+            "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth, run by pear, which stores their tokens encrypted. token: each member supplies their own access token (such as a personal access token) with startAuthorization, which pear stores encrypted and sends to the server as a bearer token. manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically.",
             "enum": [
               "oauth",
+              "token",
               "manual"
             ]
           },
@@ -9303,6 +9455,78 @@
           "connected": {
             "type": "boolean",
             "description": "Whether the caller can reach this server: always for a manual server, and for an oauth server once the caller has authorized it."
+          }
+        }
+      },
+      "network.habitat.mcp.search.item": {
+        "type": "object",
+        "required": [
+          "serverUrl",
+          "provider"
+        ],
+        "properties": {
+          "serverUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "serverId": {
+            "type": "string",
+            "description": "The id of the org's server the result came from."
+          },
+          "provider": {
+            "type": "string",
+            "description": "The search tool the result came from, e.g. github-issues."
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where to open the result, if the tool gave one."
+          },
+          "snippet": {
+            "type": "string",
+            "description": "Context from the result, up to 2000 characters."
+          }
+        }
+      },
+      "network.habitat.mcp.search.source": {
+        "type": "object",
+        "required": [
+          "serverUrl",
+          "status",
+          "count"
+        ],
+        "properties": {
+          "serverUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "serverId": {
+            "type": "string",
+            "description": "The org's server with this URL; omitted if the caller has none."
+          },
+          "provider": {
+            "type": "string",
+            "description": "The search tool called; omitted when none was."
+          },
+          "status": {
+            "type": "string",
+            "description": "ok: the tool answered (possibly with no results). not_connected: the caller has no usable connection to this server; they never connected, or their sign-in expired. unsupported: pear knows no search tool for this server. timeout: the server didn't answer in time. error: the server or tool failed.",
+            "enum": [
+              "ok",
+              "not_connected",
+              "unsupported",
+              "timeout",
+              "error"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for any status but ok."
+          },
+          "count": {
+            "type": "integer"
           }
         }
       },

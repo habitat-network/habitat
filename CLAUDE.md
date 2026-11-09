@@ -44,6 +44,7 @@ Data & permissions:
 - `syntax` — Habitat-specific syntax types/parsers (Habitat URI, Space URI/Key, Clique ref) extending `atproto/syntax`
 - `llmgateway` — per-org LLM model connections: metadata in the `llm_connections` table with API keys encrypted on the row, providers called via langchaingo, and the OpenAI Chat Completions translation served at `/llm/{org}/v1`
 - `mcpgateway` — per-org MCP server configuration in the `mcp_servers` table (including the OAuth client pear registers with each server's authorization server); pear runs the MCP OAuth flow itself (callback at `/mcp-oauth/callback`) and keeps each member's tokens in the encrypted keyval store, refreshing them for `internal/mcpserver`'s proxied tools
+- `mcpsearch` — federated search across a member's connected MCP servers: a `Registry` of per-server `Provider`s (matched by server URL; each names a known search tool, builds its args and normalizes its result) called in parallel with a per-server timeout, merged into one list with per-server statuses; served as `network.habitat.mcp.search`. Add a search tool by adding a `ToolProvider` to `DefaultProviders`
 - `perms` — wraps the fgastore and opensocial to query, update, and enforce permissions
 
 Sync & networking:
@@ -118,7 +119,6 @@ moon run <project>:format      # format a projects
 - `HABITAT_GOOGLE_CLIENT_ID` / `HABITAT_GOOGLE_CLIENT_SECRET` — Google Sign-In login method
 - `HABITAT_MEILISEARCH_URL` / `HABITAT_MEILISEARCH_API_KEY` — Meilisearch for space record search (`pear:dev` sets the URL and runs `root:meilisearch` on :7700); search is off when unset
 - `HABITAT_EMBEDDER_URL` / `HABITAT_EMBEDDER_API_KEY` / `HABITAT_EMBEDDER_MODEL` — OpenAI-compatible embeddings endpoint Meilisearch calls for hybrid search (locally Ollama, e.g. `http://localhost:11434/v1/embeddings` with `nomic-embed-text`; in prod Microsoft Foundry's `/openai/v1/embeddings` with the deployment name as model); keyword-only when unset. Tune with `HABITAT_SEARCH_SEMANTIC_RATIO` and `HABITAT_SEARCH_MIN_SCORE`
-- `HABITAT_ADMIN_PASSWORD` — preset instance admin password (random + printed once if unset)
 
 ## Code conventions
 

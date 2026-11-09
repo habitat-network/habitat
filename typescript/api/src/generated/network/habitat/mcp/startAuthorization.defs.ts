@@ -17,13 +17,16 @@ export type $Params = l.InferOutput<typeof $params>
 export const $input = /*#__PURE__*/ l.jsonPayload({
   org: /*#__PURE__*/ l.string({ format: 'did' }),
   id: /*#__PURE__*/ l.string(),
+  token: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ maxLength: 2000 })),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  authorizationUrl: /*#__PURE__*/ l.string({ format: 'uri' }),
+  authorizationUrl: /*#__PURE__*/ l.optional(
+    /*#__PURE__*/ l.string({ format: 'uri' }),
+  ),
 })
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
@@ -32,7 +35,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Begin authorizing the caller against an org-configured oauth MCP server. Returns the server's authorization URL, for the caller's browser to open; once they approve, the authorization server redirects back to pear, which stores the caller's tokens. Requires service-auth. Callable by any org member. */
+/** Begin connecting the caller to an org-configured MCP server. For an oauth server, returns the server's authorization URL, for the caller's browser to open; once they approve, the authorization server redirects back to pear, which stores the caller's tokens. For a token server, the caller's access token (for example a personal access token) is required in token; pear stores it, which connects the caller right away, and returns no URL. Requires service-auth. Callable by any org member. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }
