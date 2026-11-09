@@ -83,3 +83,9 @@ func (s *store) applyPreset(ns *NewServer) error {
 	ns.ClientID, ns.ClientSecret = client.ID, client.Secret
 	return nil
 }
+
+// PresetURL returns the fixed URL of a known preset's server, or "" for an
+// unknown preset.
+func PresetURL(p Preset) string {
+	return presetServers[p].URL
+}

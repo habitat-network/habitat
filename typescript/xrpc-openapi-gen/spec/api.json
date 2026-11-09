@@ -3480,6 +3480,145 @@
         }
       }
     },
+    "/network.habitat.mcp.search": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.search",
+        "description": "Search the caller's connected MCP servers in an org at once: pear calls every known search tool of each requested server in parallel, as the caller, and merges their results into one list. A server pear knows no search tool for, that the caller isn't connected to (or whose sign-in expired), that fails or that doesn't answer in time is reported in sources without failing the search. Requires service-auth. Callable by any org member.",
+        "operationId": "network.habitat.mcp.search",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "query"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community whose MCP servers to search.",
+                    "format": "did"
+                  },
+                  "query": {
+                    "type": "string",
+                    "description": "What to search for, typically a few keywords.",
+                    "maxLength": 1000
+                  },
+                  "servers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "maxItems": 50
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "sources"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.mcp.search.item"
+                      }
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.mcp.search.source"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.mcp.startAuthorization": {
       "post": {
         "tags": [
@@ -9316,6 +9455,78 @@
           "connected": {
             "type": "boolean",
             "description": "Whether the caller can reach this server: always for a manual server, and for an oauth server once the caller has authorized it."
+          }
+        }
+      },
+      "network.habitat.mcp.search.item": {
+        "type": "object",
+        "required": [
+          "serverUrl",
+          "provider"
+        ],
+        "properties": {
+          "serverUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "serverId": {
+            "type": "string",
+            "description": "The id of the org's server the result came from."
+          },
+          "provider": {
+            "type": "string",
+            "description": "The search tool the result came from, e.g. github-issues."
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where to open the result, if the tool gave one."
+          },
+          "snippet": {
+            "type": "string",
+            "description": "Context from the result, up to 2000 characters."
+          }
+        }
+      },
+      "network.habitat.mcp.search.source": {
+        "type": "object",
+        "required": [
+          "serverUrl",
+          "status",
+          "count"
+        ],
+        "properties": {
+          "serverUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "serverId": {
+            "type": "string",
+            "description": "The org's server with this URL; omitted if the caller has none."
+          },
+          "provider": {
+            "type": "string",
+            "description": "The search tool called; omitted when none was."
+          },
+          "status": {
+            "type": "string",
+            "description": "ok: the tool answered (possibly with no results). not_connected: the caller has no usable connection to this server; they never connected, or their sign-in expired. unsupported: pear knows no search tool for this server. timeout: the server didn't answer in time. error: the server or tool failed.",
+            "enum": [
+              "ok",
+              "not_connected",
+              "unsupported",
+              "timeout",
+              "error"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for any status but ok."
+          },
+          "count": {
+            "type": "integer"
           }
         }
       },

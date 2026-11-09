@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -451,37 +452,9 @@ type downstream struct {
 	client *http.Client
 }
 
-// headerRoundTripper adds static headers to every outgoing request,
-// authorizing calls to a connected MCP server on the caller's behalf, then
-// sends it with base.
-type headerRoundTripper struct {
-	headers map[string]string
-	base    http.RoundTripper
-}
-
-func (t headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-	for name, value := range t.headers {
-		req.Header.Set(name, value)
-	}
-	return t.base.RoundTrip(req)
-}
-
 // connectToServer opens an MCP client session to d.
 func connectToServer(ctx context.Context, d downstream) (*mcp.ClientSession, error) {
-	base := http.DefaultTransport
-	if d.client != nil && d.client.Transport != nil {
-		base = d.client.Transport
-	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}, nil)
-	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:   d.url,
-		HTTPClient: &http.Client{Transport: headerRoundTripper{headers: d.headers, base: base}},
-	}, nil)
-	if err != nil {
-		return nil, fmt.Errorf("connect to mcp server: %w", err)
-	}
-	return session, nil
+	return (&mcpgateway.Downstream{URL: d.url, Headers: d.headers, Client: d.client}).Connect(ctx)
 }
 
 // connectedServer is one of a caller's connected MCP servers, named by its
