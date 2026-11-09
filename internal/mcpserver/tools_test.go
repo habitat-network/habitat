@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/stretchr/testify/require"
 
@@ -126,7 +125,10 @@ func newFakeMCPServer(t *testing.T, authorization ...string) *httptest.Server {
 
 // newConnectedServerTestServer starts pear's MCP server, with servers as the
 // caller's connected servers.
-func newConnectedServerTestServer(t *testing.T, servers ConnectedServers) *httptest.Server {
+func newConnectedServerTestServer(
+	t *testing.T,
+	servers mcpgateway.ConnectedServers,
+) *httptest.Server {
 	t.Helper()
 	spacesStore, permStore := setupStores(t)
 	srv := New(
@@ -234,24 +236,6 @@ func TestMCPServerToolsCall_UnknownNamespacedToolFallsThrough(t *testing.T) {
 
 	_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "unknown-server:ping"})
 	require.Error(t, err)
-}
-
-func TestDownstreamContext(t *testing.T) {
-	type key struct{}
-	spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
-		TraceID: trace.TraceID{1},
-		SpanID:  trace.SpanID{1},
-	})
-	parent, cancel := context.WithCancel(
-		trace.ContextWithSpanContext(context.WithValue(t.Context(), key{}, "v"), spanCtx),
-	)
-	ctx := downstreamContext(parent)
-
-	require.Nil(t, ctx.Value(key{}))
-	require.Equal(t, spanCtx, trace.SpanContextFromContext(ctx))
-	cancel()
-	<-ctx.Done()
-	require.ErrorIs(t, ctx.Err(), context.Canceled)
 }
 
 func TestMCPServerTools_OAuthServer(t *testing.T) {
