@@ -167,7 +167,9 @@ func TestConnectWithTokenOAuthServer(t *testing.T) {
 	did := syntax.DID("did:plc:alice")
 	s, row := newConnectedStore(t, mcpgatewaytest.New(t), did)
 	require.ErrorIs(
-		t, s.ConnectWithToken(t.Context(), did, row.OrgDID, row.Name, "token"), ErrTokenNotSupported,
+		t,
+		s.ConnectWithToken(t.Context(), did, row.OrgDID, row.Name, "token"),
+		ErrTokenNotSupported,
 	)
 }
 
