@@ -102,14 +102,19 @@ func TestWithSessionContext(t *testing.T) {
 		trace.ContextWithSpanContext(context.WithValue(t.Context(), key{}, "v"), spanCtx),
 	)
 	defer cancel()
-	err := mcpgateway.WithSession(parent, servers, "did:plc:alice", &mcpgateway.Server{Name: "docs"},
+	err := mcpgateway.WithSession(
+		parent,
+		servers,
+		"did:plc:alice",
+		&mcpgateway.Server{Name: "docs"},
 		func(ctx context.Context, _ *mcp.ClientSession) error {
 			require.Nil(t, ctx.Value(key{}))
 			require.Equal(t, spanCtx, trace.SpanContextFromContext(ctx))
 			cancel()
 			<-ctx.Done()
 			return ctx.Err()
-		})
+		},
+	)
 	require.ErrorIs(t, err, context.Canceled)
 }
 

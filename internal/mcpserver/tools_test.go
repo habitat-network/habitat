@@ -125,7 +125,10 @@ func newFakeMCPServer(t *testing.T, authorization ...string) *httptest.Server {
 
 // newConnectedServerTestServer starts pear's MCP server, with servers as the
 // caller's connected servers.
-func newConnectedServerTestServer(t *testing.T, servers mcpgateway.ConnectedServers) *httptest.Server {
+func newConnectedServerTestServer(
+	t *testing.T,
+	servers mcpgateway.ConnectedServers,
+) *httptest.Server {
 	t.Helper()
 	spacesStore, permStore := setupStores(t)
 	srv := New(
