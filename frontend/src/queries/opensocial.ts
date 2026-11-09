@@ -1,4 +1,4 @@
-import type { AuthManager } from "internal";
+import { wantRecordMacHeaders, type AuthManager } from "internal";
 import {
   getBlobCidString,
   xrpc,
@@ -256,6 +256,8 @@ export function orgProfileQueryOptions(
             collection: "community.opensocial.profile" as NsidString,
             rkey: "self",
           },
+          // Required with a space credential; not checked here.
+          headers: await wantRecordMacHeaders(),
         });
         const value = response.body.value as {
           name: string;
@@ -469,6 +471,8 @@ export function orgPermissionsQueryOptions(
               collection: "community.opensocial.permissions" as NsidString,
               rkey: "self",
             },
+            // Required with a space credential; not checked here.
+            headers: await wantRecordMacHeaders(),
           },
         );
         const value = response.body.value as {
