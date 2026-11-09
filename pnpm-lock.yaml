@@ -100,8 +100,8 @@ catalogs:
       specifier: ^19.2.8
       version: 19.2.8
     react-hook-form:
-      specifier: 7.86.0
-      version: 7.86.0
+      specifier: 7.91.0
+      version: 7.91.0
     tailwindcss:
       specifier: ^4.3.3
       version: 4.3.5
@@ -286,7 +286,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.86.0(react@19.2.8)
+        version: 7.91.0(@types/react@19.2.18)(react@19.2.8)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.5
@@ -582,7 +582,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.86.0(react@19.2.8)
+        version: 7.91.0(@types/react@19.2.18)(react@19.2.8)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.5
@@ -782,7 +782,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.86.0(react@19.2.8)
+        version: 7.91.0(@types/react@19.2.18)(react@19.2.8)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.5
@@ -915,7 +915,7 @@ importers:
         version: 9.14.0(react@19.2.8)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.86.0(react@19.2.8)
+        version: 7.91.0(@types/react@19.2.18)(react@19.2.8)
       shadcn:
         specifier: ^4.0.0
         version: 4.19.0(@cfworker/json-schema@4.1.6)(supports-color@10.2.2)(typescript@7.0.2)
@@ -9877,17 +9877,15 @@ packages:
   react-fast-compare@3.2.2:
     resolution: {integrity: sha512-nsO+KSNgo1SbJqJEYRE9ERzo7YtYbou/OqjSQKxV7jcKox7+usiUVZOAC+XnDOABXggQTno0Y1CpVnuWEc1boQ==}
 
-  react-hook-form@7.85.0:
-    resolution: {integrity: sha512-U2MTriFXnclmV4rOE20p2DcRFv5WEg3FIcBFOKcOLFHDVvGIMPvLTkTWefUsonmlaVy23khVDxDWym6uJVGOzw==}
+  react-hook-form@7.91.0:
+    resolution: {integrity: sha512-5BEBUnCBwa28AFXYTYmOaB/+CSpJ/+CWVASHEvIGUzFdHyUiPHeRhG7r5hOZ8nZi0yP7pbHdFNXO/p31EKTJFQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
+      '@types/react': '*'
       react: ^16.8.0 || ^17 || ^18 || ^19
-
-  react-hook-form@7.86.0:
-    resolution: {integrity: sha512-4kbWJrh5jPZt1+YqVcXcGKffGcXV/XVbozknLh0Yjh0KhpoAkus21TAQhzRYqNwFkkObmnSvRlZZ3GT+ehoIrA==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      react: ^16.8.0 || ^17 || ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   react-is@16.13.1:
     resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
@@ -14721,11 +14719,11 @@ snapshots:
     dependencies:
       hono: 4.13.2
 
-  '@hookform/error-message@2.0.1(react-dom@19.2.8(react@19.2.8))(react-hook-form@7.85.0(react@19.2.8))(react@19.2.8)':
+  '@hookform/error-message@2.0.1(react-dom@19.2.8(react@19.2.8))(react-hook-form@7.91.0(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)':
     dependencies:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
-      react-hook-form: 7.85.0(react@19.2.8)
+      react-hook-form: 7.91.0(@types/react@19.2.18)(react@19.2.8)
 
   '@img/colour@1.1.0': {}
 
@@ -18319,7 +18317,7 @@ snapshots:
   docusaurus-theme-openapi-docs@5.2.0(@docusaurus/theme-common@3.10.2(dbb2d33efcece115d9c9b377f0167d20))(@rspack/core@1.7.12)(@types/react@19.2.18)(docusaurus-plugin-openapi-docs@5.2.0(04238a73151d7672dec5b1d6f4577849))(docusaurus-plugin-sass@0.2.6(edf477adc7ca191a07628a3f5f27af3e))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)):
     dependencies:
       '@docusaurus/theme-common': 3.10.2(dbb2d33efcece115d9c9b377f0167d20)
-      '@hookform/error-message': 2.0.1(react-dom@19.2.8(react@19.2.8))(react-hook-form@7.85.0(react@19.2.8))(react@19.2.8)
+      '@hookform/error-message': 2.0.1(react-dom@19.2.8(react@19.2.8))(react-hook-form@7.91.0(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
       '@reduxjs/toolkit': 2.12.0(react-redux@9.3.0(@types/react@19.2.18)(react@19.2.8)(redux@5.0.1))(react@19.2.8)
       allof-merge: 0.6.8
       buffer: 6.0.3
@@ -18338,7 +18336,7 @@ snapshots:
       process: 0.11.10
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
-      react-hook-form: 7.85.0(react@19.2.8)
+      react-hook-form: 7.91.0(@types/react@19.2.18)(react@19.2.8)
       react-live: 4.1.8(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react-magic-dropzone: 1.0.1
       react-markdown: 10.1.0(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2)
@@ -21685,13 +21683,11 @@ snapshots:
 
   react-fast-compare@3.2.2: {}
 
-  react-hook-form@7.85.0(react@19.2.8):
+  react-hook-form@7.91.0(@types/react@19.2.18)(react@19.2.8):
     dependencies:
       react: 19.2.8
-
-  react-hook-form@7.86.0(react@19.2.8):
-    dependencies:
-      react: 19.2.8
+    optionalDependencies:
+      '@types/react': 19.2.18
 
   react-is@16.13.1: {}
 
