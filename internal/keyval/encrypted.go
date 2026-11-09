@@ -18,10 +18,12 @@ type EncryptedKV interface {
 	GetEncrypted(ctx context.Context, key string, dst any) error
 }
 
-// EncryptedStore mirrors [Store] with encrypted values. Delete needs no
-// encryption, so callers use the backing Store's for that.
+// EncryptedStore mirrors [Store] with encrypted values.
 type EncryptedStore interface {
 	EncryptedKV
+	// Delete is [Store.Delete]: it needs no encryption, and is here so a
+	// consumer of encrypted values needn't hold the backing Store as well.
+	Delete(ctx context.Context, key string) error
 	// PutIfAbsentEncrypted is [Store.PutIfAbsent] over an encrypted value.
 	PutIfAbsentEncrypted(ctx context.Context, key string, value any, ttl time.Duration) error
 	// ConsumeEncrypted is [Store.Consume] over an encrypted value.
@@ -85,6 +87,10 @@ func (s *encryptedStore) GetEncrypted(ctx context.Context, key string, dst any) 
 		return err
 	}
 	return s.decrypt(token, dst)
+}
+
+func (s *encryptedStore) Delete(ctx context.Context, key string) error {
+	return s.store.Delete(ctx, key)
 }
 
 func (s *encryptedStore) ConsumeEncrypted(ctx context.Context, key string, dst any) error {

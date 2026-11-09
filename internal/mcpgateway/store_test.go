@@ -55,7 +55,7 @@ func newStore(t *testing.T) testStore {
 	require.NoError(t, err)
 	s, err := mcpgateway.NewStore(
 		db_testutil.NewDB(t, mcpgateway.Models()),
-		encKV, kv, encrypt.TestKey, fakeOrgs{}, http.DefaultClient, callbackURL,
+		encKV, encrypt.TestKey, fakeOrgs{}, http.DefaultClient, callbackURL,
 	)
 	require.NoError(t, err)
 	return testStore{Store: s, kv: kv}
@@ -70,12 +70,12 @@ func connect(
 	name mcpgateway.ServerName,
 ) {
 	t.Helper()
-	authURL, err := s.StartAuthorization(t.Context(), did, org, name, "")
+	authURL, err := s.StartAuthorization(t.Context(), did, org, name)
 	require.NoError(t, err)
 	q := fake.Authorize(t, authURL)
-	done, err := s.CompleteAuthorization(t.Context(), q.Get("state"), q.Get("code"), q.Get("iss"))
-	require.NoError(t, err)
-	require.Equal(t, &mcpgateway.CompletedAuthorization{OrgID: org, Server: name, DID: did}, done)
+	require.NoError(
+		t, s.CompleteAuthorization(t.Context(), q.Get("state"), q.Get("code"), q.Get("iss")),
+	)
 }
 
 func TestNewStoreValidation(t *testing.T) {
@@ -86,7 +86,6 @@ func TestNewStoreValidation(t *testing.T) {
 	_, err = mcpgateway.NewStore(
 		db,
 		encKV,
-		kv,
 		[]byte("short"),
 		fakeOrgs{},
 		http.DefaultClient,
@@ -96,19 +95,17 @@ func TestNewStoreValidation(t *testing.T) {
 	_, err = mcpgateway.NewStore(
 		db,
 		encKV,
-		kv,
 		encrypt.TestKey,
 		nil,
 		http.DefaultClient,
 		callbackURL,
 	)
 	require.Error(t, err)
-	_, err = mcpgateway.NewStore(db, encKV, kv, encrypt.TestKey, fakeOrgs{}, nil, callbackURL)
+	_, err = mcpgateway.NewStore(db, encKV, encrypt.TestKey, fakeOrgs{}, nil, callbackURL)
 	require.Error(t, err)
 	_, err = mcpgateway.NewStore(
 		db,
 		encKV,
-		kv,
 		encrypt.TestKey,
 		fakeOrgs{},
 		http.DefaultClient,
@@ -208,8 +205,13 @@ func TestManualServer(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	require.True(t, listed[0].Connected)
-	_, err = s.StartAuthorization(t.Context(), alice, org, "docs", "")
+	_, err = s.StartAuthorization(t.Context(), alice, org, "docs")
 	require.ErrorIs(t, err, mcpgateway.ErrManualServer)
+	require.ErrorIs(
+		t,
+		s.ConnectWithToken(t.Context(), alice, org, "docs", "token"),
+		mcpgateway.ErrManualServer,
+	)
 	require.ErrorIs(
 		t,
 		s.DisconnectServer(t.Context(), alice, org, "docs"),
@@ -308,13 +310,13 @@ func TestCompleteAuthorizationRejectsBadResponses(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = s.CompleteAuthorization(t.Context(), "", "code", "")
+	err = s.CompleteAuthorization(t.Context(), "", "code", "")
 	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationNotFound)
-	_, err = s.CompleteAuthorization(t.Context(), "unknown", "code", "")
+	err = s.CompleteAuthorization(t.Context(), "unknown", "code", "")
 	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationNotFound)
 
 	start := func() (state, code string) {
-		authURL, err := s.StartAuthorization(t.Context(), alice, org, "linear", "")
+		authURL, err := s.StartAuthorization(t.Context(), alice, org, "linear")
 		require.NoError(t, err)
 		q := fake.Authorize(t, authURL)
 		return q.Get("state"), q.Get("code")
@@ -322,28 +324,28 @@ func TestCompleteAuthorizationRejectsBadResponses(t *testing.T) {
 
 	// The fake advertises iss, so a response without it is refused.
 	state, code := start()
-	_, err = s.CompleteAuthorization(t.Context(), state, code, "")
+	err = s.CompleteAuthorization(t.Context(), state, code, "")
 	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationFailed)
 	// And the state was used up.
-	_, err = s.CompleteAuthorization(t.Context(), state, code, fake.Issuer)
+	err = s.CompleteAuthorization(t.Context(), state, code, fake.Issuer)
 	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationNotFound)
 
 	state, code = start()
-	_, err = s.CompleteAuthorization(t.Context(), state, code, "https://evil.example.com")
+	err = s.CompleteAuthorization(t.Context(), state, code, "https://evil.example.com")
 	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationFailed)
 
 	state, _ = start()
-	_, err = s.CompleteAuthorization(t.Context(), state, "", fake.Issuer)
+	err = s.CompleteAuthorization(t.Context(), state, "", fake.Issuer)
 	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationFailed)
 
 	state, _ = start()
-	_, err = s.CompleteAuthorization(t.Context(), state, "wrong-code", fake.Issuer)
+	err = s.CompleteAuthorization(t.Context(), state, "wrong-code", fake.Issuer)
 	require.ErrorIs(t, err, mcpgateway.ErrAuthorizationFailed)
 
 	// Removing the server while a member authorizes voids the authorization.
 	state, code = start()
 	require.NoError(t, s.RemoveServer(t.Context(), org, "linear"))
-	_, err = s.CompleteAuthorization(t.Context(), state, code, fake.Issuer)
+	err = s.CompleteAuthorization(t.Context(), state, code, fake.Issuer)
 	require.ErrorIs(t, err, mcpgateway.ErrServerNotFound)
 }
 
@@ -431,13 +433,14 @@ func TestTokenServer(t *testing.T) {
 	require.ErrorIs(t, err, mcpgateway.ErrNotConnected)
 
 	// Connecting needs a token.
-	_, err = s.StartAuthorization(t.Context(), alice, org, "github", "")
+	_, err = s.StartAuthorization(t.Context(), alice, org, "github")
 	require.ErrorIs(t, err, mcpgateway.ErrTokenRequired)
 
 	// Storing one connects the member right away, with no URL to visit.
-	authURL, err := s.StartAuthorization(t.Context(), alice, org, "github", "ghp_alice")
-	require.NoError(t, err)
-	require.Empty(t, authURL)
+	require.ErrorIs(
+		t, s.ConnectWithToken(t.Context(), alice, org, "github", ""), mcpgateway.ErrTokenRequired,
+	)
+	require.NoError(t, s.ConnectWithToken(t.Context(), alice, org, "github", "ghp_alice"))
 	listed, err = s.ListServers(t.Context(), org, alice)
 	require.NoError(t, err)
 	require.True(t, listed[0].Connected)

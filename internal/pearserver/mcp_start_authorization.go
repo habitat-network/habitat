@@ -38,9 +38,19 @@ func (p *PearServer) StartAuthorization(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	authorizationURL, err := p.mcpGatewayStore.StartAuthorization(
-		ctx, credInfo.Subject, org, mcpgateway.ServerName(input.Id), input.Token,
-	)
+	// A member connects to a token server by giving their token, which
+	// connects them right away, and to an OAuth server by authorizing at the
+	// URL returned.
+	name := mcpgateway.ServerName(input.Id)
+	var authorizationURL string
+	var err error
+	if input.Token != "" {
+		err = p.mcpGatewayStore.ConnectWithToken(ctx, credInfo.Subject, org, name, input.Token)
+	} else {
+		authorizationURL, err = p.mcpGatewayStore.StartAuthorization(
+			ctx, credInfo.Subject, org, name,
+		)
+	}
 	if errors.Is(err, mcpgateway.ErrServerNotFound) {
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
 		return
