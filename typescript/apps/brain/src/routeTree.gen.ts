@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as MemberRouteImport } from './routes/_member'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MemberIndexRouteImport } from './routes/_member/index'
+import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as OauthCallbackRouteImport } from './routes/oauth.callback'
 import { Route as OauthClientMetadataDotjsonRouteImport } from './routes/oauth.client-metadata[.]json'
@@ -29,6 +30,11 @@ const LoginRoute = LoginRouteImport.update({
 const MemberIndexRoute = MemberIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberSettingsRoute = MemberSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => MemberRoute,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -56,6 +62,7 @@ const MemberChatChatRoute = MemberChatChatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof MemberIndexRoute
   '/login': typeof LoginRoute
+  '/settings': typeof MemberSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
@@ -63,6 +70,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/settings': typeof MemberSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
@@ -73,6 +81,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_member': typeof MemberRouteWithChildren
   '/login': typeof LoginRoute
+  '/_member/settings': typeof MemberSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
@@ -84,6 +93,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/settings'
     | '/api/chat'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
@@ -91,6 +101,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/settings'
     | '/api/chat'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
@@ -100,6 +111,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_member'
     | '/login'
+    | '/_member/settings'
     | '/api/chat'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
@@ -138,6 +150,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberIndexRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_member/settings': {
+      id: '/_member/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof MemberSettingsRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -170,11 +189,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface MemberRouteChildren {
+  MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
   MemberChatChatRoute: typeof MemberChatChatRoute
 }
 
 const MemberRouteChildren: MemberRouteChildren = {
+  MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
   MemberChatChatRoute: MemberChatChatRoute,
 }

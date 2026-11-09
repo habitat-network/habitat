@@ -1,5 +1,5 @@
 import { type Agent, xrpc } from "@atproto/lex";
-import { type DidString, SpaceRef } from "@atproto/syntax";
+import { type DidString, type NsidString, SpaceRef } from "@atproto/syntax";
 import { network } from "api";
 
 // Calls Brain makes against the Habitat instance, each as the signed-in
@@ -122,4 +122,70 @@ export async function listMyOrgs(agent: Agent): Promise<Org[]> {
       name: (await fetchOrgName(agent, did)) ?? did,
     })),
   );
+}
+
+export type LlmConnection = network.habitat.llm.defs.Connection;
+export type McpServer = network.habitat.mcp.defs.Server;
+
+// What the member may configure in an org, from the org's
+// community.opensocial permissions record and their own membership roles
+// (mirrors Store.CheckAction in Go: a community without a permissions record
+// falls back to authorizing its admins).
+export interface ConfigAccess {
+  mcp: boolean;
+  models: boolean;
+}
+
+// getConfigAccess reads the member's roles and the org's action bindings from
+// its members space. The server still enforces them; this only decides
+// whether to show the controls.
+export async function getConfigAccess(
+  agent: Agent,
+  org: DidString,
+  member: DidString,
+): Promise<ConfigAccess> {
+  const space = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
+  const read = async (collection: NsidString, rkey: string) => {
+    try {
+      const { body } = await xrpc(agent, network.habitat.space.getRecord.main, {
+        params: { space, repo: org, collection, rkey },
+      });
+      return body.value as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
+  };
+  const [membership, permissions] = await Promise.all([
+    read("community.opensocial.membership" as NsidString, member),
+    read("community.opensocial.permissions" as NsidString, "self"),
+  ]);
+  const roles = (membership?.roles as string[] | undefined) ?? [];
+  const bindings =
+    (permissions?.bindings as { action: string; roles: string[] }[]) ?? [];
+  const allowed = (action: string) =>
+    bindings.length === 0
+      ? roles.includes("admin")
+      : (bindings.find((b) => b.action === action)?.roles ?? []).some((r) =>
+          roles.includes(r),
+        );
+  return {
+    mcp: allowed("mcp.configure"),
+    // Model connections have no action of their own; they are part of
+    // configuring the community.
+    models: allowed("community.configure"),
+  };
+}
+
+export async function listLlmConnections(
+  agent: Agent,
+  org: DidString,
+): Promise<LlmConnection[]> {
+  const { body } = await xrpc(agent, network.habitat.llm.listConnections.main, {
+    params: { org },
+  });
+  return body.connections;
 }
