@@ -13,12 +13,12 @@ import (
 	"strings"
 
 	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/mcpsearch"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/perms"
-	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -45,9 +45,7 @@ type ConnectedServers interface {
 
 // RecordSearcher runs a record search as a caller. See search.Searcher for
 // the concrete implementation.
-type RecordSearcher interface {
-	Search(ctx context.Context, caller syntax.DID, q search.Query) (search.Page, error)
-}
+type RecordSearcher = mcpsearch.RecordSearcher
 
 // ProtectedResourceMetadataPath is the well-known path prefix (RFC 9728) under
 // which the protected resource metadata of each org's MCP endpoint is served,
@@ -85,6 +83,7 @@ const searchRecordsDescription = "Search your organization's knowledge in Habita
 	"notes, policies, files, roadmaps, decisions and other data records shared with you. Use " +
 	"this first for any question about your company, team, customers or past work, and search " +
 	"again whenever the conversation turns to a new topic; earlier results don't cover it. " +
+	"Also searches the org's connected apps in the same call. " +
 	"Returns matching records with snippets; use get_record for the full content."
 
 // Server exposes pear's data as an MCP server over streamable HTTP, guarded
@@ -151,6 +150,17 @@ func New(
 	for _, opt := range opts {
 		opt(&o)
 	}
+	// One search runs over the records and every connected app's search
+	// tool; each is a backend of it (see internal/mcpsearch).
+	var recordsSearcher *mcpsearch.Searcher
+	if searcher != nil {
+		recordsSearcher = mcpsearch.NewSearcher(
+			connectedServers,
+			mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
+			mcpsearch.WithBackend(mcpsearch.NewRecordsBackend(searcher)),
+			mcpsearch.WithMaxLimit(maxSearchLimit),
+		)
+	}
 	var toolSyncer *toolSyncer
 	if o.toolCatalog != nil {
 		toolSyncer = newToolSyncer(o.toolCatalog, connectedServers)
@@ -193,11 +203,11 @@ func New(
 			Description: "A blob in a Habitat space, addressed by space URI and CID.",
 			URITemplate: blobResourceTemplate,
 		}, blobResourceHandler(blobs, permStore))
-		if searcher != nil {
+		if recordsSearcher != nil {
 			mcp.AddTool(mcpServer, &mcp.Tool{
 				Name:        "search_records",
 				Description: textOr(text.SearchDescription, searchRecordsDescription),
-			}, searchRecordsHandler(searcher, org))
+			}, searchRecordsHandler(recordsSearcher, org))
 		}
 		if toolSyncer != nil {
 			// Connected tools are discovered rather than listed, but calling

@@ -404,3 +404,70 @@ func TestMCPServerToolsList_KeepsServerOrder(t *testing.T) {
 	}
 	require.Equal(t, want, pings)
 }
+
+func TestSearchRecordsAlsoSearchesConnectedApps(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+	spacesStore, permStore := setupStores(t)
+
+	// A connected app whose search tool is known by its URL.
+	srv := mcp.NewServer(&mcp.Implementation{Name: "fake-app", Version: "0.1.0"}, nil)
+	mcp.AddTool(srv, &mcp.Tool{Name: "search_files"}, func(
+		_ context.Context, _ *mcp.CallToolRequest, _ struct {
+			Query    string `json:"query"`
+			PageSize int    `json:"pageSize"`
+		},
+	) (*mcp.CallToolResult, any, error) {
+		return nil, map[string]any{"files": []any{map[string]any{
+			"title": "Roadmap deck", "viewUrl": "https://drive.example/1",
+		}}}, nil
+	})
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv },
+		&mcp.StreamableHTTPOptions{DisableLocalhostProtection: true})
+	app := httptest.NewServer(handler)
+	t.Cleanup(app.Close)
+
+	servers := newFakeConnectedServers()
+	servers.connect(caller, testOrg, "drive", app.URL, nil)
+	// The server is told apart from others by URL, so the connected server
+	// is listed with the fake's.
+	for _, s := range servers.servers[caller] {
+		s.URL = mcpgateway.PresetURL(mcpgateway.PresetGoogleDrive)
+	}
+	servers.downstream[serverKey{testOrg, "drive"}].URL = app.URL
+
+	records := &fakeRecordSearcher{}
+	mcpSrv := New(
+		fakeTokens{}, spacesStore, permStore, records, servers, nil, newTestDirectory(),
+		"https://habitat.example", "https://habitat.example/mcp",
+	)
+	httpServer := httptest.NewServer(mcpSrv.Handler())
+	t.Cleanup(httpServer.Close)
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "search_records", Arguments: map[string]any{"query": "roadmap"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError, "%+v", result)
+	out := result.StructuredContent.(map[string]any)
+	require.Equal(t, []any{map[string]any{
+		"server": "drive", "title": "Roadmap deck", "url": "https://drive.example/1",
+	}}, out["connected_apps"])
+	require.Equal(t, []any{map[string]any{
+		"server": "drive", "status": "ok", "count": float64(1),
+	}}, out["connected_app_sources"])
+	require.Empty(t, out["hits"])
+
+	// A collection filter only searches records.
+	result, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "search_records", Arguments: map[string]any{
+			"query": "roadmap", "collection": "network.habitat.note",
+		},
+	})
+	require.NoError(t, err)
+	require.NotContains(t, result.StructuredContent.(map[string]any), "connected_apps")
+}
