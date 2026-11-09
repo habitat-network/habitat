@@ -95,7 +95,10 @@ func TestSearchLimit(t *testing.T) {
 func TestGetReturnsDefinition(t *testing.T) {
 	idx := openIndex(t)
 	want := tool("github", "create_issue", "Open an issue")
-	require.NoError(t, idx.ReplaceServer(t.Context(), org, alice, "github", []toolsearch.Tool{want}))
+	require.NoError(
+		t,
+		idx.ReplaceServer(t.Context(), org, alice, "github", []toolsearch.Tool{want}),
+	)
 
 	got, err := idx.Get(t.Context(), org, alice, "github", "create_issue")
 	require.NoError(t, err)

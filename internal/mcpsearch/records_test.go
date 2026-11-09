@@ -34,8 +34,11 @@ const testRecordURI = habitat_syntax.SpaceRecordURI(
 
 func cannedMatch() search.Match {
 	return search.Match{
-		URI:     testRecordURI,
-		Record:  spaces.Record{Space: "at://did:plc:org/space/network.habitat.test/a", Value: map[string]any{"k": "v"}},
+		URI: testRecordURI,
+		Record: spaces.Record{
+			Space: "at://did:plc:org/space/network.habitat.test/a",
+			Value: map[string]any{"k": "v"},
+		},
 		Snippet: "<mark>roadmap</mark>",
 	}
 }
@@ -44,7 +47,12 @@ func TestRecordsBackendSearchesAsCaller(t *testing.T) {
 	records := &fakeRecordSearcher{matches: []search.Match{cannedMatch()}}
 	out := NewRecordsBackend(records).Search(t.Context(), Request{
 		Caller: testCaller, Org: testOrg,
-		Query: Query{Text: "roadmap", Limit: 5, SnippetLength: 30, Collection: "network.habitat.note"},
+		Query: Query{
+			Text:          "roadmap",
+			Limit:         5,
+			SnippetLength: 30,
+			Collection:    "network.habitat.note",
+		},
 	})
 
 	require.Equal(t, testCaller, records.caller)
@@ -80,7 +88,13 @@ func TestSearcherSearchesRecordsAndServersTogether(t *testing.T) {
 		WithBackend(NewRecordsBackend(records)), WithMaxLimit(100),
 	)
 
-	res, err := searcher.Search(t.Context(), testCaller, testOrg, nil, Query{Text: "roadmap", Limit: 80})
+	res, err := searcher.Search(
+		t.Context(),
+		testCaller,
+		testOrg,
+		nil,
+		Query{Text: "roadmap", Limit: 80},
+	)
 	require.NoError(t, err)
 	// Records come first, then each server; a server is asked for no more
 	// than the most any tool accepts.
@@ -88,7 +102,13 @@ func TestSearcherSearchesRecordsAndServersTogether(t *testing.T) {
 	require.Equal(t, 80, records.query.Limit)
 	require.Equal(t, []Source{
 		{Provider: ProviderRecords, Status: StatusOK, Count: 1},
-		{ServerURL: alpha, ServerName: "alpha", Provider: "alpha-search", Status: StatusOK, Count: MaxLimit},
+		{
+			ServerURL:  alpha,
+			ServerName: "alpha",
+			Provider:   "alpha-search",
+			Status:     StatusOK,
+			Count:      MaxLimit,
+		},
 	}, res.Sources)
 
 	// Only records have collections.

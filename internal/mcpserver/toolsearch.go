@@ -167,7 +167,7 @@ func (s *toolSyncer) sync(ctx context.Context, org, caller syntax.DID) error {
 }
 
 type searchToolsInput struct {
-	Query string `json:"query" jsonschema:"what you want to do, in a few words, e.g. create a github issue"`
+	Query string `json:"query"           jsonschema:"what you want to do, in a few words, e.g. create a github issue"`
 	Limit int    `json:"limit,omitempty" jsonschema:"the most tools to return; defaults to 10"`
 }
 
@@ -257,7 +257,8 @@ func getToolDetailsHandler(
 		if !ok {
 			return nil, getToolDetailsOutput{}, fmt.Errorf(
 				"%q isn't a connected app's tool: names look like server%stool, as search_tools returns",
-				input.Name, toolNamespaceSep,
+				input.Name,
+				toolNamespaceSep,
 			)
 		}
 		tool, err := syncer.catalog.Get(ctx, org, caller, serverName, toolName)
@@ -321,7 +322,8 @@ func callToolHandler(connectedServers ConnectedServers, org syntax.DID) mcp.Tool
 		if !ok {
 			return toolError(
 				"%q isn't a connected app's tool: names look like server%stool, as search_tools returns",
-				input.Name, toolNamespaceSep,
+				input.Name,
+				toolNamespaceSep,
 			), nil
 		}
 		for _, server := range listConnectedServers(ctx, connectedServers, caller.String(), org) {
@@ -342,7 +344,10 @@ func callToolHandler(connectedServers ConnectedServers, org syntax.DID) mcp.Tool
 			}
 			return result, nil
 		}
-		return toolError("no connected app %q: use search_tools to find tool names", serverName), nil
+		return toolError(
+			"no connected app %q: use search_tools to find tool names",
+			serverName,
+		), nil
 	}
 }
 

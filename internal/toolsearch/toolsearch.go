@@ -135,7 +135,8 @@ func open(
 		return nil, fmt.Errorf("create meilisearch index %s: %w", uid, err)
 	}
 	// An index that already exists makes the task fail, which is fine.
-	if err := i.wait(ctx, info); err != nil && !strings.Contains(err.Error(), "index_already_exists") {
+	if err := i.wait(ctx, info); err != nil &&
+		!strings.Contains(err.Error(), "index_already_exists") {
 		return nil, fmt.Errorf("create meilisearch index %s: %w", uid, err)
 	}
 	settings := &meilisearch.Settings{
