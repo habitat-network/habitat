@@ -15,6 +15,7 @@ import {
 } from "internal/mcp";
 import { CheckCircle2Icon, PlugIcon } from "lucide-react";
 import { listOrgMcpServers, startMcpConnect } from "@/server/functions";
+import { ConnectorIcon, connectorFor } from "@/lib/connectors";
 import { useOrgStore } from "@/stores/org";
 
 export const Route = createFileRoute("/_member/")({
@@ -114,7 +115,14 @@ function ServerCard({
     <>
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="truncate">{server.name}</CardTitle>
+          <ConnectorIcon
+            connector={connectorFor(server)}
+            fallback={<PlugIcon className="size-4" />}
+            className="size-8"
+          />
+          <CardTitle className="min-w-0 flex-1 truncate">
+            {server.name}
+          </CardTitle>
           {connected ? (
             <Badge variant="secondary" className="gap-1">
               <CheckCircle2Icon className="size-3" />
