@@ -65,6 +65,7 @@ type Option func(*options)
 
 type options struct {
 	textOverrides bool
+	toolCatalog   ToolCatalog
 }
 
 // WithTextOverrides lets requests override the instructions and the search

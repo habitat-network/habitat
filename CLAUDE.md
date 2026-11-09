@@ -45,6 +45,7 @@ Data & permissions:
 - `llmgateway` — per-org LLM model connections: metadata in the `llm_connections` table with API keys encrypted on the row, providers called via langchaingo, and the OpenAI Chat Completions translation served at `/llm/{org}/v1`
 - `mcpgateway` — per-org MCP server configuration in the `mcp_servers` table (including the OAuth client pear registers with each server's authorization server); pear runs the MCP OAuth flow itself (callback at `/mcp-oauth/callback`) and keeps each member's tokens in the encrypted keyval store, refreshing them for `internal/mcpserver`'s proxied tools
 - `mcpsearch` — federated search across a member's connected MCP servers: a `Registry` of per-server `Provider`s (matched by server URL; each names a known search tool, builds its args and normalizes its result) called in parallel with a per-server timeout, merged into one list with per-server statuses; served as `network.habitat.mcp.search`. Add a search tool by adding a `ToolProvider` to `DefaultProviders`
+- `toolsearch` — Meilisearch catalog (one document per org, member, server and tool; hybrid when an embedder is set) behind `internal/mcpserver`'s progressive tool discovery. With `--mcp_tool_search`, `/mcp` lists `search_tools`, `get_tool_details` and `call_tool` instead of every connected server's tools; a member's catalog is filled lazily from their servers and refreshed after 10 minutes
 - `perms` — wraps the fgastore and opensocial to query, update, and enforce permissions
 
 Sync & networking:
