@@ -57,6 +57,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.startAuthorization", p.StartAuthorization)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.disconnectServer", p.DisconnectServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.search", p.McpSearch)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.debug", p.McpDebug)
 	p.router.HandleFunc(MCPOAuthCallbackPath, p.McpOAuthCallback).Methods(http.MethodGet)
 
 	// LLM connections
