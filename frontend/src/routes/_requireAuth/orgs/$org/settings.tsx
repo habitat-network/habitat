@@ -30,6 +30,7 @@ import {
   KeyRoundIcon,
   PlugIcon,
   ServerIcon,
+  BugIcon,
   PaletteIcon,
   SearchIcon,
   BotIcon,
@@ -54,6 +55,7 @@ const NAV_ITEMS: {
     | "/orgs/$org/settings/capabilities"
     | "/orgs/$org/settings/apps"
     | "/orgs/$org/settings/mcp"
+    | "/orgs/$org/settings/mcp-debug"
     | "/orgs/$org/settings/search"
     | "/orgs/$org/settings/models"
     | "/orgs/$org/settings/branding";
@@ -69,6 +71,11 @@ const NAV_ITEMS: {
   },
   { to: "/orgs/$org/settings/apps", label: "Authorized apps", icon: PlugIcon },
   { to: "/orgs/$org/settings/mcp", label: "MCP servers", icon: ServerIcon },
+  {
+    to: "/orgs/$org/settings/mcp-debug",
+    label: "MCP debugger",
+    icon: BugIcon,
+  },
   { to: "/orgs/$org/settings/search", label: "Search", icon: SearchIcon },
   { to: "/orgs/$org/settings/models", label: "Models", icon: BotIcon },
   { to: "/orgs/$org/settings/branding", label: "Branding", icon: PaletteIcon },

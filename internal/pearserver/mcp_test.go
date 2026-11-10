@@ -517,3 +517,86 @@ func TestServer_McpSearch(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, code)
 	})
 }
+
+func TestServer_McpDebug(t *testing.T) {
+	client := httpx_testutil.NewTestXRPCClient(t)
+	fake := mcpgatewaytest.New(t)
+	adminTS, aliceTS, sp := newSharedOpenSocialServers(t)
+	orgDID, err := adminTS.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+	require.NoError(t, err)
+	require.NoError(t, adminTS.OpenSocialStore.AssignRoles(
+		t.Context(), syntax.DID(orgDID), alice, []string{"member"},
+	))
+	// alice has joined the org, as accepting an invite does.
+	_, _, err = sp.PutRecord(
+		t.Context(),
+		habitat_syntax.ConstructSpaceURI(syntax.DID(orgDID), opensocial.MembersSpaceType, "self"),
+		alice, "community.opensocial.acceptance", "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"updatedAt": "2024-01-01T00:00:00Z"}),
+	)
+	require.NoError(t, err)
+	var addOut habitat.NetworkHabitatMcpAddServerOutput
+	require.Equal(t, http.StatusOK, client.Procedure(
+		adminTS.Server.AddServer,
+		habitat.NetworkHabitatMcpAddServerInput{
+			Org: orgDID, Name: "Linear", Url: fake.URL, AuthType: "oauth",
+		},
+		&addOut,
+	))
+
+	t.Run("reports a server the caller hasn't signed in to in the output", func(t *testing.T) {
+		var out habitat.NetworkHabitatMcpDebugOutput
+		code := client.Procedure(
+			aliceTS.Server.McpDebug,
+			habitat.NetworkHabitatMcpDebugInput{Org: orgDID, Id: "Linear", Method: "tools/list"},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.False(t, out.Ok)
+		require.Equal(t, "not_connected", out.ErrorKind)
+		require.NotEmpty(t, out.Error)
+	})
+
+	t.Run("rejects arguments that aren't JSON", func(t *testing.T) {
+		var out habitat.NetworkHabitatMcpDebugOutput
+		code := client.Procedure(
+			aliceTS.Server.McpDebug,
+			habitat.NetworkHabitatMcpDebugInput{
+				Org: orgDID, Id: "Linear", Method: "tools/call", Name: "echo", Arguments: "{nope",
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("rejects an unknown method", func(t *testing.T) {
+		var out habitat.NetworkHabitatMcpDebugOutput
+		code := client.Procedure(
+			aliceTS.Server.McpDebug,
+			habitat.NetworkHabitatMcpDebugInput{Org: orgDID, Id: "Linear", Method: "bogus"},
+			&out,
+		)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("reports an unknown server", func(t *testing.T) {
+		var out habitat.NetworkHabitatMcpDebugOutput
+		code := client.Procedure(
+			aliceTS.Server.McpDebug,
+			habitat.NetworkHabitatMcpDebugInput{Org: orgDID, Id: "nope", Method: "tools/list"},
+			&out,
+		)
+		require.Equal(t, http.StatusNotFound, code)
+	})
+
+	t.Run("requires membership", func(t *testing.T) {
+		outsider := newOpenSocialServer(t, syntax.DID("did:plc:outsider"))
+		var out habitat.NetworkHabitatMcpDebugOutput
+		code := client.Procedure(
+			outsider.Server.McpDebug,
+			habitat.NetworkHabitatMcpDebugInput{Org: orgDID, Id: "Linear", Method: "tools/list"},
+			&out,
+		)
+		require.Equal(t, http.StatusUnauthorized, code)
+	})
+}
