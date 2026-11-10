@@ -86,7 +86,10 @@ func TestDecisionSelector(t *testing.T) {
 	t.Run("only asks about the best lexical matches of a long list", func(t *testing.T) {
 		var many []ToolCandidate
 		for range decisionShortlist + 20 {
-			many = append(many, ToolCandidate{Name: "s:x" + string(rune('a'+len(many)%26)) + string(rune('a'+len(many)/26))})
+			n := len(many)
+			many = append(many, ToolCandidate{
+				Name: "s:x" + string(rune('a'+n%26)) + string(rune('a'+n/26)),
+			})
 		}
 		many = append(many, ToolCandidate{Name: "s:invoices", Description: "find invoices"})
 		chooser := &fakeChooser{choice: decisions.Choice{Probabilities: map[string]float64{

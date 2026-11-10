@@ -72,7 +72,7 @@ type suggestedTool struct {
 	Name        string  `json:"name"`
 	Description string  `json:"description,omitempty"`
 	InputSchema any     `json:"input_schema,omitempty"`
-	Score       float64 `json:"score" jsonschema:"how well the tool fits the query, 0 to 1"`
+	Score       float64 `json:"score" jsonschema:"fit to the query, 0 to 1"`
 }
 
 type getContextOutput struct {
