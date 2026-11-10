@@ -65,6 +65,20 @@ type Option func(*options)
 
 type options struct {
 	textOverrides bool
+	federated     FederatedSearcher
+	selector      ToolSelector
+}
+
+// WithFederatedSearcher lets get_context search the caller's connected MCP
+// servers too.
+func WithFederatedSearcher(s FederatedSearcher) Option {
+	return func(o *options) { o.federated = s }
+}
+
+// WithToolSelector sets how get_context ranks connected servers' tools for a
+// query. The default is LexicalSelector.
+func WithToolSelector(s ToolSelector) Option {
+	return func(o *options) { o.selector = s }
 }
 
 // WithTextOverrides lets requests override the instructions and the search
