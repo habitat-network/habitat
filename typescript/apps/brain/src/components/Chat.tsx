@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { streamingMarkdownExtension } from "@tanstack/markdown/extensions/streaming";
+import { autolinksExtension } from '@tanstack/markdown/extensions/autolinks'
 import { Markdown } from "@tanstack/markdown/react";
 import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
 import type { UIMessage } from "@tanstack/ai-react";
@@ -34,10 +35,7 @@ import { useEffect, useRef, useState } from "react";
 import { listModels, type ChatMessage } from "@/server/functions";
 import { useOrgStore } from "@/stores/org";
 
-// The streaming extension keeps unfinished markers (an open code fence, a
-// half-written link) from flashing as broken markup while a reply streams in.
-// Created once so its state is shared across renders.
-const streamingExtensions = [streamingMarkdownExtension()];
+const markdownExtensions = [streamingMarkdownExtension(), autolinksExtension()];
 
 // The connection is created once: useChat treats a new one as a new chat.
 const connection = fetchServerSentEvents("/api/chat");
@@ -231,7 +229,7 @@ export function Chat({
                         key={i}
                         className="prose max-w-none break-words prose-sm dark:prose-invert prose-pre:bg-muted prose-pre:text-foreground"
                       >
-                        <Markdown extensions={streamingExtensions}>
+                        <Markdown extensions={markdownExtensions}>
                           {part.content}
                         </Markdown>
                       </div>
