@@ -492,12 +492,35 @@ func mergeConnectedToolsMiddleware(
 				for _, tool := range tools {
 					namespaced := *tool
 					namespaced.Name = namespaceTool(string(servers[i].Name), tool.Name)
+					namespaced.OutputSchema = validOutputSchema(tool.OutputSchema)
 					listResult.Tools = append(listResult.Tools, &namespaced)
 				}
 			}
 			return listResult, nil
 		}
 	}
+}
+
+// validOutputSchema returns schema if it's usable as a tool's outputSchema,
+// else nil. The MCP spec requires its root to be an object schema, and strict
+// clients (the TypeScript SDK) reject the whole tools/list response over one
+// that isn't, which some servers (for example GitHub's) send. A tool without
+// an outputSchema is still callable, just without structured results.
+func validOutputSchema(schema any) any {
+	if schema == nil {
+		return nil
+	}
+	raw, err := json.Marshal(schema)
+	if err != nil {
+		return nil
+	}
+	var root struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &root); err != nil || root.Type != "object" {
+		return nil
+	}
+	return schema
 }
 
 // listToolsForServers lists each of servers' tools, unnamespaced, in the

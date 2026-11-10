@@ -388,3 +388,11 @@ func TestMCPServerToolsList_KeepsServerOrder(t *testing.T) {
 	}
 	require.Equal(t, want, pings)
 }
+
+func TestValidOutputSchema(t *testing.T) {
+	object := map[string]any{"type": "object"}
+	require.Equal(t, object, validOutputSchema(object))
+	require.Nil(t, validOutputSchema(nil))
+	require.Nil(t, validOutputSchema(map[string]any{"type": "array"}))
+	require.Nil(t, validOutputSchema(map[string]any{"anyOf": []any{object}}))
+}
