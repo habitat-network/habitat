@@ -211,7 +211,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	encKV, err := keyval.NewEncrypted(kv, encrypt.TestKey)
 	require.NoError(t, err)
 	mcpGatewayStore, err := mcpgateway.NewStore(
-		ts.DB, encKV, kv, encrypt.TestKey, os, http.DefaultClient, MCPOAuthCallbackURL,
+		ts.DB, encKV, encrypt.TestKey, os, http.DefaultClient, MCPOAuthCallbackURL,
 	)
 	require.NoError(t, err)
 	ts.McpGatewayStore = mcpGatewayStore

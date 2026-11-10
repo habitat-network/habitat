@@ -41,6 +41,9 @@ var (
 	fMCPGoogleDriveSecret  = "mcp_google_drive_client_secret"
 	fMCPSlackID            = "mcp_slack_client_id"
 	fMCPSlackSecret        = "mcp_slack_client_secret"
+	fDecisionsURL          = "decisions_url"
+	fDecisionsAPIKey       = "decisions_api_key"
+	fDecisionsModel        = "decisions_model"
 )
 
 var profiles []string
@@ -228,6 +231,21 @@ func getFlags() []cli.Flag {
 			Name:    fMCPSlackSecret,
 			Usage:   "OAuth client secret for the Slack MCP preset",
 			Sources: getSources(fMCPSlackSecret),
+		},
+		&cli.StringFlag{
+			Name:    fDecisionsURL,
+			Usage:   "Base URL of the OpenAI-compatible Decisions API pear uses for tool selection (e.g. https://<resource>.openai.azure.com/openai/v1 for Azure). Shared by all orgs. If unset, decisions are unavailable.",
+			Sources: getSources(fDecisionsURL),
+		},
+		&cli.StringFlag{
+			Name:    fDecisionsAPIKey,
+			Usage:   "API key sent as a bearer token to the Decisions API",
+			Sources: getSources(fDecisionsAPIKey),
+		},
+		&cli.StringFlag{
+			Name:    fDecisionsModel,
+			Usage:   "Model to request from the Decisions API; for Azure, the deployment name",
+			Sources: getSources(fDecisionsModel),
 		},
 	}
 }

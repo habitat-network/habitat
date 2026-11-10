@@ -18,7 +18,7 @@
 //     Each member's tokens are stored in the encrypted keyval store and
 //     refreshed by pear as needed.
 //   - AuthTypeToken: each member supplies their own bearer token (for example
-//     a personal access token) with StartAuthorization, which stores it
+//     a personal access token) with ConnectWithToken, which stores it
 //     encrypted. Pear never refreshes it.
 //   - AuthTypeManual: the server needs no auth, and every member is connected
 //     automatically.
@@ -29,15 +29,11 @@
 package mcpgateway
 
 import (
-	"context"
 	"errors"
-	"fmt"
-	"net/http"
 	"net/url"
 	"regexp"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // ServerName identifies an MCP server within its org. It's chosen once, when
@@ -199,52 +195,4 @@ type NewServer struct {
 type ServerUpdate struct {
 	Description *string
 	URL         *string
-}
-
-// Downstream is how pear reaches a member's connected MCP server: its URL,
-// the headers that authorize the member's requests to it, and the HTTP client
-// to make them with (the store's, so they're restricted the same way as its
-// own requests to the server).
-type Downstream struct {
-	URL     string
-	Headers map[string]string
-	Client  *http.Client
-}
-
-// Connect opens an MCP client session to d over streamable HTTP, sending d's
-// headers with every request. The caller closes the session.
-//
-// ctx must not carry the values of an inbound MCP request (see
-// mcpserver.downstreamContext): the go-sdk would reuse that request's
-// negotiated protocol version instead of negotiating its own.
-func (d *Downstream) Connect(ctx context.Context) (*mcp.ClientSession, error) {
-	base := http.DefaultTransport
-	if d.Client != nil && d.Client.Transport != nil {
-		base = d.Client.Transport
-	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}, nil)
-	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:   d.URL,
-		HTTPClient: &http.Client{Transport: headerRoundTripper{headers: d.Headers, base: base}},
-	}, nil)
-	if err != nil {
-		return nil, fmt.Errorf("connect to mcp server: %w", err)
-	}
-	return session, nil
-}
-
-// headerRoundTripper adds static headers to every outgoing request,
-// authorizing calls to a connected MCP server on the caller's behalf, then
-// sends it with base.
-type headerRoundTripper struct {
-	headers map[string]string
-	base    http.RoundTripper
-}
-
-func (t headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-	for name, value := range t.headers {
-		req.Header.Set(name, value)
-	}
-	return t.base.RoundTrip(req)
 }

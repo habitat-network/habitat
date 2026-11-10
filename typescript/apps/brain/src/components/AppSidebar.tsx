@@ -12,7 +12,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "internal/components/ui";
-import { ArrowLeftRightIcon, BrainIcon, PlusIcon } from "lucide-react";
+import {
+  ArrowLeftRightIcon,
+  BrainIcon,
+  PlusIcon,
+  SettingsIcon,
+} from "lucide-react";
 import { listChats, type Member } from "@/server/functions";
 import type { Org } from "@/server/habitat";
 import { useOrgStore } from "@/stores/org";
@@ -88,6 +93,16 @@ export function AppSidebar({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <SidebarMenu>
+          {org && (
+            <SidebarMenuItem>
+              <SidebarMenuButton render={<Link to="/settings" />}>
+                <SettingsIcon />
+                Settings
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+        </SidebarMenu>
         <UserMenu member={member} />
       </SidebarFooter>
     </Sidebar>

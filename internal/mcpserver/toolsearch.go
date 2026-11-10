@@ -12,9 +12,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/toolsearch"
 )
 
@@ -74,14 +74,14 @@ type toolCatalogKey struct{ org, member syntax.DID }
 // toolSyncer keeps member's catalogs filled from their servers.
 type toolSyncer struct {
 	catalog          ToolCatalog
-	connectedServers ConnectedServers
+	connectedServers mcpgateway.ConnectedServers
 
 	mu     sync.Mutex
 	synced map[toolCatalogKey]time.Time
 	group  singleflight.Group
 }
 
-func newToolSyncer(catalog ToolCatalog, servers ConnectedServers) *toolSyncer {
+func newToolSyncer(catalog ToolCatalog, servers mcpgateway.ConnectedServers) *toolSyncer {
 	return &toolSyncer{
 		catalog:          catalog,
 		connectedServers: servers,
@@ -124,29 +124,30 @@ func (s *toolSyncer) ensureFresh(
 // earlier tools, so an outage doesn't empty the catalog; a server caller is no
 // longer connected to loses them.
 func (s *toolSyncer) sync(ctx context.Context, org, caller syntax.DID) error {
-	servers := listConnectedServers(ctx, s.connectedServers, caller.String(), org)
-	var g errgroup.Group
-	g.SetLimit(maxConcurrentToolLists)
-	for _, server := range servers {
-		g.Go(func() error {
-			tools, err := listToolsForServer(ctx, server)
+	servers := listConnectedServers(ctx, s.connectedServers, caller, org)
+	errs := make([]error, len(servers))
+	mcpgateway.ForEach(ctx, servers, mcpgateway.DefaultServerTimeout,
+		func(ctx context.Context, i int, server *mcpgateway.Server) {
+			name := string(server.Name)
+			tools, err := listToolsForServer(ctx, s.connectedServers, caller, server)
 			if err != nil {
 				slog.WarnContext(
 					ctx, "mcp: listing tools for the tool catalog",
-					"server", server.name, "err", err,
+					"server", name, "err", err,
 				)
-				return nil
+				return
 			}
 			catalogTools := make([]toolsearch.Tool, len(tools))
-			for i, tool := range tools {
+			for j, tool := range tools {
 				namespaced := *tool
-				namespaced.Name = namespaceTool(server.name, tool.Name)
+				namespaced.Name = namespaceTool(name, tool.Name)
 				def, err := json.Marshal(&namespaced)
 				if err != nil {
-					return fmt.Errorf("encode tool %s:%s: %w", server.name, tool.Name, err)
+					errs[i] = fmt.Errorf("encode tool %s:%s: %w", name, tool.Name, err)
+					return
 				}
-				catalogTools[i] = toolsearch.Tool{
-					Server: server.name, Name: tool.Name,
+				catalogTools[j] = toolsearch.Tool{
+					Server: name, Name: tool.Name,
 					Description: tool.Description, Definition: def,
 				}
 			}
@@ -154,20 +155,18 @@ func (s *toolSyncer) sync(ctx context.Context, org, caller syntax.DID) error {
 				ctx,
 				org,
 				caller,
-				server.name,
+				name,
 				catalogTools,
 			); err != nil {
-				return fmt.Errorf("index tools of %s: %w", server.name, err)
+				errs[i] = fmt.Errorf("index tools of %s: %w", name, err)
 			}
-			return nil
 		})
-	}
-	if err := g.Wait(); err != nil {
+	if err := errors.Join(errs...); err != nil {
 		return err
 	}
 	names := make([]string, len(servers))
 	for i, server := range servers {
-		names[i] = server.name
+		names[i] = string(server.Name)
 	}
 	return s.catalog.PruneServers(ctx, org, caller, names)
 }
@@ -311,7 +310,10 @@ var callToolSchema = map[string]any{
 // callToolHandler implements the "call_tool" MCP tool: it runs a connected
 // app's tool as the caller, like calling its namespaced name directly, for
 // clients that only call tools they were listed.
-func callToolHandler(connectedServers ConnectedServers, org syntax.DID) mcp.ToolHandler {
+func callToolHandler(
+	connectedServers mcpgateway.ConnectedServers,
+	org syntax.DID,
+) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		caller, err := callerOf(ctx)
 		if err != nil {
@@ -332,21 +334,21 @@ func callToolHandler(connectedServers ConnectedServers, org syntax.DID) mcp.Tool
 				toolNamespaceSep,
 			), nil
 		}
-		for _, server := range listConnectedServers(ctx, connectedServers, caller.String(), org) {
-			if server.name != serverName {
+		for _, server := range listConnectedServers(ctx, connectedServers, caller, org) {
+			if string(server.Name) != serverName {
 				continue
 			}
 			var args any
 			if len(input.Arguments) > 0 {
 				args = input.Arguments
 			}
-			res, err := callConnectedTool(ctx, server, toolName, args)
+			res, err := callConnectedTool(ctx, connectedServers, caller, server, toolName, args)
 			if err != nil {
 				return nil, err
 			}
 			result, ok := res.(*mcp.CallToolResult)
 			if !ok {
-				return nil, fmt.Errorf("unexpected result from %s", server.name)
+				return nil, fmt.Errorf("unexpected result from %s", server.Name)
 			}
 			return result, nil
 		}

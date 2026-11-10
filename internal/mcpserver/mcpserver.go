@@ -26,23 +26,6 @@ import (
 	"github.com/olgasafonova/mcp-otel-go/mcpotel"
 )
 
-// ConnectedServers lists the MCP servers configured in an org (see
-// internal/mcpgateway) that a member can reach, and says how to reach each on
-// their behalf. See mcpgateway.Store for the concrete implementation.
-type ConnectedServers interface {
-	ListConnectedServers(
-		ctx context.Context,
-		did syntax.DID,
-		orgID syntax.DID,
-	) ([]*mcpgateway.Server, error)
-	Downstream(
-		ctx context.Context,
-		did syntax.DID,
-		orgID syntax.DID,
-		name mcpgateway.ServerName,
-	) (*mcpgateway.Downstream, error)
-}
-
 // RecordSearcher runs a record search as a caller. See search.Searcher for
 // the concrete implementation.
 type RecordSearcher = mcpsearch.RecordSearcher
@@ -139,7 +122,7 @@ func New(
 	spacesStore spaces.Store,
 	permStore perms.Store,
 	searcher RecordSearcher,
-	connectedServers ConnectedServers,
+	connectedServers mcpgateway.ConnectedServers,
 	blobs spaces.BlobStore,
 	dir identity.Directory,
 	origin string,

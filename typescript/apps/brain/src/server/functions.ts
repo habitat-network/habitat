@@ -5,7 +5,9 @@ import {
   startMcpAuthorization,
   type McpServerWithStatus,
 } from "internal/mcp";
+import { xrpc } from "@atproto/lex";
 import type { DidString } from "@atproto/syntax";
+import { network } from "api";
 import {
   chatOwner,
   chatsForOwner,
@@ -18,7 +20,16 @@ import {
   requireMember,
   resolveHandle,
 } from "./functions.server";
-import { listLlmModels, listMyOrgs, type Org } from "./habitat";
+import {
+  getConfigAccess,
+  listLlmConnections,
+  listLlmModels,
+  listMyOrgs,
+  type ConfigAccess,
+  type LlmConnection,
+  type McpServer,
+  type Org,
+} from "./habitat";
 import { createOAuthClient, OAUTH_SCOPE } from "./oauth";
 import { useAppSession } from "./session";
 
@@ -148,5 +159,108 @@ export const startMcpConnect = createServerFn({ method: "POST" })
       data.org as DidString,
       data.id,
       data.token,
+    );
+  });
+
+// getOrgConfigAccess says whether the member may configure the org's MCP
+// servers and models, to decide whether to show the controls.
+export const getOrgConfigAccess = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<ConfigAccess> => {
+    const { did } = await requireMember();
+    return getConfigAccess(
+      await memberSession(env, did),
+      data.org as DidString,
+      did,
+    );
+  });
+
+type WithOrg<T> = { org: string } & Omit<T, "org">;
+
+// The functions below are the org-admin configuration calls, each made as the
+// member: pear enforces the mcp.configure / community.configure action.
+
+export const addMcpServer = createServerFn({ method: "POST" })
+  .validator(
+    (input: WithOrg<network.habitat.mcp.addServer.$InputBody>) => input,
+  )
+  .handler(async ({ data }): Promise<McpServer> => {
+    const { did } = await requireMember();
+    const response = await xrpc(
+      await memberSession(env, did),
+      network.habitat.mcp.addServer.main,
+      { body: { ...data, org: data.org as DidString } },
+    );
+    return response.body.server;
+  });
+
+export const removeMcpServer = createServerFn({ method: "POST" })
+  .validator((input: { org: string; id: string }) => input)
+  .handler(async ({ data }): Promise<void> => {
+    const { did } = await requireMember();
+    await xrpc(
+      await memberSession(env, did),
+      network.habitat.mcp.removeServer.main,
+      { body: { org: data.org as DidString, id: data.id } },
+    );
+  });
+
+export const disconnectMcpServer = createServerFn({ method: "POST" })
+  .validator((input: { org: string; id: string }) => input)
+  .handler(async ({ data }): Promise<void> => {
+    const { did } = await requireMember();
+    await xrpc(
+      await memberSession(env, did),
+      network.habitat.mcp.disconnectServer.main,
+      { body: { org: data.org as DidString, id: data.id } },
+    );
+  });
+
+export const listOrgLlmConnections = createServerFn({ method: "GET" })
+  .validator((input: { org: string }) => input)
+  .handler(async ({ data }): Promise<LlmConnection[]> => {
+    const { did } = await requireMember();
+    return listLlmConnections(
+      await memberSession(env, did),
+      data.org as DidString,
+    );
+  });
+
+export const addLlmConnection = createServerFn({ method: "POST" })
+  .validator(
+    (input: WithOrg<network.habitat.llm.addConnection.$InputBody>) => input,
+  )
+  .handler(async ({ data }): Promise<LlmConnection> => {
+    const { did } = await requireMember();
+    const response = await xrpc(
+      await memberSession(env, did),
+      network.habitat.llm.addConnection.main,
+      { body: { ...data, org: data.org as DidString } },
+    );
+    return response.body.connection;
+  });
+
+export const updateLlmConnection = createServerFn({ method: "POST" })
+  .validator(
+    (input: WithOrg<network.habitat.llm.updateConnection.$InputBody>) => input,
+  )
+  .handler(async ({ data }): Promise<LlmConnection> => {
+    const { did } = await requireMember();
+    const response = await xrpc(
+      await memberSession(env, did),
+      network.habitat.llm.updateConnection.main,
+      { body: { ...data, org: data.org as DidString } },
+    );
+    return response.body.connection;
+  });
+
+export const removeLlmConnection = createServerFn({ method: "POST" })
+  .validator((input: { org: string; id: string }) => input)
+  .handler(async ({ data }): Promise<void> => {
+    const { did } = await requireMember();
+    await xrpc(
+      await memberSession(env, did),
+      network.habitat.llm.removeConnection.main,
+      { body: { org: data.org as DidString, id: data.id } },
     );
   });

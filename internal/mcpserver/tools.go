@@ -7,14 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	"mime"
-	"net/http"
 	"net/url"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/ipfs/go-cid"
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
@@ -424,9 +421,7 @@ func searchRecordsHandler(
 			}
 			q.Collection = collection
 		}
-		// Connected apps' servers are reached with the caller's own
-		// credentials, not the context of this request.
-		res, err := searcher.Search(downstreamContext(ctx), caller, org, nil, q)
+		res, err := searcher.Search(ctx, caller, org, nil, q)
 		if err != nil {
 			return nil, searchRecordsOutput{}, fmt.Errorf("searching records: %w", err)
 		}
@@ -488,29 +483,6 @@ func splitNamespacedTool(name string) (serverName, toolName string, ok bool) {
 	return before, after, true
 }
 
-// downstream is a connected MCP server pear can open a client session to on
-// the caller's behalf.
-type downstream struct {
-	url     string
-	headers map[string]string
-	// client makes the requests; nil means http.DefaultTransport.
-	client *http.Client
-}
-
-// connectToServer opens an MCP client session to d.
-func connectToServer(ctx context.Context, d downstream) (*mcp.ClientSession, error) {
-	return (&mcpgateway.Downstream{URL: d.url, Headers: d.headers, Client: d.client}).Connect(ctx)
-}
-
-// connectedServer is one of a caller's connected MCP servers, named by its
-// org-chosen name. resolve looks up how to reach it, which for an OAuth
-// server may mean refreshing the caller's token, so it's deferred until
-// needed.
-type connectedServer struct {
-	name    string
-	resolve func(ctx context.Context) (downstream, error)
-}
-
 // listConnectedServers lists caller's connected MCP servers in org (see
 // internal/mcpgateway). If they can't be listed, that's logged and none are
 // returned, so pear's own tools keep working.
@@ -519,33 +491,19 @@ type connectedServer struct {
 // which namespaces its tools, is only unique within its org.
 func listConnectedServers(
 	ctx context.Context,
-	servers ConnectedServers,
-	caller string,
+	servers mcpgateway.ConnectedServers,
+	caller syntax.DID,
 	org syntax.DID,
-) []connectedServer {
+) []*mcpgateway.Server {
 	if servers == nil {
 		return nil
 	}
-	did := syntax.DID(caller)
-	listed, err := servers.ListConnectedServers(ctx, did, org)
+	listed, err := servers.ListConnectedServers(ctx, caller, org)
 	if err != nil {
 		slog.WarnContext(ctx, "mcp: listing connected servers", "err", err)
 		return nil
 	}
-	out := make([]connectedServer, len(listed))
-	for i, server := range listed {
-		out[i] = connectedServer{
-			name: string(server.Name),
-			resolve: func(ctx context.Context) (downstream, error) {
-				d, err := servers.Downstream(ctx, did, server.OrgID, server.Name)
-				if err != nil {
-					return downstream{}, fmt.Errorf("reach %s: %w", server.Name, err)
-				}
-				return downstream{url: d.URL, headers: d.Headers, client: d.Client}, nil
-			},
-		}
-	}
-	return out
+	return listed
 }
 
 // mergeConnectedToolsMiddleware merges every tool from the caller's
@@ -553,7 +511,7 @@ func listConnectedServers(
 // namespaced by server name. A server that can't be reached is skipped
 // rather than failing the whole listing.
 func mergeConnectedToolsMiddleware(
-	connectedServers ConnectedServers,
+	connectedServers mcpgateway.ConnectedServers,
 	org syntax.DID,
 ) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
@@ -571,13 +529,13 @@ func mergeConnectedToolsMiddleware(
 				return result, nil
 			}
 
-			servers := listConnectedServers(
-				ctx, connectedServers, extra.TokenInfo.UserID, org,
-			)
-			for i, tools := range listToolsForServers(ctx, servers) {
+			caller := syntax.DID(extra.TokenInfo.UserID)
+			servers := listConnectedServers(ctx, connectedServers, caller, org)
+			for i, tools := range listToolsForServers(ctx, connectedServers, caller, servers) {
 				for _, tool := range tools {
 					namespaced := *tool
-					namespaced.Name = namespaceTool(servers[i].name, tool.Name)
+					namespaced.Name = namespaceTool(string(servers[i].Name), tool.Name)
+					namespaced.OutputSchema = validOutputSchema(tool.OutputSchema)
 					listResult.Tools = append(listResult.Tools, &namespaced)
 				}
 			}
@@ -586,56 +544,76 @@ func mergeConnectedToolsMiddleware(
 	}
 }
 
-// maxConcurrentToolLists bounds how many connected servers one tools/list
-// lists the tools of at once.
-const maxConcurrentToolLists = 8
+// validOutputSchema returns schema if it's usable as a tool's outputSchema,
+// else nil. The MCP spec requires its root to be an object schema, and strict
+// clients (the TypeScript SDK) reject the whole tools/list response over one
+// that isn't, which some servers (for example GitHub's) send. A tool without
+// an outputSchema is still callable, just without structured results.
+func validOutputSchema(schema any) any {
+	if schema == nil {
+		return nil
+	}
+	raw, err := json.Marshal(schema)
+	if err != nil {
+		return nil
+	}
+	var root struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &root); err != nil || root.Type != "object" {
+		return nil
+	}
+	return schema
+}
 
 // listToolsForServers lists each of servers' tools, unnamespaced, in the
 // same order as servers. Each server is a round trip or more (connecting,
 // maybe refreshing a token, listing), so they're listed concurrently, and
-// tools/list takes as long as the slowest rather than all of them together. A
-// server that can't be listed is logged and has no tools.
-func listToolsForServers(ctx context.Context, servers []connectedServer) [][]*mcp.Tool {
+// tools/list takes as long as the slowest rather than all of them together,
+// and no longer than mcpgateway.DefaultServerTimeout. A server that can't be
+// listed is logged and has no tools.
+func listToolsForServers(
+	ctx context.Context,
+	connectedServers mcpgateway.ConnectedServers,
+	caller syntax.DID,
+	servers []*mcpgateway.Server,
+) [][]*mcp.Tool {
 	out := make([][]*mcp.Tool, len(servers))
-	var g errgroup.Group
-	g.SetLimit(maxConcurrentToolLists)
-	for i, server := range servers {
-		g.Go(func() error {
-			tools, err := listToolsForServer(ctx, server)
+	mcpgateway.ForEach(ctx, servers, mcpgateway.DefaultServerTimeout,
+		func(ctx context.Context, i int, server *mcpgateway.Server) {
+			tools, err := listToolsForServer(ctx, connectedServers, caller, server)
 			if err != nil {
 				slog.WarnContext(
 					ctx, "mcp: listing tools for connected server",
-					"server", server.name, "err", err,
+					"server", string(server.Name), "err", err,
 				)
-				return nil
+				return
 			}
 			out[i] = tools
-			return nil
 		})
-	}
-	_ = g.Wait()
 	return out
 }
 
-// listToolsForServer connects to server and lists its tools, unnamespaced.
-func listToolsForServer(ctx context.Context, server connectedServer) ([]*mcp.Tool, error) {
-	ctx = downstreamContext(ctx)
-	d, err := server.resolve(ctx)
-	if err != nil {
-		return nil, err
-	}
-	session, err := connectToServer(ctx, d)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = session.Close() }()
-
+// listToolsForServer lists server's tools, unnamespaced, as caller.
+func listToolsForServer(
+	ctx context.Context,
+	connectedServers mcpgateway.ConnectedServers,
+	caller syntax.DID,
+	server *mcpgateway.Server,
+) ([]*mcp.Tool, error) {
 	tools := make([]*mcp.Tool, 0)
-	for tool, err := range session.Tools(ctx, nil) {
-		if err != nil {
-			return nil, fmt.Errorf("list tools: %w", err)
-		}
-		tools = append(tools, tool)
+	err := mcpgateway.WithSession(ctx, connectedServers, caller, server,
+		func(ctx context.Context, session *mcp.ClientSession) error {
+			for tool, err := range session.Tools(ctx, nil) {
+				if err != nil {
+					return fmt.Errorf("list tools: %w", err)
+				}
+				tools = append(tools, tool)
+			}
+			return nil
+		})
+	if err != nil {
+		return nil, err
 	}
 	return tools, nil
 }
@@ -645,7 +623,7 @@ func listToolsForServer(ctx context.Context, server connectedServer) ([]*mcp.Too
 // that owns it. A call for a non-namespaced tool is left to this server's
 // own dispatch.
 func proxyConnectedToolCallMiddleware(
-	connectedServers ConnectedServers,
+	connectedServers mcpgateway.ConnectedServers,
 	org syntax.DID,
 ) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
@@ -665,13 +643,13 @@ func proxyConnectedToolCallMiddleware(
 			if extra == nil || extra.TokenInfo == nil || extra.TokenInfo.UserID == "" {
 				return nil, fmt.Errorf("missing authenticated caller")
 			}
+			caller := syntax.DID(extra.TokenInfo.UserID)
 
-			servers := listConnectedServers(
-				ctx, connectedServers, extra.TokenInfo.UserID, org,
-			)
-			for _, server := range servers {
-				if server.name == serverName {
-					return callConnectedTool(ctx, server, toolName, params.Arguments)
+			for _, server := range listConnectedServers(ctx, connectedServers, caller, org) {
+				if string(server.Name) == serverName {
+					return callConnectedTool(
+						ctx, connectedServers, caller, server, toolName, params.Arguments,
+					)
 				}
 			}
 			// Not one of the caller's connected servers: fall through to the
@@ -681,47 +659,28 @@ func proxyConnectedToolCallMiddleware(
 	}
 }
 
-// callConnectedTool opens a session to server, calls toolName on it, and
-// closes the session.
+// callConnectedTool calls toolName on server as caller. It's bounded only by
+// ctx, the caller's own request, since a tool may legitimately run long.
 func callConnectedTool(
 	ctx context.Context,
-	server connectedServer,
+	connectedServers mcpgateway.ConnectedServers,
+	caller syntax.DID,
+	server *mcpgateway.Server,
 	toolName string,
 	arguments any,
 ) (mcp.Result, error) {
-	ctx = downstreamContext(ctx)
-	d, err := server.resolve(ctx)
-	if err != nil {
-		return nil, err
-	}
-	session, err := connectToServer(ctx, d)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = session.Close() }()
-	res, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      toolName,
-		Arguments: arguments,
-	})
+	var res *mcp.CallToolResult
+	err := mcpgateway.WithSession(ctx, connectedServers, caller, server,
+		func(ctx context.Context, session *mcp.ClientSession) (err error) {
+			res, err = session.CallTool(ctx, &mcp.CallToolParams{
+				Name:      toolName,
+				Arguments: arguments,
+			})
+			return err
+		})
 	if err != nil {
 		// Avoid returning a typed-nil *CallToolResult as a non-nil mcp.Result.
 		return nil, err
 	}
 	return res, nil
 }
-
-// downstreamContext returns a context with ctx's deadline, cancellation and
-// trace span but none of its other values. ctx belongs to an inbound request
-// on this server, and the go-sdk keeps that request's negotiated MCP protocol
-// version in its values; a client session to a connected server opened with
-// it would send that version instead of negotiating its own, which a
-// stateful server rejects.
-func downstreamContext(ctx context.Context) context.Context {
-	return trace.ContextWithSpan(valuelessContext{ctx}, trace.SpanFromContext(ctx))
-}
-
-// valuelessContext hides its parent's values while keeping its deadline and
-// cancellation.
-type valuelessContext struct{ context.Context }
-
-func (valuelessContext) Value(any) any { return nil }

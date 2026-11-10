@@ -39,6 +39,17 @@ func TestEncryptedStoreRoundTrip(t *testing.T) {
 	require.ErrorIs(t, es.GetEncrypted(t.Context(), "k", &got), keyval.ErrNotFound)
 }
 
+func TestEncryptedStoreDelete(t *testing.T) {
+	es := testutil.NewEncrypted(t).Namespace("ns")
+	require.NoError(t, es.PutEncrypted(t.Context(), "k", secret{N: 1}, time.Minute))
+
+	require.NoError(t, es.Delete(t.Context(), "k"))
+
+	var got secret
+	require.ErrorIs(t, es.GetEncrypted(t.Context(), "k", &got), keyval.ErrNotFound)
+	require.ErrorIs(t, es.Delete(t.Context(), "k"), keyval.ErrNotFound)
+}
+
 func TestEncryptedStoreNamespace(t *testing.T) {
 	kv := testutil.New(t)
 	es, err := keyval.NewEncrypted(kv, encrypt.TestKey)

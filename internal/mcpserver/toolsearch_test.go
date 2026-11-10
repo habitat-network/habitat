@@ -12,6 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/toolsearch"
 )
 
@@ -100,7 +101,7 @@ func (f *fakeToolCatalog) Get(
 // newToolSearchTestServer starts pear's MCP server with tool search over
 // catalog.
 func newToolSearchTestServer(
-	t *testing.T, servers ConnectedServers, catalog ToolCatalog,
+	t *testing.T, servers mcpgateway.ConnectedServers, catalog ToolCatalog,
 ) string {
 	t.Helper()
 	spacesStore, permStore := setupStores(t)
