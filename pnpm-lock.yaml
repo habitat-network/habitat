@@ -380,7 +380,7 @@ importers:
         version: 2.4.0
       '@posthog/react':
         specifier: ^1.11.3
-        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.447.3(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
+        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.447.5(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
       '@tanstack/ai':
         specifier: ^1.0.0
         version: 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
@@ -425,7 +425,7 @@ importers:
         version: 1.70.0(@types/react@19.2.18)(react@19.2.8)
       posthog-js:
         specifier: ^1.418.10
-        version: 1.447.3(@types/react@19.2.18)(react@19.2.8)
+        version: 1.447.5(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -510,7 +510,7 @@ importers:
         version: link:../../habitat
       '@posthog/react':
         specifier: ^1.10.6
-        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.447.3(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
+        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.447.5(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.14(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -573,7 +573,7 @@ importers:
         version: 1.70.0(@types/react@19.2.18)(react@19.2.8)
       posthog-js:
         specifier: ^1.418.10
-        version: 1.447.3(@types/react@19.2.18)(react@19.2.8)
+        version: 1.447.5(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -670,7 +670,7 @@ importers:
         version: link:../../habitat
       '@posthog/react':
         specifier: ^1.11.3
-        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.447.3(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
+        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.447.5(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -700,7 +700,7 @@ importers:
         version: 1.70.0(@types/react@19.2.18)(react@19.2.8)
       posthog-js:
         specifier: ^1.418.10
-        version: 1.447.3(@types/react@19.2.18)(react@19.2.8)
+        version: 1.447.5(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -9629,8 +9629,8 @@ packages:
     resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.447.3:
-    resolution: {integrity: sha512-tNuh/o65vIzvm+n60oFYNUxaM7JsSrsFGY9fPu2DvB0ZCU2qOeai8jl+D7JUV+iJ9kiXHX0R6JUAAhq/1GbjzA==}
+  posthog-js@1.447.5:
+    resolution: {integrity: sha512-OI+utr3G0WO5B+IHOcG3e8rwNm8+/R6pAdIO/coJCxcMJ1007DoxfOwJpeNQxEHHgwYGfBOtpRiKdRIrjjhO7A==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       react: '>=16.8.0'
@@ -15557,9 +15557,9 @@ snapshots:
     dependencies:
       '@posthog/types': 1.421.1
 
-  '@posthog/react@1.11.3(@types/react@19.2.18)(posthog-js@1.447.3(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)':
+  '@posthog/react@1.11.3(@types/react@19.2.18)(posthog-js@1.447.5(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      posthog-js: 1.447.3(@types/react@19.2.18)(react@19.2.8)
+      posthog-js: 1.447.5(@types/react@19.2.18)(react@19.2.8)
       react: 19.2.8
     optionalDependencies:
       '@types/react': 19.2.18
@@ -21314,7 +21314,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.2
 
-  posthog-js@1.447.3(@types/react@19.2.18)(react@19.2.8):
+  posthog-js@1.447.5(@types/react@19.2.18)(react@19.2.8):
     dependencies:
       '@posthog/browser-common': 0.10.7
       '@posthog/core': 1.64.1
