@@ -211,20 +211,30 @@ const (
 	embedTemplateMaxBytes = 8000
 )
 
-// settings returns e as a Meilisearch REST embedder. The REST source, rather
-// than the openAi one, accepts any model name, which Ollama and Foundry
-// deployments need.
+// settings returns e as a Meilisearch REST embedder, embedding space
+// records.
 func (e Embedder) settings() meilisearch.Embedder {
-	return meilisearch.Embedder{
-		Source:     meilisearch.RestEmbedderSource,
-		URL:        e.URL,
-		APIKey:     e.APIKey,
-		Dimensions: e.Dimensions,
+	return e.Settings(
 		// A record whose text is all in its blobs has an empty record
 		// chunk, which would otherwise render an empty input, and embeddings
 		// APIs such as Azure OpenAI reject that.
-		DocumentTemplate: `{% if doc.title != "" %}{{doc.title}}\n{% endif %}` +
+		`{% if doc.title != "" %}{{doc.title}}\n{% endif %}` +
 			`{% if doc.body != "" %}{{doc.body}}{% else %}{{doc.uri}}{% endif %}`,
+	)
+}
+
+// Settings returns e as a Meilisearch REST embedder that embeds each
+// document as documentTemplate renders it. The REST source, rather than the
+// openAi one, accepts any model name, which Ollama and Foundry deployments
+// need. The template must never render empty, which embeddings APIs such as
+// Azure OpenAI reject.
+func (e Embedder) Settings(documentTemplate string) meilisearch.Embedder {
+	return meilisearch.Embedder{
+		Source:                   meilisearch.RestEmbedderSource,
+		URL:                      e.URL,
+		APIKey:                   e.APIKey,
+		Dimensions:               e.Dimensions,
+		DocumentTemplate:         documentTemplate,
 		DocumentTemplateMaxBytes: embedTemplateMaxBytes,
 		Request: map[string]any{
 			"model": e.Model,

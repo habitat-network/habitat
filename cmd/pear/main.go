@@ -152,6 +152,16 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	if cmd.Bool(fMCPTextOverrides) {
 		mcpOpts = append(mcpOpts, mcpserver.WithTextOverrides())
 	}
+	if cmd.Bool(fMCPToolSearch) {
+		if cmd.String(fMeilisearchURL) == "" {
+			return fmt.Errorf("--%s needs --%s", fMCPToolSearch, fMeilisearchURL)
+		}
+		toolCatalog, err := openToolCatalog(startupCtx, cmd)
+		if err != nil {
+			return fmt.Errorf("setup tool catalog: %w", err)
+		}
+		mcpOpts = append(mcpOpts, mcpserver.WithToolSearch(toolCatalog))
+	}
 	mcpServer := mcpserver.New(
 		app.OAuthServer,
 		app.SpacesStore,

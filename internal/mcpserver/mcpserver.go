@@ -13,12 +13,12 @@ import (
 	"strings"
 
 	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/mcpsearch"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/perms"
-	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,9 +28,7 @@ import (
 
 // RecordSearcher runs a record search as a caller. See search.Searcher for
 // the concrete implementation.
-type RecordSearcher interface {
-	Search(ctx context.Context, caller syntax.DID, q search.Query) (search.Page, error)
-}
+type RecordSearcher = mcpsearch.RecordSearcher
 
 // ProtectedResourceMetadataPath is the well-known path prefix (RFC 9728) under
 // which the protected resource metadata of each org's MCP endpoint is served,
@@ -56,12 +54,19 @@ Call search_records with a few keywords as its query argument, e.g. {"query": "p
 
 Tools prefixed with an app's name are the org's connected apps, reached through Habitat. Use them for data that lives in those apps.`
 
+// toolSearchInstructions is added to serverInstructions when connected apps'
+// tools are discovered with search_tools rather than listed.
+const toolSearchInstructions = `
+
+The org's connected apps' tools aren't listed up front. To use one, call search_tools with what you want to do, read its input schema with get_tool_details, then run it with call_tool.`
+
 // searchRecordsDescription is the "search_records" tool's description. Like
 // serverInstructions, it says when to search, not just how.
 const searchRecordsDescription = "Search your organization's knowledge in Habitat: documents, " +
 	"notes, policies, files, roadmaps, decisions and other data records shared with you. Use " +
 	"this first for any question about your company, team, customers or past work, and search " +
 	"again whenever the conversation turns to a new topic; earlier results don't cover it. " +
+	"Also searches the org's connected apps in the same call. " +
 	"Returns matching records with snippets; use get_record for the full content."
 
 // Server exposes pear's data as an MCP server over streamable HTTP, guarded
@@ -104,6 +109,8 @@ func orgFromPath(p, prefix string) (syntax.AtIdentifier, error) {
 //     this server's own tools/list response, namespaced by the server's name
 //     (see namespaceTool), and tools/call for a namespaced tool is proxied
 //     straight through to that server.
+//   - WithToolSearch replaces merging connected servers' tools into
+//     tools/list with searching them (see ToolCatalog).
 //   - dir resolves an org handle in the endpoint's path to its DID.
 //   - origin is this server's public origin (an https URL with no path), used
 //     to build the resource identifier in the protected resource metadata.
@@ -126,12 +133,31 @@ func New(
 	for _, opt := range opts {
 		opt(&o)
 	}
+	// One search runs over the records and every connected app's search
+	// tool; each is a backend of it (see internal/mcpsearch).
+	var recordsSearcher *mcpsearch.Searcher
+	if searcher != nil {
+		recordsSearcher = mcpsearch.NewSearcher(
+			connectedServers,
+			mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
+			mcpsearch.WithBackend(mcpsearch.NewRecordsBackend(searcher)),
+			mcpsearch.WithMaxLimit(maxSearchLimit),
+		)
+	}
+	var toolSyncer *toolSyncer
+	if o.toolCatalog != nil {
+		toolSyncer = newToolSyncer(o.toolCatalog, connectedServers)
+	}
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
 	newMCPServer := func(org syntax.DID, text TextOverrides) *mcp.Server {
 		var serverOpts *mcp.ServerOptions
 		if searcher != nil {
+			instructions := serverInstructions
+			if toolSyncer != nil {
+				instructions += toolSearchInstructions
+			}
 			serverOpts = &mcp.ServerOptions{
-				Instructions: textOr(text.Instructions, serverInstructions),
+				Instructions: textOr(text.Instructions, instructions),
 			}
 		}
 		mcpServer := mcp.NewServer(impl, serverOpts)
@@ -160,14 +186,34 @@ func New(
 			Description: "A blob in a Habitat space, addressed by space URI and CID.",
 			URITemplate: blobResourceTemplate,
 		}, blobResourceHandler(blobs, permStore))
-		if searcher != nil {
+		if recordsSearcher != nil {
 			mcp.AddTool(mcpServer, &mcp.Tool{
 				Name:        "search_records",
 				Description: textOr(text.SearchDescription, searchRecordsDescription),
-			}, searchRecordsHandler(searcher, org))
+			}, searchRecordsHandler(recordsSearcher, org))
+		}
+		if toolSyncer != nil {
+			// Connected tools are discovered rather than listed, but calling
+			// one by its namespaced name still works.
+			mcp.AddTool(mcpServer, &mcp.Tool{
+				Name:        "search_tools",
+				Description: searchToolsDescription,
+			}, searchToolsHandler(toolSyncer, org))
+			mcp.AddTool(mcpServer, &mcp.Tool{
+				Name:        "get_tool_details",
+				Description: getToolDetailsDescription,
+			}, getToolDetailsHandler(toolSyncer, org))
+			mcpServer.AddTool(&mcp.Tool{
+				Name:        "call_tool",
+				Description: callToolDescription,
+				InputSchema: callToolSchema,
+			}, callToolHandler(connectedServers, org))
+		} else {
+			mcpServer.AddReceivingMiddleware(
+				mergeConnectedToolsMiddleware(connectedServers, org),
+			)
 		}
 		mcpServer.AddReceivingMiddleware(
-			mergeConnectedToolsMiddleware(connectedServers, org),
 			proxyConnectedToolCallMiddleware(connectedServers, org),
 		)
 		return mcpServer

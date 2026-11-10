@@ -34,6 +34,7 @@ var (
 	fSemanticRatio         = "search_semantic_ratio"
 	fSearchMinScore        = "search_min_score"
 	fMCPTextOverrides      = "mcp_text_overrides"
+	fMCPToolSearch         = "mcp_tool_search"
 	fLoginHintCookieDomain = "login_hint_cookie_domain"
 	fMCPAllowPrivateNets   = "mcp_allow_private_networks"
 	fMCPGoogleDriveID      = "mcp_google_drive_client_id"
@@ -195,6 +196,11 @@ func getFlags() []cli.Flag {
 			Name:    fMCPTextOverrides,
 			Usage:   "Development only: let MCP requests reword the server instructions and search tool description with the " + mcpserver.TextOverridesHeader + " header, for integration/mcp-evals.",
 			Sources: getSources(fMCPTextOverrides),
+		},
+		&cli.BoolFlag{
+			Name:    fMCPToolSearch,
+			Usage:   "Offer connected MCP servers' tools through search_tools, get_tool_details and call_tool (progressive discovery) instead of listing them all in the MCP endpoint's tools/list. Needs --meilisearch_url; uses the embedder, if set, for semantic matches.",
+			Sources: getSources(fMCPToolSearch),
 		},
 		&cli.StringFlag{
 			Name:    fLoginHintCookieDomain,

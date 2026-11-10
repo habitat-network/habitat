@@ -15,6 +15,7 @@ import (
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -347,16 +348,39 @@ type searchRecordsHit struct {
 	Snippet string `json:"snippet"`
 }
 
+// connectedAppHit is a result from one of the org's connected apps' own
+// search tools (see internal/mcpsearch).
+type connectedAppHit struct {
+	Server  string `json:"server"`
+	Title   string `json:"title,omitempty"`
+	URL     string `json:"url,omitempty"`
+	Snippet string `json:"snippet,omitempty"`
+}
+
+// connectedAppSource says how searching one connected app went, so an agent
+// can tell an app with no matches from one that couldn't be searched.
+type connectedAppSource struct {
+	Server string `json:"server,omitempty"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+	Count  int    `json:"count"`
+}
+
 type searchRecordsOutput struct {
 	Hits []searchRecordsHit `json:"hits"`
+	// ConnectedApps are results from the org's connected apps' search tools,
+	// searched alongside the records.
+	ConnectedApps []connectedAppHit    `json:"connected_apps,omitempty"`
+	Sources       []connectedAppSource `json:"connected_app_sources,omitempty"`
 }
 
 // searchRecordsHandler implements the "search_records" MCP tool: run the same
 // search as the searchRecords endpoint as the authenticated caller, so the
-// index only matches records they may read. The search is scoped to org, the
-// org the MCP endpoint was reached through.
+// index only matches records they may read, and in the same call search the
+// caller's connected apps (see internal/mcpsearch). The search is scoped to
+// org, the org the MCP endpoint was reached through.
 func searchRecordsHandler(
-	searcher RecordSearcher,
+	searcher *mcpsearch.Searcher,
 	org syntax.DID,
 ) mcp.ToolHandlerFor[searchRecordsInput, searchRecordsOutput] {
 	return func(
@@ -387,31 +411,50 @@ func searchRecordsHandler(
 				"snippet_length must be between 1 and %d", search.MaxSnippetLength,
 			)
 		}
-		q := search.Query{
-			Text: input.Query, Org: org, Limit: input.Limit, SnippetLength: snippetLength,
+		q := mcpsearch.Query{
+			Text: input.Query, Limit: input.Limit, SnippetLength: snippetLength,
 		}
 		if input.Collection != "" {
 			collection, err := syntax.ParseNSID(input.Collection)
 			if err != nil {
 				return nil, searchRecordsOutput{}, fmt.Errorf("invalid collection: %w", err)
 			}
-			q.Collections = []syntax.NSID{collection}
+			q.Collection = collection
 		}
-
-		page, err := searcher.Search(ctx, caller, q)
+		res, err := searcher.Search(ctx, caller, org, nil, q)
 		if err != nil {
 			return nil, searchRecordsOutput{}, fmt.Errorf("searching records: %w", err)
 		}
 
-		out := searchRecordsOutput{Hits: make([]searchRecordsHit, len(page.Matches))}
-		for i, m := range page.Matches {
-			out.Hits[i] = searchRecordsHit{
-				URI:     m.URI.String(),
-				Space:   m.Record.Space.String(),
-				CID:     m.Record.Cid.String(),
-				Value:   m.Record.Value,
-				Snippet: m.Snippet,
+		out := searchRecordsOutput{Hits: []searchRecordsHit{}}
+		for _, source := range res.Sources {
+			switch {
+			case source.Provider == mcpsearch.ProviderRecords && source.Status != mcpsearch.StatusOK:
+				// Records are the point of this tool, so unlike an app
+				// failing, their failure fails the call.
+				return nil, searchRecordsOutput{}, fmt.Errorf("searching records: %s", source.Error)
+			case source.Provider != mcpsearch.ProviderRecords:
+				out.Sources = append(out.Sources, connectedAppSource{
+					Server: string(source.ServerName), Status: string(source.Status),
+					Error: source.Error, Count: source.Count,
+				})
 			}
+		}
+		for _, item := range res.Items {
+			if item.Record != nil {
+				out.Hits = append(out.Hits, searchRecordsHit{
+					URI:     item.URL,
+					Space:   item.Record.Space,
+					CID:     item.Record.CID,
+					Value:   item.Record.Value,
+					Snippet: item.Snippet,
+				})
+				continue
+			}
+			out.ConnectedApps = append(out.ConnectedApps, connectedAppHit{
+				Server: string(item.Source.ServerName),
+				Title:  item.Title, URL: item.URL, Snippet: item.Snippet,
+			})
 		}
 		return nil, out, nil
 	}

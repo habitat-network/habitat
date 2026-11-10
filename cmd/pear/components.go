@@ -39,6 +39,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/toolsearch"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 )
@@ -47,23 +48,47 @@ import (
 // cursors are in <name>_cursors.
 const searchIndexName = "space_records"
 
-// searchIndexOptions returns the settings of the search index the flags
-// describe.
-func searchIndexOptions(cmd *cli.Command) []search.MeilisearchOption {
+// searchEmbedder returns the embedder the flags describe, or nil if none is
+// set.
+func searchEmbedder(cmd *cli.Command) *search.Embedder {
 	embedderURL := cmd.String(fEmbedderURL)
 	if embedderURL == "" {
 		return nil
 	}
-	// With an embedder, Meilisearch embeds records and queries itself and
-	// searches are hybrid.
-	return []search.MeilisearchOption{search.WithEmbedder(search.Embedder{
+	return &search.Embedder{
 		URL:           embedderURL,
 		APIKey:        cmd.String(fEmbedderAPIKey),
 		Model:         cmd.String(fEmbedderModel),
 		Dimensions:    int(cmd.Int(fEmbedderDimensions)),
 		SemanticRatio: cmd.Float(fSemanticRatio),
 		MinScore:      cmd.Float(fSearchMinScore),
-	})}
+	}
+}
+
+// searchIndexOptions returns the settings of the search index the flags
+// describe.
+func searchIndexOptions(cmd *cli.Command) []search.MeilisearchOption {
+	// With an embedder, Meilisearch embeds records and queries itself and
+	// searches are hybrid.
+	if e := searchEmbedder(cmd); e != nil {
+		return []search.MeilisearchOption{search.WithEmbedder(*e)}
+	}
+	return nil
+}
+
+// toolIndexName names the Meilisearch index of connected MCP servers' tools.
+const toolIndexName = "mcp_tools"
+
+// openToolCatalog opens the catalog of connected MCP servers' tools for
+// progressive discovery, searching like the space records index does.
+func openToolCatalog(ctx context.Context, cmd *cli.Command) (*toolsearch.Index, error) {
+	var opts []toolsearch.Option
+	if e := searchEmbedder(cmd); e != nil {
+		opts = append(opts, toolsearch.WithEmbedder(*e))
+	}
+	return toolsearch.Open(
+		ctx, cmd.String(fMeilisearchURL), cmd.String(fMeilisearchAPIKey), toolIndexName, opts...,
+	)
 }
 
 // setupComponents builds pear's App from the command's flags. It

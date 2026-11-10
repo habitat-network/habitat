@@ -1,7 +1,16 @@
-// Package mcpsearch runs one search query across a member's connected MCP
-// servers (see internal/mcpgateway) at once, calling each server's known
-// search tools in parallel and merging their results into one list of
-// context items.
+// Package mcpsearch runs one search query across several backends at once and
+// merges their results into one list of items.
+//
+// A Backend is any source of results. The Searcher runs its backends in
+// parallel; each reports its own outcome, so one failing, timing out or
+// being unavailable (for example because a member's sign-in to an MCP server
+// expired) is reported in the result's Sources without failing the search:
+// the items from the other backends are still returned. There are two kinds:
+//
+//   - RecordsBackend searches the org's Habitat records (see internal/search).
+//   - One serverBackend per MCP server a member has connected (see
+//     internal/mcpgateway), which calls the server's known search tools in
+//     parallel.
 //
 // Every MCP server names its search tools and their parameters differently,
 // and shapes its results differently, so each known search tool is adapted by
@@ -9,17 +18,13 @@
 // providers; DefaultProviders seeds it with the search tools of mcpgateway's
 // presets. A server no provider matches is reported as unsupported, rather
 // than guessing which of its tools searches.
-//
-// A server that fails, times out or that the member isn't connected to (for
-// example because their sign-in expired) is reported in the result's Sources
-// without failing the search: the items from the other servers are still
-// returned.
 package mcpsearch
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -48,8 +53,9 @@ const (
 var (
 	// ErrEmptyQuery is returned when searching for nothing.
 	ErrEmptyQuery = errors.New("query is required")
-	// ErrInvalidLimit is returned for a limit outside 0 to MaxLimit.
-	ErrInvalidLimit = fmt.Errorf("limit must be between 1 and %d", MaxLimit)
+	// ErrInvalidLimit is returned for a limit outside 0 to the searcher's
+	// maximum, MaxLimit by default.
+	ErrInvalidLimit = errors.New("invalid limit")
 	// ErrInvalidServerURL is returned when a requested server URL isn't an
 	// absolute http(s) URL.
 	ErrInvalidServerURL = errors.New("server url must be an absolute http or https URL")
@@ -63,21 +69,43 @@ type Query struct {
 	// Limit is how many items to ask each search tool for, and the most kept
 	// from each. Zero means DefaultLimit.
 	Limit int
+	// Collection, if set, only matches records of this collection. Only
+	// records have collections, so MCP servers are not searched.
+	Collection syntax.NSID
+	// SnippetLength is the approximate number of words of context in each
+	// record's snippet. Zero means the records index's default.
+	SnippetLength int
 }
 
 // Item is one search result.
 type Item struct {
 	// Source says which server and tool the item came from. It's empty in
 	// the items a Provider's Normalize returns.
-	Source  ItemSource
-	Title   string
+	Source ItemSource
+	Title  string
+	// URL is where to find the item: a record's URI, or a link into the
+	// server it came from.
 	URL     string
 	Snippet string
+	// Record is set on items from RecordsBackend.
+	Record *Record
 }
 
-// ItemSource names the server and search tool an item came from.
+// Record is what a record item carries beyond an Item's common fields.
+type Record struct {
+	Space string
+	CID   string
+	Value any
+}
+
+// ProviderRecords is the Provider of RecordsBackend's items and sources,
+// which have no server.
+const ProviderRecords ProviderID = "records"
+
+// ItemSource names the backend an item came from: for an MCP server, its
+// server and search tool.
 type ItemSource struct {
-	// ServerURL is the server's configured URL.
+	// ServerURL is the server's configured URL. It's empty for records.
 	ServerURL  string
 	ServerName mcpgateway.ServerName
 	Provider   ProviderID
@@ -127,11 +155,39 @@ type Result struct {
 	Sources []Source
 }
 
+// Request is a search to run on one backend.
+type Request struct {
+	Caller syntax.DID
+	// Org is the org searched; backends only reach what Caller may in it.
+	Org   syntax.DID
+	Query Query
+}
+
+// Outcome is what one backend found, and how it went.
+type Outcome struct {
+	// Items are in the backend's own ranking.
+	Items []Item
+	// Sources has one or more entries, describing how searching went.
+	Sources []Source
+}
+
+// Backend is a source of search results.
+//
+// Search never fails the whole search: a backend that can't answer reports
+// that in its Outcome's Sources. It must stop when ctx is done, and bound its
+// own time otherwise.
+type Backend interface {
+	Search(ctx context.Context, req Request) Outcome
+}
+
 // Searcher runs federated searches.
 type Searcher struct {
 	servers  mcpgateway.ConnectedServers
 	registry *Registry
 	timeout  time.Duration
+	maxLimit int
+	// backends always take part, ahead of the connected servers.
+	backends []Backend
 }
 
 // Option configures a Searcher.
@@ -143,37 +199,40 @@ func WithTimeout(timeout time.Duration) Option {
 	return func(s *Searcher) { s.timeout = timeout }
 }
 
-// NewSearcher returns a Searcher reaching members' servers through servers,
-// with the search tools in registry.
+// WithBackend makes every search also run b, before the connected servers.
+func WithBackend(b Backend) Option {
+	return func(s *Searcher) { s.backends = append(s.backends, b) }
+}
+
+// WithMaxLimit sets the largest limit a query can ask for; see MaxLimit.
+func WithMaxLimit(limit int) Option {
+	return func(s *Searcher) { s.maxLimit = limit }
+}
+
+// NewSearcher returns a Searcher reaching members' servers through servers
+// (which may be nil, for none), with the search tools in registry.
 func NewSearcher(
 	servers mcpgateway.ConnectedServers,
 	registry *Registry,
 	opts ...Option,
 ) *Searcher {
-	s := &Searcher{servers: servers, registry: registry, timeout: DefaultTimeout}
+	s := &Searcher{
+		servers: servers, registry: registry, timeout: DefaultTimeout, maxLimit: MaxLimit,
+	}
 	for _, opt := range opts {
 		opt(s)
 	}
 	return s
 }
 
-// target is one requested server, and its outcome.
-type target struct {
-	url    string
-	server *mcpgateway.Server
-	// providers are the search tools to call on server; none if it isn't
-	// searched.
-	providers []Provider
-	sources   []Source
-	items     [][]Item // per provider
-}
-
-// Search searches the servers of org at serverURLs as caller, calling every
-// known search tool of each in parallel. With no serverURLs it searches
-// every server caller is connected to that has a known search tool.
+// Search searches every backend added with WithBackend, and the servers of
+// org at serverURLs, as caller, calling every known search tool of each
+// server in parallel. With no serverURLs it searches every server caller is
+// connected to that has a known search tool. A query with a Collection only
+// searches records.
 //
 // It fails only for an invalid query or URL, if caller's servers can't be
-// listed, or if ctx is done; any one server's failure is reported in its
+// listed, or if ctx is done; any one backend's failure is reported in its
 // Sources instead.
 func (s *Searcher) Search(
 	ctx context.Context,
@@ -186,8 +245,8 @@ func (s *Searcher) Search(
 	if q.Text == "" {
 		return nil, ErrEmptyQuery
 	}
-	if q.Limit < 0 || q.Limit > MaxLimit {
-		return nil, ErrInvalidLimit
+	if q.Limit < 0 || q.Limit > s.maxLimit {
+		return nil, fmt.Errorf("%w: must be between 1 and %d", ErrInvalidLimit, s.maxLimit)
 	}
 	if q.Limit == 0 {
 		q.Limit = DefaultLimit
@@ -197,6 +256,40 @@ func (s *Searcher) Search(
 		return nil, err
 	}
 
+	backends := slices.Clone(s.backends)
+	if q.Collection == "" && s.servers != nil {
+		serverBackends, err := s.serverBackends(ctx, caller, org, requested, len(serverURLs) == 0)
+		if err != nil {
+			return nil, err
+		}
+		backends = append(backends, serverBackends...)
+	}
+
+	outcomes := make([]Outcome, len(backends))
+	req := Request{Caller: caller, Org: org, Query: q}
+	mcpgateway.ForEach(ctx, backends, 0, func(ctx context.Context, i int, b Backend) {
+		outcomes[i] = b.Search(ctx, req)
+	})
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	out := &Result{Items: []Item{}, Sources: []Source{}}
+	for _, o := range outcomes {
+		out.Items = append(out.Items, o.Items...)
+		out.Sources = append(out.Sources, o.Sources...)
+	}
+	return out, nil
+}
+
+// serverBackends returns a backend for each of requested, canonical server
+// URLs, or, if all, for every connected server with a known search tool.
+func (s *Searcher) serverBackends(
+	ctx context.Context,
+	caller, org syntax.DID,
+	requested []string,
+	all bool,
+) ([]Backend, error) {
 	connected, err := s.servers.ListConnectedServers(ctx, caller, org)
 	if err != nil {
 		return nil, fmt.Errorf("list connected servers: %w", err)
@@ -213,7 +306,7 @@ func (s *Searcher) Search(
 			byURL[u] = server
 		}
 	}
-	if len(serverURLs) == 0 {
+	if all {
 		for _, server := range connected {
 			u, err := CanonicalURL(server.URL)
 			if err == nil && byURL[u] == server && len(s.registry.ForURL(u)) > 0 {
@@ -221,42 +314,13 @@ func (s *Searcher) Search(
 			}
 		}
 	}
-
-	targets := make([]*target, len(requested))
-	var searched []*target
+	backends := make([]Backend, len(requested))
 	for i, u := range requested {
-		t := &target{url: u, server: byURL[u]}
-		targets[i] = t
-		switch t.providers = s.registry.ForURL(u); {
-		case t.server == nil:
-			t.sources = []Source{{
-				ServerURL: u, Status: StatusNotConnected,
-				Error: "not connected to an mcp server with this url",
-			}}
-		case len(t.providers) == 0:
-			t.sources = []Source{{
-				ServerURL: t.server.URL, ServerName: t.server.Name, Status: StatusUnsupported,
-				Error: "no known search tool for this server",
-			}}
-		default:
-			searched = append(searched, t)
+		backends[i] = &serverBackend{
+			searcher: s, url: u, server: byURL[u], providers: s.registry.ForURL(u),
 		}
 	}
-	mcpgateway.ForEach(ctx, searched, s.timeout, func(ctx context.Context, _ int, t *target) {
-		s.searchServer(ctx, caller, t, q)
-	})
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	out := &Result{Items: []Item{}, Sources: []Source{}}
-	for _, t := range targets {
-		out.Sources = append(out.Sources, t.sources...)
-		for _, items := range t.items {
-			out.Items = append(out.Items, items...)
-		}
-	}
-	return out, nil
+	return backends, nil
 }
 
 // canonicalURLs canonicalizes urls, dropping duplicates.
@@ -276,37 +340,71 @@ func canonicalURLs(urls []string) ([]string, error) {
 	return out, nil
 }
 
-// searchServer reaches t's server once, then calls each of t's providers'
-// tools on it concurrently, filling in t's sources and items. ctx bounds
-// everything, with the searcher's timeout.
-func (s *Searcher) searchServer(ctx context.Context, caller syntax.DID, t *target, q Query) {
-	t.sources = make([]Source, len(t.providers))
-	t.items = make([][]Item, len(t.providers))
-	for i, p := range t.providers {
-		t.sources[i] = Source{ServerURL: t.server.URL, ServerName: t.server.Name, Provider: p.ID()}
+// serverBackend is the Backend for one MCP server a caller asked to search.
+// It searches with each of the server's known providers.
+type serverBackend struct {
+	searcher *Searcher
+	// url is the canonical URL requested.
+	url string
+	// server is nil if the caller isn't connected to a server with url.
+	server    *mcpgateway.Server
+	providers []Provider
+}
+
+var _ Backend = (*serverBackend)(nil)
+
+// Search reaches the server once, then calls each of its providers' tools
+// concurrently. Everything is bounded by the searcher's timeout.
+func (b *serverBackend) Search(ctx context.Context, req Request) Outcome {
+	switch {
+	case b.server == nil:
+		return Outcome{Sources: []Source{{
+			ServerURL: b.url, Status: StatusNotConnected,
+			Error: "not connected to an mcp server with this url",
+		}}}
+	case len(b.providers) == 0:
+		return Outcome{Sources: []Source{{
+			ServerURL: b.server.URL, ServerName: b.server.Name, Status: StatusUnsupported,
+			Error: "no known search tool for this server",
+		}}}
+	}
+	if b.searcher.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, b.searcher.timeout)
+		defer cancel()
 	}
 
-	err := mcpgateway.WithSession(ctx, s.servers, caller, t.server,
+	// A tool is asked for no more than the most any tool accepts.
+	q := req.Query
+	q.Limit = min(q.Limit, MaxLimit)
+
+	sources := make([]Source, len(b.providers))
+	items := make([][]Item, len(b.providers))
+	for i, p := range b.providers {
+		sources[i] = Source{ServerURL: b.server.URL, ServerName: b.server.Name, Provider: p.ID()}
+	}
+
+	err := mcpgateway.WithSession(ctx, b.searcher.servers, req.Caller, b.server,
 		func(ctx context.Context, session *mcp.ClientSession) error {
 			var g errgroup.Group
-			for i, p := range t.providers {
+			for i, p := range b.providers {
 				g.Go(func() error {
-					items, err := callProvider(ctx, session, p, q)
+					got, err := callProvider(ctx, session, p, q)
 					if err != nil {
-						t.sources[i].Status, t.sources[i].Error = classify(ctx, err)
+						sources[i].Status, sources[i].Error = classify(ctx, err)
 						return nil
 					}
 					source := ItemSource{
-						ServerURL:  t.server.URL,
-						ServerName: t.server.Name,
+						ServerURL:  b.server.URL,
+						ServerName: b.server.Name,
 						Provider:   p.ID(),
 					}
-					for j := range items {
-						items[j].Source = source
-						items[j].Snippet = truncate(items[j].Snippet, maxSnippetRunes)
+					for j := range got {
+						got[j].Source = source
+						got[j].Snippet = truncate(got[j].Snippet, maxSnippetRunes)
 					}
-					t.items[i] = items
-					t.sources[i].Status, t.sources[i].Count = StatusOK, len(items)
+					items[i] = got
+					sources[i].Status, sources[i].Count = StatusOK, len(got)
 					return nil
 				})
 			}
@@ -314,10 +412,15 @@ func (s *Searcher) searchServer(ctx context.Context, caller syntax.DID, t *targe
 		})
 	if err != nil {
 		// The server couldn't be reached at all.
-		for i := range t.sources {
-			t.sources[i].Status, t.sources[i].Error = classify(ctx, err)
+		for i := range sources {
+			sources[i].Status, sources[i].Error = classify(ctx, err)
 		}
 	}
+	out := Outcome{Sources: sources}
+	for _, its := range items {
+		out.Items = append(out.Items, its...)
+	}
+	return out
 }
 
 // errToolFailed is returned when a search tool answers with an error result.
