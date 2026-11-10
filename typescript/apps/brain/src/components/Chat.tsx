@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { streamingMarkdownExtension } from "@tanstack/markdown/extensions/streaming";
-import { autolinksExtension } from '@tanstack/markdown/extensions/autolinks'
+import { autolinksExtension } from "@tanstack/markdown/extensions/autolinks";
 import { Markdown } from "@tanstack/markdown/react";
 import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
 import type { UIMessage } from "@tanstack/ai-react";
