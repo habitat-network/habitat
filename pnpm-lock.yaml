@@ -386,7 +386,7 @@ importers:
         version: 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/ai-mcp':
         specifier: ^1.1.0
-        version: 1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+        version: 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/ai-openai':
         specifier: 1.1.1
         version: 1.1.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(undici@8.12.3)(ws@8.21.3)(zod@4.6.7)
@@ -5087,11 +5087,11 @@ packages:
   '@tanstack/ai-event-client@1.0.1':
     resolution: {integrity: sha512-IURnn4oRKJbtbAuC3GcXRcuKHi8DrPmwuACqaTq6ApSGlyJyHhq0NTksKEmzql2Z12+njFjsKSXG9c7UbSHTxg==}
 
-  '@tanstack/ai-mcp@1.1.0':
-    resolution: {integrity: sha512-l+iA+Z73ZqeeZQ0uaqYB0yIKjTFDbBCnToyo/cP5ou3K6Gmt3KeHnyl3WR4m5T4SBT7r+jy2kDglFI6XxrqF5Q==}
+  '@tanstack/ai-mcp@1.2.0':
+    resolution: {integrity: sha512-EIJfHjaAuZJjJ5FL841jHKPrmaZCpRlBLfToqTBvtTjA9k4eoDpBDB/HVeN+/kUIOWayVgLON1xZI8SqwCGzWg==}
     hasBin: true
     peerDependencies:
-      '@tanstack/ai-harness': ^0.2.0
+      '@tanstack/ai-harness': ^0.3.0
     peerDependenciesMeta:
       '@tanstack/ai-harness':
         optional: true
@@ -5123,6 +5123,15 @@ packages:
 
   '@tanstack/ai@1.2.0':
     resolution: {integrity: sha512-N4v2HfkJgwNxkVNcYHVbjuJM4jJhb/y6ifNhUIqoGw6oa/nZjuTnGSCer9ldr9DIMQVrAizc8ocM3FBmszItSw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.9.0'
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+
+  '@tanstack/ai@1.4.0':
+    resolution: {integrity: sha512-3f0D9gFCk8LUe9qAPCsRkjlXU2bqbIKKMGGo9P6Q6O0vR+5/0N/J3x1J2QWYY8L3LNvJliZBDnutudEIRzNU8w==}
     engines: {node: '>=18'}
     peerDependencies:
       '@opentelemetry/api': '>=1.9.0'
@@ -16190,11 +16199,11 @@ snapshots:
     dependencies:
       '@tanstack/devtools-event-client': 0.4.4
 
-  '@tanstack/ai-mcp@1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
+  '@tanstack/ai-mcp@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
     dependencies:
       '@modelcontextprotocol/client': 2.4.0
       '@modelcontextprotocol/server': 2.4.0
-      '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai': 1.4.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       jose: 6.2.12
     transitivePeerDependencies:
       - '@opentelemetry/api'
@@ -16234,6 +16243,20 @@ snapshots:
   '@tanstack/ai-utils@1.1.0': {}
 
   '@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
+    dependencies:
+      '@ag-ui/core': 1.0.0(zod@4.6.7)
+      '@cfworker/json-schema': 4.1.6
+      '@standard-schema/spec': 1.1.0
+      '@tanstack/ai-event-client': 1.0.1
+      '@tanstack/ai-utils': 1.1.0
+      fast-json-patch: 3.1.1
+      partial-json: 0.1.7
+    optionalDependencies:
+      '@opentelemetry/api': 1.10.0
+    transitivePeerDependencies:
+      - zod
+
+  '@tanstack/ai@1.4.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
     dependencies:
       '@ag-ui/core': 1.0.0(zod@4.6.7)
       '@cfworker/json-schema': 4.1.6
