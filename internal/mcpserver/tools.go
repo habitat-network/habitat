@@ -501,6 +501,21 @@ func mergeConnectedToolsMiddleware(
 	}
 }
 
+// objectOrNil returns v if it's a JSON object, else nil. A tool result's
+// structuredContent must be an object, and strict clients reject the whole
+// result over one that isn't (GitHub's sends arrays); the result's content
+// still carries the same data as text.
+func objectOrNil(v any) any {
+	if v == nil {
+		return nil
+	}
+	raw, err := json.Marshal(v)
+	if err != nil || len(raw) == 0 || raw[0] != '{' {
+		return nil
+	}
+	return v
+}
+
 // validOutputSchema returns schema if it's usable as a tool's outputSchema,
 // else nil. The MCP spec requires its root to be an object schema, and strict
 // clients (the TypeScript SDK) reject the whole tools/list response over one
@@ -616,6 +631,19 @@ func proxyConnectedToolCallMiddleware(
 	}
 }
 
+// discoverTool lists session's tools up to toolName. A client only learns a
+// tool's definition from a listing, and needs it to send the Mcp-Param-*
+// headers the tool's x-mcp-header annotations require (SEP-2243), which
+// servers like GitHub's reject a call without. A listing that fails is
+// ignored: the call that follows reports the real error.
+func discoverTool(ctx context.Context, session *mcp.ClientSession, toolName string) {
+	for tool, err := range session.Tools(ctx, nil) {
+		if err != nil || tool.Name == toolName {
+			return
+		}
+	}
+}
+
 // callConnectedTool calls toolName on server as caller. It's bounded only by
 // ctx, the caller's own request, since a tool may legitimately run long.
 func callConnectedTool(
@@ -629,6 +657,7 @@ func callConnectedTool(
 	var res *mcp.CallToolResult
 	err := mcpgateway.WithSession(ctx, connectedServers, caller, server,
 		func(ctx context.Context, session *mcp.ClientSession) (err error) {
+			discoverTool(ctx, session, toolName)
 			res, err = session.CallTool(ctx, &mcp.CallToolParams{
 				Name:      toolName,
 				Arguments: arguments,
@@ -639,5 +668,6 @@ func callConnectedTool(
 		// Avoid returning a typed-nil *CallToolResult as a non-nil mcp.Result.
 		return nil, err
 	}
+	res.StructuredContent = objectOrNil(res.StructuredContent)
 	return res, nil
 }

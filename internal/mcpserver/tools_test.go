@@ -396,3 +396,11 @@ func TestValidOutputSchema(t *testing.T) {
 	require.Nil(t, validOutputSchema(map[string]any{"type": "array"}))
 	require.Nil(t, validOutputSchema(map[string]any{"anyOf": []any{object}}))
 }
+
+func TestObjectOrNil(t *testing.T) {
+	object := map[string]any{"a": 1}
+	require.Equal(t, object, objectOrNil(object))
+	require.Nil(t, objectOrNil(nil))
+	require.Nil(t, objectOrNil([]any{object}))
+	require.Nil(t, objectOrNil("text"))
+}
