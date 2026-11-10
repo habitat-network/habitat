@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { devtools } from "@tanstack/devtools-vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 
 // Same shape as chalk's vite.config.ts: TanStack Start owns the SSR/server
@@ -23,6 +24,9 @@ export default defineConfig({
   plugins: [
     cloudflare({ viteEnvironment: { name: "ssr" } }),
     tailwindcss(),
+    // Starts the devtools event bus (port 4206 by default) that the AI panel
+    // uses to receive server-side chat events. Dev-only.
+    ...devtools(),
     tanstackStart(), // must come before viteReact()
     viteReact(),
   ],
