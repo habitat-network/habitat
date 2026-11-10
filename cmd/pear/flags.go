@@ -228,7 +228,7 @@ func getFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:    fDecisionsURL,
-			Usage:   "Base URL of the OpenAI-compatible Decisions API pear uses for tool selection (e.g. https://<resource>.openai.azure.com/openai/v1 for Azure). Shared by all orgs. If unset, decisions are unavailable.",
+			Usage:   "URL of the Jev-format decision endpoint (POST .../systemone) pear uses for tool selection, used as given: https://<resource>.services.ai.azure.com/providers/microsoft/v1/systemone for Azure Foundry, http://localhost:11434/v1/systemone for Ollama. Shared by all orgs. If unset, decisions are unavailable.",
 			Sources: getSources(fDecisionsURL),
 		},
 		&cli.StringFlag{
