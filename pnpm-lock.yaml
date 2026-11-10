@@ -122,7 +122,7 @@ catalogs:
       version: 4.6.7
     zustand:
       specifier: ^5.0.15
-      version: 5.0.16
+      version: 5.1.0
 
 overrides:
   '@atproto/lex-builder': 0.0.0-spaces-alpha-20261029171913
@@ -295,7 +295,7 @@ importers:
         version: 4.6.7
       zustand:
         specifier: 'catalog:'
-        version: 5.0.16(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8))
+        version: 5.1.0(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8))
     devDependencies:
       '@tailwindcss/vite':
         specifier: 'catalog:'
@@ -440,7 +440,7 @@ importers:
         version: 4.6.7
       zustand:
         specifier: 'catalog:'
-        version: 5.0.16(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8))
+        version: 5.1.0(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8))
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: ^1.53.1
@@ -600,7 +600,7 @@ importers:
         version: 4.6.7
       zustand:
         specifier: ^5.0.14
-        version: 5.0.16(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8))
+        version: 5.1.0(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8))
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: ^1.53.1
@@ -11583,8 +11583,8 @@ packages:
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
-  zustand@5.0.16:
-    resolution: {integrity: sha512-Uv7e327ihlCfayfja3hDc0M64Upev1LWBKpRobdK4NyovDDPeeX4imWXc/wzC1yc6fkYPoAY/ncKVPAs2jrtQw==}
+  zustand@5.1.0:
+    resolution: {integrity: sha512-ciJZlP48M1PTQbVQq81CGVFxHTLpZNrFjKqwjtCU34AWuXTZT/jrF3p9+fI84Cf1eSCMLapxqBy/SNTfwOBuqA==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
       '@types/react': '>=18.0.0'
@@ -23457,7 +23457,7 @@ snapshots:
 
   zod@4.6.7: {}
 
-  zustand@5.0.16(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8)):
+  zustand@5.1.0(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8)):
     optionalDependencies:
       '@types/react': 19.2.18
       immer: 11.1.15
