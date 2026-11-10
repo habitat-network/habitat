@@ -19,10 +19,12 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/habitat-network/habitat/internal/decisions"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
+	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"go.opentelemetry.io/otel/trace"
@@ -151,6 +153,16 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	var mcpOpts []mcpserver.Option
 	if cmd.Bool(fMCPTextOverrides) {
 		mcpOpts = append(mcpOpts, mcpserver.WithTextOverrides())
+	}
+	mcpOpts = append(mcpOpts, mcpserver.WithFederatedSearcher(mcpsearch.NewSearcher(
+		app.MCPGatewayStore, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
+	)))
+	if u := cmd.String(fDecisionsURL); u != "" {
+		mcpOpts = append(mcpOpts, mcpserver.WithToolSelector(mcpserver.DecisionSelector{
+			Chooser: decisions.New(
+				u, cmd.String(fDecisionsAPIKey), cmd.String(fDecisionsModel), httpx.NewClient(),
+			),
+		}))
 	}
 	mcpServer := mcpserver.New(
 		app.OAuthServer,

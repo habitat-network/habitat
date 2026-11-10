@@ -54,7 +54,9 @@ Whenever a question is about the user's company, team, customers, projects or pa
 
 Call search_records with a few keywords as its query argument, e.g. {"query": "pricing decision"}, then read relevant results in full with get_record or get_blob. If nothing relevant turns up after a few searches, say so instead of guessing.
 
-Tools prefixed with an app's name are the org's connected apps, reached through Habitat. Use them for data that lives in those apps.`
+Tools prefixed with an app's name are the org's connected apps, reached through Habitat. Use them for data that lives in those apps.
+
+get_context searches Habitat and the connected apps at once and suggests the connected-app tools that fit a request; run a suggested tool with call_tool.`
 
 // searchRecordsDescription is the "search_records" tool's description. Like
 // serverInstructions, it says when to search, not just how.
@@ -126,6 +128,9 @@ func New(
 	for _, opt := range opts {
 		opt(&o)
 	}
+	if o.selector == nil {
+		o.selector = LexicalSelector{}
+	}
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
 	newMCPServer := func(org syntax.DID, text TextOverrides) *mcp.Server {
 		var serverOpts *mcp.ServerOptions
@@ -160,6 +165,20 @@ func New(
 			Description: "A blob in a Habitat space, addressed by space URI and CID.",
 			URITemplate: blobResourceTemplate,
 		}, blobResourceHandler(blobs, permStore))
+		if connectedServers != nil {
+			agent := &contextAgent{
+				org: org, records: searcher, federated: o.federated,
+				connectedServers: connectedServers, selector: o.selector,
+			}
+			mcp.AddTool(mcpServer, &mcp.Tool{
+				Name:        "get_context",
+				Description: getContextDescription,
+			}, agent.handler())
+			mcp.AddTool(mcpServer, &mcp.Tool{
+				Name:        "call_tool",
+				Description: callToolDescription,
+			}, callToolHandler(connectedServers, org))
+		}
 		if searcher != nil {
 			mcp.AddTool(mcpServer, &mcp.Tool{
 				Name:        "search_records",
