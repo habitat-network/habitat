@@ -1,11 +1,14 @@
-// Package decisions calls an OpenAI-compatible Decisions API
-// (https://developers.openai.com/api/docs/guides/decisions), which answers
-// typed questions about some input with probabilities instead of generating
-// text.
+// Package decisions calls a Jev-format decision API, which answers typed
+// questions about some input with probabilities instead of generating text.
+//
+// The wire format is TypeSafe's System One / Jev (POST .../systemone with a
+// state and named questions), served by TypeSafe, Azure Foundry's
+// Microsoft-Decision-1 and Ollama's decision models; it is not OpenAI's
+// /v1/decisions format.
 //
 // Unlike internal/llmgateway, whose models are connections an org configures,
 // the decisions endpoint is configured once for the whole deployment, so New
-// takes its base URL, key and model directly (e.g. an Azure-hosted model).
+// takes its URL, key and model directly (e.g. an Azure-hosted model).
 package decisions
 
 import (
@@ -14,32 +17,31 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
-	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/mattn/go-jev"
 )
 
-// ErrRefused is returned when the model declines to answer a question.
+// ErrRefused is returned when the model declines to answer a question. The
+// Jev format has no refusal answer, so it's returned when a question comes
+// back without an answer.
 var ErrRefused = errors.New("decision refused")
 
 // Client asks questions of a decisions endpoint.
 type Client struct {
-	decisions openai.DecisionService
-	model     string
+	jev *jev.Client
 }
 
-// New returns a Client that calls the decisions endpoint under baseURL (for
-// Azure, https://<resource>.openai.azure.com/openai/v1) with apiKey as a
-// bearer token. model is the model name, or for Azure the deployment name.
-// Every value is passed explicitly so the SDK never falls back to pear's own
-// OPENAI_* environment variables.
-func New(baseURL, apiKey, model string, httpClient *http.Client) *Client {
-	c := openai.NewClient(
-		option.WithBaseURL(baseURL),
-		option.WithAPIKey(apiKey),
-		option.WithHTTPClient(httpClient),
-	)
-	return &Client{decisions: c.Decisions, model: model}
+// New returns a Client that posts to the decisions endpoint at url, exactly as
+// given (for Azure, <resource endpoint>/providers/microsoft/v1/systemone; for
+// Ollama, http://localhost:11434/v1/systemone), with apiKey as a bearer token.
+// model is the model name, or for Azure the deployment name. Every value is
+// passed explicitly: go-jev reads no environment variables.
+func New(url, apiKey, model string, httpClient *http.Client) *Client {
+	return &Client{jev: jev.NewClient(
+		jev.WithURL(url),
+		jev.WithAPIKey(apiKey),
+		jev.WithModel(model),
+		jev.WithHTTPClient(httpClient),
+	)}
 }
 
 // Predicate is a yes/no question about the input.
@@ -56,27 +58,21 @@ func (c *Client) Predicates(
 	input string,
 	predicates []Predicate,
 ) (map[string]float64, error) {
-	questions := make([]openai.DecisionNewParamsQuestionUnion, len(predicates))
-	for i, p := range predicates {
-		questions[i] = openai.DecisionNewParamsQuestionUnion{
-			OfPredicate: &openai.DecisionNewParamsQuestionPredicate{
-				Name: param.NewOpt(p.Name),
-				Instructions: openai.DecisionNewParamsQuestionPredicateInstructionsUnion{
-					OfString: param.NewOpt(p.Instructions),
-				},
-			},
-		}
+	questions := make(map[string]jev.Question, len(predicates))
+	for _, p := range predicates {
+		questions[p.Name] = jev.Question{Type: "noul", Instructions: p.Instructions}
 	}
-	answers, err := c.ask(ctx, input, questions)
+	resp, err := c.jev.Evaluate(ctx, input, questions)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decisions request: %w", err)
 	}
-	out := make(map[string]float64, len(answers))
-	for i, a := range answers {
-		if a.Type == "refusal" {
-			return nil, fmt.Errorf("%w: %q", ErrRefused, predicates[i].Name)
+	out := make(map[string]float64, len(predicates))
+	for _, p := range predicates {
+		answer := resp.Answers[p.Name]
+		if answer == nil {
+			return nil, fmt.Errorf("%w: %q", ErrRefused, p.Name)
 		}
-		out[a.Name] = a.Probability
+		out[p.Name] = answer.Noul
 	}
 	return out, nil
 }
@@ -104,61 +100,25 @@ func (c *Client) Choose(
 	instructions string,
 	options []Option,
 ) (Choice, error) {
-	choices := make([]openai.DecisionNewParamsQuestionChoiceChoice, len(options))
+	criteria := make(jev.Options, len(options))
 	for i, o := range options {
-		choices[i] = openai.DecisionNewParamsQuestionChoiceChoice{
-			Value: openai.DecisionNewParamsQuestionChoiceChoiceValueUnion{
-				OfString: param.NewOpt(o.Value),
-			},
-		}
+		criteria[i] = jev.Option{Name: o.Value}
+		// A nil description is sent as null; an empty one would be sent as "".
 		if o.Description != "" {
-			choices[i].Description = param.NewOpt(o.Description)
+			criteria[i].Desc = o.Description
 		}
 	}
-	answers, err := c.ask(ctx, input, []openai.DecisionNewParamsQuestionUnion{{
-		OfChoice: &openai.DecisionNewParamsQuestionChoice{
-			Choices: choices,
-			Instructions: openai.DecisionNewParamsQuestionChoiceInstructionsUnion{
-				OfString: param.NewOpt(instructions),
-			},
-		},
-	}})
-	if err != nil {
-		return Choice{}, err
-	}
-	if answers[0].Type == "refusal" {
-		return Choice{}, ErrRefused
-	}
-	choice := answers[0].AsChoice()
-	probabilities := make(map[string]float64, len(choice.Probabilities))
-	for _, p := range choice.Probabilities {
-		probabilities[p.Value.OfString] = p.Probability
-	}
-	return Choice{
-		Value:         choice.Choice.OfString,
-		Confidence:    choice.Confidence,
-		Probabilities: probabilities,
-	}, nil
-}
-
-// ask sends the questions and checks one answer came back for each.
-func (c *Client) ask(
-	ctx context.Context,
-	input string,
-	questions []openai.DecisionNewParamsQuestionUnion,
-) ([]openai.DecisionAnswerUnion, error) {
-	res, err := c.decisions.New(ctx, openai.DecisionNewParams{
-		Model:     c.model,
-		Input:     openai.DecisionNewParamsInputUnion{OfString: param.NewOpt(input)},
-		Questions: questions,
+	answer, err := c.jev.Ask(ctx, input, jev.Question{
+		Type:         "choice",
+		Instructions: instructions,
+		Criteria:     criteria,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("decisions request: %w", err)
+		return Choice{}, fmt.Errorf("decisions request: %w", err)
 	}
-	if len(res.Answers) != len(questions) {
-		return nil, fmt.Errorf(
-			"decisions returned %d answers for %d questions", len(res.Answers), len(questions),
-		)
-	}
-	return res.Answers, nil
+	return Choice{
+		Value:         answer.Choice,
+		Confidence:    answer.Confidence,
+		Probabilities: answer.Probabilities,
+	}, nil
 }
