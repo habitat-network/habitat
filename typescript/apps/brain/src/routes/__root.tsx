@@ -6,6 +6,8 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { TanStackDevtools } from "@tanstack/react-devtools";
+import { aiDevtoolsPlugin } from "@tanstack/react-ai-devtools";
 import { Toaster } from "internal/components/ui";
 import PostHogProvider from "../integrations/posthog/provider";
 import "../index.css";
@@ -36,6 +38,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
             </QueryClientProvider>
           </PostHogProvider>
           <Toaster />
+          {import.meta.env.DEV && (
+            <TanStackDevtools
+              plugins={[aiDevtoolsPlugin()]}
+              eventBusConfig={{ connectToServerBus: true }}
+            />
+          )}
           <Scripts />
         </body>
       </html>
