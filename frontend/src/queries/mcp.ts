@@ -113,3 +113,48 @@ export const disconnectMcpServerMutationOptions = (
       await client.invalidateQueries({ queryKey: mcpServersQueryKey(org) });
     },
   });
+
+export type McpDebugOutput = network.habitat.mcp.debug.$OutputBody;
+export type McpDebugInput = Omit<network.habitat.mcp.debug.$InputBody, "org">;
+
+const debugMcp = (
+  authManager: AuthManager,
+  org: DidString,
+  input: McpDebugInput,
+) =>
+  xrpc(
+    pearAgent(authManager, `${org}#habitat`),
+    network.habitat.mcp.debug.main,
+    {
+      body: { org, ...input },
+    },
+  ).then((response) => response.body);
+
+// mcpDebugQueryOptions makes one raw list request (tools/list,
+// resources/list or prompts/list) to an org's MCP server as the caller. A
+// server failure resolves with ok false and the raw error, so the debugger can
+// show what the server said; only a failure to reach pear rejects.
+export const mcpDebugQueryOptions = (
+  authManager: AuthManager,
+  org: DidString,
+  id: string,
+  method: "tools/list" | "resources/list" | "prompts/list",
+) =>
+  queryOptions({
+    queryKey: ["mcp", "debug", org, id, method] as const,
+    queryFn: () => debugMcp(authManager, org, { id, method }),
+    retry: false,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+// mcpDebugMutationOptions makes one raw tools/call or resources/read request,
+// with the mutation's variables as the request. Like mcpDebugQueryOptions, a
+// server failure resolves with ok false.
+export const mcpDebugMutationOptions = (
+  authManager: AuthManager,
+  org: DidString,
+) =>
+  mutationOptions({
+    mutationFn: (input: McpDebugInput) => debugMcp(authManager, org, input),
+  });

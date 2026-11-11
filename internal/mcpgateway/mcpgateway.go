@@ -18,7 +18,7 @@
 //     Each member's tokens are stored in the encrypted keyval store and
 //     refreshed by pear as needed.
 //   - AuthTypeToken: each member supplies their own bearer token (for example
-//     a personal access token) with StartAuthorization, which stores it
+//     a personal access token) with ConnectWithToken, which stores it
 //     encrypted. Pear never refreshes it.
 //   - AuthTypeManual: the server needs no auth, and every member is connected
 //     automatically.

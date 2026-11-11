@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import type { AuthManager } from "internal";
@@ -125,14 +126,29 @@ export function McpServersEditor({
                   />
                 </TableCell>
                 <TableCell className="text-right">
-                  {canConfigureMcp && (
-                    <RemoveServerButton
-                      org={org}
-                      id={server.id}
-                      name={server.name}
-                      authManager={authManager}
-                    />
-                  )}
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      render={
+                        <Link
+                          to="/orgs/$org/settings/mcp-debug"
+                          params={{ org }}
+                          search={{ server: server.id }}
+                        />
+                      }
+                    >
+                      Debug
+                    </Button>
+                    {canConfigureMcp && (
+                      <RemoveServerButton
+                        org={org}
+                        id={server.id}
+                        name={server.name}
+                        authManager={authManager}
+                      />
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

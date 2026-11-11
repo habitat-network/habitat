@@ -76,8 +76,23 @@ async function discover(
   }
 }
 
+// errorText is the readable message of a failed tool result: its text
+// content, else the content as JSON.
+function errorText(content: unknown): string {
+  if (Array.isArray(content)) {
+    const text = content
+      .flatMap((c) =>
+        c && typeof c === "object" && c.type === "text" ? [String(c.text)] : [],
+      )
+      .join("\n");
+    if (text) return text;
+  }
+  return JSON.stringify(content ?? "tool call failed");
+}
+
 // gatewayTools returns the member's tools in the org, from cache when fresh.
-// A failure to reach the gateway yields no tools rather than failing the chat.
+// A failure to reach the gateway is thrown, so the chat route reports it to
+// the client instead of the chat quietly having no connected tools.
 export async function gatewayTools(
   agent: Agent,
   habitatUrl: string,
@@ -100,7 +115,9 @@ export async function gatewayTools(
     defs = await entry.tools;
   } catch (err) {
     console.error("[brain] listing MCP gateway tools", err);
-    return [];
+    throw new Error(
+      `Couldn't list your connected tools: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
   return defs
     .filter((def) => !reserved.has(def.name))
@@ -119,9 +136,7 @@ export async function gatewayTools(
             args as Record<string, unknown>,
           );
           if (result.isError) {
-            throw new Error(
-              JSON.stringify(result.content ?? "tool call failed"),
-            );
+            throw new Error(errorText(result.content));
           }
           return result.structuredContent ?? result.content;
         } finally {

@@ -1,0 +1,82 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.debug",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Debugging aid: make one raw MCP request to an org-configured server as the caller, and return the server's result or the error exactly as pear saw it. Unlike the gateway's normal paths, a failure is reported in the output (with a 200) rather than as an XRPC error, so callers can show what the server actually said. Requires service-auth. Callable by any org member, who can only reach servers they are connected to.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["org", "id", "method"],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community the server belongs to."
+            },
+            "id": {
+              "type": "string",
+              "description": "The server's id, as in network.habitat.mcp.defs#server."
+            },
+            "method": {
+              "type": "string",
+              "knownValues": [
+                "tools/list",
+                "resources/list",
+                "prompts/list",
+                "tools/call",
+                "resources/read"
+              ],
+              "description": "The MCP request to make."
+            },
+            "name": {
+              "type": "string",
+              "description": "The tool to call, for tools/call."
+            },
+            "arguments": {
+              "type": "string",
+              "maxLength": 100000,
+              "description": "The tool's arguments as JSON text (an object), for tools/call. Text rather than a nested object so the exact JSON the caller typed reaches the server, floats included, which the atproto data model can't carry."
+            },
+            "uri": {
+              "type": "string",
+              "description": "The resource to read, for resources/read."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ok", "durationMs"],
+          "properties": {
+            "ok": {
+              "type": "boolean",
+              "description": "Whether the server answered the request without an error."
+            },
+            "durationMs": {
+              "type": "integer",
+              "description": "How long the request took, including connecting."
+            },
+            "result": {
+              "type": "string",
+              "description": "The server's result as pretty-printed JSON text, when ok. Text rather than a nested object for the same reason as the input's arguments."
+            },
+            "error": {
+              "type": "string",
+              "description": "The raw error, when not ok: a JSON-RPC error from the server, an HTTP failure, or why pear couldn't connect."
+            },
+            "errorKind": {
+              "type": "string",
+              "knownValues": ["not_connected", "protocol", "transport", "timeout", "invalid_response"],
+              "description": "Where the failure happened. not_connected: the caller has no usable connection. protocol: the server answered with a JSON-RPC error. transport: connecting or the HTTP exchange failed. invalid_response: the server's reply didn't validate against the MCP schema (for example invalid structuredContent)."
+            }
+          }
+        }
+      }
+    }
+  }
+}

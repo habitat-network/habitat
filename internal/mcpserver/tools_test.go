@@ -388,3 +388,19 @@ func TestMCPServerToolsList_KeepsServerOrder(t *testing.T) {
 	}
 	require.Equal(t, want, pings)
 }
+
+func TestValidOutputSchema(t *testing.T) {
+	object := map[string]any{"type": "object"}
+	require.Equal(t, object, validOutputSchema(object))
+	require.Nil(t, validOutputSchema(nil))
+	require.Nil(t, validOutputSchema(map[string]any{"type": "array"}))
+	require.Nil(t, validOutputSchema(map[string]any{"anyOf": []any{object}}))
+}
+
+func TestObjectOrNil(t *testing.T) {
+	object := map[string]any{"a": 1}
+	require.Equal(t, object, objectOrNil(object))
+	require.Nil(t, objectOrNil(nil))
+	require.Nil(t, objectOrNil([]any{object}))
+	require.Nil(t, objectOrNil("text"))
+}

@@ -62,7 +62,7 @@ func (p *PearServer) McpOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		// The member declined, or the authorization server refused. The state
 		// is left to expire.
 		status, message = http.StatusBadRequest, "The server didn't grant access ("+oauthErr+")."
-	} else if _, err := p.mcpGatewayStore.CompleteAuthorization(
+	} else if err := p.mcpGatewayStore.CompleteAuthorization(
 		ctx, q.Get("state"), q.Get("code"), q.Get("iss"),
 	); errors.Is(err, mcpgateway.ErrAuthorizationNotFound) {
 		status, message = http.StatusBadRequest,

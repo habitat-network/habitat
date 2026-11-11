@@ -31,6 +31,7 @@ import { Route as RequireAuthOrgsOrgSettingsAppsRouteImport } from './routes/_re
 import { Route as RequireAuthOrgsOrgSettingsBrandingRouteImport } from './routes/_requireAuth/orgs/$org/settings/branding'
 import { Route as RequireAuthOrgsOrgSettingsCapabilitiesRouteImport } from './routes/_requireAuth/orgs/$org/settings/capabilities'
 import { Route as RequireAuthOrgsOrgSettingsMcpRouteImport } from './routes/_requireAuth/orgs/$org/settings/mcp'
+import { Route as RequireAuthOrgsOrgSettingsMcpDebugRouteImport } from './routes/_requireAuth/orgs/$org/settings/mcp-debug'
 import { Route as RequireAuthOrgsOrgSettingsMembersRouteImport } from './routes/_requireAuth/orgs/$org/settings/members'
 import { Route as RequireAuthOrgsOrgSettingsModelsRouteImport } from './routes/_requireAuth/orgs/$org/settings/models'
 import { Route as RequireAuthOrgsOrgSettingsRolesRouteImport } from './routes/_requireAuth/orgs/$org/settings/roles'
@@ -161,6 +162,12 @@ const RequireAuthOrgsOrgSettingsMcpRoute =
     path: '/mcp',
     getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
   } as any)
+const RequireAuthOrgsOrgSettingsMcpDebugRoute =
+  RequireAuthOrgsOrgSettingsMcpDebugRouteImport.update({
+    id: '/mcp-debug',
+    path: '/mcp-debug',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
 const RequireAuthOrgsOrgSettingsMembersRoute =
   RequireAuthOrgsOrgSettingsMembersRouteImport.update({
     id: '/members',
@@ -241,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/orgs/$org/settings/branding': typeof RequireAuthOrgsOrgSettingsBrandingRoute
   '/orgs/$org/settings/capabilities': typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
   '/orgs/$org/settings/mcp': typeof RequireAuthOrgsOrgSettingsMcpRoute
+  '/orgs/$org/settings/mcp-debug': typeof RequireAuthOrgsOrgSettingsMcpDebugRoute
   '/orgs/$org/settings/members': typeof RequireAuthOrgsOrgSettingsMembersRoute
   '/orgs/$org/settings/models': typeof RequireAuthOrgsOrgSettingsModelsRoute
   '/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
@@ -271,6 +279,7 @@ export interface FileRoutesByTo {
   '/orgs/$org/settings/branding': typeof RequireAuthOrgsOrgSettingsBrandingRoute
   '/orgs/$org/settings/capabilities': typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
   '/orgs/$org/settings/mcp': typeof RequireAuthOrgsOrgSettingsMcpRoute
+  '/orgs/$org/settings/mcp-debug': typeof RequireAuthOrgsOrgSettingsMcpDebugRoute
   '/orgs/$org/settings/members': typeof RequireAuthOrgsOrgSettingsMembersRoute
   '/orgs/$org/settings/models': typeof RequireAuthOrgsOrgSettingsModelsRoute
   '/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
@@ -305,6 +314,7 @@ export interface FileRoutesById {
   '/_requireAuth/orgs/$org/settings/branding': typeof RequireAuthOrgsOrgSettingsBrandingRoute
   '/_requireAuth/orgs/$org/settings/capabilities': typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
   '/_requireAuth/orgs/$org/settings/mcp': typeof RequireAuthOrgsOrgSettingsMcpRoute
+  '/_requireAuth/orgs/$org/settings/mcp-debug': typeof RequireAuthOrgsOrgSettingsMcpDebugRoute
   '/_requireAuth/orgs/$org/settings/members': typeof RequireAuthOrgsOrgSettingsMembersRoute
   '/_requireAuth/orgs/$org/settings/models': typeof RequireAuthOrgsOrgSettingsModelsRoute
   '/_requireAuth/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
     | '/orgs/$org/settings/branding'
     | '/orgs/$org/settings/capabilities'
     | '/orgs/$org/settings/mcp'
+    | '/orgs/$org/settings/mcp-debug'
     | '/orgs/$org/settings/members'
     | '/orgs/$org/settings/models'
     | '/orgs/$org/settings/roles'
@@ -369,6 +380,7 @@ export interface FileRouteTypes {
     | '/orgs/$org/settings/branding'
     | '/orgs/$org/settings/capabilities'
     | '/orgs/$org/settings/mcp'
+    | '/orgs/$org/settings/mcp-debug'
     | '/orgs/$org/settings/members'
     | '/orgs/$org/settings/models'
     | '/orgs/$org/settings/roles'
@@ -402,6 +414,7 @@ export interface FileRouteTypes {
     | '/_requireAuth/orgs/$org/settings/branding'
     | '/_requireAuth/orgs/$org/settings/capabilities'
     | '/_requireAuth/orgs/$org/settings/mcp'
+    | '/_requireAuth/orgs/$org/settings/mcp-debug'
     | '/_requireAuth/orgs/$org/settings/members'
     | '/_requireAuth/orgs/$org/settings/models'
     | '/_requireAuth/orgs/$org/settings/roles'
@@ -579,6 +592,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthOrgsOrgSettingsMcpRouteImport
       parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
     }
+    '/_requireAuth/orgs/$org/settings/mcp-debug': {
+      id: '/_requireAuth/orgs/$org/settings/mcp-debug'
+      path: '/mcp-debug'
+      fullPath: '/orgs/$org/settings/mcp-debug'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsMcpDebugRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
     '/_requireAuth/orgs/$org/settings/members': {
       id: '/_requireAuth/orgs/$org/settings/members'
       path: '/members'
@@ -650,6 +670,7 @@ interface RequireAuthOrgsOrgSettingsRouteChildren {
   RequireAuthOrgsOrgSettingsBrandingRoute: typeof RequireAuthOrgsOrgSettingsBrandingRoute
   RequireAuthOrgsOrgSettingsCapabilitiesRoute: typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
   RequireAuthOrgsOrgSettingsMcpRoute: typeof RequireAuthOrgsOrgSettingsMcpRoute
+  RequireAuthOrgsOrgSettingsMcpDebugRoute: typeof RequireAuthOrgsOrgSettingsMcpDebugRoute
   RequireAuthOrgsOrgSettingsMembersRoute: typeof RequireAuthOrgsOrgSettingsMembersRoute
   RequireAuthOrgsOrgSettingsModelsRoute: typeof RequireAuthOrgsOrgSettingsModelsRoute
   RequireAuthOrgsOrgSettingsRolesRoute: typeof RequireAuthOrgsOrgSettingsRolesRoute
@@ -666,6 +687,8 @@ const RequireAuthOrgsOrgSettingsRouteChildren: RequireAuthOrgsOrgSettingsRouteCh
     RequireAuthOrgsOrgSettingsCapabilitiesRoute:
       RequireAuthOrgsOrgSettingsCapabilitiesRoute,
     RequireAuthOrgsOrgSettingsMcpRoute: RequireAuthOrgsOrgSettingsMcpRoute,
+    RequireAuthOrgsOrgSettingsMcpDebugRoute:
+      RequireAuthOrgsOrgSettingsMcpDebugRoute,
     RequireAuthOrgsOrgSettingsMembersRoute:
       RequireAuthOrgsOrgSettingsMembersRoute,
     RequireAuthOrgsOrgSettingsModelsRoute:
