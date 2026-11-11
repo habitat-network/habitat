@@ -1,0 +1,51 @@
+# Scores ragbench samples with Ragas (see ../../README.md). Python and uv come
+# from proto (.prototools); uv creates the virtualenv and installs
+# dependencies from uv.lock the first time a task runs.
+language: python
+layer: tool
+
+workspace:
+  inheritedTasks:
+    exclude:
+      - build
+      - docker-build
+
+fileGroups:
+  sources:
+    - src/**/*.py
+    - tests/**/*.py
+    - pyproject.toml
+    - uv.lock
+
+tasks:
+  # moon run ragbench-scorer:score -- <run dir>/samples.jsonl [--llm]
+  score:
+    command: uv run --project $projectRoot ragbench-score
+    options:
+      cache: false
+      runInCI: false
+      # So a relative samples path is relative to the repository's root.
+      runFromWorkspaceRoot: true
+  test:
+    command: uv run pytest
+    inputs:
+      - '@group(sources)'
+    options:
+      runInCI: false
+  lint-check:
+    command: uv run ruff check .
+    inputs:
+      - '@group(sources)'
+    options:
+      runInCI: false
+  format-check:
+    command: uv run ruff format --check .
+    inputs:
+      - '@group(sources)'
+    options:
+      runInCI: false
+  format:
+    command: uv run ruff format .
+    options:
+      cache: false
+      runInCI: false

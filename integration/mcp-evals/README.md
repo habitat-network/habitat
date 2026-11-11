@@ -16,6 +16,10 @@ results only across runs on the same model. The report's "est. API cost" is
 Claude Code's API-price estimate; when you're logged in with a claude.ai
 subscription, runs draw on its usage limits instead of being billed.
 
+Whether what Habitat returns is any good (do `get_context`'s results hold the
+answer, does it suggest the right tool) is measured separately, against a
+benchmark with mock app servers: see [ragbench/](ragbench/README.md).
+
 ## Setup
 
 `setups.json` lists the MCP configs to run under; for now just

@@ -5,3 +5,19 @@ workspace:
     exclude:
       - build
       - test
+
+tasks:
+  # Fetches the benchmark dataset ragbench runs on (about 2 GB, once):
+  #   moon run integration:ragbench-dataset
+  ragbench-dataset:
+    command: bash mcp-evals/ragbench/fetch-dataset.sh
+    options:
+      cache: false
+      runInCI: false
+  # Scores pear's get_context against the benchmark; see mcp-evals/README.md.
+  #   moon run integration:ragbench -- -match all
+  ragbench:
+    command: go run ./mcp-evals/ragbench retrieval
+    options:
+      cache: false
+      runInCI: false

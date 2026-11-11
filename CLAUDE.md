@@ -75,7 +75,7 @@ Shared/infra:
 - `website/` — marketing site (Astro); not Moon-managed, pnpm workspace member only
 - `templates/web-app` — Moon generator template for scaffolding new TanStack/Vite apps (`moon generate web-app`)
 - `e2e/` — Playwright end-to-end tests (TypeScript) against a real `pear` started with testcontainers; `harness/` holds the fixtures, page objects and seed data, `tests/` the specs. Runs via `moon run e2e:test` and the `Integration Tests` workflow (not part of `moon ci`)
-- `integration/` — separate Go module that now only holds the manually-run `mcp-evals` CLI
+- `integration/` — separate Go module that now only holds the manually-run `mcp-evals` CLI; `mcp-evals/ragbench` scores `get_context` against EnterpriseRAG-Bench through mock Drive/Slack/GitHub MCP servers and pear's real MCP server in-process, with a Python Ragas scorer (`ragbench-scorer` Moon project, Python and uv from proto), all run by hand
 - `docs/superpowers/` — in-progress design specs and plans
 - `infra/docker-compose.yml` — local Postgres for development
 
