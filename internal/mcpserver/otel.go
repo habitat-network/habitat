@@ -70,14 +70,19 @@ func otelMiddleware(cfg otelMiddlewareConfig) mcp.Middleware {
 	}
 	tracer := cfg.tracerProvider.Tracer(otelScope)
 	meter := cfg.meterProvider.Meter(otelScope)
-	prop := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+	prop := propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
 
 	// Instrument creation only fails for invalid names/options; the no-op
 	// fallbacks returned alongside the error are safe to use.
 	opDuration, _ := meter.Float64Histogram(
 		"mcp.server.operation.duration",
 		metric.WithUnit("s"),
-		metric.WithDescription("MCP request or notification duration as observed on the receiver from the time it was received until the result or ack is sent."),
+		metric.WithDescription(
+			"MCP request or notification duration as observed on the receiver from the time it was received until the result or ack is sent.",
+		),
 		metric.WithExplicitBucketBoundaries(durationBuckets...),
 	)
 	sessionDuration, _ := meter.Float64Histogram(
@@ -110,11 +115,19 @@ func otelMiddleware(cfg otelMiddlewareConfig) mcp.Middleware {
 			if target != "" {
 				spanName = method + " " + target
 			}
-			attrs := append([]attribute.KeyValue{attribute.String("mcp.method.name", method)}, targetAttrs...)
+			attrs := append(
+				[]attribute.KeyValue{attribute.String("mcp.method.name", method)},
+				targetAttrs...)
 			attrs = append(attrs, sessionAttrs(req)...)
 
-			ctx, span := tracer.Start(ctx, spanName,
-				append(linkOpts, trace.WithSpanKind(trace.SpanKindServer), trace.WithAttributes(attrs...))...)
+			ctx, span := tracer.Start(
+				ctx,
+				spanName,
+				append(
+					linkOpts,
+					trace.WithSpanKind(trace.SpanKindServer),
+					trace.WithAttributes(attrs...),
+				)...)
 			defer span.End()
 
 			result, err := next(ctx, method, req)
@@ -154,7 +167,10 @@ func otelMiddleware(cfg otelMiddlewareConfig) mcp.Middleware {
 					go func() {
 						_ = ss.Wait()
 						sessions.Delete(ss)
-						sessionDuration.Record(context.WithoutCancel(ctx), time.Since(start).Seconds())
+						sessionDuration.Record(
+							context.WithoutCancel(ctx),
+							time.Since(start).Seconds(),
+						)
 					}()
 				}
 			}
@@ -207,8 +223,8 @@ func sessionAttrs(req mcp.Request) []attribute.KeyValue {
 	if id := ss.ID(); id != "" {
 		attrs = append(attrs, attribute.String("mcp.session.id", id))
 	}
-	if init := ss.InitializeParams(); init != nil && init.ProtocolVersion != "" {
-		attrs = append(attrs, attribute.String("mcp.protocol.version", init.ProtocolVersion))
+	if ip := ss.InitializeParams(); ip != nil && ip.ProtocolVersion != "" {
+		attrs = append(attrs, attribute.String("mcp.protocol.version", ip.ProtocolVersion))
 	}
 	if extra := req.GetExtra(); extra != nil && extra.Header != nil {
 		attrs = append(attrs,

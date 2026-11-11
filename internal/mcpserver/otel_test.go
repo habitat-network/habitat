@@ -35,19 +35,33 @@ func newOtelHarness(t *testing.T) *otelHarness {
 		meterProvider:  sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)),
 	}))
 	type in struct{}
-	mcp.AddTool(srv, &mcp.Tool{Name: "ok"}, func(context.Context, *mcp.CallToolRequest, in) (*mcp.CallToolResult, any, error) {
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "hi"}}}, nil, nil
-	})
-	mcp.AddTool(srv, &mcp.Tool{Name: "fail"}, func(context.Context, *mcp.CallToolRequest, in) (*mcp.CallToolResult, any, error) {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "no"}}}, nil, nil
-	})
+	mcp.AddTool(
+		srv,
+		&mcp.Tool{Name: "ok"},
+		func(context.Context, *mcp.CallToolRequest, in) (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "hi"}},
+			}, nil, nil
+		},
+	)
+	mcp.AddTool(
+		srv,
+		&mcp.Tool{Name: "fail"},
+		func(context.Context, *mcp.CallToolRequest, in) (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{&mcp.TextContent{Text: "no"}},
+			}, nil, nil
+		},
+	)
 
 	ct, st := mcp.NewInMemoryTransports()
 	ctx := t.Context()
 	ss, err := srv.Connect(ctx, st, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ss.Close() })
-	cs, err := mcp.NewClient(&mcp.Implementation{Name: "c", Version: "0"}, nil).Connect(ctx, ct, nil)
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "c", Version: "0"}, nil).
+		Connect(ctx, ct, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = cs.Close() })
 	return &otelHarness{session: cs, spans: spans, metrics: reader}
@@ -142,7 +156,10 @@ func TestOtelMiddleware_LinksAmbientContext(t *testing.T) {
 
 func TestOtelMiddleware_ToolErrorMarksSpan(t *testing.T) {
 	h := newOtelHarness(t)
-	_, err := h.session.CallTool(t.Context(), &mcp.CallToolParams{Name: "fail", Arguments: map[string]any{}})
+	_, err := h.session.CallTool(
+		t.Context(),
+		&mcp.CallToolParams{Name: "fail", Arguments: map[string]any{}},
+	)
 	require.NoError(t, err)
 
 	s := h.span(t, "tools/call fail")
@@ -153,7 +170,10 @@ func TestOtelMiddleware_ToolErrorMarksSpan(t *testing.T) {
 func TestOtelMiddleware_JSONRPCErrorUsesCode(t *testing.T) {
 	h := newOtelHarness(t)
 	// Unknown tool names yield a JSON-RPC protocol error.
-	_, err := h.session.CallTool(t.Context(), &mcp.CallToolParams{Name: "missing", Arguments: map[string]any{}})
+	_, err := h.session.CallTool(
+		t.Context(),
+		&mcp.CallToolParams{Name: "missing", Arguments: map[string]any{}},
+	)
 	require.Error(t, err)
 
 	s := h.span(t, "tools/call missing")
@@ -173,16 +193,27 @@ func TestOtelMiddleware_MethodWithoutTargetUsesMethodAsName(t *testing.T) {
 
 func TestOtelMiddleware_RecordsOperationDuration(t *testing.T) {
 	h := newOtelHarness(t)
-	_, err := h.session.CallTool(t.Context(), &mcp.CallToolParams{Name: "ok", Arguments: map[string]any{}})
+	_, err := h.session.CallTool(
+		t.Context(),
+		&mcp.CallToolParams{Name: "ok", Arguments: map[string]any{}},
+	)
 	require.NoError(t, err)
-	_, err = h.session.CallTool(t.Context(), &mcp.CallToolParams{Name: "fail", Arguments: map[string]any{}})
+	_, err = h.session.CallTool(
+		t.Context(),
+		&mcp.CallToolParams{Name: "fail", Arguments: map[string]any{}},
+	)
 	require.NoError(t, err)
 
 	hist := h.histogram(t, "mcp.server.operation.duration")
 	var okPoint, failPoint *metricdata.HistogramDataPoint[float64]
 	for i, dp := range hist.DataPoints {
 		attrs := attrMap(dp.Attributes.ToSlice())
-		require.NotContains(t, attrs, "mcp.session.id", "session id is too high-cardinality for a metric")
+		require.NotContains(
+			t,
+			attrs,
+			"mcp.session.id",
+			"session id is too high-cardinality for a metric",
+		)
 		if attrs["mcp.method.name"] == "tools/call" && attrs["gen_ai.tool.name"] == "ok" {
 			okPoint = &hist.DataPoints[i]
 		}
@@ -194,7 +225,11 @@ func TestOtelMiddleware_RecordsOperationDuration(t *testing.T) {
 	require.NotNil(t, okPoint)
 	require.NotNil(t, failPoint)
 	require.Equal(t, uint64(1), okPoint.Count)
-	require.Equal(t, []float64{0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60, 120, 300}, okPoint.Bounds)
+	require.Equal(
+		t,
+		[]float64{0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60, 120, 300},
+		okPoint.Bounds,
+	)
 }
 
 func TestOtelMiddleware_RecordsSessionDurationOnClose(t *testing.T) {
