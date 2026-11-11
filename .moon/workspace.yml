@@ -6,6 +6,7 @@ projects:
     infra: infra
     typescript/internal: typescript/internal
     integration: integration
+    ragbench-scorer: integration/mcp-evals/ragbench/scorer
     e2e: e2e
     typescript/api: typescript/api
     typescript/habitat: typescript/habitat

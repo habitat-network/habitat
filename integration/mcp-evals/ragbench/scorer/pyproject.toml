@@ -1,0 +1,32 @@
+[project]
+name = "ragbench-scorer"
+version = "0.1.0"
+description = "Scores ragbench samples (see ../) with Ragas"
+requires-python = ">=3.13"
+dependencies = [
+    "ragas==0.4.3",
+    # ragas 0.4.3 imports a module langchain-community 0.4 removed.
+    "langchain-community<0.4",
+    "anthropic>=0.40",
+]
+
+[project.scripts]
+ragbench-score = "ragbench_scorer.score:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Ragas warns about its own imports of metrics it has not moved yet.
+filterwarnings = ["ignore::DeprecationWarning"]
