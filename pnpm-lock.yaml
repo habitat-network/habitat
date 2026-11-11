@@ -846,7 +846,7 @@ importers:
     devDependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.11
+        version: 0.4.13
       msw:
         specifier: ^2.15.0
         version: 2.15.0(@types/node@22.20.5)(typescript@7.0.2)
@@ -861,7 +861,7 @@ importers:
     dependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.11
+        version: 0.4.13
       '@atproto/api':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261029171913
@@ -1123,16 +1123,16 @@ packages:
     resolution: {integrity: sha512-Nf4r3hH33f7nXU62tjf42lOFC2tlIwsfQVaOr+NFVWGGKSQEqEe23PFO0C7mXzFDWzq50q645ZEhtBrzM2QMEw==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/did-resolver@0.3.11':
-    resolution: {integrity: sha512-CeAC6VY3xaXQ8CaOXLz4EOopSvfcQBcuJvX3J5ew2nbf+BM0nes45ZvxUieP5ZlLPXbJborwJh5zDeJcYpwCFQ==}
+  '@atproto-labs/did-resolver@0.3.13':
+    resolution: {integrity: sha512-peNomkIMFcvsrq+1CHXiWv/sAakcYFenIWCB+EI94TPdDezNgRs39R6c8XaU3+UxSbzkfky7R3ywSOiKVVIY1g==}
     engines: {node: '>=22'}
 
   '@atproto-labs/fetch@0.3.6':
     resolution: {integrity: sha512-ro/J/cnqIp4bnSzDl8N3SkruvQcE3Pze+1H70mKdFfyFcdhPr+7O4lggl4VCbhI84Yqgz47c0xC6F/Yl39SxDA==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/fetch@0.4.0':
-    resolution: {integrity: sha512-9HEcZuCU4nWAzV3XZ7nwbDPdV8tbhICzyYeyE5SPHTPuuKS6C3i5WOdwGP1diCCUaYF3Vadw5ArVlQPtXnn73w==}
+  '@atproto-labs/fetch@0.4.2':
+    resolution: {integrity: sha512-9mgISMM2eY/w373HUNrtWq4onPzES1K6DaeAv9BDcEgovcKTkcI60H9Jjp38thU2i/dQaGpKrxmxR9qc0FZocg==}
     engines: {node: '>=22'}
 
   '@atproto-labs/handle-resolver@0.0.0-spaces-alpha-20261029171913':
@@ -1147,12 +1147,16 @@ packages:
     resolution: {integrity: sha512-WsN0dP8Rs4a7lThqpdjf5tE16Mw3rC8Q0h2M1DIY79URVHFc63Ip7LxCpTPjLjNy5b/mY+SUbkKfFVgioQA/1g==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/identity-resolver@0.4.11':
-    resolution: {integrity: sha512-6k5hZ05D5HmFu6MDy2/z8z42UxZy6xw3JbvbKxDp5ChSZ/9L2Hv1MeTruruGKK2ATP6sYxx7xcsGaiTmTIHYFw==}
+  '@atproto-labs/identity-resolver@0.4.13':
+    resolution: {integrity: sha512-zh7DfDemd5xOeVcuPKkrvObP9SUNrFt/gzkbywc0Obsx5LQMcP5q+ADAInFPpEuYJ5I4AOc4A7G6s6fKbL52KQ==}
     engines: {node: '>=22'}
 
   '@atproto-labs/pipe@0.2.4':
     resolution: {integrity: sha512-n67jCcrC+ouAeO10cWkpPzzLMlDi/lDCU30Us+LGqhOPhT6c4t5ASdBLQi9W3jUQtRzQBt3G9zipF+xKWNvVbw==}
+    engines: {node: '>=22'}
+
+  '@atproto-labs/pipe@0.2.5':
+    resolution: {integrity: sha512-1R1nYs/nHmBcYa4yzTjk5H/46MF5nZm342Ha9kKQTOMp/fr2Yn67qD1pTXUS7L2Mx8AEf3m7Z/TTxRfnERLc8w==}
     engines: {node: '>=22'}
 
   '@atproto-labs/simple-store-memory@0.2.6':
@@ -8177,6 +8181,7 @@ packages:
   image-size@2.0.2:
     resolution: {integrity: sha512-IRqXKlaXwgSMAMtpNzZa1ZAe8m+Sa1770Dhk8VkSsP9LS+iHD62Zd8FQKs8fbPiagBE7BzoFX23cxFnwshpV6w==}
     engines: {node: '>=16.x'}
+    deprecated: Use latest 2.x please
     hasBin: true
 
   immer@11.1.15:
@@ -12243,10 +12248,10 @@ snapshots:
       '@atproto/did': 0.0.0-spaces-alpha-20261029171913
       zod: 3.25.76
 
-  '@atproto-labs/did-resolver@0.3.11':
+  '@atproto-labs/did-resolver@0.3.13':
     dependencies:
-      '@atproto-labs/fetch': 0.4.0
-      '@atproto-labs/pipe': 0.2.4
+      '@atproto-labs/fetch': 0.4.2
+      '@atproto-labs/pipe': 0.2.5
       '@atproto-labs/simple-store': 0.5.1
       '@atproto-labs/simple-store-memory': 0.2.6
       '@atproto/did': 0.5.6
@@ -12256,9 +12261,9 @@ snapshots:
     dependencies:
       '@atproto-labs/pipe': 0.2.4
 
-  '@atproto-labs/fetch@0.4.0':
+  '@atproto-labs/fetch@0.4.2':
     dependencies:
-      '@atproto-labs/pipe': 0.2.4
+      '@atproto-labs/pipe': 0.2.5
 
   '@atproto-labs/handle-resolver@0.0.0-spaces-alpha-20261029171913':
     dependencies:
@@ -12279,12 +12284,14 @@ snapshots:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20261029171913
       '@atproto-labs/handle-resolver': 0.0.0-spaces-alpha-20261029171913
 
-  '@atproto-labs/identity-resolver@0.4.11':
+  '@atproto-labs/identity-resolver@0.4.13':
     dependencies:
-      '@atproto-labs/did-resolver': 0.3.11
+      '@atproto-labs/did-resolver': 0.3.13
       '@atproto-labs/handle-resolver': 0.4.10
 
   '@atproto-labs/pipe@0.2.4': {}
+
+  '@atproto-labs/pipe@0.2.5': {}
 
   '@atproto-labs/simple-store-memory@0.2.6':
     dependencies:
