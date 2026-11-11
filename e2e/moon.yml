@@ -1,0 +1,39 @@
+# Playwright end-to-end tests against a real pear (see README in harness/pear.ts).
+# Not part of `moon ci`: they need Docker and build the pear image.
+layer: automation
+language: typescript
+
+workspace:
+  inheritedTasks:
+    exclude:
+      - build
+
+tasks:
+  # Builds the pear image (also builds the pear-pages UI it embeds), then runs
+  # the suite against it. Pass Playwright args after `--`, e.g.
+  #   moon run e2e:test -- tests/admin-login.spec.ts --headed
+  test:
+    command: pnpm
+    args:
+      - exec
+      - playwright
+      - test
+    deps:
+      - pear:docker-build
+    env:
+      PEAR_IMAGE: pear
+    inputs:
+      - /pnpm-lock.yaml
+      - "**/*"
+    options:
+      runInCI: false
+      cache: false
+  typecheck:
+    command: pnpm
+    args:
+      - exec
+      - tsc
+      - --noEmit
+    inputs:
+      - "**/*.ts"
+      - tsconfig.json

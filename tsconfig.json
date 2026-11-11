@@ -6,19 +6,22 @@
       "path": "./api-docs"
     },
     {
+      "path": "./e2e"
+    },
+    {
       "path": "./frontend"
     },
     {
       "path": "./typescript/api"
     },
     {
+      "path": "./typescript/apps/brain"
+    },
+    {
       "path": "./typescript/apps/chalk"
     },
     {
       "path": "./typescript/apps/drop"
-    },
-    {
-      "path": "./typescript/apps/brain"
     },
     {
       "path": "./typescript/apps/pear-pages"
