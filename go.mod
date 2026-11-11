@@ -23,7 +23,6 @@ require (
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/multiformats/go-multihash v0.2.3
-	github.com/olgasafonova/mcp-otel-go v0.2.1
 	github.com/openfga/api/proto v0.0.0-20260928071936-c0650ce2169b
 	github.com/openfga/openfga v1.18.3
 	github.com/ory/fosite v0.49.0
