@@ -69,3 +69,7 @@ cmd/pear/repo.db
 # Terraform
 **/.terraform/
 *.tfstate*
+
+# Playwright e2e output
+e2e/test-results/
+e2e/playwright-report/
