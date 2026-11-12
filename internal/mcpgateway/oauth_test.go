@@ -1,6 +1,9 @@
 package mcpgateway
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -92,4 +95,48 @@ func TestAuthorizationURLRequestsRefreshToken(t *testing.T) {
 	require.Equal(t, "consent", q.Get("prompt"))
 	require.Equal(t, "https://mcp.example.com", q.Get("resource"))
 	require.Equal(t, "S256", q.Get("code_challenge_method"))
+}
+
+// Grafana Cloud serves /mcp/<stack> but publishes the resource /mcp.
+func TestProtectedResourceMetadataAcceptsEnclosingResource(t *testing.T) {
+	var srv *httptest.Server
+	handler := func(resource string, as []string) http.HandlerFunc {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"resource": resource, "authorization_servers": as,
+			})
+		}
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/prm/ok", func(w http.ResponseWriter, r *http.Request) {
+		handler(srv.URL+"/mcp", []string{srv.URL + "/mcp/stack"})(w, r)
+	})
+	mux.HandleFunc("/prm/other-host", func(w http.ResponseWriter, r *http.Request) {
+		handler("https://evil.example.com/mcp", []string{srv.URL})(w, r)
+	})
+	mux.HandleFunc("/prm/sibling-path", func(w http.ResponseWriter, r *http.Request) {
+		handler(srv.URL+"/mc", []string{srv.URL})(w, r)
+	})
+	mux.HandleFunc("/prm/http-as", func(w http.ResponseWriter, r *http.Request) {
+		handler(srv.URL+"/mcp", []string{"http://as.example.com"})(w, r)
+	})
+	srv = httptest.NewServer(mux)
+	defer srv.Close()
+
+	challenge := func(path string) []oauthex.Challenge {
+		return []oauthex.Challenge{{
+			Scheme: "bearer",
+			Params: map[string]string{"resource_metadata": srv.URL + path},
+		}}
+	}
+	serverURL := srv.URL + "/mcp/stack"
+
+	prm := protectedResourceMetadata(t.Context(), srv.Client(), challenge("/prm/ok"), serverURL)
+	require.Equal(t, []string{srv.URL + "/mcp/stack"}, prm.AuthorizationServers)
+
+	for _, path := range []string{"/prm/other-host", "/prm/sibling-path", "/prm/http-as"} {
+		prm := protectedResourceMetadata(t.Context(), srv.Client(), challenge(path), serverURL)
+		require.Equal(t, []string{srv.URL}, prm.AuthorizationServers, path)
+	}
 }

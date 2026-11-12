@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -259,6 +260,18 @@ func protectedResourceMetadata(
 			return prm
 		}
 	}
+	// Some servers publish one resource identifier for a family of URLs (see
+	// lenientProtectedResourceMetadata).
+	for _, candidate := range protectedResourceMetadataURLs(challenges, serverURL) {
+		if prm := lenientProtectedResourceMetadata(
+			ctx,
+			client,
+			candidate.url,
+			serverURL,
+		); prm != nil {
+			return prm
+		}
+	}
 	u, err := url.Parse(serverURL)
 	if err != nil {
 		return &oauthex.ProtectedResourceMetadata{Resource: serverURL}
@@ -268,6 +281,66 @@ func protectedResourceMetadata(
 		Resource:             serverURL,
 		AuthorizationServers: []string{u.String()},
 	}
+}
+
+// lenientProtectedResourceMetadata fetches protected resource metadata like
+// oauthex.GetProtectedResourceMetadata, but accepts a resource identifier that
+// is a path prefix of serverURL on the same origin instead of requiring an
+// exact match (RFC 9728 section 3.3). Grafana Cloud's per-stack MCP URL
+// https://mcp.grafana.com/mcp/<stack> publishes the resource
+// https://mcp.grafana.com/mcp, with the stack's own authorization server. The
+// metadata must still be about the same server (same origin, enclosing path),
+// so a server can't claim another host's resource, and the authorization
+// server URLs must still be https (or loopback). The issuer check on the
+// authorization server metadata is unaffected. Returns nil on any problem.
+func lenientProtectedResourceMetadata(
+	ctx context.Context,
+	client *http.Client,
+	metadataURL, serverURL string,
+) *oauthex.ProtectedResourceMetadata {
+	su, err := url.Parse(serverURL)
+	if err != nil {
+		return nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, http.NoBody)
+	if err != nil {
+		return nil
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+	var prm oauthex.ProtectedResourceMetadata
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&prm); err != nil {
+		return nil
+	}
+	ru, err := url.Parse(prm.Resource)
+	if err != nil || ru.Scheme != su.Scheme || ru.Host != su.Host {
+		return nil
+	}
+	prefix := strings.TrimRight(ru.Path, "/")
+	if su.Path != prefix && !strings.HasPrefix(su.Path, prefix+"/") {
+		return nil
+	}
+	for _, as := range prm.AuthorizationServers {
+		au, err := url.Parse(as)
+		if err != nil || (au.Scheme != "https" && !isLoopbackHost(au.Hostname())) {
+			return nil
+		}
+	}
+	return &prm
+}
+
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 type prmCandidate struct {
