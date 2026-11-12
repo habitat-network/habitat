@@ -1,6 +1,6 @@
 module github.com/habitat-network/habitat/integration
 
-go 1.26.3
+go 1.27.0
 
 replace github.com/docker/docker/api => github.com/moby/moby/api v1.56.1
 
