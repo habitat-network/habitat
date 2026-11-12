@@ -263,7 +263,12 @@ func protectedResourceMetadata(
 	// Some servers publish one resource identifier for a family of URLs (see
 	// lenientProtectedResourceMetadata).
 	for _, candidate := range protectedResourceMetadataURLs(challenges, serverURL) {
-		if prm := lenientProtectedResourceMetadata(ctx, client, candidate.url, serverURL); prm != nil {
+		if prm := lenientProtectedResourceMetadata(
+			ctx,
+			client,
+			candidate.url,
+			serverURL,
+		); prm != nil {
 			return prm
 		}
 	}
@@ -297,7 +302,7 @@ func lenientProtectedResourceMetadata(
 	if err != nil {
 		return nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, http.NoBody)
 	if err != nil {
 		return nil
 	}
