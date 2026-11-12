@@ -58,6 +58,8 @@ locals {
     HABITAT_EMBEDDER_API_KEY               = "azure-embedder-api-key"
     HABITAT_MCP_GOOGLE_DRIVE_CLIENT_SECRET = "habitat-mcp-google-drive-client-secret"
     HABITAT_MCP_SLACK_CLIENT_SECRET        = "habitat-mcp-slack-client-secret"
+    HABITAT_DECISIONS_API_KEY              = "azure-decisions-api-key"
+    HABITAT_RERANK_API_KEY                 = "azure-rerank-api-key"
   }
 
   plain_env = {
@@ -72,6 +74,10 @@ locals {
     HABITAT_EMBEDDER_URL               = "https://habitat-network-dev.openai.azure.com/openai/v1/embeddings"
     HABITAT_EMBEDDER_MODEL             = "text-embedding-3-small"
     HABITAT_EMBEDDER_DIMENSIONS        = "1536"
+    HABITAT_DECISIONS_URL              = "https://habitat-network-dev.services.ai.azure.com/providers/microsoft/v1/systemone"
+    HABITAT_DECISIONS_MODEL            = "Microsoft-Decision-1"
+    HABITAT_RERANK_URL                 = "https://habitat-network-dev.services.ai.azure.com/providers/cohere"
+    HABITAT_RERANK_MODEL               = "Cohere-rerank-v5-pro"
   }
 }
 
