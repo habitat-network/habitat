@@ -283,24 +283,34 @@ func protectedResourceMetadataURLs(
 	serverURL string,
 ) []prmCandidate {
 	var out []prmCandidate
-	for _, c := range challenges {
-		if u := c.Params["resource_metadata"]; u != "" {
-			out = append(out, prmCandidate{url: u, resource: serverURL})
-			break
+	// A resource identifier is compared to the metadata's byte for byte, and
+	// servers publish theirs without a trailing slash (Grafana's is
+	// https://mcp.grafana.com/mcp), so an admin typing .../mcp/ would never
+	// match. Try the URL as given first, then without trailing slashes.
+	resources := []string{serverURL}
+	if trimmed := strings.TrimRight(serverURL, "/"); trimmed != serverURL {
+		resources = append(resources, trimmed)
+	}
+	for _, resource := range resources {
+		for _, c := range challenges {
+			if u := c.Params["resource_metadata"]; u != "" {
+				out = append(out, prmCandidate{url: u, resource: resource})
+				break
+			}
 		}
+		ru, err := url.Parse(resource)
+		if err != nil {
+			continue
+		}
+		mu := *ru
+		mu.RawQuery, mu.Fragment = "", ""
+		mu.Path = "/.well-known/oauth-protected-resource/" + strings.TrimLeft(ru.Path, "/")
+		out = append(out, prmCandidate{url: mu.String(), resource: resource})
+		mu.Path = "/.well-known/oauth-protected-resource"
+		root := *ru
+		root.Path, root.RawQuery, root.Fragment = "", "", ""
+		out = append(out, prmCandidate{url: mu.String(), resource: root.String()})
 	}
-	ru, err := url.Parse(serverURL)
-	if err != nil {
-		return out
-	}
-	mu := *ru
-	mu.RawQuery, mu.Fragment = "", ""
-	mu.Path = "/.well-known/oauth-protected-resource/" + strings.TrimLeft(ru.Path, "/")
-	out = append(out, prmCandidate{url: mu.String(), resource: serverURL})
-	mu.Path = "/.well-known/oauth-protected-resource"
-	root := *ru
-	root.Path, root.RawQuery, root.Fragment = "", "", ""
-	out = append(out, prmCandidate{url: mu.String(), resource: root.String()})
 	return out
 }
 

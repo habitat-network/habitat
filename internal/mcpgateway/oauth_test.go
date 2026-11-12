@@ -1,6 +1,9 @@
 package mcpgateway
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -92,4 +95,42 @@ func TestAuthorizationURLRequestsRefreshToken(t *testing.T) {
 	require.Equal(t, "consent", q.Get("prompt"))
 	require.Equal(t, "https://mcp.example.com", q.Get("resource"))
 	require.Equal(t, "S256", q.Get("code_challenge_method"))
+}
+
+func TestProtectedResourceMetadataURLsTrailingSlash(t *testing.T) {
+	challenges := []oauthex.Challenge{{
+		Scheme: "bearer",
+		Params: map[string]string{"resource_metadata": "https://mcp.example.com/.well-known/oauth-protected-resource/mcp"},
+	}}
+	got := protectedResourceMetadataURLs(challenges, "https://mcp.example.com/mcp/")
+	require.Contains(t, got, prmCandidate{
+		url:      "https://mcp.example.com/.well-known/oauth-protected-resource/mcp",
+		resource: "https://mcp.example.com/mcp",
+	})
+}
+
+func TestProtectedResourceMetadataIgnoresTrailingSlash(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/oauth-protected-resource/mcp" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		// Like Grafana: the resource and authorization server both carry the
+		// /mcp path, which differs from the server root.
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"resource":              srv.URL + "/mcp",
+			"authorization_servers": []string{srv.URL + "/mcp"},
+		})
+	}))
+	defer srv.Close()
+
+	challenges := []oauthex.Challenge{{
+		Scheme: "bearer",
+		Params: map[string]string{"resource_metadata": srv.URL + "/.well-known/oauth-protected-resource/mcp"},
+	}}
+	prm := protectedResourceMetadata(t.Context(), srv.Client(), challenges, srv.URL+"/mcp/")
+	require.Equal(t, []string{srv.URL + "/mcp"}, prm.AuthorizationServers)
+	require.Equal(t, srv.URL+"/mcp", prm.Resource)
 }
