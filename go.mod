@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
 	github.com/bradenaw/juniper v0.15.3
+	github.com/cohere-ai/cohere-go/v2 v2.20.1
 	github.com/dslipak/pdf v0.0.2
 	github.com/dunglas/httpsfv v1.1.2
 	github.com/fxamacker/cbor/v2 v2.10.0

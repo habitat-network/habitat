@@ -43,6 +43,9 @@ var (
 	fDecisionsURL          = "decisions_url"
 	fDecisionsAPIKey       = "decisions_api_key"
 	fDecisionsModel        = "decisions_model"
+	fRerankURL             = "rerank_url"
+	fRerankAPIKey          = "rerank_api_key"
+	fRerankModel           = "rerank_model"
 )
 
 var profiles []string
@@ -240,6 +243,21 @@ func getFlags() []cli.Flag {
 			Name:    fDecisionsModel,
 			Usage:   "Model to request from the Decisions API; for Azure, the deployment name",
 			Sources: getSources(fDecisionsModel),
+		},
+		&cli.StringFlag{
+			Name:    fRerankURL,
+			Usage:   "Origin of the Cohere Rerank v2 API pear posts to at /v2/rerank, e.g. the endpoint of an Azure AI Foundry Cohere Rerank deployment. Defaults to Cohere's own API.",
+			Sources: getSources(fRerankURL),
+		},
+		&cli.StringFlag{
+			Name:    fRerankAPIKey,
+			Usage:   "API key sent as a bearer token to the Rerank API. If unset, get_context does not rerank.",
+			Sources: getSources(fRerankAPIKey),
+		},
+		&cli.StringFlag{
+			Name:    fRerankModel,
+			Usage:   "Rerank model to request, e.g. rerank-v3.5; for Azure, the deployment name. Required when --rerank_api_key is set.",
+			Sources: getSources(fRerankModel),
 		},
 	}
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/reranker"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -163,6 +164,15 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 				u, cmd.String(fDecisionsAPIKey), cmd.String(fDecisionsModel), httpx.NewClient(),
 			),
 		}))
+	}
+	if key := cmd.String(fRerankAPIKey); key != "" {
+		model := cmd.String(fRerankModel)
+		if model == "" {
+			return fmt.Errorf("--%s is required when --%s is set", fRerankModel, fRerankAPIKey)
+		}
+		mcpOpts = append(mcpOpts, mcpserver.WithReranker(
+			reranker.NewCohere(cmd.String(fRerankURL), key, model, httpx.NewClient()),
+		))
 	}
 	mcpServer := mcpserver.New(
 		app.OAuthServer,
