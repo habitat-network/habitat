@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
+	"github.com/habitat-network/habitat/internal/reranker"
 )
 
 // TextOverridesHeader, when the server is built WithTextOverrides, carries
@@ -67,6 +69,7 @@ type options struct {
 	textOverrides bool
 	federated     FederatedSearcher
 	selector      ToolSelector
+	reranker      reranker.Reranker
 }
 
 // WithFederatedSearcher lets get_context search the caller's connected MCP
@@ -79,6 +82,13 @@ func WithFederatedSearcher(s FederatedSearcher) Option {
 // query. The default is LexicalSelector.
 func WithToolSelector(s ToolSelector) Option {
 	return func(o *options) { o.selector = s }
+}
+
+// WithReranker makes get_context reorder the records and connected-app
+// results it finds by relevance to the query. Without it they keep the order
+// their sources returned them in.
+func WithReranker(r reranker.Reranker) Option {
+	return func(o *options) { o.reranker = r }
 }
 
 // WithTextOverrides lets requests override the instructions and the search

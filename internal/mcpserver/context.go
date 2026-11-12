@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/mcpsearch"
+	"github.com/habitat-network/habitat/internal/reranker"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -94,6 +95,9 @@ type contextAgent struct {
 	federated        FederatedSearcher
 	connectedServers mcpgateway.ConnectedServers
 	selector         ToolSelector
+	// reranker, when set, reorders the records and the connected-app results
+	// by relevance to the query.
+	reranker reranker.Reranker
 }
 
 func (a *contextAgent) handler() mcp.ToolHandlerFor[getContextInput, getContextOutput] {
@@ -157,6 +161,10 @@ func (a *contextAgent) gather(
 					Snippet: m.Snippet, Value: m.Record.Value,
 				})
 			}
+			out.Records = rerank(ctx, a.reranker, query, out.Records,
+				func(r contextRecord) string { return r.Snippet }, func() {
+					note("reranking Habitat records failed")
+				})
 		})
 	}
 	if a.federated != nil {
@@ -175,6 +183,10 @@ func (a *contextAgent) gather(
 					URL: item.URL, Snippet: item.Snippet,
 				})
 			}
+			out.Items = rerank(ctx, a.reranker, query, out.Items,
+				func(i contextItem) string { return i.Title + "\n" + i.Snippet }, func() {
+					note("reranking connected app results failed")
+				})
 			for _, s := range res.Sources {
 				switch s.Status {
 				case mcpsearch.StatusOK, mcpsearch.StatusUnsupported:
@@ -198,6 +210,39 @@ func (a *contextAgent) gather(
 		})
 	}
 	wg.Wait()
+	return out
+}
+
+// rerank reorders items by relevance to query using r, which may be nil to
+// leave them as they are. If reranking fails the original order is kept and
+// onErr is called, so a reranker outage never loses results.
+func rerank[T any](
+	ctx context.Context,
+	r reranker.Reranker,
+	query string,
+	items []T,
+	text func(T) string,
+	onErr func(),
+) []T {
+	if r == nil || len(items) < 2 {
+		return items
+	}
+	docs := make([]string, len(items))
+	for i, item := range items {
+		docs[i] = text(item)
+	}
+	order, err := r.Rerank(ctx, query, docs, len(items))
+	if err != nil {
+		slog.WarnContext(ctx, "mcp: get_context rerank", "err", err)
+		onErr()
+		return items
+	}
+	out := make([]T, 0, len(items))
+	for _, idx := range order {
+		if idx >= 0 && idx < len(items) {
+			out = append(out, items[idx])
+		}
+	}
 	return out
 }
 

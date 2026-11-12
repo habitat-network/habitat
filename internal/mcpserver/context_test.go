@@ -184,3 +184,76 @@ func TestCallTool(t *testing.T) {
 		require.True(t, call("other:echo", nil).IsError)
 	})
 }
+
+type fakeReranker struct {
+	query string
+	docs  []string
+	order []int
+	err   error
+}
+
+func (f *fakeReranker) Rerank(
+	_ context.Context, query string, docs []string, _ int,
+) ([]int, error) {
+	f.query, f.docs = query, docs
+	return f.order, f.err
+}
+
+func TestRerank(t *testing.T) {
+	ctx := t.Context()
+	text := func(s string) string { return s }
+
+	t.Run("reorders by the reranker", func(t *testing.T) {
+		fake := &fakeReranker{order: []int{2, 0, 1}}
+		failed := false
+		got := rerank(ctx, fake, "q", []string{"a", "b", "c"}, text, func() { failed = true })
+		require.Equal(t, []string{"c", "a", "b"}, got)
+		require.Equal(t, "q", fake.query)
+		require.Equal(t, []string{"a", "b", "c"}, fake.docs)
+		require.False(t, failed)
+	})
+
+	t.Run("without a reranker leaves the order", func(t *testing.T) {
+		got := rerank(ctx, nil, "q", []string{"a", "b"}, text, func() {})
+		require.Equal(t, []string{"a", "b"}, got)
+	})
+
+	t.Run("a failing reranker keeps the order and reports", func(t *testing.T) {
+		failed := false
+		got := rerank(ctx, &fakeReranker{err: errors.New("boom")}, "q",
+			[]string{"a", "b"}, text, func() { failed = true })
+		require.Equal(t, []string{"a", "b"}, got)
+		require.True(t, failed)
+	})
+
+	t.Run("skips a single item", func(t *testing.T) {
+		fake := &fakeReranker{}
+		got := rerank(ctx, fake, "q", []string{"a"}, text, func() {})
+		require.Equal(t, []string{"a"}, got)
+		require.Nil(t, fake.docs)
+	})
+}
+
+func TestGetContextReranksItems(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+	servers := newFakeConnectedServers()
+	federated := &fakeFederated{result: &mcpsearch.Result{Items: []mcpsearch.Item{
+		{Title: "first"}, {Title: "second"},
+	}}}
+	httpServer := newContextTestServer(t, servers, nil,
+		WithFederatedSearcher(federated), WithReranker(&fakeReranker{order: []int{1, 0}}))
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "get_context", Arguments: map[string]any{"query": "x", "max_tools": 0},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError, "%+v", result)
+	out := result.StructuredContent.(map[string]any)
+	items := out["items"].([]any)
+	require.Equal(t, "second", items[0].(map[string]any)["title"])
+	require.Equal(t, "first", items[1].(map[string]any)["title"])
+}
