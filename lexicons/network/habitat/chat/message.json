@@ -1,0 +1,30 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.chat.message",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A message in a chat channel. Written by its author into their own repo in the channel's space (type 'network.habitat.chat').",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "text",
+                    "createdAt"
+                ],
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "maxLength": 40000,
+                        "maxGraphemes": 4000,
+                        "description": "The message body."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}
