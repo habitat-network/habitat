@@ -4256,6 +4256,109 @@
         }
       }
     },
+    "/network.habitat.opensocial.revokeAppAccess": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.revokeAppAccess",
+        "description": "Revoke an app the community authorized. Deletes the app's `network.habitat.space.appAccess` record, so the app can no longer read the community's spaces or act as the community until an admin authorizes it again. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "network.habitat.opensocial.revokeAppAccess",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "clientId"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community revoking the app.",
+                    "format": "did"
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "description": "OAuth client ID of the app to revoke."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "AppAccessNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.relationship.checkSpaceRelation": {
       "get": {
         "tags": [

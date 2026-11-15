@@ -44,11 +44,19 @@ func newSession() *session {
 // audience, and expiry. We only need to surface the subject here so that a
 // subject set via SetSubject lands in the token's "sub" claim.
 func (s *session) GetJWTClaims() jwt.JWTClaimsContainer {
-	return &jwt.JWTClaims{
+	claims := &jwt.JWTClaims{
 		Subject:   s.Subject,
 		ExpiresAt: s.AccessTokenExpiresAt,
 		Audience:  []string{s.ClientID},
 	}
+	// DefaultJWTStrategy overwrites Audience with the granted audience, so the
+	// client is also carried in the client_id claim (RFC 9068), which
+	// introspection reads back as the request's client. ValidateRaw relies on
+	// it to check that an org still authorizes the app.
+	if s.ClientID != "" {
+		claims.Extra = map[string]any{"client_id": s.ClientID}
+	}
+	return claims
 }
 
 // GetJWTHeader implements oauth2.JWTSessionContainer.

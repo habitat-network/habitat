@@ -4,3 +4,4 @@
 
 export * as createOrg from './opensocial/createOrg.js'
 export * as getProfiles from './opensocial/getProfiles.js'
+export * as revokeAppAccess from './opensocial/revokeAppAccess.js'

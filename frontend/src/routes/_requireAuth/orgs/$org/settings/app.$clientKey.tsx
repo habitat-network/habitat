@@ -4,7 +4,9 @@ import {
   clientMetadataQueryOptions,
   decodeAppAccessRkey,
   orgAppAccessQueryOptions,
+  orgMembersQueryOptions,
 } from "@/queries/opensocial";
+import { RevokeAppButton } from "@/components/RevokeAppButton";
 import { describeScopes, type ScopeDescription } from "@/lib/oauthScopes";
 import {
   Badge,
@@ -31,8 +33,15 @@ function AppDetail() {
   const { data: appAccess = [] } = useQuery(
     orgAppAccessQueryOptions(org, authManager, queryClient),
   );
-  const grantedScopes =
-    appAccess.find((app) => app.rkey === clientKey)?.scopes ?? [];
+  const grant = appAccess.find((app) => app.rkey === clientKey);
+  const grantedScopes = grant?.scopes ?? [];
+  const { data: members = [] } = useQuery(
+    orgMembersQueryOptions(org, authManager, queryClient),
+  );
+  const isAdmin = members.some(
+    (m) =>
+      m.did === authManager.getAuthInfo()?.did && m.roles.includes("admin"),
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -53,7 +62,22 @@ function AppDetail() {
               {clientId}
             </p>
           </div>
+          {grant && isAdmin && (
+            <div className="ml-auto">
+              <RevokeAppButton
+                org={org}
+                clientId={clientId}
+                appName={data?.metadata.client_name ?? clientId}
+                authManager={authManager}
+              />
+            </div>
+          )}
         </div>
+        {!grant && (
+          <p className="text-sm text-muted-foreground">
+            This app is not authorized for this organization.
+          </p>
+        )}
         <div className="flex flex-col gap-2 text-sm">
           {isLoading && (
             <p className="text-muted-foreground">Loading client metadata…</p>

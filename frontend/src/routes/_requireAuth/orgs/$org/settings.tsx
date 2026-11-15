@@ -33,6 +33,7 @@ import {
   PaletteIcon,
   SearchIcon,
   BotIcon,
+  BoxesIcon,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth/orgs/$org/settings")({
@@ -52,6 +53,7 @@ const NAV_ITEMS: {
     | "/orgs/$org/settings/members"
     | "/orgs/$org/settings/roles"
     | "/orgs/$org/settings/capabilities"
+    | "/orgs/$org/settings/spaces"
     | "/orgs/$org/settings/apps"
     | "/orgs/$org/settings/mcp"
     | "/orgs/$org/settings/search"
@@ -67,6 +69,7 @@ const NAV_ITEMS: {
     label: "Capabilities",
     icon: KeyRoundIcon,
   },
+  { to: "/orgs/$org/settings/spaces", label: "Spaces", icon: BoxesIcon },
   { to: "/orgs/$org/settings/apps", label: "Authorized apps", icon: PlugIcon },
   { to: "/orgs/$org/settings/mcp", label: "MCP servers", icon: ServerIcon },
   { to: "/orgs/$org/settings/search", label: "Search", icon: SearchIcon },

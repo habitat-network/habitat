@@ -121,6 +121,34 @@ How it works:
 - **Escape hatch.** `ctx.unsafeDb` skips the viewer filter and only works when
   the definition sets `unsafeCrossSpaceReads: true`.
 
+### Testing permissions
+
+`testHarness` runs an app without a Habitat instance. Seed members, access
+and records the way sync delivers them, then run functions as different
+viewers. Mutations go to a fake instance that accepts a write when the
+viewer holds a role the space is open to and answers 403 otherwise.
+
+```ts
+import { testHarness } from "@habitat-network/habitat";
+
+const t = await testHarness(app, { db }); // a local D1 binding or in-memory SQLite
+await t.member(org, alice, ["member", "board"]);
+await t.member(org, bob, ["member"]);
+await t.access(boardSpace, ["board"]);
+await t.record(boardSpace, alice, "com.acme.tracker.issue", "1", {
+  status: "open",
+});
+
+expect(await t.as(alice).run(openIssues, { project: boardSpace })).toHaveLength(
+  1,
+);
+expect(await t.as(bob).run(openIssues, { project: boardSpace })).toEqual([]);
+await expect(
+  t.as(bob).run(close, { project: boardSpace, rkey: "1" }),
+).rejects.toThrow(/403/);
+expect(t.writes.at(-1)).toMatchObject({ viewer: bob, accepted: false });
+```
+
 `typescript/apps/chat` is a complete example.
 
 ## License

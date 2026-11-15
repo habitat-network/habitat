@@ -1,0 +1,37 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.opensocial.revokeAppAccess",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Revoke an app the community authorized. Deletes the app's `network.habitat.space.appAccess` record, so the app can no longer read the community's spaces or act as the community until an admin authorizes it again. Requires service-auth. Requires the `community.configure` action.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "clientId"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community revoking the app."
+                        },
+                        "clientId": {
+                            "type": "string",
+                            "description": "OAuth client ID of the app to revoke."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "AppAccessNotFound",
+                    "description": "The community has not authorized an app with this client ID."
+                }
+            ]
+        }
+    }
+}

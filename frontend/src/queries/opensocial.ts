@@ -204,6 +204,58 @@ export function orgAppAccessQueryOptions(
   });
 }
 
+// revokeAppAccess removes a community's grant to an app
+// (network.habitat.opensocial.revokeAppAccess): the app can no longer read
+// the community's spaces or act as the community until an admin authorizes
+// it again. Requires the caller to hold the community.configure action.
+export async function revokeAppAccess(
+  authManager: AuthManager,
+  org: string,
+  clientId: string,
+) {
+  const response = await xrpc(
+    pearAgent(authManager, `${org}#habitat`),
+    network.habitat.opensocial.revokeAppAccess.main,
+    { body: { org: org as DidString, clientId } },
+  );
+  return response.body;
+}
+
+// spaceAccessQueryOptions reads the roles that may read one of a community's
+// spaces, off the community.opensocial.access record the community authors
+// in that space (rkey "self"), via a space credential. Resolves to null when
+// the space has no access record, which means no role grants access to it.
+export function spaceAccessQueryOptions(
+  org: DidString,
+  space: string,
+  authManager: AuthManager,
+  queryClient: QueryClient,
+) {
+  return queryOptions({
+    queryKey: ["opensocial", "spaceAccess", space],
+    queryFn: async (): Promise<string[] | null> => {
+      const cred = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(space, authManager),
+      );
+      const response = await xrpc(
+        spaceAgent(cred),
+        com.atproto.space.listRecords.main,
+        {
+          validateResponse: false,
+          params: {
+            space: space as SpaceRefString,
+            repo: org,
+            collection: "community.opensocial.access" as NsidString,
+          },
+        },
+      );
+      const record = response.body.records.find((r) => r.rkey === "self");
+      if (!record) return null;
+      return (record.value as { roles?: string[] } | undefined)?.roles ?? [];
+    },
+  });
+}
+
 // clientMetadataQueryOptions fetches (and caches) an authorized app's OAuth
 // client metadata document, keyed only by client_id since the document is
 // not org-specific.

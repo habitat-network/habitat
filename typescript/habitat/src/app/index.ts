@@ -40,3 +40,4 @@ export {
   type SliceBatch,
 } from "./sink.js";
 export type { SqlDatabase, SqlStatement } from "./sql.js";
+export { testHarness, type TestHarness, type TestWrite } from "./testing.js";

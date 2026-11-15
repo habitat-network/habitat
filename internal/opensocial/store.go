@@ -682,6 +682,81 @@ func (s *Store) GrantAppAccess(
 	return nil
 }
 
+// ErrAppAccessNotFound is returned when revoking an app the org never
+// authorized.
+var ErrAppAccessNotFound = errors.New("app access not found")
+
+// HasAppAccess reports whether orgDID has authorized clientID, i.e. whether
+// the app's network.habitat.space.appAccess record exists in the org's
+// members space.
+func (s *Store) HasAppAccess(
+	ctx context.Context,
+	orgDID syntax.DID,
+	clientID string,
+) (ok bool, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.HasAppAccess", trace.WithAttributes(
+		telemetry.Org(orgDID), clientIDKey.String(clientID),
+	))
+	defer func() {
+		span.SetAttributes(allowedKey.Bool(ok))
+		telemetry.End(span, err)
+	}()
+	rkey, err := habitat_syntax.AppAccessRkey(clientID)
+	if err != nil {
+		return false, fmt.Errorf("construct app access rkey: %w", err)
+	}
+	_, err = s.spacesStore.GetRecord(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
+		orgDID,
+		habitat_syntax.AppAccessCollection,
+		rkey,
+	)
+	if errors.Is(err, spaces.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("get app access record: %w", err)
+	}
+	return true, nil
+}
+
+// RevokeAppAccess removes orgDID's grant to clientID by deleting the app's
+// appAccess record. The app can no longer get credentials for the org's
+// spaces (CheckAppAccess) and its tokens for the org stop validating; it
+// regains access only when an admin authorizes it again.
+func (s *Store) RevokeAppAccess(
+	ctx context.Context,
+	orgDID syntax.DID,
+	clientID string,
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.RevokeAppAccess", trace.WithAttributes(
+		telemetry.Org(orgDID), clientIDKey.String(clientID),
+	))
+	defer func() { telemetry.End(span, err) }()
+	ok, err := s.HasAppAccess(ctx, orgDID, clientID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrAppAccessNotFound
+	}
+	rkey, err := habitat_syntax.AppAccessRkey(clientID)
+	if err != nil {
+		return fmt.Errorf("construct app access rkey: %w", err)
+	}
+	if err := s.spacesStore.DeleteRecord(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
+		orgDID,
+		habitat_syntax.AppAccessCollection,
+		string(rkey),
+	); err != nil {
+		return fmt.Errorf("delete app access record: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) GetProfile(
 	ctx context.Context,
 	orgDID syntax.DID,
