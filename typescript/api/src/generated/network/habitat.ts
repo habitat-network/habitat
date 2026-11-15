@@ -4,6 +4,7 @@
 
 export * as admin from './habitat/admin.js'
 export * as brain from './habitat/brain.js'
+export * as chat from './habitat/chat.js'
 export * as docs from './habitat/docs.js'
 export * as drop from './habitat/drop.js'
 export * as emaildomain from './habitat/emaildomain.js'

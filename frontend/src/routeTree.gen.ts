@@ -36,6 +36,7 @@ import { Route as RequireAuthOrgsOrgSettingsMembersRouteImport } from './routes/
 import { Route as RequireAuthOrgsOrgSettingsModelsRouteImport } from './routes/_requireAuth/orgs/$org/settings/models'
 import { Route as RequireAuthOrgsOrgSettingsRolesRouteImport } from './routes/_requireAuth/orgs/$org/settings/roles'
 import { Route as RequireAuthOrgsOrgSettingsSearchRouteImport } from './routes/_requireAuth/orgs/$org/settings/search'
+import { Route as RequireAuthOrgsOrgSettingsSpacesRouteImport } from './routes/_requireAuth/orgs/$org/settings/spaces'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.index'
 import { Route as RequireAuthOrgsOrgSettingsAppClientKeyRouteImport } from './routes/_requireAuth/orgs/$org/settings/app.$clientKey'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.$spaceKey.index'
@@ -192,6 +193,12 @@ const RequireAuthOrgsOrgSettingsSearchRoute =
     path: '/search',
     getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
   } as any)
+const RequireAuthOrgsOrgSettingsSpacesRoute =
+  RequireAuthOrgsOrgSettingsSpacesRouteImport.update({
+    id: '/spaces',
+    path: '/spaces',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
 const RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute =
   RequireAuthSpacesSpaceOwnerSpaceTypeIndexRouteImport.update({
     id: '/spaces/$spaceOwner/$spaceType/',
@@ -253,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/orgs/$org/settings/models': typeof RequireAuthOrgsOrgSettingsModelsRoute
   '/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
   '/orgs/$org/settings/search': typeof RequireAuthOrgsOrgSettingsSearchRoute
+  '/orgs/$org/settings/spaces': typeof RequireAuthOrgsOrgSettingsSpacesRoute
   '/orgs/$org/settings/': typeof RequireAuthOrgsOrgSettingsIndexRoute
   '/spaces/$spaceOwner/$spaceType/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
   '/orgs/$org/settings/app/$clientKey': typeof RequireAuthOrgsOrgSettingsAppClientKeyRoute
@@ -284,6 +292,7 @@ export interface FileRoutesByTo {
   '/orgs/$org/settings/models': typeof RequireAuthOrgsOrgSettingsModelsRoute
   '/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
   '/orgs/$org/settings/search': typeof RequireAuthOrgsOrgSettingsSearchRoute
+  '/orgs/$org/settings/spaces': typeof RequireAuthOrgsOrgSettingsSpacesRoute
   '/orgs/$org/settings': typeof RequireAuthOrgsOrgSettingsIndexRoute
   '/spaces/$spaceOwner/$spaceType': typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
   '/orgs/$org/settings/app/$clientKey': typeof RequireAuthOrgsOrgSettingsAppClientKeyRoute
@@ -319,6 +328,7 @@ export interface FileRoutesById {
   '/_requireAuth/orgs/$org/settings/models': typeof RequireAuthOrgsOrgSettingsModelsRoute
   '/_requireAuth/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
   '/_requireAuth/orgs/$org/settings/search': typeof RequireAuthOrgsOrgSettingsSearchRoute
+  '/_requireAuth/orgs/$org/settings/spaces': typeof RequireAuthOrgsOrgSettingsSpacesRoute
   '/_requireAuth/orgs/$org/settings/': typeof RequireAuthOrgsOrgSettingsIndexRoute
   '/_requireAuth/spaces/$spaceOwner/$spaceType/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
   '/_requireAuth/orgs/$org/settings/app/$clientKey': typeof RequireAuthOrgsOrgSettingsAppClientKeyRoute
@@ -354,6 +364,7 @@ export interface FileRouteTypes {
     | '/orgs/$org/settings/models'
     | '/orgs/$org/settings/roles'
     | '/orgs/$org/settings/search'
+    | '/orgs/$org/settings/spaces'
     | '/orgs/$org/settings/'
     | '/spaces/$spaceOwner/$spaceType/'
     | '/orgs/$org/settings/app/$clientKey'
@@ -385,6 +396,7 @@ export interface FileRouteTypes {
     | '/orgs/$org/settings/models'
     | '/orgs/$org/settings/roles'
     | '/orgs/$org/settings/search'
+    | '/orgs/$org/settings/spaces'
     | '/orgs/$org/settings'
     | '/spaces/$spaceOwner/$spaceType'
     | '/orgs/$org/settings/app/$clientKey'
@@ -419,6 +431,7 @@ export interface FileRouteTypes {
     | '/_requireAuth/orgs/$org/settings/models'
     | '/_requireAuth/orgs/$org/settings/roles'
     | '/_requireAuth/orgs/$org/settings/search'
+    | '/_requireAuth/orgs/$org/settings/spaces'
     | '/_requireAuth/orgs/$org/settings/'
     | '/_requireAuth/spaces/$spaceOwner/$spaceType/'
     | '/_requireAuth/orgs/$org/settings/app/$clientKey'
@@ -627,6 +640,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthOrgsOrgSettingsSearchRouteImport
       parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
     }
+    '/_requireAuth/orgs/$org/settings/spaces': {
+      id: '/_requireAuth/orgs/$org/settings/spaces'
+      path: '/spaces'
+      fullPath: '/orgs/$org/settings/spaces'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsSpacesRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
     '/_requireAuth/spaces/$spaceOwner/$spaceType/': {
       id: '/_requireAuth/spaces/$spaceOwner/$spaceType/'
       path: '/spaces/$spaceOwner/$spaceType'
@@ -675,6 +695,7 @@ interface RequireAuthOrgsOrgSettingsRouteChildren {
   RequireAuthOrgsOrgSettingsModelsRoute: typeof RequireAuthOrgsOrgSettingsModelsRoute
   RequireAuthOrgsOrgSettingsRolesRoute: typeof RequireAuthOrgsOrgSettingsRolesRoute
   RequireAuthOrgsOrgSettingsSearchRoute: typeof RequireAuthOrgsOrgSettingsSearchRoute
+  RequireAuthOrgsOrgSettingsSpacesRoute: typeof RequireAuthOrgsOrgSettingsSpacesRoute
   RequireAuthOrgsOrgSettingsIndexRoute: typeof RequireAuthOrgsOrgSettingsIndexRoute
   RequireAuthOrgsOrgSettingsAppClientKeyRoute: typeof RequireAuthOrgsOrgSettingsAppClientKeyRoute
 }
@@ -696,6 +717,8 @@ const RequireAuthOrgsOrgSettingsRouteChildren: RequireAuthOrgsOrgSettingsRouteCh
     RequireAuthOrgsOrgSettingsRolesRoute: RequireAuthOrgsOrgSettingsRolesRoute,
     RequireAuthOrgsOrgSettingsSearchRoute:
       RequireAuthOrgsOrgSettingsSearchRoute,
+    RequireAuthOrgsOrgSettingsSpacesRoute:
+      RequireAuthOrgsOrgSettingsSpacesRoute,
     RequireAuthOrgsOrgSettingsIndexRoute: RequireAuthOrgsOrgSettingsIndexRoute,
     RequireAuthOrgsOrgSettingsAppClientKeyRoute:
       RequireAuthOrgsOrgSettingsAppClientKeyRoute,

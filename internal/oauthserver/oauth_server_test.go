@@ -1404,6 +1404,18 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.True(t, hasAccess, "client should be granted app access after token issuance")
+
+	// The org token validates while the grant stands, and stops validating
+	// once an admin revokes the app.
+	credInfo, ok, err := oauthServer.ValidateRaw(t.Context(), capturedToken)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, orgDID, credInfo.Subject)
+
+	require.NoError(t, opensocialStore.RevokeAppAccess(t.Context(), orgDID, config.ClientID))
+	_, ok, err = oauthServer.ValidateRaw(t.Context(), capturedToken)
+	require.ErrorIs(t, err, ErrAppAccessRevoked)
+	require.False(t, ok)
 }
 
 // TestHandleOpensocialRejectsNonAdmin verifies that HandleOpensocial refuses

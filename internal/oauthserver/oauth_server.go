@@ -776,6 +776,10 @@ func (o *OAuthServer) CanHandle(r *http.Request) bool {
 	return r.Header.Get("Habitat-Auth-Method") == "oauth"
 }
 
+// ErrAppAccessRevoked is returned when a token acts as an org that no longer
+// authorizes the token's client.
+var ErrAppAccessRevoked = errors.New("app access revoked")
+
 // Validate validates the given token and writes an error response to w if validation fails
 func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
@@ -836,6 +840,30 @@ func (o *OAuthServer) ValidateRaw(
 	did := session.JWTClaims.Subject
 	if did == "" {
 		return nil, false, fmt.Errorf("DID not found in JWT")
+	}
+
+	// A token whose subject is an org lets the client act as that org. The
+	// org's appAccess record is the grant behind it, so once an admin revokes
+	// the app (opensocial.RevokeAppAccess) its org tokens stop validating
+	// until the org authorizes it again. The client comes from the token's
+	// client_id claim (see session.GetJWTClaims); tokens from the JWT bearer
+	// grant carry no client and are not subject to this check.
+	clientID := ar.GetClient().GetID()
+	isOrg := false
+	if clientID != "" {
+		isOrg, err = o.opensocialStore.IsOrg(ctx, syntax.DID(did))
+		if err != nil {
+			return nil, false, fmt.Errorf("check opensocial org: %w", err)
+		}
+	}
+	if isOrg {
+		granted, err := o.opensocialStore.HasAppAccess(ctx, syntax.DID(did), clientID)
+		if err != nil {
+			return nil, false, fmt.Errorf("check app access: %w", err)
+		}
+		if !granted {
+			return nil, false, ErrAppAccessRevoked
+		}
 	}
 
 	credInfo := &authn.CredentialInfo{

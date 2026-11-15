@@ -1,0 +1,41 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.chat.channel",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "Describes a chat channel. Each channel is its own org space (type 'network.habitat.chat'), readable and writable by the roles on its community.opensocial.access record; this record, authored by the org under the literal key 'self', names it.",
+            "key": "literal:self",
+            "record": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "createdAt"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 640,
+                        "maxGraphemes": 64,
+                        "description": "The channel's display name."
+                    },
+                    "topic": {
+                        "type": "string",
+                        "maxLength": 2560,
+                        "maxGraphemes": 256,
+                        "description": "What the channel is for."
+                    },
+                    "createdBy": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "The member who created the channel."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -331,6 +331,23 @@ func TestStore(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.True(t, ok)
+
+		// Revoking removes the grant; revoking again reports it is gone.
+		ok, err = s.HasAppAccess(t.Context(), org, clientID)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.NoError(t, s.RevokeAppAccess(t.Context(), org, clientID))
+		ok, err = s.HasAppAccess(t.Context(), org, clientID)
+		require.NoError(t, err)
+		require.False(t, ok)
+		ok, err = s.CheckAppAccess(t.Context(), spaceURI, clientID)
+		require.NoError(t, err)
+		require.False(t, ok)
+		require.ErrorIs(
+			t,
+			s.RevokeAppAccess(t.Context(), org, clientID),
+			opensocial.ErrAppAccessNotFound,
+		)
 	})
 }
 
