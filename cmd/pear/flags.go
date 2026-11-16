@@ -20,7 +20,6 @@ var (
 	fOauthClientSecret     = "oauth_client_secret"
 	fHiveDomain            = "hive_domain"
 	fGoogleClientID        = "google_client_id"
-	fPassthroughLogin      = "passthrough_login"
 	fGoogleClientSecret    = "google_client_secret"
 	fPdsOauthClientUri     = "pds_oauth_client_uri"
 	fUiDevProxy            = "ui_dev_proxy"
@@ -120,11 +119,6 @@ func getFlags() []cli.Flag {
 			Name:    fGoogleClientID,
 			Usage:   "Google OAuth client ID for Google Sign-In login method",
 			Sources: getSources(fGoogleClientID),
-		},
-		&cli.BoolFlag{
-			Name:    fPassthroughLogin,
-			Usage:   "Sign in handles ending in .test without any authentication. For dev and test only; never enable in production",
-			Sources: getSources(fPassthroughLogin),
 		},
 		&cli.StringFlag{
 			Name:    fGoogleClientSecret,

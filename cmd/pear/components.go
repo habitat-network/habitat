@@ -161,13 +161,12 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		Pds:        login.NewPDSProvider(oauthClient),
 		EmailStore: emailDomainStore,
 	}
-	if cmd.Bool(fPassthroughLogin) {
-		loginRouter.Passthrough = login.NewPassthroughProvider(
-			"https://" + domain + "/oauth-callback",
-		)
-		loginRouter.Directory = hiveDir
-		slog.WarnContext(ctx, "passthrough login enabled for .test handles; dev/test only")
-	}
+	// Handles ending in .test sign in without authentication. The TLD is
+	// reserved and never resolves publicly, so this only affects dev/test.
+	loginRouter.Passthrough = login.NewPassthroughProvider(
+		"https://" + domain + "/oauth-callback",
+	)
+	loginRouter.Directory = hiveDir
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
 	if googleClientID != "" && googleClientSecret != "" {
