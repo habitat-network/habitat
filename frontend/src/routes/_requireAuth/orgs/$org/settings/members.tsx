@@ -12,7 +12,7 @@ import { InviteMemberDialog } from "@/components/InviteMemberDialog";
 import { PendingOrgInvites } from "@/components/PendingOrgInvites";
 import { AssignRolesDialog } from "@/components/AssignRolesDialog";
 import { EjectMemberButton } from "@/components/EjectMemberButton";
-import { UserAvatar, UserDisplayName, type Actor } from "internal";
+import { UserAvatar, actorLabel, type Actor } from "internal";
 import {
   Badge,
   Table,
@@ -104,11 +104,9 @@ function OrgMembers() {
                       }
                       size="sm"
                     />
-                    <UserDisplayName
-                      actor={
-                        profileByDid.get(member.did) ?? { did: member.did }
-                      }
-                    />
+                    {actorLabel(
+                      profileByDid.get(member.did) ?? { did: member.did },
+                    )}
                   </div>
                 </DidHoverCard>
               </TableCell>

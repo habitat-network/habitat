@@ -1,11 +1,10 @@
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "./ui/dialog";
 import UserCombobox from "./UserCombobox";
 import { useState, type ReactNode } from "react";
-import { Actor } from "@/types/Actor";
+import { Actor, actorLabel } from "../types/Actor";
 import { Button } from "./ui/button";
 import { ButtonGroup } from "./ui/button-group";
 import { UserAvatar } from "./UserAvatar";
-import { UserDisplayName } from "./UserDisplayName";
 import {
   Table,
   TableBody,
@@ -123,7 +122,7 @@ const ShareDialog = ({
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <UserAvatar actor={g} size="sm" />
-                    <UserDisplayName actor={g} />
+                    {actorLabel(g)}
                   </div>
                 </TableCell>
                 {roles && (
