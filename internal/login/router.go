@@ -94,10 +94,17 @@ func (r *Router) provisionEmailMember(ctx context.Context, did syntax.DID) error
 	return nil
 }
 
-// passthroughLogin reports whether did's handle is a PassthroughHandleSuffix
-// one that should skip authentication.
+// passthroughLogin reports whether did should skip authentication: it's a
+// did:web:*.test DID, or its handle ends in PassthroughHandleSuffix.
 func (r *Router) passthroughLogin(ctx context.Context, did syntax.DID) bool {
-	if r.Passthrough == nil || r.Directory == nil {
+	if r.Passthrough == nil {
+		return false
+	}
+	if strings.HasPrefix(string(did), "did:web:") &&
+		strings.HasSuffix(string(did), PassthroughHandleSuffix) {
+		return true
+	}
+	if r.Directory == nil {
 		return false
 	}
 	ident, err := r.Directory.LookupDID(ctx, did)

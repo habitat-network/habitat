@@ -132,7 +132,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	// own domain locally; falling back to defaultDir's network resolution first
 	// would make this server make an outbound HTTP request back to itself for
 	// any locally-hosted DID.
-	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
+	// .test handles resolve locally to did:web:*.test for the passthrough login.
+	hiveDir := habitat_identity.NewTestDirectory(
+		habitat_identity.NewWrappedDirectory(hive, defaultDir),
+	)
 
 	oauthClient, err := pdsoauth.NewApp(
 		pdsoauth.Config{

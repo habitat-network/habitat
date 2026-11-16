@@ -64,3 +64,18 @@ func TestRouterPassthroughOnlyForTestHandles(t *testing.T) {
 	require.Equal(t, "https://provider.example.com/authorize", redirect)
 	require.Equal(t, did.String(), pds.loginHint)
 }
+
+func TestRouterPassthroughForDidWebTest(t *testing.T) {
+	pds := &stubProvider{}
+	pass := login.NewPassthroughProvider("https://pear.example.com/oauth-callback")
+	r := &login.Router{Pds: pds, Passthrough: pass}
+
+	redirect, _, _, err := r.Authorize(context.Background(), "did:web:alice.test")
+	require.NoError(t, err)
+	require.Contains(t, redirect, "pear.example.com/oauth-callback")
+	require.Empty(t, pds.loginHint)
+
+	_, _, _, err = r.Authorize(context.Background(), "did:web:example.com")
+	require.NoError(t, err)
+	require.Equal(t, "did:web:example.com", pds.loginHint)
+}
