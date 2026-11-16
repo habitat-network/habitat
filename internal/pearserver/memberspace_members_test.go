@@ -53,10 +53,14 @@ func TestServer_PutAndRemoveMembers(t *testing.T) {
 	require.False(t, isMember("did:plc:carol"))
 
 	// Non-members in the list are ignored.
-	code = client.Procedure(ts.Server.RemoveMembers, comatproto.ComAtprotoMemberspaceRemoveMembersInput{
-		Space: uri.String(),
-		Dids:  []string{"did:plc:alice", "did:plc:stranger"},
-	}, &none)
+	code = client.Procedure(
+		ts.Server.RemoveMembers,
+		comatproto.ComAtprotoMemberspaceRemoveMembersInput{
+			Space: uri.String(),
+			Dids:  []string{"did:plc:alice", "did:plc:stranger"},
+		},
+		&none,
+	)
 	require.Equal(t, http.StatusOK, code)
 	require.False(t, isMember("did:plc:alice"))
 	require.True(t, isMember("did:plc:bob"))
@@ -74,8 +78,10 @@ func TestServer_PutMembersRequiresMemberspacePolicy(t *testing.T) {
 	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 		ts.Server.PutMembers,
 		comatproto.ComAtprotoMemberspacePutMembersInput{
-			Space:   uri.String(),
-			Members: []comatproto.ComAtprotoMemberspaceDefsMember{{Did: "did:plc:alice", Read: true, Write: true}},
+			Space: uri.String(),
+			Members: []comatproto.ComAtprotoMemberspaceDefsMember{
+				{Did: "did:plc:alice", Read: true, Write: true},
+			},
 		},
 		&apiErr,
 	)
