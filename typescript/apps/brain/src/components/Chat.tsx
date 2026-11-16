@@ -5,7 +5,6 @@ import { Markdown } from "@tanstack/markdown/react";
 import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
 import type { UIMessage } from "@tanstack/ai-react";
 import {
-  Badge,
   Card,
   CardContent,
   Collapsible,
@@ -21,15 +20,22 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
 } from "internal/components/ui";
 import {
   ArrowUpIcon,
   BrainIcon,
-  CheckIcon,
   ChevronRightIcon,
+  CircleAlertIcon,
+  CircleCheckIcon,
+  LoaderCircleIcon,
   SquareIcon,
-  WrenchIcon,
-  XIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { listModels, type ChatMessage } from "@/server/functions";
@@ -61,33 +67,8 @@ function pretty(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-function ToolCallStatus({ state }: { state: ToolCallPart["state"] }) {
-  if (state === "error") {
-    return (
-      <Badge variant="destructive">
-        <XIcon /> Failed
-      </Badge>
-    );
-  }
-  if (state === "complete") {
-    return (
-      <Badge variant="secondary">
-        <CheckIcon /> Done
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline">
-      <Spinner />
-      {state === "input-streaming" || state === "awaiting-input"
-        ? "Preparing"
-        : "Running"}
-    </Badge>
-  );
-}
-
-// ToolCall is one collapsible card: the tool's name and status up top, its
-// arguments and result inside.
+// ToolCall is one Trace line: a status icon and the tool's name, expanding to
+// its arguments and result. A failed call shows in the error style.
 function ToolCall({
   part,
   message,
@@ -101,35 +82,57 @@ function ToolCall({
   const output =
     part.output ??
     (result?.type === "tool-result" ? result.content : undefined);
+  const failed = part.state === "error";
+  const done = part.state === "complete";
+  const preparing =
+    part.state === "input-streaming" || part.state === "awaiting-input";
+  const status = failed ? "error" : done ? undefined : "running";
+  const verb = failed
+    ? "Failed"
+    : done
+      ? "Ran"
+      : preparing
+        ? "Preparing"
+        : "Running";
   return (
-    <Collapsible className="group/tool w-full rounded-xl border bg-muted/30 text-sm">
-      <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left">
-        <WrenchIcon className="size-3.5 text-muted-foreground" />
-        <span className="flex-1 truncate font-mono text-xs">{part.name}</span>
-        <ToolCallStatus state={part.state} />
-        <ChevronRightIcon className="size-4 text-muted-foreground transition-transform group-data-[open]/tool:rotate-90" />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-2 border-t px-3 py-2">
-        <div>
-          <p className="mb-1 text-xs font-medium text-muted-foreground">
-            Arguments
-          </p>
-          <pre className="max-h-48 overflow-auto rounded-lg bg-muted p-2 font-mono text-xs">
-            {part.arguments ? pretty(part.arguments) : "—"}
-          </pre>
-        </div>
-        {output !== undefined && (
+    <Trace>
+      <TraceCollapsible>
+        <TraceCollapsibleTrigger>
+          <TraceLine status={status}>
+            <TraceIcon>
+              {failed ? (
+                <CircleAlertIcon />
+              ) : done ? (
+                <CircleCheckIcon />
+              ) : (
+                <LoaderCircleIcon className="animate-spin" />
+              )}
+            </TraceIcon>
+            <TraceTitle>
+              {verb} <span className="font-mono text-xs">{part.name}</span>
+            </TraceTitle>
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent className="flex flex-col gap-2">
           <div>
-            <p className="mb-1 text-xs font-medium text-muted-foreground">
-              Result
-            </p>
-            <pre className="max-h-64 overflow-auto rounded-lg bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
-              {pretty(output)}
+            <p className="mb-1 text-xs font-medium">Arguments</p>
+            <pre className="max-h-48 overflow-auto rounded-lg bg-muted p-2 font-mono text-xs">
+              {part.arguments ? pretty(part.arguments) : "—"}
             </pre>
           </div>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
+          {output !== undefined && (
+            <div>
+              <p className="mb-1 text-xs font-medium">
+                {failed ? "Error" : "Result"}
+              </p>
+              <pre className="max-h-64 overflow-auto rounded-lg bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
+                {pretty(output)}
+              </pre>
+            </div>
+          )}
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    </Trace>
   );
 }
 
