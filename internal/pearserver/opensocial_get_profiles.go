@@ -84,13 +84,22 @@ func (p *PearServer) buildProfileViews(
 		return nil, fmt.Errorf("get member profiles: %w", err)
 	}
 
-	var noProfile []syntax.DID
+	// Hive identities carry their own handle; anyone else (e.g. a Bluesky
+	// account) needs their public profile for a handle, even if they have a
+	// member profile record.
+	hiveHandles := make(map[syntax.DID]string, len(members))
+	var needBsky []syntax.DID
 	for _, did := range members {
-		if _, ok := memberProfiles[did]; !ok {
-			noProfile = append(noProfile, did)
+		if ident, err := p.hive.LookupDID(ctx, did); err == nil {
+			hiveHandles[did] = ident.Handle.String()
+		}
+		_, hasProfile := memberProfiles[did]
+		_, hasHandle := hiveHandles[did]
+		if !hasProfile || !hasHandle {
+			needBsky = append(needBsky, did)
 		}
 	}
-	bskyProfiles, err := utils.FetchProfiles(ctx, noProfile)
+	bskyProfiles, err := utils.FetchProfiles(ctx, needBsky)
 	if err != nil {
 		return nil, fmt.Errorf("fetch bluesky profiles: %w", err)
 	}
@@ -105,8 +114,13 @@ func (p *PearServer) buildProfileViews(
 			Did:    did.String(),
 			Handle: did.String(),
 		}
-		if ident, err := p.hive.LookupDID(ctx, did); err == nil {
-			view.Handle = ident.Handle.String()
+		if handle, ok := hiveHandles[did]; ok {
+			view.Handle = handle
+		} else if bskyProfile := bskyByDID[did]; bskyProfile != nil &&
+			bskyProfile.Handle != "" && bskyProfile.Handle != syntax.HandleInvalid.String() {
+			// Not a hive identity (e.g. a Bluesky account): use the handle from
+			// the public profile rather than leaving the DID as the handle.
+			view.Handle = bskyProfile.Handle
 		}
 		switch {
 		case memberProfiles[did].UpdatedAt != "":
