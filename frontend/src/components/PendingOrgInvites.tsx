@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserAvatar, UserDisplayName, type Actor } from "internal";
+import { UserAvatar, actorLabel, type Actor } from "internal";
 import type { AuthManager } from "internal";
 import { orgPendingInvitesQueryOptions } from "@/queries/opensocial";
 import { profilesQueryOptions } from "@/queries/profiles";
@@ -64,13 +64,11 @@ export function PendingOrgInvites({
                       }
                       size="sm"
                     />
-                    <UserDisplayName
-                      actor={
-                        profileByDid.get(invite.invitee) ?? {
-                          did: invite.invitee,
-                        }
-                      }
-                    />
+                    {actorLabel(
+                      profileByDid.get(invite.invitee) ?? {
+                        did: invite.invitee,
+                      },
+                    )}
                   </div>
                 </DidHoverCard>
               </TableCell>

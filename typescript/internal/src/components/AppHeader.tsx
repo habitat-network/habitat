@@ -1,4 +1,4 @@
-import { Actor } from "@/types/Actor";
+import { Actor, actorLabel } from "../types/Actor";
 import { UserAvatar } from "./UserAvatar";
 import { HabitatLogo } from "./HabitatLogo";
 import {
@@ -28,8 +28,10 @@ export const AppHeader = ({ actor, onSignOut }: AppHeaderProps) => {
           <DropdownMenuContent align="end">
             <Item>
               <ItemContent>
-                <ItemTitle>{actor.displayName}</ItemTitle>
-                <ItemDescription>@{actor.handle}</ItemDescription>
+                <ItemTitle>{actorLabel(actor)}</ItemTitle>
+                {actor.handle && actorLabel(actor) !== actor.handle && (
+                  <ItemDescription>{actor.handle}</ItemDescription>
+                )}
               </ItemContent>
             </Item>
             <DropdownMenuSeparator />

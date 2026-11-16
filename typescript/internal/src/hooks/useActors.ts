@@ -10,7 +10,7 @@ import type { Actor } from "../types/Actor";
 // string (doc owners, comment authors, permission grantees). A did whose
 // profile lookup didn't resolve (or hasn't finished yet) gets back a bare
 // `{ did }` Actor rather than undefined, so callers can pass the result
-// straight to UserAvatar/UserDisplayName without their own fallback.
+// straight to UserAvatar/actorLabel without their own fallback.
 //
 // Unlike a single ["profiles", dids] query keyed on the whole list, each
 // did gets its own ["actor", did] cache entry. That way the cache is

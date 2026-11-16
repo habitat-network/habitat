@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { HabitatLogo, UserAvatar, UserDisplayName, type Actor } from "internal";
+import { HabitatLogo, UserAvatar, actorLabel, type Actor } from "internal";
 import {
   Table,
   TableHeader,
@@ -18,7 +18,7 @@ function OwnerCell({ owner }: { owner: Actor }) {
   return (
     <div className="flex items-center gap-2">
       <UserAvatar size="sm" actor={owner} />
-      <UserDisplayName actor={owner} />
+      {actorLabel(owner)}
     </div>
   );
 }
