@@ -28,3 +28,8 @@ export * from "./hover-card";
 export * from "./toggle-group";
 export * from "./toggle";
 export * from "./toast";
+export * from "./trace";
+export * from "./bubble";
+export * from "./message";
+export * from "./message-scroller";
+export * from "./code-block";
