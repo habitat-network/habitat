@@ -44,13 +44,21 @@ func TestRouterPassthroughOnlyForTestHandles(t *testing.T) {
 	pass := login.NewPassthroughProvider("https://pear.example.com/oauth-callback")
 	did := syntax.DID("did:plc:abc")
 
-	r := &login.Router{Pds: pds, Passthrough: pass, Directory: handleDir{handle: "alice.test"}}
+	r := &login.Router{
+		Pds:         pds,
+		Passthrough: pass,
+		Directory:   handleDir{handle: "alice.test"},
+	}
 	redirect, _, _, err := r.Authorize(context.Background(), did)
 	require.NoError(t, err)
 	require.Contains(t, redirect, "pear.example.com/oauth-callback")
 	require.Empty(t, pds.loginHint)
 
-	r = &login.Router{Pds: pds, Passthrough: pass, Directory: handleDir{handle: "alice.bsky.social"}}
+	r = &login.Router{
+		Pds:         pds,
+		Passthrough: pass,
+		Directory:   handleDir{handle: "alice.bsky.social"},
+	}
 	redirect, _, _, err = r.Authorize(context.Background(), did)
 	require.NoError(t, err)
 	require.Equal(t, "https://provider.example.com/authorize", redirect)
