@@ -12,13 +12,12 @@ describe("UserItem", () => {
       <UserItem actor={{ did, displayName: "Alice", handle: "a.test" }} />,
     );
     expect(screen.getByText("Alice")).toBeTruthy();
-    expect(screen.getByText("@a.test")).toBeTruthy();
+    expect(screen.getByText("a.test")).toBeTruthy();
   });
 
   it("uses the handle as title without a display name", () => {
     render(<UserItem actor={{ did, handle: "a.test" }} />);
-    expect(screen.getByText("a.test")).toBeTruthy();
-    expect(screen.queryByText("@a.test")).toBeNull();
+    expect(screen.getAllByText("a.test")).toHaveLength(1);
   });
 
   it("uses the DID when there is no profile", () => {

@@ -30,7 +30,7 @@ export const AppHeader = ({ actor, onSignOut }: AppHeaderProps) => {
               <ItemContent>
                 <ItemTitle>{actorLabel(actor)}</ItemTitle>
                 {actor.handle && actorLabel(actor) !== actor.handle && (
-                  <ItemDescription>@{actor.handle}</ItemDescription>
+                  <ItemDescription>{actor.handle}</ItemDescription>
                 )}
               </ItemContent>
             </Item>

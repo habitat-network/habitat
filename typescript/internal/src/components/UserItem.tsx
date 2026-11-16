@@ -36,7 +36,7 @@ export function UserItem({
         <ItemTitle>{label}</ItemTitle>
         {/* The handle is the title when there's no display name; don't repeat it. */}
         {handle && label !== handle && (
-          <ItemDescription>@{handle}</ItemDescription>
+          <ItemDescription>{handle}</ItemDescription>
         )}
       </ItemContent>
       {actions && <ItemActions>{actions}</ItemActions>}
