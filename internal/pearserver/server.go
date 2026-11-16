@@ -41,7 +41,7 @@ type PearServer struct {
 	// its request body.
 	delegations *authn.DelegationTokenVerifier
 	// credentialRevocations stores the credential jtis space authorities
-	// revoke through notifyCredentialRevoked.
+	// revoke through notifyCredentialsRevoked.
 	credentialRevocations *authn.CredentialRevocations
 
 	// dir resolves identities named by the service identifiers

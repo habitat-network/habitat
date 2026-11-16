@@ -255,7 +255,7 @@ func credentialExpiry(token string) time.Time {
 
 // refreshTransport retries a space host request once with a freshly minted
 // credential when the host rejects the one it carried with a 401: an expired
-// or revoked credential (see com.atproto.space.notifyCredentialRevoked) is
+// or revoked credential (see com.atproto.space.notifyCredentialsRevoked) is
 // handled by re-fetching rather than surfacing the failure.
 type refreshTransport struct {
 	m     *Manager

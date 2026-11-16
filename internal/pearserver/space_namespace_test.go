@@ -62,20 +62,33 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 	})
 
 	t.Run("listRepos", func(t *testing.T) {
-		for _, ns := range []string{"com.atproto", "network.habitat"} {
-			var out struct {
-				Repos []typed `json:"repos"`
-			}
-			body := query(
-				t,
-				ts.Server.ListRepos,
-				ns+".space.listRepos",
-				url.Values{"space": {spaceURI.String()}},
-			)
-			require.NoError(t, json.Unmarshal(body, &out))
-			require.NotEmpty(t, out.Repos)
-			require.Equal(t, ns+".space.listRepos#repo", out.Repos[0].Type)
+		var out struct {
+			Repos []typed `json:"repos"`
 		}
+		body := query(
+			t,
+			ts.Server.ListRepos,
+			"network.habitat.space.listRepos",
+			url.Values{"space": {spaceURI.String()}},
+		)
+		require.NoError(t, json.Unmarshal(body, &out))
+		require.NotEmpty(t, out.Repos)
+		require.Equal(t, "network.habitat.space.listRepos#repo", out.Repos[0].Type)
+	})
+
+	t.Run("listWriters", func(t *testing.T) {
+		var out struct {
+			Repos []typed `json:"repos"`
+		}
+		body := query(
+			t,
+			ts.Server.ListWriters,
+			"com.atproto.space.listWriters",
+			url.Values{"space": {spaceURI.String()}},
+		)
+		require.NoError(t, json.Unmarshal(body, &out))
+		require.NotEmpty(t, out.Repos)
+		require.Equal(t, "com.atproto.space.defs#repoWrite", out.Repos[0].Type)
 	})
 
 	t.Run("listRecords", func(t *testing.T) {
@@ -152,7 +165,7 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 		body := query(t, ts.Server.ListMembers, "com.atproto.memberspace.listMembers", params)
 		require.NoError(t, json.Unmarshal(body, &out))
 		require.NotEmpty(t, out.Members)
-		require.Equal(t, "com.atproto.memberspace.listMembers#member", out.Members[0].Type)
+		require.Equal(t, "com.atproto.memberspace.defs#member", out.Members[0].Type)
 
 		body = query(t, ts.Server.ListMembers, "network.habitat.simplespace.listMembers", params)
 		require.NoError(t, json.Unmarshal(body, &out))

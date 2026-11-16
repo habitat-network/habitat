@@ -13,7 +13,10 @@ import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
 export type SpaceView =
   com.atproto.space.listSpaces.$OutputBody["spaces"][number];
 
-export type Repo = com.atproto.space.listRepos.$OutputBody["repos"][number];
+export type Repo = Extract<
+  com.atproto.space.listWriters.$OutputBody["repos"][number],
+  { $type: "com.atproto.space.defs#repoWrite" }
+>;
 
 export type SpaceRecord =
   com.atproto.space.listRecords.$OutputBody["records"][number];
@@ -22,8 +25,7 @@ export type Member =
   com.atproto.memberspace.listMembers.$OutputBody["members"][number];
 
 // The list lexicons declare limit/cursor, but the space host does not paginate
-// yet: it returns the complete set and never a cursor, and listRepos answers
-// 501 if limit or cursor is sent at all. So none of these pass pagination
+// yet: it returns the complete set and never pages, so none of these pass pagination
 // params. Revisit when the server grows real pagination.
 
 // Mutations invalidate these queries and then call router.invalidate(). The
@@ -73,20 +75,24 @@ export function spaceReposQueryOptions(
   queryClient: QueryClient,
 ) {
   return queryOptions({
-    queryKey: ["listRepos", space],
+    queryKey: ["listWriters", space],
     queryFn: async (): Promise<Repo[]> => {
       const cred = await queryClient.fetchQuery(
         spaceCredentialQueryOptions(space, authManager),
       );
       const response = await xrpc(
         spaceAgent(cred),
-        com.atproto.space.listRepos.main,
+        com.atproto.space.listWriters.main,
         {
           validateResponse: false,
           params: { space: space as SpaceRefString },
         },
       );
-      return response.body.repos;
+      // Repos the authority removed are no longer writers.
+      return response.body.repos.filter(
+        (repo): repo is Repo =>
+          repo.$type === "com.atproto.space.defs#repoWrite",
+      );
     },
   });
 }
@@ -144,7 +150,7 @@ export function spaceLatestCommitQueryOptions(
 
 // spaceMembersQueryOptions lists a space's member list — the DIDs granted read
 // access. This is the space's ACL, which is broader than the writer set
-// listRepos returns: a member who has never written data has no repo.
+// listWriters returns: a member who has never written data has no repo.
 // The canonical com.atproto.memberspace.listMembers member type carries read
 // and write access, but the host has not grown those yet and still answers
 // with { did } only, so the response is taken unvalidated. Relax when the

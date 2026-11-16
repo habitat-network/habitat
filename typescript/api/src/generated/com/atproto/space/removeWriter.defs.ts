@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'com.atproto.space.notifyCredentialRevoked'
+const $nsid = 'com.atproto.space.removeWriter'
 
 type $nsid = typeof $nsid
 
@@ -16,10 +16,7 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
-  credentials: /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ minLength: 1 }), {
-    minLength: 1,
-    maxLength: 100,
-  }),
+  repo: /*#__PURE__*/ l.string({ format: 'did' }),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -33,8 +30,11 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Notify a repo host that the space authority has revoked one or more credentials. Authenticated with service auth from the space authority, addressed to the repo DID. */
-const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
+/** Remove an account from a space's writer set, as returned by listWriters. The removal is sent to registered syncers. The account is added back if it makes another authorized write to the space. Does nothing if the account is not in the writer set. Requires auth as the space authority, implemented by PDS. */
+const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
+  'SpaceNotFound',
+  'NotAuthorized',
+])
 
 export { main }
 

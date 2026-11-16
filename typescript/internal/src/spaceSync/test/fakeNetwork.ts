@@ -473,7 +473,7 @@ export class FakeNetwork {
         },
       ),
 
-      http.get("*/xrpc/com.atproto.space.listRepos", async ({ request }) => {
+      http.get("*/xrpc/com.atproto.space.listWriters", async ({ request }) => {
         const url = new URL(request.url);
         const space = this.spaceFor(url.searchParams.get("space"));
         if (space instanceof Response) return space;
@@ -499,7 +499,8 @@ export class FakeNetwork {
         if (rows.length === 0) return HttpResponse.json({ repos: [] });
         const response = {
           repos: rows.map(([did, repo]) => ({
-            did,
+            $type: "com.atproto.space.defs#repoWrite",
+            repo: did,
             repoRev: repo.rev,
             spaceRev: repo.spaceRev,
             data: repo.commit.setHash.digest(),

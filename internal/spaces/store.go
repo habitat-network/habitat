@@ -100,8 +100,12 @@ type spaceRepo struct {
 	Rev   syntax.TID
 	// SpaceRev is the space revision at this repo's latest write, so listRepos
 	// can return only the repos that changed since a given space revision.
-	SpaceRev  syntax.TID
-	Remote    bool
+	SpaceRev syntax.TID
+	Remote   bool
+	// Removed marks a repo the space authority took out of the writer set
+	// with removeWriter. The row is kept as a tombstone so listWriters can
+	// report the removal to syncers; any later write clears it.
+	Removed   bool
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
 }
@@ -113,6 +117,9 @@ type RepoInfo struct {
 	Hash []byte
 	// SpaceRev is the space revision at the repo's latest write.
 	SpaceRev syntax.TID
+	// Removed reports the repo was removed from the writer set. Only
+	// [Store.ListWritersSince] returns removed repos.
+	Removed bool
 }
 
 // RepoHead is a repo's latest oplog revision within a space. See
@@ -184,6 +191,22 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		since syntax.TID,
 	) (syntax.TID, []RepoInfo, error)
+
+	// ListWritersSince is like ListReposSince but also returns repos removed
+	// from the writer set (with Removed set), so a syncer learns of removals.
+	ListWritersSince(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		since syntax.TID,
+	) (syntax.TID, []RepoInfo, error)
+	// RemoveWriter takes repo out of the space's writer set at a fresh space
+	// revision. It does nothing if repo is not a writer. The repo is added
+	// back by its next write. Records the repo holds are untouched.
+	RemoveWriter(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+	) error
 
 	// RegisterRemoteWrite records that repo advanced to rev/hash on its own
 	// PDS, without this space host holding the record data locally. It is the
@@ -686,6 +709,64 @@ func (s *store) ListReposSince(
 	uri habitat_syntax.SpaceURI,
 	since syntax.TID,
 ) (syntax.TID, []RepoInfo, error) {
+	return s.listRepos(ctx, uri, since, false)
+}
+
+// ListWritersSince implements [Store].
+func (s *store) ListWritersSince(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	since syntax.TID,
+) (syntax.TID, []RepoInfo, error) {
+	return s.listRepos(ctx, uri, since, true)
+}
+
+// RemoveWriter implements [Store].
+func (s *store) RemoveWriter(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (err error) {
+	ctx, span := tracer.Start(ctx, "spaces.RemoveWriter", trace.WithAttributes(
+		telemetry.Space(uri),
+		telemetry.Repo(repo),
+	))
+	defer func() { telemetry.End(span, err) }()
+	ok, err := s.CheckSpaceExists(ctx, uri)
+	if err != nil {
+		return fmt.Errorf("failed to get space: %w", err)
+	} else if !ok {
+		return ErrSpaceNotFound
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockRepo(tx, uri, repo); err != nil {
+			return err
+		}
+		var current spaceRepo
+		err := tx.Where("space = ? AND repo = ?", uri, repo).First(&current).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && current.Removed) {
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("load repo: %w", err)
+		}
+		_, spaceRev, err := s.advanceSpaceRev(tx, uri)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&spaceRepo{}).
+			Where("space = ? AND repo = ?", uri, repo).
+			Updates(map[string]any{"removed": true, "space_rev": spaceRev}).Error
+	})
+}
+
+// listRepos lists repos written after since, in ascending space revision.
+// Removed repos are included only when includeRemoved is set.
+func (s *store) listRepos(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	since syntax.TID,
+	includeRemoved bool,
+) (syntax.TID, []RepoInfo, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND type = ? AND skey = ?",
@@ -702,6 +783,9 @@ func (s *store) ListReposSince(
 	query := s.db.WithContext(ctx).Where("space = ?", uri)
 	if since != "" {
 		query = query.Where("space_rev > ?", since)
+	}
+	if !includeRemoved {
+		query = query.Where("removed IS NULL OR removed = ?", false)
 	}
 	var rows []spaceRepo
 	// The lexicon guarantees ascending spaceRev order; clients validate it.
@@ -722,6 +806,7 @@ func (s *store) ListReposSince(
 			Rev:      string(row.Rev),
 			Hash:     digest,
 			SpaceRev: row.SpaceRev,
+			Removed:  row.Removed,
 		}
 	}
 	return sp.Rev, repos, nil

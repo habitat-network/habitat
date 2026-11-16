@@ -4,32 +4,35 @@
   "defs": {
     "main": {
       "type": "object",
-      "description": "A space policy: access is decided by a member list maintained by the authority.",
+      "description": "Space policy that grants access based on a member list.",
       "properties": {
         "publicRead": {
           "type": "boolean",
           "default": false,
-          "description": "Anyone may read; no delegation token is required."
+          "description": "If true, anyone may read the space. Otherwise, only members with read access."
         },
         "publicWrite": {
           "type": "boolean",
           "default": false,
-          "description": "Writes from any user are tracked and forwarded, not just members'."
+          "description": "If true, any account's writes are tracked in the writer set, except members without write access. Otherwise, only members with write access."
         },
         "allowedApps": {
           "type": "array",
+          "description": "If set, only these apps (by OAuth client ID) may read the space.",
           "items": {
-            "type": "string"
-          },
-          "description": "OAuth client IDs permitted to read, checked against the attested client_id. Does not apply to writes."
+            "type": "string",
+            "format": "uri"
+          }
         },
         "publishPolicy": {
           "type": "boolean",
-          "description": "Publish the policy to readers as a record in the authority's repo."
+          "default": false,
+          "description": "Publish the policy as a com.atproto.space.policy record in the space."
         },
         "publishMembers": {
           "type": "boolean",
-          "description": "Publish the member list to readers as records in the authority's repo."
+          "default": false,
+          "description": "Publish the member list as com.atproto.memberspace.member records in the space."
         }
       }
     }

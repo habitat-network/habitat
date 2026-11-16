@@ -4,20 +4,19 @@
   "defs": {
     "main": {
       "type": "object",
-      "description": "A space policy: access is delegated to an external managing app via checkUserAccess.",
+      "description": "Space policy that delegates access decisions to an external app through checkAccess.",
+      "required": ["managingApp"],
       "properties": {
         "managingApp": {
           "type": "string",
-          "description": "Service identifier of the managing app: a DID with an optional service fragment (e.g. 'did:web:example.com#forum')."
+          "description": "The `did#serviceId` reference of the managing app."
         },
         "publishPolicy": {
           "type": "boolean",
-          "description": "Publish the policy to readers as a record in the authority's repo."
+          "default": false,
+          "description": "Publish the policy as a com.atproto.space.policy record in the space."
         }
-      },
-      "required": [
-        "managingApp"
-      ]
+      }
     }
   }
 }

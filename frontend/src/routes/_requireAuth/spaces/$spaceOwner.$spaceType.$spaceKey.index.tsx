@@ -94,8 +94,8 @@ function SpaceMembers() {
 
   const { mutate: removeMember } = useMutation({
     async mutationFn(did: string) {
-      await xrpc(authManager, com.atproto.memberspace.removeMember.main, {
-        body: { space: space as SpaceRefString, did: did as DidString },
+      await xrpc(authManager, com.atproto.memberspace.removeMembers.main, {
+        body: { space: space as SpaceRefString, dids: [did as DidString] },
       });
     },
     onSuccess: invalidateMembers,
@@ -167,7 +167,7 @@ function SpaceMembers() {
 
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          {/* Deliberately "Repos", not "Members": listRepos returns the writer
+          {/* Deliberately "Repos", not "Members": listWriters returns the writer
               set — the members who have actually written data — so it is a
               subset of the member list above. */}
           <h2 className="text-lg font-medium">
@@ -195,16 +195,16 @@ function SpaceMembers() {
             </TableHeader>
             <TableBody>
               {repos.map((repo) => (
-                <TableRow key={repo.did}>
+                <TableRow key={repo.repo}>
                   <TableCell className="font-mono">
-                    <DidHoverCard did={repo.did}>
+                    <DidHoverCard did={repo.repo}>
                       <Link
                         to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
-                        params={{ ...params, recordOwner: repo.did }}
+                        params={{ ...params, recordOwner: repo.repo }}
                         className="hover:underline"
-                        title={repo.did}
+                        title={repo.repo}
                       >
-                        {repo.did}
+                        {repo.repo}
                       </Link>
                     </DidHoverCard>
                   </TableCell>
@@ -247,16 +247,13 @@ function AddMemberDialog({
     reset: resetMutation,
   } = useMutation({
     async mutationFn({ did }: AddMemberForm) {
-      // The canonical putMember carries read/write access, which the host
-      // does not implement yet (it just adds the DID to the member list).
-      // Send the defaults it would apply anyway; drop when the host grows
-      // per-member read/write.
-      await xrpc(authManager, com.atproto.memberspace.putMember.main, {
+      // putMembers carries per-member read/write access, which the host does
+      // not implement yet: it only accepts members with both. Drop the
+      // constraint when the host grows per-member read/write.
+      await xrpc(authManager, com.atproto.memberspace.putMembers.main, {
         body: {
           space: space as SpaceRefString,
-          did: did as DidString,
-          read: true,
-          write: true,
+          members: [{ did: did as DidString, read: true, write: true }],
         },
       });
     },
@@ -365,7 +362,7 @@ function CreateRecordDialog({
       // records and commit under this space are covered.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["listRecords", space] }),
-        queryClient.invalidateQueries({ queryKey: ["listRepos", space] }),
+        queryClient.invalidateQueries({ queryKey: ["listWriters", space] }),
         queryClient.invalidateQueries({ queryKey: ["getLatestCommit", space] }),
       ]);
       await router.invalidate();
