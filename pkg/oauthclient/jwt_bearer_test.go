@@ -15,10 +15,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/login"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -105,7 +105,7 @@ func setupJWTBearerTestServer(
 
 	oauthServer, err = oauthserver.NewOAuthServer(
 		bytes,
-		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
+		&login.Router{Pds: login_testutil.NewPassthroughProvider(t)},
 		dummyDir,
 		db,
 		keyval_testutil.New(t),

@@ -23,7 +23,7 @@ const scopeMCP = "mcp"
 // serves. They match the interface MCP clients expect — RFC 7591 dynamic
 // client registration instead of client-id metadata documents, no PAR, and
 // mandatory PKCE — but share the atproto endpoints' fosite.OAuth2Provider,
-// storage, sign-in (org.LoginRouter), and callback (HandleCallback): once the
+// storage, sign-in (login.Router), and callback (HandleCallback): once the
 // client is identified and the user is prompted for their handle
 // (HandleMCPAuthorize, HandleMCPAuthorizeSubmit), the rest of the flow is the
 // same pipeline atproto clients go through, and PDS/Google logins both

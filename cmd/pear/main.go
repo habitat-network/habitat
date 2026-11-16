@@ -193,7 +193,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
 
 	idServer, err := habitat_identity.NewServer(
-		app.Hive, app.Validator, app.PDSForwarding, app.Domain,
+		app.Hive, app.Validator, app.PDSForwarding, app.Domain, app.HostKey,
 		habitat_identity.WithClient(httpx.NewClient()),
 		habitat_identity.WithEmailResolver(app.EmailResolver),
 	)

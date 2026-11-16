@@ -16,8 +16,8 @@ import (
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
+	"github.com/habitat-network/habitat/internal/login"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -119,7 +119,7 @@ func TestOAuthServerRemembersLogin(t *testing.T) {
 	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		secret,
-		&org.LoginRouter{Pds: pds},
+		&login.Router{Pds: pds},
 		pdsoauth.NewDummyDirectory("http://pds.url"),
 		db,
 		keyval_testutil.New(t),

@@ -28,7 +28,6 @@ import (
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -122,18 +121,31 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		hiveDomain = domain
 	}
 
+	// Habitat's single host signing key signs delegation tokens and space
+	// credentials.
+	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
+	if err != nil {
+		return nil, fmt.Errorf("parse space-host signing key: %w", err)
+	}
 	hive, err := hive.NewHive(hiveDomain, domain, database.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("setup hive (identity service for org): %w", err)
 	}
+	// did:web:*.test identities (the passthrough login's) sign with a key
+	// derived from the host key.
+	hive = habitat_identity.NewTestHive(hive, hostKey)
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
-	defaultDir := identity.DefaultDirectory()
+	defaultDir := habitat_identity.NewTestDirectory(identity.DefaultDirectory(), hostKey)
 	// hive is the base directory (tried first) since it resolves DIDs under our
 	// own domain locally; falling back to defaultDir's network resolution first
 	// would make this server make an outbound HTTP request back to itself for
 	// any locally-hosted DID.
-	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
+	// The hive's handle lookups don't fall through to defaultDir for every
+	// miss, so .test handles are resolved before reaching it.
+	hiveDir := habitat_identity.NewTestDirectory(
+		habitat_identity.NewWrappedDirectory(hive, defaultDir), hostKey,
+	)
 
 	oauthClient, err := pdsoauth.NewApp(
 		pdsoauth.Config{
@@ -158,10 +170,16 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("setup email domain store: %w", err)
 	}
 
-	loginRouter := &org.LoginRouter{
+	loginRouter := &login.Router{
 		Pds:        login.NewPDSProvider(oauthClient),
 		EmailStore: emailDomainStore,
 	}
+	// Handles ending in .test sign in without authentication. The TLD is
+	// reserved and never resolves publicly, so this only affects dev/test.
+	loginRouter.Passthrough = login.NewPassthroughProvider(
+		"https://" + domain + "/oauth-callback",
+	)
+	loginRouter.Directory = hiveDir
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
 	if googleClientID != "" && googleClientSecret != "" {
@@ -179,12 +197,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		slog.InfoContext(ctx, "google login provider enabled")
 	}
 
-	// Habitat's single host signing key signs delegation tokens and space
-	// credentials.
-	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
-	if err != nil {
-		return nil, fmt.Errorf("parse space-host signing key: %w", err)
-	}
 	// The host's KEM key keys permissioned-repo commit MACs for repo owners on
 	// external PDSes (habitat-managed owners use their own hive KEM key
 	// instead). It is derived from the host key rather than configured, so it

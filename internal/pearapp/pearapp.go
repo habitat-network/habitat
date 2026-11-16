@@ -42,7 +42,7 @@ type App struct {
 	HiveDir          identity.Directory
 	PDSClientFactory pdsoauth.HttpClientFactory
 	EmailDomainStore *emaildomain.Store
-	HostKey          atcrypto.PrivateKey
+	HostKey          atcrypto.PrivateKeyExportable
 	// HostKEMKey is the host's #atproto_kem key: space commit MACs for repo
 	// owners on external PDSes are keyed against it (habitat-managed owners
 	// use their own hive KEM key instead). See spacecommit.KEMKeys.
@@ -90,7 +90,7 @@ func New(
 	hiveDir identity.Directory,
 	pdsClientFactory pdsoauth.HttpClientFactory,
 	emailDomainStore *emaildomain.Store,
-	hostKey atcrypto.PrivateKey,
+	hostKey atcrypto.PrivateKeyExportable,
 	hostKEMKey *atcrypto.PrivateKeyP256,
 	notifyStore notify.Store,
 	notifier *notify.Deliverer,

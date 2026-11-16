@@ -1,4 +1,4 @@
-package org_test
+package login_test
 
 import (
 	"context"
@@ -15,7 +15,6 @@ import (
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
@@ -86,7 +85,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		loginID: "alice@acme.com",
 		profile: login.Profile{Name: "Alice", Picture: "https://example.com/alice.png"},
 	}
-	router := &org.LoginRouter{
+	router := &login.Router{
 		Pds:             &stubProvider{},
 		Google:          google,
 		EmailStore:      emailStore,
@@ -127,7 +126,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		require.NoError(t, emailStore.Provision(t.Context(), "bob@acme.com", orgDID, bob))
 
 		mallory := &stubProvider{loginID: "mallory@acme.com"}
-		mismatchRouter := &org.LoginRouter{
+		mismatchRouter := &login.Router{
 			Google: mallory, EmailStore: emailStore, OpensocialStore: osStore.Store,
 		}
 		err := mismatchRouter.Exchange(t.Context(), bob, url.Values{}, "")
@@ -143,7 +142,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		require.NoError(t, emailStore.Provision(t.Context(), "carol@acme.com", orgDID, carol))
 
 		failing := &stubProvider{exchangeErr: errors.New("boom")}
-		failingRouter := &org.LoginRouter{
+		failingRouter := &login.Router{
 			Google: failing, EmailStore: emailStore, OpensocialStore: osStore.Store,
 		}
 		err := failingRouter.Exchange(t.Context(), carol, url.Values{}, "")
@@ -162,7 +161,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 			t, emailStore.Provision(t.Context(), "dave@legacy.example.com", otherOrgDID, dave),
 		)
 
-		router := &org.LoginRouter{Google: google, EmailStore: emailStore}
+		router := &login.Router{Google: google, EmailStore: emailStore}
 		_, _, _, err = router.Authorize(t.Context(), dave)
 		require.ErrorContains(t, err, "unsupported login provider")
 		err = router.Exchange(t.Context(), dave, url.Values{}, "")
@@ -170,7 +169,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 	})
 
 	t.Run("google not configured is rejected", func(t *testing.T) {
-		router := &org.LoginRouter{EmailStore: emailStore}
+		router := &login.Router{EmailStore: emailStore}
 		_, _, _, err := router.Authorize(t.Context(), alice)
 		require.ErrorContains(t, err, "unsupported login provider")
 		err = router.Exchange(t.Context(), alice, url.Values{}, "")
@@ -184,7 +183,7 @@ func TestLoginRouterEmailDomainWithoutOpensocialStore(t *testing.T) {
 	require.NoError(t, emailStore.Provision(t.Context(), "alice@acme.com", orgDID, alice))
 
 	google := &stubProvider{loginID: "alice@acme.com"}
-	router := &org.LoginRouter{Google: google, EmailStore: emailStore}
+	router := &login.Router{Google: google, EmailStore: emailStore}
 
 	_, _, _, err := router.Authorize(t.Context(), alice)
 	require.NoError(t, err)
@@ -198,7 +197,7 @@ func TestLoginRouterEmailStoreError(t *testing.T) {
 	brokenStore, err := emaildomain.NewStore(db_testutil.NewDB(t))
 	require.NoError(t, err)
 
-	router := &org.LoginRouter{
+	router := &login.Router{
 		Pds:        &stubProvider{},
 		Google:     &stubProvider{},
 		EmailStore: brokenStore,
@@ -215,7 +214,7 @@ func TestLoginRouterPDSFallback(t *testing.T) {
 
 	t.Run("authorize and exchange fall back to the PDS", func(t *testing.T) {
 		pds := &stubProvider{loginID: unknown.String()}
-		router := &org.LoginRouter{Pds: pds, Google: &stubProvider{}, EmailStore: emailStore}
+		router := &login.Router{Pds: pds, Google: &stubProvider{}, EmailStore: emailStore}
 
 		_, _, key, err := router.Authorize(t.Context(), unknown)
 		require.NoError(t, err)
@@ -228,7 +227,7 @@ func TestLoginRouterPDSFallback(t *testing.T) {
 
 	t.Run("without an email store", func(t *testing.T) {
 		pds := &stubProvider{loginID: unknown.String()}
-		router := &org.LoginRouter{Pds: pds}
+		router := &login.Router{Pds: pds}
 
 		_, _, key, err := router.Authorize(t.Context(), unknown)
 		require.NoError(t, err)
@@ -238,7 +237,7 @@ func TestLoginRouterPDSFallback(t *testing.T) {
 
 	t.Run("pds exchange failure is wrapped", func(t *testing.T) {
 		pds := &stubProvider{exchangeErr: errors.New("boom")}
-		router := &org.LoginRouter{Pds: pds}
+		router := &login.Router{Pds: pds}
 		err := router.Exchange(t.Context(), unknown, url.Values{}, "")
 		require.ErrorContains(t, err, "failed to exchange code")
 	})
