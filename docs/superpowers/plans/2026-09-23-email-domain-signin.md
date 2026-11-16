@@ -63,7 +63,7 @@
 | Create `internal/identity/email.go` | `EmailResolver`, handle generation |
 | Modify `internal/identity/server.go` | `WithEmailResolver` option, email fallback in `ResolveIdentity` / `ResolveHandle` |
 | Create `internal/identity/email_test.go` | resolver + server tests |
-| Modify `internal/org/login_router.go`; `login_router_test.go` | `EmailStore` field + email branch |
+| Modify `internal/login/router.go`; `login_router_test.go` | `EmailStore` field + email branch |
 | Modify `internal/oauthserver/oauth_server.go`; `oauth_server_test.go` | `EmailIdentityResolver`, `resolveLoginHint(ctx, …)` fallback, new ctor param |
 | Create `internal/oauthserver/login_hint_test.go` | test |
 | Create `lexicons/network/habitat/emaildomain/createOrg.json` | lexicon (then `moon :generate`) |
@@ -1553,8 +1553,8 @@ git commit -m "Resolve work emails to provisioned identities in identity server"
 ### Task 5: `org.LoginRouter` email branch
 
 **Files:**
-- Modify: `internal/org/login_router.go`
-- Test: `internal/org/login_router_test.go` (append)
+- Modify: `internal/login/router.go`
+- Test: `internal/login/router_test.go` (append)
 
 **Interfaces:**
 - Consumes: `emaildomain.Store.GetLoginMethod`, `GetEmail`, `emaildomain.LoginMethodGoogle` (Task 1); `login_testutil.PassthroughProvider`, whose `Authorize` sets `LoginID = loginHint` when `LoginID` is empty and whose `Exchange` returns `LoginID`
@@ -1562,7 +1562,7 @@ git commit -m "Resolve work emails to provisioned identities in identity server"
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `internal/org/login_router_test.go` (add the imports `"github.com/bluesky-social/indigo/atproto/syntax"`, `db_testutil "github.com/habitat-network/habitat/internal/db/testutil"`, and `"github.com/habitat-network/habitat/internal/emaildomain"`):
+Append to `internal/login/router_test.go` (add the imports `"github.com/bluesky-social/indigo/atproto/syntax"`, `db_testutil "github.com/habitat-network/habitat/internal/db/testutil"`, and `"github.com/habitat-network/habitat/internal/emaildomain"`):
 
 ```go
 func TestLoginRouterEmailDomain(t *testing.T) {
@@ -1619,7 +1619,7 @@ Expected: FAIL (build error: unknown field `EmailStore`)
 
 - [ ] **Step 3: Implement the email branch**
 
-In `internal/org/login_router.go`, add the imports `"strings"` and `"github.com/habitat-network/habitat/internal/emaildomain"`, then:
+In `internal/login/router.go`, add the imports `"strings"` and `"github.com/habitat-network/habitat/internal/emaildomain"`, then:
 
 Change the struct to:
 
@@ -1718,7 +1718,7 @@ Expected: PASS (`TestLoginRouter/*` and `TestLoginRouterEmailDomain/*`)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add internal/org/login_router.go internal/org/login_router_test.go
+git add internal/login/router.go internal/login/router_test.go
 git commit -m "Route email-provisioned DIDs through Google in LoginRouter"
 ```
 

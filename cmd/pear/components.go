@@ -28,7 +28,6 @@ import (
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -158,9 +157,16 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("setup email domain store: %w", err)
 	}
 
-	loginRouter := &org.LoginRouter{
+	loginRouter := &login.Router{
 		Pds:        login.NewPDSProvider(oauthClient),
 		EmailStore: emailDomainStore,
+	}
+	if cmd.Bool(fPassthroughLogin) {
+		loginRouter.Passthrough = login.NewPassthroughProvider(
+			"https://" + domain + "/oauth-callback",
+		)
+		loginRouter.Directory = hiveDir
+		slog.WarnContext(ctx, "passthrough login enabled for .test handles; dev/test only")
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)

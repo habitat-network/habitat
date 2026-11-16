@@ -71,7 +71,7 @@ func (f emailFixture) memberships(t *testing.T) int {
 
 // Minting an identity must not, by itself, enroll it in the org: org
 // membership is only granted once the user actually completes sign-in with
-// that email (see org.LoginRouter.Exchange), so a mistyped or unowned email
+// that email (see login.Router.Exchange), so a mistyped or unowned email
 // never becomes a ghost member.
 func TestEmailResolverMintsWithoutOrgMembership(t *testing.T) {
 	f := newEmailFixture(t)

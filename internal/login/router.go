@@ -1,4 +1,4 @@
-package org
+package login
 
 import (
 	"context"
@@ -6,15 +6,20 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/emaildomain"
-	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
-type LoginRouter struct {
-	Pds    login.Provider
-	Google login.Provider
+type Router struct {
+	Pds    Provider
+	Google Provider
+	// Passthrough, if set along with Directory, signs in DIDs whose handle
+	// ends in PassthroughHandleSuffix without any authentication. Dev/test only.
+	Passthrough Provider
+	// Directory resolves a DID to its handle for the Passthrough check.
+	Directory identity.Directory
 	// EmailStore, if set, routes DIDs provisioned via email-domain sign-in
 	// (see identity.EmailResolver) through their domain's login method.
 	EmailStore *emaildomain.Store
@@ -29,7 +34,7 @@ type LoginRouter struct {
 
 // emailProvider returns the login provider for an email domain's login
 // method, or nil if it isn't configured on this instance.
-func (r *LoginRouter) emailProvider(method emaildomain.LoginMethod) login.Provider {
+func (r *Router) emailProvider(method emaildomain.LoginMethod) Provider {
 	switch method {
 	case emaildomain.LoginMethodGoogle:
 		return r.Google
@@ -39,10 +44,10 @@ func (r *LoginRouter) emailProvider(method emaildomain.LoginMethod) login.Provid
 
 // emailLogin returns the login provider and provisioned email for did if it
 // was provisioned via email-domain sign-in; ok is false for any other DID.
-func (r *LoginRouter) emailLogin(
+func (r *Router) emailLogin(
 	ctx context.Context,
 	did syntax.DID,
-) (login.Provider, emaildomain.Email, bool, error) {
+) (Provider, emaildomain.Email, bool, error) {
 	if r.EmailStore == nil {
 		return nil, "", false, nil
 	}
@@ -72,7 +77,7 @@ func (r *LoginRouter) emailLogin(
 // first such sign-in and a plain membership otherwise (see
 // opensocial.Store.ProvisionMember). It's a no-op if OpensocialStore isn't
 // set.
-func (r *LoginRouter) provisionEmailMember(ctx context.Context, did syntax.DID) error {
+func (r *Router) provisionEmailMember(ctx context.Context, did syntax.DID) error {
 	if r.OpensocialStore == nil {
 		return nil
 	}
@@ -89,10 +94,26 @@ func (r *LoginRouter) provisionEmailMember(ctx context.Context, did syntax.DID) 
 	return nil
 }
 
-func (r *LoginRouter) Authorize(
+// passthroughLogin reports whether did's handle is a PassthroughHandleSuffix
+// one that should skip authentication.
+func (r *Router) passthroughLogin(ctx context.Context, did syntax.DID) bool {
+	if r.Passthrough == nil || r.Directory == nil {
+		return false
+	}
+	ident, err := r.Directory.LookupDID(ctx, did)
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(string(ident.Handle), PassthroughHandleSuffix)
+}
+
+func (r *Router) Authorize(
 	ctx context.Context,
 	did syntax.DID,
 ) (string, string, string, error) {
+	if r.passthroughLogin(ctx, did) {
+		return r.Passthrough.Authorize(ctx, did.String())
+	}
 	// email-domain member login
 	if provider, email, ok, err := r.emailLogin(ctx, did); err != nil {
 		return "", "", "", err
@@ -103,12 +124,18 @@ func (r *LoginRouter) Authorize(
 	return r.Pds.Authorize(ctx, did.String())
 }
 
-func (r *LoginRouter) Exchange(
+func (r *Router) Exchange(
 	ctx context.Context,
 	did syntax.DID,
 	query url.Values,
 	providerStateKey string,
 ) error {
+	if r.passthroughLogin(ctx, did) {
+		if _, _, err := r.Passthrough.Exchange(ctx, query, providerStateKey); err != nil {
+			return fmt.Errorf("failed to exchange code: %w", err)
+		}
+		return nil
+	}
 	// email-domain member login
 	if provider, email, ok, err := r.emailLogin(ctx, did); err != nil {
 		return err
@@ -140,11 +167,11 @@ func (r *LoginRouter) Exchange(
 // Exchange, if the org has such a store configured and profile carries
 // anything usable. It never overwrites a profile the member has since
 // customized (see opensocial.Store.SeedMemberProfile).
-func (r *LoginRouter) seedMemberProfile(
+func (r *Router) seedMemberProfile(
 	ctx context.Context,
 	did syntax.DID,
 	email emaildomain.Email,
-	profile login.Profile,
+	profile Profile,
 ) error {
 	if r.OpensocialStore == nil || (profile.Name == "" && profile.Picture == "") {
 		return nil
