@@ -73,7 +73,7 @@ func (p *PearServer) GetProfiles(w http.ResponseWriter, r *http.Request) {
 
 // buildProfileViews resolves each of members' profile within org: their
 // community.opensocial.memberProfile record if they have one, or their
-// public Bluesky profile otherwise, plus their org handle.
+// public Bluesky profile otherwise, plus their handle.
 func (p *PearServer) buildProfileViews(
 	ctx context.Context,
 	org syntax.DID,
@@ -84,22 +84,10 @@ func (p *PearServer) buildProfileViews(
 		return nil, fmt.Errorf("get member profiles: %w", err)
 	}
 
-	// Hive identities carry their own handle; anyone else (e.g. a Bluesky
-	// account) needs their public profile for a handle, even if they have a
-	// member profile record.
-	hiveHandles := make(map[syntax.DID]string, len(members))
-	var needBsky []syntax.DID
-	for _, did := range members {
-		if ident, err := p.hive.LookupDID(ctx, did); err == nil {
-			hiveHandles[did] = ident.Handle.String()
-		}
-		_, hasProfile := memberProfiles[did]
-		_, hasHandle := hiveHandles[did]
-		if !hasProfile || !hasHandle {
-			needBsky = append(needBsky, did)
-		}
-	}
-	bskyProfiles, err := utils.FetchProfiles(ctx, needBsky)
+	// Fetch the public Bluesky profile of every member in one batch: it gives
+	// the handle of non-hive identities, and the display fields for members
+	// without a member profile. Member profiles override it below.
+	bskyProfiles, err := utils.FetchProfiles(ctx, members)
 	if err != nil {
 		return nil, fmt.Errorf("fetch bluesky profiles: %w", err)
 	}
@@ -114,13 +102,13 @@ func (p *PearServer) buildProfileViews(
 			Did:    did.String(),
 			Handle: did.String(),
 		}
-		if handle, ok := hiveHandles[did]; ok {
-			view.Handle = handle
-		} else if bskyProfile := bskyByDID[did]; bskyProfile != nil &&
-			bskyProfile.Handle != "" && bskyProfile.Handle != syntax.HandleInvalid.String() {
-			// Not a hive identity (e.g. a Bluesky account): use the handle from
-			// the public profile rather than leaving the DID as the handle.
-			view.Handle = bskyProfile.Handle
+		// Hive identities have no Bluesky account, so they take their handle
+		// from the hive; everyone else takes it from their Bluesky profile.
+		if ident, err := p.hive.LookupDID(ctx, did); err == nil {
+			view.Handle = ident.Handle.String()
+		} else if bp := bskyByDID[did]; bp != nil &&
+			bp.Handle != "" && bp.Handle != syntax.HandleInvalid.String() {
+			view.Handle = bp.Handle
 		}
 		switch {
 		case memberProfiles[did].UpdatedAt != "":
