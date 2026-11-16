@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
@@ -24,10 +25,18 @@ func (failDir) LookupDID(context.Context, syntax.DID) (*identity.Identity, error
 
 func TestTestDirectory(t *testing.T) {
 	ctx := context.Background()
-	dir := habitat_identity.NewTestDirectory(failDir{})
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	dir := habitat_identity.NewTestDirectory(failDir{}, hostKey)
 
 	ident, err := dir.LookupHandle(ctx, "Alice.test")
 	require.NoError(t, err)
+	// The published key is the one the host derives and signs with.
+	signer, err := habitat_identity.TestSigningKey(hostKey, "did:web:alice.test")
+	require.NoError(t, err)
+	pub, err := signer.PublicKey()
+	require.NoError(t, err)
+	require.Equal(t, pub.Multibase(), ident.Keys["atproto"].PublicKeyMultibase)
 	require.Equal(t, syntax.DID("did:web:alice.test"), ident.DID)
 	require.Equal(t, syntax.Handle("alice.test"), ident.Handle)
 

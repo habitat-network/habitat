@@ -54,7 +54,7 @@ type TestServer struct {
 	SimpleStore           *simplespace.Store
 	NotifyStore           notify.Store
 	Hive                  hive.Hive
-	HostKey               atcrypto.PrivateKey
+	HostKey               atcrypto.PrivateKeyExportable
 	// HostKEMKey keys commit MACs for repo owners hive does not manage;
 	// derived from HostKey unless set.
 	HostKEMKey       *atcrypto.PrivateKeyP256
@@ -81,7 +81,7 @@ func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
 	}
 }
 
-func WithHostKey(key atcrypto.PrivateKey) utils.Opt[TestServer] {
+func WithHostKey(key atcrypto.PrivateKeyExportable) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.HostKey = key
 	}
@@ -165,7 +165,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ts.HostKey = key
 	}
 	if ts.HostKEMKey == nil {
-		kemKey, err := spacecommit.DeriveKEMKey(ts.HostKey.(atcrypto.PrivateKeyExportable))
+		kemKey, err := spacecommit.DeriveKEMKey(ts.HostKey)
 		require.NoError(t, err)
 		ts.HostKEMKey = kemKey
 	}
