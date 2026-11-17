@@ -113,6 +113,10 @@ func TestDefaultProvidersCoverPresets(t *testing.T) {
 		ids(mcpgateway.PresetURL(mcpgateway.PresetGoogleDrive)))
 	require.Equal(t, []ProviderID{"slack-messages"},
 		ids(mcpgateway.PresetURL(mcpgateway.PresetSlack)))
+	require.Equal(t, []ProviderID{"google-calendar-events"},
+		ids(mcpgateway.PresetURL(mcpgateway.PresetGoogleCalendar)))
+	require.Equal(t, []ProviderID{"gmail-threads"},
+		ids(mcpgateway.PresetURL(mcpgateway.PresetGmail)))
 	require.Equal(t, []ProviderID{"github-issues", "github-pull-requests", "github-code"},
 		ids(mcpgateway.PresetURL(mcpgateway.PresetGitHub)))
 }
