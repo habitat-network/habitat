@@ -4,7 +4,7 @@
     "mcp_config": "configs/habitat-only.json",
     "strict": true,
     "require_tool_prefixes": [
-      "mcp__habitat__search_records"
+      "mcp__habitat__get_context"
     ],
     "require_search_hits": "Kestrel",
     "disallowed_tools": [

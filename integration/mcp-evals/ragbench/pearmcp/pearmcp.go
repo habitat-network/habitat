@@ -32,7 +32,6 @@ import (
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/mcpserver"
-	"github.com/habitat-network/habitat/internal/search"
 )
 
 const (
@@ -113,7 +112,7 @@ func Start(slice *corpus.Slice, opts Options) (*Stack, error) {
 	// No Habitat stores: with no records to find, the tools reading them
 	// (get_record, get_blob) are never pointed at anything.
 	pear := mcpserver.New(
-		staticToken{}, nil, nil, noRecords{}, connected, nil, directory{},
+		staticToken{}, nil, nil, connected, nil, directory{},
 		origin, origin, serverOpts...,
 	)
 	mux := http.NewServeMux()
@@ -210,16 +209,6 @@ func (staticToken) ValidateRaw(
 		return nil, false, nil
 	}
 	return &authn.CredentialInfo{Subject: Caller}, true, nil
-}
-
-// noRecords is an org with no Habitat records, so every result comes from
-// the connected apps.
-type noRecords struct{}
-
-var _ mcpserver.RecordSearcher = noRecords{}
-
-func (noRecords) Search(context.Context, syntax.DID, search.Query) (search.Page, error) {
-	return search.Page{}, nil
 }
 
 // directory resolves Org, the only identity the server looks up.

@@ -64,7 +64,7 @@ type Setup struct {
 	// by claudeRunner.preflight, so a server needing auth fails the setup
 	// rather than silently skewing results.
 	RequireToolPrefixes []string `json:"require_tool_prefixes"`
-	// RequireSearchHits, if set, is a query search_records must find
+	// RequireSearchHits, if set, is a query get_context must find
 	// something for, checked by claudeRunner.preflight, so an org that hasn't
 	// been seeded (see README) fails the setup.
 	RequireSearchHits string `json:"require_search_hits,omitempty"`

@@ -1,7 +1,7 @@
 # mcp-evals
 
 Measures whether agents call Habitat's search tool
-(`mcp__habitat__search_records`, see `internal/mcpserver`) whenever a prompt
+(`mcp__habitat__get_context`, see `internal/mcpserver`) whenever a prompt
 needs company context, and leave Habitat alone when it doesn't. Each
 scenario's prompt runs through headless Claude Code (`claude -p`) and is
 scored on which tools it called.
@@ -33,7 +33,7 @@ Before the first run (and again if the URL changes), from this directory run
 `habitat`.
 
 Each setup runs a cheap preflight first and stops if it doesn't offer
-`search_records` (e.g. Habitat needs auth or search isn't configured), or, with
+`get_context` (e.g. Habitat needs auth or search isn't configured), or, with
 `require_search_hits`, if searching for it finds nothing.
 
 ### Seeding the org
@@ -60,7 +60,7 @@ go run . -scenario roadmap-cuts -model sonnet
 
 `-variants variants.json` runs every setup once per variant, as setups named
 `<setup>@<variant>`, so one summary compares them. A variant replaces the
-server instructions and/or `search_records` description Habitat sends; a field
+server instructions and/or `get_context` description Habitat sends; a field
 left out keeps pear's built-in text, and `""` sends none. The harness sends
 them in the `X-Habitat-Mcp-Text-Overrides` header, which pear only honours
 with `--mcp_text_overrides` (`pear:dev` sets it; restart it after pulling
@@ -91,7 +91,7 @@ real data):
 Each scenario in `scenarios.json` is an `id`, a `prompt` and an `expect`:
 
 - `search`: the prompt needs company context (contracts, roadmap, policies,
-  past conversations, ...), so it passes if `search_records` is called at all.
+  past conversations, ...), so it passes if `get_context` is called at all.
 - `none`: the prompt needs no company context, so it passes if no Habitat tool
   is called.
 

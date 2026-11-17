@@ -202,17 +202,17 @@ func TestRunnerStopsConversationAfterFailedTurn(t *testing.T) {
 
 func TestPreflightChecksSeededSearch(t *testing.T) {
 	transcript := func(result string) string {
-		return `{"type":"system","subtype":"init","tools":["mcp__habitat__search_records"],` +
+		return `{"type":"system","subtype":"init","tools":["mcp__habitat__get_context"],` +
 			`"mcp_servers":[{"name":"habitat","status":"connected"}]}` + "\n" +
 			`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"a",` +
-			`"name":"mcp__habitat__search_records","input":{"query":"Kestrel"}}]}}` + "\n" +
+			`"name":"mcp__habitat__get_context","input":{"query":"Kestrel"}}]}}` + "\n" +
 			`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"a",` +
 			`"content":[{"type":"text","text":` + result + `}]}]}}` + "\n" +
 			`{"type":"result","is_error":false,"result":"1"}` + "\n"
 	}
 	setup := Setup{
 		Name: "a", MCPConfig: "/cfg.json", RequireSearchHits: "Kestrel",
-		RequireToolPrefixes: []string{"mcp__habitat__search_records"},
+		RequireToolPrefixes: []string{"mcp__habitat__get_context"},
 	}
 	preflight := func(transcript string) (args string, err error) {
 		bin, argsFile := fakeClaude(t, transcript, 0)
@@ -223,11 +223,11 @@ func TestPreflightChecksSeededSearch(t *testing.T) {
 		return string(recorded), err
 	}
 
-	args, err := preflight(transcript(`"{\"hits\":[{\"uri\":\"x\"}]}"`))
+	args, err := preflight(transcript(`"{\"results\":[{\"url\":\"x\"}]}"`))
 	require.NoError(t, err)
 	require.Contains(t, args, "Kestrel", "the prompt asks for the seeded query")
 
-	_, err = preflight(transcript(`"{\"hits\":[]}"`))
+	_, err = preflight(transcript(`"{\"results\":[]}"`))
 	require.ErrorContains(t, err, "Kestrel")
 
 	_, err = preflight(sampleTranscript)
