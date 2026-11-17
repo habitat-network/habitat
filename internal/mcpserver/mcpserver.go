@@ -23,7 +23,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
-	"github.com/olgasafonova/mcp-otel-go/mcpotel"
 )
 
 // RecordSearcher runs a record search as a caller. See search.Searcher for
@@ -140,10 +139,7 @@ func New(
 			}
 		}
 		mcpServer := mcp.NewServer(impl, serverOpts)
-		mcpServer.AddReceivingMiddleware(mcpotel.Middleware(mcpotel.Config{
-			ServiceName:    "habitat-mcp",
-			ServiceVersion: "0.0.1",
-		}))
+		mcpServer.AddReceivingMiddleware(otelMiddleware(otelMiddlewareConfig{}))
 		mcp.AddTool(mcpServer, &mcp.Tool{
 			Name: "get_record",
 			Description: "Get a single Habitat record by its space record URI, returned as " +
