@@ -27,7 +27,7 @@ func TestMcpSearchOutputMapsPage(t *testing.T) {
 				URL:     "ats://r",
 				Data:    data,
 			},
-			{Backend: "mcp:github/github-issues", Kind: "item", ID: "u", Title: "Issue", URL: "u"},
+			{Backend: "mcp:slack/slack-messages", Kind: "item", ID: "u", Title: "Issue", URL: "u"},
 		},
 		Backends: []fedsearch.BackendStatus{
 			{
@@ -60,7 +60,7 @@ func TestMcpSearchOutputMapsPage(t *testing.T) {
 					Value: map[string]any{"text": "hi"},
 				},
 			},
-			{Backend: "mcp:github/github-issues", Kind: "item", Id: "u", Title: "Issue", Url: "u"},
+			{Backend: "mcp:slack/slack-messages", Kind: "item", Id: "u", Title: "Issue", Url: "u"},
 		},
 		Backends: []habitat.NetworkHabitatMcpSearchBackend{
 			{

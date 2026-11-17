@@ -432,7 +432,7 @@ func TestServiceResumesAfterRestart(t *testing.T) {
 func TestCursorRoundTrip(t *testing.T) {
 	for _, c := range []Cursor{
 		{Search: "id", Offset: 10},
-		{Search: "id", Backend: "mcp:github/github-issues"},
+		{Search: "id", Backend: "mcp:slack/slack-messages"},
 	} {
 		got, err := DecodeCursor(c.Encode())
 		require.NoError(t, err)

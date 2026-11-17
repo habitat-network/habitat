@@ -55,7 +55,7 @@ type getContextInput struct {
 // contextResult is one search result, from any source.
 type contextResult struct {
 	// Source is the backend the result came from, such as "records" or
-	// "mcp:github/github-issues".
+	// "mcp:slack/slack-messages".
 	Source  string `json:"source"`
 	Kind    string `json:"kind"`
 	Title   string `json:"title,omitempty"`
