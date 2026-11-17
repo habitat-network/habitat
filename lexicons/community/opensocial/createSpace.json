@@ -29,6 +29,15 @@
                             "maxLength": 512,
                             "description": "The space key. If not provided, one will be auto-generated (TID)."
                         },
+                        "policy": {
+                            "type": "union",
+                            "description": "The space policy: the full configuration of the space. If omitted, the host applies network.habitat.relationspace.policy.",
+                            "refs": [
+                                "com.atproto.personalspace.policy",
+                                "com.atproto.memberspace.policy",
+                                "network.habitat.relationspace.policy"
+                            ]
+                        },
                         "roles": {
                             "type": "array",
                             "description": "Record keys of the community.opensocial.role records that may read the space, written into its community.opensocial.access record.",

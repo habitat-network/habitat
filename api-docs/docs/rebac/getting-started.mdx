@@ -13,13 +13,13 @@ Every call goes to `https://pear.habitat.network/xrpc/{nsid}` and carries a bear
 
 ## 1. Create a space
 
-First, the space the document lives in. Spaces are created with the simplespace method — there is no ReBAC-specific create yet.
+First, the space the document lives in. Spaces are created with `com.atproto.space.createSpace`; the `network.habitat.relationspace.policy` policy makes access come from the relations you write below.
 
 ```bash
-curl -X POST https://pear.habitat.network/xrpc/network.habitat.simplespace.createSpace \
+curl -X POST https://pear.habitat.network/xrpc/com.atproto.space.createSpace \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "type": "network.habitat.document" }'
+  -d '{ "type": "network.habitat.document", "policy": { "$type": "network.habitat.relationspace.policy" } }'
 ```
 
 ```json

@@ -165,7 +165,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     // syncer to deliver the matching userRelation record back —
     // without this, the doc the creator just made is hidden from their own
     // listing until that async round-trip lands. Personal docs get owner
-    // (simplespace.createSpace grants it); org docs get the manager grant
+    // (com.atproto.space.createSpace grants it); org docs get the manager grant
     // made just above, and stay invisible to the rest of the org until
     // they're shared with it (docsFor lists those from doc_org_access).
     await upsertDocAccess(db, {

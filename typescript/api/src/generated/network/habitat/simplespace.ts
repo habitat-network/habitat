@@ -3,7 +3,6 @@
  */
 
 export * as addMember from './simplespace/addMember.js'
-export * as createSpace from './simplespace/createSpace.js'
 export * as defs from './simplespace/defs.js'
 export * as deleteSpace from './simplespace/deleteSpace.js'
 export * as listMembers from './simplespace/listMembers.js'

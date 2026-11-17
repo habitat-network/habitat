@@ -19,6 +19,11 @@ const (
 	PolicyManagedSpace  = "com.atproto.managedspace.policy"
 )
 
+// PolicyRelationSpace is habitat's own policy: access is decided by the
+// space's userRelation and spaceRelation records (the perms store) rather than
+// a memberspace member list. It carries no configuration.
+const PolicyRelationSpace = "network.habitat.relationspace.policy"
+
 var (
 	// ErrUnsupportedPolicy is returned for a policy this host doesn't
 	// implement (including managedspace, which needs a managing app).
@@ -57,6 +62,8 @@ func ParsePolicy(raw json.RawMessage) (Policy, error) {
 	case PolicyPersonalSpace:
 		// No configuration: drop anything extra the caller sent.
 		return Policy{Type: PolicyPersonalSpace}, nil
+	case PolicyRelationSpace:
+		return Policy{Type: PolicyRelationSpace}, nil
 	case PolicyMemberSpace:
 		return p, nil
 	case PolicyManagedSpace:
