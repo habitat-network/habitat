@@ -55,7 +55,9 @@ func NewServer(
 	directory := NewSpaceProxyDirectory(
 		// .test handles resolve locally so the frontend can sign in with them
 		// (see login.NewPassthroughProvider).
-		NewTestDirectory(NewWrappedDirectory(hive, identity.DefaultDirectory()), hostKey),
+		NewTestDirectory(
+			NewWrappedDirectory(hive, identity.DefaultDirectory()), hostKey, domain,
+		),
 		domain,
 		opts...,
 	)

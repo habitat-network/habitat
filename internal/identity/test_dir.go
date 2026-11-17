@@ -10,6 +10,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"github.com/habitat-network/habitat/internal/did"
 )
 
 const (
@@ -23,20 +25,26 @@ const (
 // did:web:<name>.test DIDs back to the handle, without any network lookup.
 // These identities only exist for the passthrough login (see
 // login.NewPassthroughProvider). Each publishes a signing key derived from the
-// host key (see TestSigningKey) so service auth minted for it can be verified.
-// Every other identifier goes to the wrapped directory.
+// host key (see TestSigningKey) so service auth minted for it can be verified,
+// and names this pear as its PDS so a regular atproto OAuth flow for it (e.g.
+// an admin signing in inside an opensocial org login) runs against pear, which
+// signs it in through the passthrough. Every other identifier goes to the
+// wrapped directory.
 type TestDirectory struct {
 	base    identity.Directory
 	hostKey atcrypto.PrivateKeyExportable
+	domain  string
 }
 
 // NewTestDirectory wraps base so ".test" handles resolve locally. hostKey is
-// the seed for the identities' signing keys.
+// the seed for the identities' signing keys, and domain is the pear host they
+// name as their PDS.
 func NewTestDirectory(
 	base identity.Directory,
 	hostKey atcrypto.PrivateKeyExportable,
+	domain string,
 ) identity.Directory {
-	return &TestDirectory{base: base, hostKey: hostKey}
+	return &TestDirectory{base: base, hostKey: hostKey, domain: domain}
 }
 
 // IsTestDID reports whether did is a did:web:*.test DID.
@@ -89,10 +97,10 @@ func testDIDHandle(did syntax.DID) (syntax.Handle, bool) {
 }
 
 func (d *TestDirectory) identity(
-	did syntax.DID,
+	id syntax.DID,
 	handle syntax.Handle,
 ) (*identity.Identity, error) {
-	priv, err := TestSigningKey(d.hostKey, did)
+	priv, err := TestSigningKey(d.hostKey, id)
 	if err != nil {
 		return nil, err
 	}
@@ -100,18 +108,11 @@ func (d *TestDirectory) identity(
 	if err != nil {
 		return nil, fmt.Errorf("test signing public key: %w", err)
 	}
-	return &identity.Identity{
-		DID:         did,
-		Handle:      handle,
-		AlsoKnownAs: []string{"at://" + string(handle)},
-		Services:    map[string]identity.ServiceEndpoint{},
-		Keys: map[string]identity.VerificationMethod{
-			"atproto": {
-				Type:               "Multikey",
-				PublicKeyMultibase: pub.Multibase(),
-			},
-		},
-	}, nil
+	return did.New(id).
+		Handle(handle).
+		AtprotoKey(pub.Multibase()).
+		ATProtoPDS("https://" + d.domain).
+		Build(), nil
 }
 
 // LookupHandle implements identity.Directory.

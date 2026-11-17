@@ -139,7 +139,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	hive = habitat_identity.NewTestHive(hive, hostKey)
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
-	defaultDir := habitat_identity.NewTestDirectory(identity.DefaultDirectory(), hostKey)
+	defaultDir := habitat_identity.NewTestDirectory(identity.DefaultDirectory(), hostKey, domain)
 	// hive is the base directory (tried first) since it resolves DIDs under our
 	// own domain locally; falling back to defaultDir's network resolution first
 	// would make this server make an outbound HTTP request back to itself for
@@ -147,7 +147,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	// The hive's handle lookups don't fall through to defaultDir for every
 	// miss, so .test handles are resolved before reaching it.
 	hiveDir := habitat_identity.NewTestDirectory(
-		habitat_identity.NewWrappedDirectory(hive, defaultDir), hostKey,
+		habitat_identity.NewWrappedDirectory(hive, defaultDir), hostKey, domain,
 	)
 
 	oauthClient, err := pdsoauth.NewApp(
