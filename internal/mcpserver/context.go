@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/internal/reranker"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/modelcontextprotocol/go-sdk/auth"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -31,9 +32,15 @@ const (
 	defaultSuggestedTools = 5
 	maxSuggestedTools     = 20
 	// contextRecordLimit and contextItemLimit are how many records and
-	// connected-app results get_context returns from each source.
+	// connected-app results one get_context page holds.
 	contextRecordLimit = 8
 	contextItemLimit   = 5
+	// contextRecordPool is how many records get_context searches for and
+	// ranks, to page through. contextItemPool is the same for connected-app
+	// results, asked of each source: they are ranked against each other, so
+	// the first page holds the best across all sources, not the best of each.
+	contextRecordPool = 24
+	contextItemPool   = 10
 )
 
 const getContextDescription = "Start here. Give it what you're trying to find out or do, in a " +
@@ -48,10 +55,13 @@ const callToolDescription = "Run a tool of one of the organization's connected a
 	"matching that tool's input_schema."
 
 type getContextInput struct {
-	Query string `json:"query" jsonschema:"what you want to find out or do, in a sentence or a few keywords"`
+	Query string `json:"query,omitempty" jsonschema:"what you want to find out or do, in a sentence or a few keywords; required unless cursor is given"`
 	// MaxTools is a pointer so omitted, which takes the default, differs
 	// from an explicit zero, which asks for no suggestions.
 	MaxTools *int `json:"max_tools,omitempty" jsonschema:"most tools to suggest, 0 to 20; defaults to 5"`
+	// Cursor continues a previous search: it returns the next page of that
+	// search's results. See the MCP pagination utility.
+	Cursor *string `json:"cursor,omitempty" jsonschema:"next_cursor from a previous get_context response, to get its next page of records and items; omit to start a search"`
 }
 
 type contextRecord struct {
@@ -83,6 +93,9 @@ type getContextOutput struct {
 	// Notes say which sources couldn't be searched and why, so an empty
 	// section isn't mistaken for "nothing there".
 	Notes []string `json:"notes,omitempty"`
+	// NextCursor is present when more records or items are ranked beyond this
+	// page. A missing one means the end of results.
+	NextCursor *string `json:"next_cursor,omitempty" jsonschema:"pass as cursor to get the next page of records and items"`
 }
 
 // contextAgent gathers what get_context returns for a query: it runs the
@@ -98,6 +111,8 @@ type contextAgent struct {
 	// reranker, when set, reorders the records and the connected-app results
 	// by relevance to the query.
 	reranker reranker.Reranker
+	// pages keeps ranked results for next_cursor to page through.
+	pages *contextPages
 }
 
 func (a *contextAgent) handler() mcp.ToolHandlerFor[getContextInput, getContextOutput] {
@@ -109,6 +124,11 @@ func (a *contextAgent) handler() mcp.ToolHandlerFor[getContextInput, getContextO
 		tokenInfo := auth.TokenInfoFromContext(ctx)
 		if tokenInfo == nil || tokenInfo.UserID == "" {
 			return nil, getContextOutput{}, fmt.Errorf("missing authenticated caller")
+		}
+		caller := syntax.DID(tokenInfo.UserID)
+		if input.Cursor != nil {
+			out, err := a.page(caller, *input.Cursor)
+			return nil, out, err
 		}
 		if input.Query == "" {
 			return nil, getContextOutput{}, fmt.Errorf("query is required")
@@ -122,8 +142,47 @@ func (a *contextAgent) handler() mcp.ToolHandlerFor[getContextInput, getContextO
 				"max_tools must be between 0 and %d", maxSuggestedTools,
 			)
 		}
-		return nil, a.gather(ctx, syntax.DID(tokenInfo.UserID), input.Query, maxTools), nil
+		return nil, a.gather(ctx, caller, input.Query, maxTools), nil
 	}
+}
+
+// page returns the page of a previous search that cursor points at. An
+// unknown, expired or someone else's cursor is an Invalid params error, as
+// the MCP pagination utility asks.
+func (a *contextAgent) page(caller syntax.DID, cursor string) (getContextOutput, error) {
+	c, ok := decodeContextCursor(cursor)
+	var snap *contextSnapshot
+	if ok {
+		snap, ok = a.pages.get(c.ID, caller)
+	}
+	if !ok || c.Records > len(snap.records) || c.Items > len(snap.items) {
+		return getContextOutput{}, &jsonrpc.Error{
+			Code:    jsonrpc.CodeInvalidParams,
+			Message: "invalid or expired cursor; call get_context again with a query",
+		}
+	}
+	return a.slice(snap, c.ID, c.Records, c.Items), nil
+}
+
+// slice returns the page of snap starting at the given offsets, with a
+// next_cursor if either list goes on.
+func (a *contextAgent) slice(
+	snap *contextSnapshot,
+	id string,
+	recordsFrom, itemsFrom int,
+) getContextOutput {
+	recordsTo := min(recordsFrom+contextRecordLimit, len(snap.records))
+	itemsTo := min(itemsFrom+contextItemLimit, len(snap.items))
+	out := getContextOutput{
+		Records:        append([]contextRecord{}, snap.records[recordsFrom:recordsTo]...),
+		Items:          append([]contextItem{}, snap.items[itemsFrom:itemsTo]...),
+		SuggestedTools: []suggestedTool{},
+	}
+	if recordsTo < len(snap.records) || itemsTo < len(snap.items) {
+		next := contextCursor{ID: id, Records: recordsTo, Items: itemsTo}.encode()
+		out.NextCursor = &next
+	}
+	return out
 }
 
 func (a *contextAgent) gather(
@@ -147,7 +206,7 @@ func (a *contextAgent) gather(
 	if a.records != nil {
 		wg.Go(func() {
 			page, err := a.records.Search(ctx, caller, search.Query{
-				Text: query, Org: a.org, Limit: contextRecordLimit,
+				Text: query, Org: a.org, Limit: contextRecordPool,
 				SnippetLength: defaultMCPSnippetLength,
 			})
 			if err != nil {
@@ -170,7 +229,7 @@ func (a *contextAgent) gather(
 	if a.federated != nil {
 		wg.Go(func() {
 			res, err := a.federated.Search(ctx, caller, a.org, nil, mcpsearch.Query{
-				Text: query, Limit: contextItemLimit,
+				Text: query, Limit: contextItemPool,
 			})
 			if err != nil {
 				slog.WarnContext(ctx, "mcp: get_context federated search", "err", err)
@@ -183,6 +242,8 @@ func (a *contextAgent) gather(
 					URL: item.URL, Snippet: item.Snippet,
 				})
 			}
+			// One ranking across every source's results, so the best of all
+			// the apps come first, not the best of each.
 			out.Items = rerank(ctx, a.reranker, query, out.Items,
 				func(i contextItem) string { return i.Title + "\n" + i.Snippet }, func() {
 					note("reranking connected app results failed")
@@ -210,6 +271,17 @@ func (a *contextAgent) gather(
 		})
 	}
 	wg.Wait()
+
+	// Page the ranked results. A snapshot is kept only when there's a next
+	// page to serve from it.
+	snap := &contextSnapshot{caller: caller, records: out.Records, items: out.Items}
+	paged := a.slice(snap, "", 0, 0)
+	out.Records, out.Items = paged.Records, paged.Items
+	if paged.NextCursor != nil {
+		id := a.pages.put(snap)
+		next := contextCursor{ID: id, Records: len(out.Records), Items: len(out.Items)}.encode()
+		out.NextCursor = &next
+	}
 	return out
 }
 

@@ -3,13 +3,17 @@ package mcpserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http/httptest"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/search"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -18,6 +22,7 @@ type fakeFederated struct {
 	caller syntax.DID
 	org    syntax.DID
 	query  mcpsearch.Query
+	calls  int
 	result *mcpsearch.Result
 	err    error
 }
@@ -26,6 +31,7 @@ func (f *fakeFederated) Search(
 	_ context.Context, caller syntax.DID, org syntax.DID, _ []string, q mcpsearch.Query,
 ) (*mcpsearch.Result, error) {
 	f.caller, f.org, f.query = caller, org, q
+	f.calls++
 	return f.result, f.err
 }
 
@@ -256,4 +262,158 @@ func TestGetContextReranksItems(t *testing.T) {
 	items := out["items"].([]any)
 	require.Equal(t, "second", items[0].(map[string]any)["title"])
 	require.Equal(t, "first", items[1].(map[string]any)["title"])
+}
+
+// scriptedReranker orders documents by a score parsed from the title's first
+// byte, highest digit first, so a test can say which sources' items win.
+type scriptedReranker struct{}
+
+func (scriptedReranker) Rerank(
+	_ context.Context, _ string, docs []string, topN int,
+) ([]int, error) {
+	order := make([]int, len(docs))
+	for i := range order {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(a, b int) bool { return docs[order[a]][0] > docs[order[b]][0] })
+	if topN > 0 && topN < len(order) {
+		order = order[:topN]
+	}
+	return order, nil
+}
+
+func TestGetContextPaginates(t *testing.T) {
+	ctx := t.Context()
+	caller := syntax.DID("did:plc:caller")
+	servers := newFakeConnectedServers()
+	// Two sources: each one's own order is a-first, but the reranker puts the
+	// highest digit first across both.
+	var items []mcpsearch.Item
+	for i := range 6 {
+		items = append(
+			items,
+			mcpsearch.Item{
+				Source: mcpsearch.ItemSource{ServerName: "a"},
+				Title:  fmt.Sprintf("%d-a%d", i, i),
+			},
+			mcpsearch.Item{
+				Source: mcpsearch.ItemSource{ServerName: "b"},
+				Title:  fmt.Sprintf("%d-b%d", 9-i, i),
+			},
+		)
+	}
+	federated := &fakeFederated{result: &mcpsearch.Result{Items: items}}
+	httpServer := newContextTestServer(t, servers, nil,
+		WithFederatedSearcher(federated), WithReranker(scriptedReranker{}))
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	call := func(args map[string]any) (map[string]any, error) {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "get_context", Arguments: args})
+		if err != nil {
+			return nil, err
+		}
+		require.False(t, res.IsError, "%+v", res)
+		return res.StructuredContent.(map[string]any), nil
+	}
+	titles := func(out map[string]any) []string {
+		var ts []string
+		for _, it := range out["items"].([]any) {
+			ts = append(ts, it.(map[string]any)["title"].(string))
+		}
+		return ts
+	}
+
+	first, err := call(map[string]any{"query": "x", "max_tools": 0})
+	require.NoError(t, err)
+	// The pool is ranked across both sources before the page is cut, so the
+	// first page holds the best of both, not the first few of each.
+	require.Equal(t, []string{"9-b0", "8-b1", "7-b2", "6-b3", "5-b4"}, titles(first))
+	cursor, ok := first["next_cursor"].(string)
+	require.True(t, ok)
+
+	// Later pages continue the same ranking; the query isn't needed again.
+	second, err := call(map[string]any{"cursor": cursor})
+	require.NoError(t, err)
+	require.Equal(t, []string{"5-a5", "4-a4", "4-b5", "3-a3", "2-a2"}, titles(second))
+	require.Empty(t, second["suggested_tools"])
+	cursor = second["next_cursor"].(string)
+
+	third, err := call(map[string]any{"cursor": cursor})
+	require.NoError(t, err)
+	require.Equal(t, []string{"1-a1", "0-a0"}, titles(third))
+	require.NotContains(t, third, "next_cursor", "the last page has no next_cursor")
+
+	// The search isn't repeated for later pages.
+	require.Equal(t, 1, federated.calls)
+
+	t.Run("an invalid cursor is Invalid params", func(t *testing.T) {
+		for _, bad := range []string{"", "not-a-cursor", "e30"} {
+			_, err := call(map[string]any{"cursor": bad})
+			var rpcErr *jsonrpc.Error
+			require.ErrorAs(t, err, &rpcErr, "cursor %q", bad)
+			require.EqualValues(t, jsonrpc.CodeInvalidParams, rpcErr.Code)
+		}
+	})
+
+	t.Run("another caller can't use the cursor", func(t *testing.T) {
+		other, err := connectAs(t, ctx, httpServer.URL, "did:plc:other")
+		require.NoError(t, err)
+		defer func() { _ = other.Close() }()
+		_, err = other.CallTool(ctx, &mcp.CallToolParams{
+			Name: "get_context", Arguments: map[string]any{"cursor": cursor},
+		})
+		require.Error(t, err)
+	})
+}
+
+func TestContextPages(t *testing.T) {
+	caller := syntax.DID("did:plc:caller")
+	now := time.Now()
+	p := newContextPages()
+	p.now = func() time.Time { return now }
+
+	id := p.put(&contextSnapshot{caller: caller})
+	_, ok := p.get(id, caller)
+	require.True(t, ok)
+	_, ok = p.get(id, "did:plc:other")
+	require.False(t, ok)
+	_, ok = p.get("missing", caller)
+	require.False(t, ok)
+
+	t.Run("use extends life, disuse expires", func(t *testing.T) {
+		now = now.Add(p.ttl - time.Second)
+		_, ok := p.get(id, caller)
+		require.True(t, ok)
+		now = now.Add(p.ttl - time.Second)
+		_, ok = p.get(id, caller)
+		require.True(t, ok)
+		now = now.Add(p.ttl)
+		_, ok = p.get(id, caller)
+		require.False(t, ok)
+	})
+
+	t.Run("expired snapshots are dropped on put and the store is bounded", func(t *testing.T) {
+		p := newContextPages()
+		p.now = func() time.Time { return now }
+		for range contextPagesMax + 10 {
+			p.put(&contextSnapshot{caller: caller})
+		}
+		require.Len(t, p.snaps, contextPagesMax)
+		now = now.Add(2 * p.ttl)
+		p.put(&contextSnapshot{caller: caller})
+		require.Len(t, p.snaps, 1)
+	})
+}
+
+func TestContextCursor(t *testing.T) {
+	c := contextCursor{ID: "abc", Records: 8, Items: 5}
+	got, ok := decodeContextCursor(c.encode())
+	require.True(t, ok)
+	require.Equal(t, c, got)
+	for _, bad := range []string{"", "%%%", "e30", "eyJpZCI6ImEiLCJyIjotMX0"} {
+		_, ok := decodeContextCursor(bad)
+		require.False(t, ok, bad)
+	}
 }
