@@ -33,6 +33,7 @@
               "maxLength": 64,
               "knownValues": [
                 "google-drive",
+                "google-cloud",
                 "slack",
                 "github"
               ],

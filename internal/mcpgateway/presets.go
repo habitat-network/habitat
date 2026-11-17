@@ -9,6 +9,7 @@ type Preset string
 
 const (
 	PresetGoogleDrive Preset = "google-drive"
+	PresetGoogleCloud Preset = "google-cloud"
 	PresetSlack       Preset = "slack"
 	PresetGitHub      Preset = "github"
 )
@@ -22,6 +23,10 @@ var presetServers = map[Preset]struct {
 }{
 	// https://developers.google.com/workspace/drive/api/guides/configure-mcp-server
 	PresetGoogleDrive: {URL: "https://drivemcp.googleapis.com/mcp/v1", AuthType: AuthTypeOAuth},
+	// https://docs.slack.dev/ai/slack-mcp-server/
+	// https://docs.cloud.google.com/sdk/use-gcloud-mcp. Its authorization
+	// server is Google's, so pear uses the same OAuth client as Google Drive.
+	PresetGoogleCloud: {URL: "https://cloudcli.googleapis.com/mcp", AuthType: AuthTypeOAuth},
 	// https://docs.slack.dev/ai/slack-mcp-server/
 	PresetSlack: {URL: "https://mcp.slack.com/mcp", AuthType: AuthTypeOAuth},
 	// https://github.com/github/github-mcp-server. Each host app needs its

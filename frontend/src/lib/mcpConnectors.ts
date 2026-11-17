@@ -38,6 +38,15 @@ export const MCP_CONNECTORS: McpConnector[] = [
       "https://developers.google.com/workspace/drive/api/guides/configure-mcp-server",
   },
   {
+    id: "google-cloud",
+    preset: "google-cloud",
+    memberAuth: "oauth",
+    name: "Google Cloud",
+    description: "Run gcloud commands against each member's Google Cloud projects.",
+    defaultName: "google-cloud",
+    docsUrl: "https://docs.cloud.google.com/sdk/use-gcloud-mcp",
+  },
+  {
     id: "slack",
     preset: "slack",
     memberAuth: "oauth",

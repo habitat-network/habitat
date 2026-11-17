@@ -337,6 +337,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 				ID:     cmd.String(fMCPGoogleDriveID),
 				Secret: cmd.String(fMCPGoogleDriveSecret),
 			},
+			mcpgateway.PresetGoogleCloud: {
+				ID:     cmd.String(fMCPGoogleDriveID),
+				Secret: cmd.String(fMCPGoogleDriveSecret),
+			},
 			mcpgateway.PresetSlack: {
 				ID:     cmd.String(fMCPSlackID),
 				Secret: cmd.String(fMCPSlackSecret),

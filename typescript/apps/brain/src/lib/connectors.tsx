@@ -82,6 +82,17 @@ function SlackLogo(props: ComponentProps<"svg">) {
 
 // GitHub's mark is monochrome, so it follows the text colour and stays
 // legible in dark mode.
+function GoogleCloudLogo(props: ComponentProps<"svg">) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden {...props}>
+      <path
+        d="M17.5 19H7a5 5 0 1 1 1.2-9.85A6 6 0 0 1 19.6 11 4 4 0 0 1 17.5 19z"
+        fill="#4285f4"
+      />
+    </svg>
+  );
+}
+
 function GitHubLogo(props: ComponentProps<"svg">) {
   return (
     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden {...props}>
@@ -103,6 +114,18 @@ export const CONNECTORS: Connector[] = [
     hostHint: "drive",
     tile: "bg-white ring-1 ring-black/10",
     Logo: GoogleDriveLogo,
+  },
+  {
+    id: "google-cloud",
+    preset: "google-cloud",
+    memberAuth: "oauth",
+    name: "Google Cloud",
+    description: "Run gcloud commands against each member's Google Cloud projects.",
+    defaultName: "google-cloud",
+    docsUrl: "https://docs.cloud.google.com/sdk/use-gcloud-mcp",
+    hostHint: "cloudcli",
+    tile: "bg-white ring-1 ring-black/10",
+    Logo: GoogleCloudLogo,
   },
   {
     id: "slack",
