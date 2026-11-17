@@ -18,10 +18,24 @@ import (
 
 // Reranker scores documents against a query.
 type Reranker interface {
-	// Rerank returns the indexes into documents of the (at most) topN most
-	// relevant documents, most relevant first. Each index appears at most
-	// once. A topN of zero or less means all documents.
-	Rerank(ctx context.Context, query string, documents []string, topN int) ([]int, error)
+	// Rerank returns the (at most) topN most relevant documents, most
+	// relevant first, each as its index into documents with its relevance
+	// score. Each index appears at most once. A topN of zero or less means all
+	// documents.
+	//
+	// A score depends only on the query and the document, not on the other
+	// documents in the call, so scores from separate calls with the same
+	// query can be compared.
+	Rerank(ctx context.Context, query string, documents []string, topN int) ([]Scored, error)
+}
+
+// Scored is one document's place in a reranking.
+type Scored struct {
+	// Index is the document's index in the documents passed to Rerank.
+	Index int
+	// Score is its relevance to the query, higher is more relevant. For
+	// Cohere it is between 0 and 1.
+	Score float64
 }
 
 // Cohere reranks with the Cohere Rerank v2 API, either Cohere's own or a
@@ -53,7 +67,7 @@ func (c *Cohere) Rerank(
 	query string,
 	documents []string,
 	topN int,
-) ([]int, error) {
+) ([]Scored, error) {
 	if len(documents) == 0 {
 		return nil, nil
 	}
@@ -65,14 +79,14 @@ func (c *Cohere) Rerank(
 	if err != nil {
 		return nil, fmt.Errorf("cohere rerank: %w", err)
 	}
-	order := make([]int, 0, len(resp.Results))
+	order := make([]Scored, 0, len(resp.Results))
 	seen := make(map[int]bool, len(resp.Results))
 	for _, r := range resp.Results {
 		if r.Index < 0 || r.Index >= len(documents) || seen[r.Index] {
 			return nil, fmt.Errorf("cohere rerank: unexpected result index %d", r.Index)
 		}
 		seen[r.Index] = true
-		order = append(order, r.Index)
+		order = append(order, Scored{Index: r.Index, Score: r.RelevanceScore})
 	}
 	return order, nil
 }
