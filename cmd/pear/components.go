@@ -337,8 +337,20 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		"https://"+domain+pearserver.MCPOAuthCallbackPath,
 		mcpgateway.WithPresetClients(map[mcpgateway.Preset]mcpgateway.PresetClient{
 			mcpgateway.PresetGoogleDrive: {
-				ID:     cmd.String(fMCPGoogleDriveID),
-				Secret: cmd.String(fMCPGoogleDriveSecret),
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGoogleCloud: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGoogleCalendar: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGmail: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
 			},
 			mcpgateway.PresetSlack: {
 				ID:     cmd.String(fMCPSlackID),

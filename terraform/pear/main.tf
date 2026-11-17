@@ -56,7 +56,7 @@ locals {
     OTEL_EXPORTER_OTLP_HEADERS             = "habitat-otlp-headers"
     HABITAT_MEILISEARCH_API_KEY            = "habitat-meilisearch-key"
     HABITAT_EMBEDDER_API_KEY               = "azure-embedder-api-key"
-    HABITAT_MCP_GOOGLE_DRIVE_CLIENT_SECRET = "habitat-mcp-google-drive-client-secret"
+    HABITAT_MCP_GOOGLE_CLIENT_SECRET = "habitat-mcp-google-drive-client-secret"
     HABITAT_MCP_SLACK_CLIENT_SECRET        = "habitat-mcp-slack-client-secret"
     HABITAT_DECISIONS_API_KEY              = "azure-decisions-api-key"
     HABITAT_RERANK_API_KEY                 = "azure-rerank-api-key"
@@ -67,7 +67,7 @@ locals {
     HABITAT_HIVE_DOMAIN                = "id.habitat.network"
     HABITAT_BLOB_BUCKET                = "gs://pear-blobs"
     HABITAT_GOOGLE_CLIENT_ID           = "953995456319-667186r9ng84t5m4ibdne3380idub1ha.apps.googleusercontent.com"
-    HABITAT_MCP_GOOGLE_DRIVE_CLIENT_ID = "953995456319-64eika35n8v6ve30fi5p2jq3t1qp12k0.apps.googleusercontent.com"
+    HABITAT_MCP_GOOGLE_CLIENT_ID = "953995456319-64eika35n8v6ve30fi5p2jq3t1qp12k0.apps.googleusercontent.com"
     HABITAT_MCP_SLACK_CLIENT_ID        = "12439309385335.12527812000899"
     OTEL_EXPORTER_OTLP_ENDPOINT        = "https://otlp-gateway-prod-us-west-0.grafana.net/otlp"
     HABITAT_MEILISEARCH_URL            = data.terraform_remote_state.meilisearch.outputs.meilisearch_url

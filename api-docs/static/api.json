@@ -3066,6 +3066,9 @@
                     "maxLength": 64,
                     "enum": [
                       "google-drive",
+                      "google-cloud",
+                      "google-calendar",
+                      "gmail",
                       "slack",
                       "github"
                     ]
