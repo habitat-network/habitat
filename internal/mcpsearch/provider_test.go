@@ -214,7 +214,17 @@ func TestSlackProvider(t *testing.T) {
 	}, items)
 
 	// A report with no messages is no matches, not an error.
-	items, err = p.Normalize(textResult(`{"results":""}`))
+	for _, empty := range []string{
+		`{"results":""}`,
+		`{"results":"# Search Results for: zzq\n\nNo results found."}`,
+	} {
+		items, err = p.Normalize(textResult(empty))
+		require.NoError(t, err)
+		require.Empty(t, items, empty)
+	}
+
+	// A report in an unknown shape is kept whole rather than dropped.
+	items, err = p.Normalize(textResult(`{"results":"something new"}`))
 	require.NoError(t, err)
-	require.Empty(t, items)
+	require.Equal(t, []Item{{Snippet: "something new"}}, items)
 }

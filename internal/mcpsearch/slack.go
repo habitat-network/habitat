@@ -51,9 +51,10 @@ func (p *slackProvider) Normalize(result *mcp.CallToolResult) ([]Item, error) {
 	}
 	_, sections, found := strings.Cut(report, "### Result ")
 	if !found {
-		// No message sections: no matches, or a report in a shape this
-		// doesn't know. Keep its text rather than dropping it.
-		if strings.TrimSpace(report) == "" {
+		// No message sections: no matches ("No results found."), or a report
+		// in a shape this doesn't know, whose text is kept rather than
+		// dropped.
+		if strings.TrimSpace(report) == "" || strings.Contains(report, "No results found") {
 			return nil, nil
 		}
 		return []Item{{Snippet: report}}, nil
