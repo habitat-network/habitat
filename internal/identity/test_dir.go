@@ -23,20 +23,26 @@ const (
 // did:web:<name>.test DIDs back to the handle, without any network lookup.
 // These identities only exist for the passthrough login (see
 // login.NewPassthroughProvider). Each publishes a signing key derived from the
-// host key (see TestSigningKey) so service auth minted for it can be verified.
-// Every other identifier goes to the wrapped directory.
+// host key (see TestSigningKey) so service auth minted for it can be verified,
+// and names this pear as its PDS so a regular atproto OAuth flow for it (e.g.
+// an admin signing in inside an opensocial org login) runs against pear, which
+// signs it in through the passthrough. Every other identifier goes to the
+// wrapped directory.
 type TestDirectory struct {
 	base    identity.Directory
 	hostKey atcrypto.PrivateKeyExportable
+	domain  string
 }
 
 // NewTestDirectory wraps base so ".test" handles resolve locally. hostKey is
-// the seed for the identities' signing keys.
+// the seed for the identities' signing keys, and domain is the pear host they
+// name as their PDS.
 func NewTestDirectory(
 	base identity.Directory,
 	hostKey atcrypto.PrivateKeyExportable,
+	domain string,
 ) identity.Directory {
-	return &TestDirectory{base: base, hostKey: hostKey}
+	return &TestDirectory{base: base, hostKey: hostKey, domain: domain}
 }
 
 // IsTestDID reports whether did is a did:web:*.test DID.
@@ -104,7 +110,12 @@ func (d *TestDirectory) identity(
 		DID:         did,
 		Handle:      handle,
 		AlsoKnownAs: []string{"at://" + string(handle)},
-		Services:    map[string]identity.ServiceEndpoint{},
+		Services: map[string]identity.ServiceEndpoint{
+			"atproto_pds": {
+				Type: "AtprotoPersonalDataServer",
+				URL:  "https://" + d.domain,
+			},
+		},
 		Keys: map[string]identity.VerificationMethod{
 			"atproto": {
 				Type:               "Multikey",

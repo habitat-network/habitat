@@ -94,9 +94,9 @@ func (r *Router) provisionEmailMember(ctx context.Context, did syntax.DID) error
 	return nil
 }
 
-// IsPassthrough reports whether did should skip authentication: it's a
+// passthroughLogin reports whether did should skip authentication: it's a
 // did:web:*.test DID, or its handle ends in PassthroughHandleSuffix.
-func (r *Router) IsPassthrough(ctx context.Context, did syntax.DID) bool {
+func (r *Router) passthroughLogin(ctx context.Context, did syntax.DID) bool {
 	if r.Passthrough == nil {
 		return false
 	}
@@ -118,7 +118,7 @@ func (r *Router) Authorize(
 	ctx context.Context,
 	did syntax.DID,
 ) (string, string, string, error) {
-	if r.IsPassthrough(ctx, did) {
+	if r.passthroughLogin(ctx, did) {
 		return r.Passthrough.Authorize(ctx, did.String())
 	}
 	// email-domain member login
@@ -137,7 +137,7 @@ func (r *Router) Exchange(
 	query url.Values,
 	providerStateKey string,
 ) error {
-	if r.IsPassthrough(ctx, did) {
+	if r.passthroughLogin(ctx, did) {
 		if _, _, err := r.Passthrough.Exchange(ctx, query, providerStateKey); err != nil {
 			return fmt.Errorf("failed to exchange code: %w", err)
 		}

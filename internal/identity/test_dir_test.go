@@ -27,7 +27,7 @@ func TestTestDirectory(t *testing.T) {
 	ctx := context.Background()
 	hostKey, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
-	dir := habitat_identity.NewTestDirectory(failDir{}, hostKey)
+	dir := habitat_identity.NewTestDirectory(failDir{}, hostKey, "pear.example.com")
 
 	ident, err := dir.LookupHandle(ctx, "Alice.test")
 	require.NoError(t, err)
@@ -39,6 +39,8 @@ func TestTestDirectory(t *testing.T) {
 	require.Equal(t, pub.Multibase(), ident.Keys["atproto"].PublicKeyMultibase)
 	require.Equal(t, syntax.DID("did:web:alice.test"), ident.DID)
 	require.Equal(t, syntax.Handle("alice.test"), ident.Handle)
+	// pear is its PDS, so atproto OAuth for it runs against pear.
+	require.Equal(t, "https://pear.example.com", ident.PDSEndpoint())
 
 	ident, err = dir.LookupDID(ctx, "did:web:alice.test")
 	require.NoError(t, err)
