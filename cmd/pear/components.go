@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/fedsearch"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -25,12 +26,14 @@ import (
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/reranker"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -371,6 +374,11 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		)
 	}
 
+	fedSearch, err := setupFedSearch(cmd, encryptedKV, searcher, mcpGatewayStore)
+	if err != nil {
+		return nil, err
+	}
+
 	return pearapp.New(
 		database,
 		domain,
@@ -406,7 +414,41 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		searchIndexer,
 		searcher,
 		searchConfigStore,
+		fedSearch,
 	), nil
+}
+
+// fedSearchSnippetLength is about how many words of context each record
+// result of a federated search carries: plenty for an agent, as connected
+// apps' results carry up to 2000 characters.
+const fedSearchSnippetLength = 300
+
+// setupFedSearch builds the federated search over Habitat records (when
+// searcher is set) and members' connected MCP servers, reranked with Cohere
+// when --rerank_api_key is set.
+func setupFedSearch(
+	cmd *cli.Command,
+	encryptedKV keyval.EncryptedStore,
+	searcher *search.Searcher,
+	mcpGatewayStore mcpgateway.Store,
+) (*fedsearch.Service, error) {
+	resolvers := []fedsearch.Resolver{mcpsearch.NewResolver(
+		mcpGatewayStore, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
+	)}
+	if searcher != nil {
+		resolvers = append(resolvers, search.NewResolver(searcher, fedSearchSnippetLength))
+	}
+	var opts []fedsearch.Option
+	if key := cmd.String(fRerankAPIKey); key != "" {
+		model := cmd.String(fRerankModel)
+		if model == "" {
+			return nil, fmt.Errorf("--%s is required when --%s is set", fRerankModel, fRerankAPIKey)
+		}
+		opts = append(opts, fedsearch.WithReranker(
+			reranker.NewCohere(cmd.String(fRerankURL), key, model, httpx.NewClient()),
+		))
+	}
+	return fedsearch.NewService(encryptedKV.Namespace("fedsearch"), resolvers, opts...), nil
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {

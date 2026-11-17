@@ -12,10 +12,12 @@ package pearmcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -25,6 +27,8 @@ import (
 	"github.com/habitat-network/habitat/integration/mcp-evals/ragbench/corpus"
 	"github.com/habitat-network/habitat/integration/mcp-evals/ragbench/mockmcp"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/fedsearch"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/mcpserver"
@@ -88,9 +92,12 @@ func Start(slice *corpus.Slice, opts Options) (*Stack, error) {
 		})
 	}
 
-	serverOpts := []mcpserver.Option{mcpserver.WithFederatedSearcher(
-		mcpsearch.NewSearcher(connected, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...)),
-	)}
+	serverOpts := []mcpserver.Option{mcpserver.WithSearch(fedsearch.NewService(
+		newMemoryKV(),
+		[]fedsearch.Resolver{mcpsearch.NewResolver(
+			connected, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
+		)},
+	))}
 	if opts.Selector != nil {
 		serverOpts = append(serverOpts, mcpserver.WithToolSelector(opts.Selector))
 	}
@@ -242,3 +249,40 @@ func (d directory) Lookup(ctx context.Context, id syntax.AtIdentifier) (*identit
 }
 
 func (directory) Purge(context.Context, syntax.AtIdentifier) error { return nil }
+
+// memoryKV keeps federated searches in memory, unencrypted, for the
+// stack's one process: nothing it holds outlives the run.
+type memoryKV struct {
+	mu      sync.Mutex
+	entries map[string]memoryEntry
+}
+
+type memoryEntry struct {
+	data    []byte
+	expires time.Time
+}
+
+var _ keyval.EncryptedKV = (*memoryKV)(nil)
+
+func newMemoryKV() *memoryKV { return &memoryKV{entries: map[string]memoryEntry{}} }
+
+func (m *memoryKV) PutEncrypted(_ context.Context, key string, value any, ttl time.Duration) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.entries[key] = memoryEntry{data: data, expires: time.Now().Add(ttl)}
+	return nil
+}
+
+func (m *memoryKV) GetEncrypted(_ context.Context, key string, dst any) error {
+	m.mu.Lock()
+	e, ok := m.entries[key]
+	m.mu.Unlock()
+	if !ok || !e.expires.After(time.Now()) {
+		return keyval.ErrNotFound
+	}
+	return json.Unmarshal(e.data, dst)
+}

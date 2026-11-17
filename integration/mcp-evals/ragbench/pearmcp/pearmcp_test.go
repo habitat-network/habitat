@@ -2,6 +2,7 @@ package pearmcp
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -37,8 +38,11 @@ func setupStack(t *testing.T, opts Options) (*Stack, *corpus.Slice, *mcp.ClientS
 }
 
 type contextOutput struct {
-	Items []struct {
-		Server, Title, URL, Snippet string
+	Results []struct {
+		Source, Title, URL, Snippet string
+	}
+	Backends []struct {
+		Name, Status string
 	}
 	SuggestedTools []struct {
 		Name string
@@ -68,8 +72,9 @@ func TestStackGetContextSearchesEveryMockThroughPear(t *testing.T) {
 	// pear's own providers recognized the mocks and read their answers: the
 	// pull request comes back as an item with its URL.
 	require.Empty(t, out.Notes)
+	require.Empty(t, out.Backends)
 	var urls []string
-	for _, item := range out.Items {
+	for _, item := range out.Results {
 		urls = append(urls, item.URL)
 	}
 	require.Contains(t, urls, slice.Doc("dsid_b1").URL)
@@ -101,8 +106,8 @@ func TestStackGetContextReadsSlackResultsFromText(t *testing.T) {
 	// Slack answers in text, so its results are one item, with the threads'
 	// permalinks in it.
 	var found []corpus.DocID
-	for _, item := range out.Items {
-		if item.Server == "slack" {
+	for _, item := range out.Results {
+		if strings.HasPrefix(item.Source, "mcp:slack/") {
 			found = slice.Mentioned(item.Snippet)
 		}
 	}

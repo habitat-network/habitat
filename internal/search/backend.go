@@ -24,7 +24,7 @@ const (
 // RecordData is the fedsearch result data of a record.
 type RecordData struct {
 	Space      habitat_syntax.SpaceURI `json:"space"`
-	Collection syntax.NSID             `json:"collection"`
+	Collection syntax.NSID             `json:"collection,omitempty"`
 	Value      map[string]any          `json:"value"`
 }
 
