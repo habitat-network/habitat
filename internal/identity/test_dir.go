@@ -10,6 +10,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"github.com/habitat-network/habitat/internal/did"
 )
 
 const (
@@ -95,10 +97,10 @@ func testDIDHandle(did syntax.DID) (syntax.Handle, bool) {
 }
 
 func (d *TestDirectory) identity(
-	did syntax.DID,
+	id syntax.DID,
 	handle syntax.Handle,
 ) (*identity.Identity, error) {
-	priv, err := TestSigningKey(d.hostKey, did)
+	priv, err := TestSigningKey(d.hostKey, id)
 	if err != nil {
 		return nil, err
 	}
@@ -106,23 +108,11 @@ func (d *TestDirectory) identity(
 	if err != nil {
 		return nil, fmt.Errorf("test signing public key: %w", err)
 	}
-	return &identity.Identity{
-		DID:         did,
-		Handle:      handle,
-		AlsoKnownAs: []string{"at://" + string(handle)},
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_pds": {
-				Type: "AtprotoPersonalDataServer",
-				URL:  "https://" + d.domain,
-			},
-		},
-		Keys: map[string]identity.VerificationMethod{
-			"atproto": {
-				Type:               "Multikey",
-				PublicKeyMultibase: pub.Multibase(),
-			},
-		},
-	}, nil
+	return did.New(id).
+		Handle(handle).
+		AtprotoKey(pub.Multibase()).
+		ATProtoPDS("https://" + d.domain).
+		Build(), nil
 }
 
 // LookupHandle implements identity.Directory.
