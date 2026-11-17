@@ -26,7 +26,10 @@ var presetServers = map[Preset]struct {
 	// https://developers.google.com/workspace/drive/api/guides/configure-mcp-server
 	PresetGoogleDrive: {URL: "https://drivemcp.googleapis.com/mcp/v1", AuthType: AuthTypeOAuth},
 	// https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server
-	PresetGoogleCalendar: {URL: "https://calendarmcp.googleapis.com/mcp/v1", AuthType: AuthTypeOAuth},
+	PresetGoogleCalendar: {
+		URL:      "https://calendarmcp.googleapis.com/mcp/v1",
+		AuthType: AuthTypeOAuth,
+	},
 	// https://developers.google.com/workspace/gmail/api/reference/mcp
 	PresetGmail: {URL: "https://gmailmcp.googleapis.com/mcp/v1", AuthType: AuthTypeOAuth},
 	// https://docs.slack.dev/ai/slack-mcp-server/
