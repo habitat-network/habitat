@@ -165,7 +165,7 @@ func New(
 			agent := &contextAgent{
 				org: org, records: searcher, federated: o.federated,
 				connectedServers: connectedServers, selector: o.selector,
-				reranker: o.reranker,
+				reranker: o.reranker, pages: newContextPages(),
 			}
 			mcp.AddTool(mcpServer, &mcp.Tool{
 				Name:        "get_context",
