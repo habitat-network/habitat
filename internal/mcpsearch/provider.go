@@ -33,7 +33,7 @@ type Provider interface {
 	// Arguments builds the tool call's arguments for q.
 	Arguments(q Query) map[string]any
 	// Normalize converts a successful tool result into items, in the order
-	// the tool ranked them. Their Source is filled in by the caller.
+	// the tool ranked them.
 	Normalize(result *mcp.CallToolResult) ([]Item, error)
 }
 

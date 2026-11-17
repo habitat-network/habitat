@@ -4,52 +4,74 @@ package habitat
 
 import "encoding/json"
 
-// NetworkHabitatMcpSearchItem represents a item object
-type NetworkHabitatMcpSearchItem struct {
+// NetworkHabitatMcpSearchBackend represents a backend object
+type NetworkHabitatMcpSearchBackend struct {
 	LexiconTypeID string `json:"$type"`
-	Provider      string `json:"provider"`
-	ServerId      string `json:"serverId,omitempty"`
-	ServerUrl     string `json:"serverUrl"`
-	Snippet       string `json:"snippet,omitempty"`
-	Title         string `json:"title,omitempty"`
-	Url           string `json:"url,omitempty"`
+	Count         int64  `json:"count"`
+	Cursor        string `json:"cursor,omitempty"`
+	ElapsedMs     int64  `json:"elapsedMs,omitempty"`
+	Error         string `json:"error,omitempty"`
+	ErrorCode     string `json:"errorCode,omitempty"`
+	Id            string `json:"id"`
+	Kind          string `json:"kind"`
+	Name          string `json:"name"`
+	Status        string `json:"status"`
 }
 
-// MarshalJSON sets $type to "network.habitat.mcp.search#item" before encoding.
-func (t NetworkHabitatMcpSearchItem) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "network.habitat.mcp.search#item"
-	type alias NetworkHabitatMcpSearchItem
+// MarshalJSON sets $type to "network.habitat.mcp.search#backend" before encoding.
+func (t NetworkHabitatMcpSearchBackend) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "network.habitat.mcp.search#backend"
+	type alias NetworkHabitatMcpSearchBackend
 	return json.Marshal(alias(t))
 }
 
 // NetworkHabitatMcpSearchInput represents the input for network.habitat.mcp.search
 type NetworkHabitatMcpSearchInput struct {
-	Limit   int64    `json:"limit,omitempty"`
-	Org     string   `json:"org"`
-	Query   string   `json:"query"`
-	Servers []string `json:"servers,omitempty"`
+	Cursor    string `json:"cursor,omitempty"`
+	Limit     int64  `json:"limit,omitempty"`
+	Org       string `json:"org"`
+	Query     string `json:"query,omitempty"`
+	TimeoutMs int64  `json:"timeoutMs,omitempty"`
 }
 
 // NetworkHabitatMcpSearchOutput represents the output for network.habitat.mcp.search
 type NetworkHabitatMcpSearchOutput struct {
-	Items   []NetworkHabitatMcpSearchItem   `json:"items"`
-	Sources []NetworkHabitatMcpSearchSource `json:"sources"`
+	Backends []NetworkHabitatMcpSearchBackend `json:"backends"`
+	Cursor   string                           `json:"cursor,omitempty"`
+	Ranking  string                           `json:"ranking"`
+	Results  []NetworkHabitatMcpSearchResult  `json:"results"`
 }
 
-// NetworkHabitatMcpSearchSource represents a source object
-type NetworkHabitatMcpSearchSource struct {
-	LexiconTypeID string `json:"$type"`
-	Count         int64  `json:"count"`
-	Error         string `json:"error,omitempty"`
-	Provider      string `json:"provider,omitempty"`
-	ServerId      string `json:"serverId,omitempty"`
-	ServerUrl     string `json:"serverUrl"`
-	Status        string `json:"status"`
+// NetworkHabitatMcpSearchRecord represents a record object
+type NetworkHabitatMcpSearchRecord struct {
+	LexiconTypeID string      `json:"$type"`
+	Collection    string      `json:"collection,omitempty"`
+	Space         string      `json:"space"`
+	Value         interface{} `json:"value,omitempty"`
 }
 
-// MarshalJSON sets $type to "network.habitat.mcp.search#source" before encoding.
-func (t NetworkHabitatMcpSearchSource) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "network.habitat.mcp.search#source"
-	type alias NetworkHabitatMcpSearchSource
+// MarshalJSON sets $type to "network.habitat.mcp.search#record" before encoding.
+func (t NetworkHabitatMcpSearchRecord) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "network.habitat.mcp.search#record"
+	type alias NetworkHabitatMcpSearchRecord
+	return json.Marshal(alias(t))
+}
+
+// NetworkHabitatMcpSearchResult represents a result object
+type NetworkHabitatMcpSearchResult struct {
+	LexiconTypeID string                         `json:"$type"`
+	Backend       string                         `json:"backend"`
+	Id            string                         `json:"id"`
+	Kind          string                         `json:"kind"`
+	Record        *NetworkHabitatMcpSearchRecord `json:"record,omitempty"`
+	Snippet       string                         `json:"snippet,omitempty"`
+	Title         string                         `json:"title,omitempty"`
+	Url           string                         `json:"url,omitempty"`
+}
+
+// MarshalJSON sets $type to "network.habitat.mcp.search#result" before encoding.
+func (t NetworkHabitatMcpSearchResult) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "network.habitat.mcp.search#result"
+	type alias NetworkHabitatMcpSearchResult
 	return json.Marshal(alias(t))
 }
