@@ -116,7 +116,11 @@ function CreateSpaceForm() {
         {
           body: {
             type: type as NsidString,
-            policy: { $type: "network.habitat.relationspace.policy" },
+            // Habitat's own policy isn't in the upstream createSpace union, which
+            // the host still accepts by $type.
+            policy: {
+              $type: "network.habitat.relationspace.policy",
+            } as unknown as com.atproto.space.createSpace.$Input["body"]["policy"],
           },
           headers: {
             "atproto-proxy": `did:web:${import.meta.env.VITE_HABITAT_DOMAIN}#habitat`,
