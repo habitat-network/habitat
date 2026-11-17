@@ -5,33 +5,42 @@ import { Markdown } from "@tanstack/markdown/react";
 import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
 import type { UIMessage } from "@tanstack/ai-react";
 import {
-  Badge,
-  Card,
-  CardContent,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
+  Bubble,
+  BubbleContent,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Spinner,
+  Message,
+  MessageContent,
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
 } from "internal/components/ui";
 import {
   ArrowUpIcon,
-  BrainIcon,
-  CheckIcon,
-  ChevronRightIcon,
+  ChevronDownIcon,
+  CircleAlertIcon,
+  CircleCheckIcon,
+  LoaderCircleIcon,
   SquareIcon,
-  WrenchIcon,
-  XIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { listModels, type ChatMessage } from "@/server/functions";
 import { useOrgStore } from "@/stores/org";
 
@@ -61,33 +70,8 @@ function pretty(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-function ToolCallStatus({ state }: { state: ToolCallPart["state"] }) {
-  if (state === "error") {
-    return (
-      <Badge variant="destructive">
-        <XIcon /> Failed
-      </Badge>
-    );
-  }
-  if (state === "complete") {
-    return (
-      <Badge variant="secondary">
-        <CheckIcon /> Done
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline">
-      <Spinner />
-      {state === "input-streaming" || state === "awaiting-input"
-        ? "Preparing"
-        : "Running"}
-    </Badge>
-  );
-}
-
-// ToolCall is one collapsible card: the tool's name and status up top, its
-// arguments and result inside.
+// ToolCall is one Trace line: a status icon and the tool's name, expanding to
+// its arguments and result. A failed call shows in the error style.
 function ToolCall({
   part,
   message,
@@ -101,51 +85,101 @@ function ToolCall({
   const output =
     part.output ??
     (result?.type === "tool-result" ? result.content : undefined);
+  const failed = part.state === "error";
+  const done = part.state === "complete";
+  const preparing =
+    part.state === "input-streaming" || part.state === "awaiting-input";
+  const status = failed ? "error" : done ? undefined : "running";
+  const verb = failed
+    ? "Failed"
+    : done
+      ? "Ran"
+      : preparing
+        ? "Preparing"
+        : "Running";
   return (
-    <Collapsible className="group/tool w-full rounded-xl border bg-muted/30 text-sm">
-      <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left">
-        <WrenchIcon className="size-3.5 text-muted-foreground" />
-        <span className="flex-1 truncate font-mono text-xs">{part.name}</span>
-        <ToolCallStatus state={part.state} />
-        <ChevronRightIcon className="size-4 text-muted-foreground transition-transform group-data-[open]/tool:rotate-90" />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-2 border-t px-3 py-2">
+    <TraceCollapsible>
+      <TraceCollapsibleTrigger>
+        <TraceLine status={status}>
+          <TraceIcon>
+            {failed ? (
+              <CircleAlertIcon />
+            ) : done ? (
+              <CircleCheckIcon />
+            ) : (
+              <LoaderCircleIcon className="animate-spin" />
+            )}
+          </TraceIcon>
+          <TraceTitle>
+            {verb} <span className="font-mono text-xs">{part.name}</span>
+          </TraceTitle>
+        </TraceLine>
+      </TraceCollapsibleTrigger>
+      <TraceCollapsibleContent className="flex flex-col gap-2">
         <div>
-          <p className="mb-1 text-xs font-medium text-muted-foreground">
-            Arguments
-          </p>
+          <p className="mb-1 text-xs font-medium">Arguments</p>
           <pre className="max-h-48 overflow-auto rounded-lg bg-muted p-2 font-mono text-xs">
             {part.arguments ? pretty(part.arguments) : "—"}
           </pre>
         </div>
         {output !== undefined && (
           <div>
-            <p className="mb-1 text-xs font-medium text-muted-foreground">
-              Result
+            <p className="mb-1 text-xs font-medium">
+              {failed ? "Error" : "Result"}
             </p>
             <pre className="max-h-64 overflow-auto rounded-lg bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
               {pretty(output)}
             </pre>
           </div>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+      </TraceCollapsibleContent>
+    </TraceCollapsible>
   );
 }
 
+// Thinking is one Trace row; it opens itself while the model is reasoning.
 function Thinking({ content, active }: { content: string; active: boolean }) {
+  const [open, setOpen] = useState<boolean>();
   return (
-    <Collapsible className="group/think w-full text-sm text-muted-foreground">
-      <CollapsibleTrigger className="flex items-center gap-2">
-        <BrainIcon className="size-3.5" />
-        {active ? "Thinking…" : "Thought"}
-        <ChevronRightIcon className="size-4 transition-transform group-data-[open]/think:rotate-90" />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-1 border-l pl-3 whitespace-pre-wrap">
+    <TraceCollapsible open={open ?? active} onOpenChange={setOpen}>
+      <TraceCollapsibleTrigger>
+        <TraceLine status={active ? "running" : undefined}>
+          <TraceTitle>{active ? "Thinking" : "Thought"}</TraceTitle>
+        </TraceLine>
+      </TraceCollapsibleTrigger>
+      <TraceCollapsibleContent className="whitespace-pre-wrap">
         {content}
-      </CollapsibleContent>
-    </Collapsible>
+      </TraceCollapsibleContent>
+    </TraceCollapsible>
   );
+}
+
+type Part = UIMessage["parts"][number];
+type TraceEntry = {
+  part: ToolCallPart | Extract<Part, { type: "thinking" }>;
+  index: number;
+};
+type PartGroup =
+  | { kind: "text"; index: number; part: Extract<Part, { type: "text" }> }
+  | { kind: "trace"; index: number; parts: TraceEntry[] };
+
+// groupParts folds a reply's consecutive tool calls and thinking into one
+// Trace, with text between them as its own block.
+function groupParts(parts: Part[]): PartGroup[] {
+  const groups: PartGroup[] = [];
+  parts.forEach((part, index) => {
+    if (part.type === "text") {
+      groups.push({ kind: "text", index, part });
+    } else if (
+      part.type === "tool-call" ||
+      (part.type === "thinking" && part.content)
+    ) {
+      const last = groups.at(-1);
+      if (last?.kind === "trace") last.parts.push({ part, index });
+      else groups.push({ kind: "trace", index, parts: [{ part, index }] });
+    }
+  });
+  return groups;
 }
 
 // Chat is one chat session: its stored messages, then whatever is said in
@@ -188,12 +222,6 @@ export function Chat({
     setInput("");
   };
 
-  // Keep the newest message in view while it streams.
-  const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages, isLoading]);
-
   const last = messages.at(-1);
   // Nothing visible has streamed in for this turn yet.
   const waiting =
@@ -203,70 +231,92 @@ export function Chat({
     // The thinking part shows its own status while it streams.
     last?.parts.at(-1)?.type !== "thinking";
 
+  const modelName = model ?? "Model";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
-          {messages.map((message, mi) =>
-            message.role === "user" ? (
-              <Card key={message.id} size="sm" className="max-w-[85%] self-end">
-                <CardContent>
-                  {message.parts.map((part, i) =>
-                    part.type === "text" ? (
-                      <p key={i} className="whitespace-pre-wrap">
-                        {part.content}
-                      </p>
-                    ) : null,
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <div key={message.id} className="flex flex-col gap-2">
-                {message.parts.map((part, i) => {
-                  if (part.type === "text") {
-                    return (
-                      <div
-                        key={i}
-                        className="prose max-w-none break-words prose-sm dark:prose-invert prose-pre:bg-muted prose-pre:text-foreground"
-                      >
-                        <Markdown extensions={markdownExtensions}>
-                          {part.content}
-                        </Markdown>
-                      </div>
-                    );
-                  }
-                  if (part.type === "tool-call") {
-                    return (
-                      <ToolCall key={part.id} part={part} message={message} />
-                    );
-                  }
-                  if (part.type === "thinking" && part.content) {
-                    return (
-                      <Thinking
-                        key={i}
-                        content={part.content}
-                        active={
-                          isLoading &&
-                          mi === messages.length - 1 &&
-                          i === message.parts.length - 1
-                        }
-                      />
-                    );
-                  }
-                  return null;
-                })}
-              </div>
-            ),
-          )}
-          {waiting && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Spinner /> Thinking…
-            </div>
-          )}
-          {error && <p className="text-destructive">{error.message}</p>}
-          <div ref={bottomRef} />
-        </div>
-      </div>
+      <MessageScrollerProvider>
+        <MessageScroller className="min-h-0 flex-1">
+          <MessageScrollerViewport>
+            <MessageScrollerContent
+              aria-busy={isLoading}
+              className="mx-auto w-full max-w-3xl gap-6 p-4"
+            >
+              {messages.map((message, mi) =>
+                message.role === "user" ? (
+                  <MessageScrollerItem
+                    key={message.id}
+                    messageId={message.id}
+                    scrollAnchor
+                  >
+                    <Message align="end">
+                      <MessageContent>
+                        <Bubble align="end" variant="muted">
+                          <BubbleContent className="whitespace-pre-wrap">
+                            {message.parts.map((part) =>
+                              part.type === "text" ? part.content : "",
+                            )}
+                          </BubbleContent>
+                        </Bubble>
+                      </MessageContent>
+                    </Message>
+                  </MessageScrollerItem>
+                ) : (
+                  <MessageScrollerItem key={message.id} messageId={message.id}>
+                    <Message>
+                      <MessageContent className="gap-3">
+                        {groupParts(message.parts).map((group) =>
+                          group.kind === "text" ? (
+                            <div
+                              key={group.index}
+                              className="prose max-w-none break-words prose-sm dark:prose-invert prose-pre:bg-muted prose-pre:text-foreground"
+                            >
+                              <Markdown extensions={markdownExtensions}>
+                                {group.part.content}
+                              </Markdown>
+                            </div>
+                          ) : (
+                            <Trace key={group.index}>
+                              {group.parts.map(({ part, index }) =>
+                                part.type === "tool-call" ? (
+                                  <ToolCall
+                                    key={part.id}
+                                    part={part}
+                                    message={message}
+                                  />
+                                ) : (
+                                  <Thinking
+                                    key={index}
+                                    content={part.content}
+                                    active={
+                                      isLoading &&
+                                      mi === messages.length - 1 &&
+                                      index === message.parts.length - 1
+                                    }
+                                  />
+                                ),
+                              )}
+                            </Trace>
+                          ),
+                        )}
+                      </MessageContent>
+                    </Message>
+                  </MessageScrollerItem>
+                ),
+              )}
+              {waiting && (
+                <Trace>
+                  <TraceLine status="running">
+                    <TraceTitle>Thinking</TraceTitle>
+                  </TraceLine>
+                </Trace>
+              )}
+              {error && <p className="text-destructive">{error.message}</p>}
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton />
+        </MessageScroller>
+      </MessageScrollerProvider>
       <div className="mx-auto w-full max-w-3xl shrink-0 bg-background p-4 pt-2">
         <InputGroup>
           <InputGroupTextarea
@@ -282,26 +332,38 @@ export function Chat({
           />
           <InputGroupAddon align="block-end">
             {models.length > 0 && (
-              <Select
-                value={model}
-                onValueChange={(value) => selectModel(value)}
-              >
-                <SelectTrigger size="sm" aria-label="Model">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <InputGroupButton
+                      size="sm"
+                      variant="outline"
+                      aria-label={`Model: ${modelName}`}
+                    />
+                  }
+                >
+                  {modelName}
+                  <ChevronDownIcon />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuRadioGroup
+                    value={model ?? ""}
+                    onValueChange={(value) => selectModel(value)}
+                  >
+                    {models.map((m) => (
+                      <DropdownMenuRadioItem key={m} value={m} closeOnClick>
+                        {m}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             {isLoading ? (
               <InputGroupButton
                 variant="default"
                 size="icon-sm"
+                className="ml-auto rounded-full"
                 aria-label="Stop"
                 onClick={stop}
               >
@@ -311,6 +373,7 @@ export function Chat({
               <InputGroupButton
                 variant="default"
                 size="icon-sm"
+                className="ml-auto rounded-full"
                 aria-label="Send"
                 disabled={!input.trim()}
                 onClick={submit}
