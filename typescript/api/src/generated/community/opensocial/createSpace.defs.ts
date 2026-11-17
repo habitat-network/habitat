@@ -3,8 +3,6 @@
  */
 
 import { l } from '@atproto/lex'
-import * as PersonalspacePolicy from '../../com/atproto/personalspace/policy.defs.js'
-import * as MemberspacePolicy from '../../com/atproto/memberspace/policy.defs.js'
 import * as RelationspacePolicy from '../../network/habitat/relationspace/policy.defs.js'
 
 const $nsid = 'community.opensocial.createSpace'
@@ -24,12 +22,6 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
   policy: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.typedUnion(
       [
-        /*#__PURE__*/ l.typedRef<PersonalspacePolicy.Main>(
-          (() => PersonalspacePolicy.main) as any,
-        ),
-        /*#__PURE__*/ l.typedRef<MemberspacePolicy.Main>(
-          (() => MemberspacePolicy.main) as any,
-        ),
         /*#__PURE__*/ l.typedRef<RelationspacePolicy.Main>(
           (() => RelationspacePolicy.main) as any,
         ),

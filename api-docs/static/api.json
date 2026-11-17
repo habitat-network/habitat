@@ -301,12 +301,6 @@
                   "policy": {
                     "oneOf": [
                       {
-                        "$ref": "#/components/schemas/com.atproto.personalspace.policy"
-                      },
-                      {
-                        "$ref": "#/components/schemas/com.atproto.memberspace.policy"
-                      },
-                      {
                         "$ref": "#/components/schemas/network.habitat.relationspace.policy"
                       }
                     ]

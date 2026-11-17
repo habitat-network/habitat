@@ -33,8 +33,6 @@
                             "type": "union",
                             "description": "The space policy: the full configuration of the space. If omitted, the host applies network.habitat.relationspace.policy.",
                             "refs": [
-                                "com.atproto.personalspace.policy",
-                                "com.atproto.memberspace.policy",
                                 "network.habitat.relationspace.policy"
                             ]
                         },
