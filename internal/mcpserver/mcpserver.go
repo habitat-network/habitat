@@ -132,11 +132,19 @@ func New(
 	}
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
 	newMCPServer := func(org syntax.DID, text TextOverrides) *mcp.Server {
-		var serverOpts *mcp.ServerOptions
+		serverOpts := &mcp.ServerOptions{
+			// Resources and prompts are advertised without listChanged or
+			// subscribe: pear doesn't relay connected servers' notifications
+			// (see resources.go). Tools are left to the SDK to infer.
+			Capabilities: &mcp.ServerCapabilities{
+				Resources: &mcp.ResourceCapabilities{},
+			},
+		}
+		if connectedServers != nil {
+			serverOpts.Capabilities.Prompts = &mcp.PromptCapabilities{}
+		}
 		if searcher != nil {
-			serverOpts = &mcp.ServerOptions{
-				Instructions: textOr(text.Instructions, serverInstructions),
-			}
+			serverOpts.Instructions = textOr(text.Instructions, serverInstructions)
 		}
 		mcpServer := mcp.NewServer(impl, serverOpts)
 		mcpServer.AddReceivingMiddleware(otelMiddleware(otelMiddlewareConfig{}))
@@ -185,6 +193,8 @@ func New(
 		mcpServer.AddReceivingMiddleware(
 			mergeConnectedToolsMiddleware(connectedServers, org),
 			proxyConnectedToolCallMiddleware(connectedServers, org),
+			mergeConnectedResourcesMiddleware(connectedServers, org),
+			proxyConnectedResourcesMiddleware(connectedServers, org),
 		)
 		return mcpServer
 	}
