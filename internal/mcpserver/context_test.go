@@ -290,9 +290,16 @@ func TestGetContextPaginates(t *testing.T) {
 	// highest digit first across both.
 	var items []mcpsearch.Item
 	for i := range 6 {
-		items = append(items,
-			mcpsearch.Item{Source: mcpsearch.ItemSource{ServerName: "a"}, Title: fmt.Sprintf("%d-a%d", i, i)},
-			mcpsearch.Item{Source: mcpsearch.ItemSource{ServerName: "b"}, Title: fmt.Sprintf("%d-b%d", 9-i, i)},
+		items = append(
+			items,
+			mcpsearch.Item{
+				Source: mcpsearch.ItemSource{ServerName: "a"},
+				Title:  fmt.Sprintf("%d-a%d", i, i),
+			},
+			mcpsearch.Item{
+				Source: mcpsearch.ItemSource{ServerName: "b"},
+				Title:  fmt.Sprintf("%d-b%d", 9-i, i),
+			},
 		)
 	}
 	federated := &fakeFederated{result: &mcpsearch.Result{Items: items}}
