@@ -51,6 +51,9 @@ const (
 	requestKeyCookie = "request_key"
 	// providerStateCookie holds the key of the login-provider state, held server-side, for one redirect hop.
 	providerStateCookie = "provider_state"
+	// passthroughStateCookie holds the OAuth state of an opensocial org login
+	// hop that signs the member in through the .test passthrough provider.
+	passthroughStateCookie = "passthrough_state"
 	// loginHopsCookie holds, keyed by the OAuth `state` each login-provider hop
 	// will echo back on its callback, the request key and provider state that
 	// hop belongs to. request_key and provider_state only describe the most
@@ -536,7 +539,12 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		// org/member branching doesn't apply here — the admin's membership
 		// was already verified by HandleOpensocial before this PDS login
 		// began, and the subject stays the org DID throughout.
-		if _, _, err := o.loginRouter.Pds.Exchange(
+		provider := o.loginRouter.Pds
+		if s, _ := cookie.Values[passthroughStateCookie].(string); s != "" &&
+			s == r.URL.Query().Get("state") && o.loginRouter.Passthrough != nil {
+			provider = o.loginRouter.Passthrough
+		}
+		if _, _, err := provider.Exchange(
 			ctx,
 			r.URL.Query(),
 			providerStateKey,
@@ -946,12 +954,24 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteUnauthorized(ctx, w, "not an admin of this org", nil)
 		return
 	}
-	redirectURL, state, providerStateKey, err := o.loginRouter.Pds.Authorize(ctx, memberID.String())
+	// .test members (dev/test only) sign in without a PDS, which they don't
+	// have; remember the state so the callback skips the PDS exchange too.
+	provider := o.loginRouter.Pds
+	passthrough := o.loginRouter.IsPassthrough(ctx, memberID)
+	if passthrough {
+		provider = o.loginRouter.Passthrough
+	}
+	redirectURL, state, providerStateKey, err := provider.Authorize(ctx, memberID.String())
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get authorize url: %w", err))
 		return
 	}
 	saveLoginHop(session, requestKey, state, providerStateKey)
+	if passthrough {
+		session.Values[passthroughStateCookie] = state
+	} else {
+		delete(session.Values, passthroughStateCookie)
+	}
 	if err := session.Save(r, w); err != nil {
 		o.metrics.callbackErr(ctx, err, "save_cookie")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
