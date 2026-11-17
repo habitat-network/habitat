@@ -25,8 +25,8 @@ type Variant struct {
 	ID VariantID `json:"id,omitempty"`
 	// Instructions replaces the server instructions sent on initialize.
 	Instructions *string `json:"instructions,omitempty"`
-	// SearchDescription replaces the search_records tool's description.
-	SearchDescription *string `json:"search_description,omitempty"`
+	// ContextDescription replaces the get_context tool's description.
+	ContextDescription *string `json:"context_description,omitempty"`
 }
 
 func loadVariants(path string) ([]Variant, error) {
@@ -97,12 +97,12 @@ func writeVariantConfig(src, dst string, v Variant) error {
 	if !ok {
 		return errors.New("mcp config has no " + habitatServer + " server")
 	}
-	if v.Instructions != nil || v.SearchDescription != nil {
+	if v.Instructions != nil || v.ContextDescription != nil {
 		if _, ok := server["headersHelper"]; ok {
 			return errors.New(habitatServer + " server already has a headersHelper")
 		}
 		overrides, err := json.Marshal(Variant{
-			Instructions: v.Instructions, SearchDescription: v.SearchDescription,
+			Instructions: v.Instructions, ContextDescription: v.ContextDescription,
 		})
 		if err != nil {
 			return err

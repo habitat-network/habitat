@@ -43,7 +43,7 @@ func TestApplyVariants(t *testing.T) {
 	setups := []Setup{{Name: "only", MCPConfig: cfg, Strict: true}}
 	variants := []Variant{
 		{ID: "builtin"},
-		{ID: "bare", Instructions: text(""), SearchDescription: text("Search records.")},
+		{ID: "bare", Instructions: text(""), ContextDescription: text("Find context.")},
 	}
 
 	// A relative dir, as -out gives by default: claude runs from another
@@ -87,7 +87,7 @@ func TestApplyVariants(t *testing.T) {
 	decoded, err := base64.StdEncoding.DecodeString(headers[textOverridesHeader])
 	require.NoError(t, err)
 	// The same JSON internal/mcpserver.TextOverrides parses.
-	require.JSONEq(t, `{"instructions":"","search_description":"Search records."}`, string(decoded))
+	require.JSONEq(t, `{"instructions":"","context_description":"Find context."}`, string(decoded))
 }
 
 func TestApplyVariantsRejectsExistingHeadersHelper(t *testing.T) {

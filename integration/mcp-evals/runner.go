@@ -216,8 +216,8 @@ func (r claudeRunner) preflight(ctx context.Context, setup Setup, outDir string)
 		// Room to load the deferred tool, call it and answer.
 		cheap.maxTurns = 4
 		prompt = fmt.Sprintf(
-			"Call Habitat's search_records tool once with the query %q, then reply with "+
-				"just the number of hits.", setup.RequireSearchHits,
+			"Call Habitat's get_context tool once with the query %q, then reply with "+
+				"just the number of results.", setup.RequireSearchHits,
 		)
 	}
 	t, err := cheap.run(
@@ -251,7 +251,7 @@ func (r claudeRunner) preflight(ctx context.Context, setup Setup, outDir string)
 	return nil
 }
 
-// checkSearchHits checks t called search_records and it found something for
+// checkSearchHits checks t called get_context and it found something for
 // query.
 func checkSearchHits(t Transcript, query string) error {
 	called := false
@@ -261,9 +261,9 @@ func checkSearchHits(t Transcript, query string) error {
 		}
 		called = true
 		var result struct {
-			Hits []json.RawMessage `json:"hits"`
+			Results []json.RawMessage `json:"results"`
 		}
-		if json.Unmarshal([]byte(call.Result), &result) == nil && len(result.Hits) > 0 {
+		if json.Unmarshal([]byte(call.Result), &result) == nil && len(result.Results) > 0 {
 			return nil
 		}
 	}

@@ -88,13 +88,12 @@ func newTestSearch(t *testing.T, backends ...*fakeBackend) (*fedsearch.Service, 
 func newContextTestServer(
 	t *testing.T,
 	servers mcpgateway.ConnectedServers,
-	records RecordSearcher,
 	opts ...Option,
 ) *httptest.Server {
 	t.Helper()
 	spacesStore, permStore := setupStores(t)
 	srv := New(
-		fakeTokens{}, spacesStore, permStore, records, servers, nil, newTestDirectory(),
+		fakeTokens{}, spacesStore, permStore, servers, nil, newTestDirectory(),
 		"https://habitat.example", "https://habitat.example/mcp", opts...,
 	)
 	httpServer := httptest.NewServer(srv.Handler())
@@ -151,7 +150,7 @@ func TestGetContext(t *testing.T) {
 		}}
 		broken := &fakeBackend{id: "mcp:drive/files", err: errors.New("rate limited")}
 		svc, resolver := newTestSearch(t, records, apps, broken)
-		httpServer := newContextTestServer(t, servers, nil, WithSearch(svc))
+		httpServer := newContextTestServer(t, servers, WithSearch(svc))
 		session, err := connectAs(t, ctx, httpServer.URL, caller.String())
 		require.NoError(t, err)
 		defer func() { _ = session.Close() }()
@@ -175,7 +174,7 @@ func TestGetContext(t *testing.T) {
 	})
 
 	t.Run("without search it only suggests tools", func(t *testing.T) {
-		httpServer := newContextTestServer(t, servers, nil)
+		httpServer := newContextTestServer(t, servers)
 		session, err := connectAs(t, ctx, httpServer.URL, caller.String())
 		require.NoError(t, err)
 		defer func() { _ = session.Close() }()
@@ -187,7 +186,7 @@ func TestGetContext(t *testing.T) {
 	})
 
 	t.Run("max_tools 0 suggests nothing and bad values fail", func(t *testing.T) {
-		httpServer := newContextTestServer(t, servers, nil)
+		httpServer := newContextTestServer(t, servers)
 		session, err := connectAs(t, ctx, httpServer.URL, caller.String())
 		require.NoError(t, err)
 		defer func() { _ = session.Close() }()
@@ -221,7 +220,7 @@ func TestCallTool(t *testing.T) {
 	fake := newFakeMCPServer(t)
 	servers := newFakeConnectedServers()
 	servers.connect(caller, testOrg, "cloudflare", fake.URL, nil)
-	httpServer := newContextTestServer(t, servers, nil)
+	httpServer := newContextTestServer(t, servers)
 	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
 	require.NoError(t, err)
 	defer func() { _ = session.Close() }()
@@ -268,7 +267,7 @@ func TestGetContextPaginates(t *testing.T) {
 		})
 	}
 	svc, _ := newTestSearch(t, a, b)
-	httpServer := newContextTestServer(t, newFakeConnectedServers(), nil, WithSearch(svc))
+	httpServer := newContextTestServer(t, newFakeConnectedServers(), WithSearch(svc))
 	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
 	require.NoError(t, err)
 	defer func() { _ = session.Close() }()

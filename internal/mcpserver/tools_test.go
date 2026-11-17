@@ -137,7 +137,6 @@ func newConnectedServerTestServer(
 		fakeTokens{},
 		spacesStore,
 		permStore,
-		nil,
 		servers,
 		nil,
 		newTestDirectory(),

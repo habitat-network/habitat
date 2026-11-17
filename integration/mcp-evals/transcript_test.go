@@ -10,7 +10,7 @@ import (
 // sampleTranscript mirrors the shape of `claude -p --output-format
 // stream-json --verbose` output: an init line, assistant/user turns, and a
 // final result line.
-const sampleTranscript = `{"type":"system","subtype":"init","tools":["Read","ToolSearch","mcp__habitat__search_records","mcp__granola__list_meetings"],"mcp_servers":[{"name":"habitat","status":"connected"},{"name":"granola","status":"needs-auth"}]}
+const sampleTranscript = `{"type":"system","subtype":"init","tools":["Read","ToolSearch","mcp__habitat__get_context","mcp__granola__list_meetings"],"mcp_servers":[{"name":"habitat","status":"connected"},{"name":"granola","status":"needs-auth"}]}
 {"type":"assistant","message":{"content":[{"type":"text","text":"Let me look."},{"type":"tool_use","id":"t1","name":"ToolSearch","input":{"query":"meetings"}}]},"parent_tool_use_id":null}
 {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]},"parent_tool_use_id":null}
 {"type":"rate_limit_event"}
@@ -24,7 +24,7 @@ func TestParseTranscriptExtractsInitCallsAndResult(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, []string{
-		"Read", "ToolSearch", "mcp__habitat__search_records", "mcp__granola__list_meetings",
+		"Read", "ToolSearch", "mcp__habitat__get_context", "mcp__granola__list_meetings",
 	}, got.Tools)
 	require.Equal(t, []MCPServerStatus{
 		{Name: "habitat", Status: "connected"},
@@ -65,7 +65,7 @@ func TestParseTranscriptWithoutResult(t *testing.T) {
 func TestParseTranscriptAttachesToolResults(t *testing.T) {
 	got, err := parseTranscript(strings.NewReader(
 		`{"type":"assistant","message":{"content":[` +
-			`{"type":"tool_use","id":"a","name":"mcp__habitat__search_records","input":{}},` +
+			`{"type":"tool_use","id":"a","name":"mcp__habitat__get_context","input":{}},` +
 			`{"type":"tool_use","id":"b","name":"Read","input":{}}]}}` + "\n" +
 			`{"type":"user","message":{"content":[` +
 			`{"type":"tool_result","tool_use_id":"a","content":[{"type":"text","text":"{\"hits\":[{\"uri\":\"x\"}]}"}]},` +
