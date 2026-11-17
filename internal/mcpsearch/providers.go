@@ -38,6 +38,10 @@ func DefaultProviders() []Provider {
 				return map[string]any{"query": q.Text}
 			},
 		}},
+		// https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server
+		newCalendarProvider(mcpgateway.PresetURL(mcpgateway.PresetGoogleCalendar)),
+		// https://developers.google.com/workspace/gmail/api/reference/mcp
+		newGmailProvider(mcpgateway.PresetURL(mcpgateway.PresetGmail)),
 	}
 }
 

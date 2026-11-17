@@ -113,6 +113,10 @@ func TestDefaultProvidersCoverPresets(t *testing.T) {
 		ids(mcpgateway.PresetURL(mcpgateway.PresetGoogleDrive)))
 	require.Equal(t, []ProviderID{"slack-messages"},
 		ids(mcpgateway.PresetURL(mcpgateway.PresetSlack)))
+	require.Equal(t, []ProviderID{"google-calendar-events"},
+		ids(mcpgateway.PresetURL(mcpgateway.PresetGoogleCalendar)))
+	require.Equal(t, []ProviderID{"gmail-threads"},
+		ids(mcpgateway.PresetURL(mcpgateway.PresetGmail)))
 	require.Empty(t, ids(mcpgateway.PresetURL(mcpgateway.PresetGitHub)),
 		"GitHub is a regular tool source, not a federated search source")
 }
