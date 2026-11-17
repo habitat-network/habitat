@@ -28,21 +28,16 @@ func DefaultProviders() []Provider {
 			URLPaths:     []string{"viewUrl"},
 			SnippetPaths: []string{"contentSnippet", "description"},
 		},
-		// https://docs.slack.dev/ai/slack-mcp-server/. Slack answers in
-		// formatted text rather than JSON, so the whole answer is one item.
-		&ToolProvider{
+		// https://docs.slack.dev/ai/slack-mcp-server/. Slack answers with a
+		// markdown report, which slackProvider splits into messages.
+		&slackProvider{&ToolProvider{
 			Name: "slack-messages",
 			URL:  mcpgateway.PresetURL(mcpgateway.PresetSlack),
 			Tool: "slack_search_public_and_private",
 			Args: func(q Query) map[string]any {
 				return map[string]any{"query": q.Text}
 			},
-			ItemsPath:    "messages",
-			TitlePaths:   []string{"channel_name", "channel"},
-			URLPaths:     []string{"permalink"},
-			SnippetPaths: []string{"text"},
-			TextFallback: true,
-		},
+		}},
 		// https://github.com/github/github-mcp-server. Its search tools return
 		// GitHub's search API response.
 		&ToolProvider{
