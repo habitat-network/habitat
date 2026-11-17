@@ -38,45 +38,7 @@ func DefaultProviders() []Provider {
 				return map[string]any{"query": q.Text}
 			},
 		}},
-		// https://github.com/github/github-mcp-server. Its search tools return
-		// GitHub's search API response.
-		&ToolProvider{
-			Name:         "github-issues",
-			URL:          mcpgateway.PresetURL(mcpgateway.PresetGitHub),
-			Tool:         "search_issues",
-			Args:         githubSearchArgs,
-			ItemsPath:    "items",
-			TitlePaths:   []string{"title"},
-			URLPaths:     []string{"html_url"},
-			SnippetPaths: []string{"body"},
-		},
-		&ToolProvider{
-			Name:         "github-pull-requests",
-			URL:          mcpgateway.PresetURL(mcpgateway.PresetGitHub),
-			Tool:         "search_pull_requests",
-			Args:         githubSearchArgs,
-			ItemsPath:    "items",
-			TitlePaths:   []string{"title"},
-			URLPaths:     []string{"html_url"},
-			SnippetPaths: []string{"body"},
-		},
-		&ToolProvider{
-			Name:       "github-code",
-			URL:        mcpgateway.PresetURL(mcpgateway.PresetGitHub),
-			Tool:       "search_code",
-			Args:       githubSearchArgs,
-			ItemsPath:  "items",
-			TitlePaths: []string{"path", "name"},
-			URLPaths:   []string{"html_url"},
-			// Code results carry no text unless text matches are requested,
-			// so the repository is the best context there is.
-			SnippetPaths: []string{"repository.full_name"},
-		},
 	}
-}
-
-func githubSearchArgs(q Query) map[string]any {
-	return map[string]any{"query": q.Text, "perPage": q.Limit}
 }
 
 // driveQuote quotes s as a string value in a Drive search query, which is
