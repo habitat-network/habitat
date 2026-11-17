@@ -16,7 +16,6 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
-	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -132,7 +131,6 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 		permStore,
 		nil,
 		nil,
-		nil,
 		newTestDirectory(),
 		"https://habitat.example",
 		"https://habitat.example/mcp",
@@ -227,131 +225,12 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 	})
 }
 
-// fakeRecordSearcher records the last search it ran and returns canned matches.
-type fakeRecordSearcher struct {
-	caller  syntax.DID
-	query   search.Query
-	matches []search.Match
-	err     error
-}
-
-func (f *fakeRecordSearcher) Search(
-	_ context.Context, caller syntax.DID, q search.Query,
-) (search.Page, error) {
-	f.caller, f.query = caller, q
-	return search.Page{Matches: f.matches}, f.err
-}
-
-func TestMCPServerSearchRecordsTool(t *testing.T) {
+func TestMCPServerInstructions(t *testing.T) {
 	ctx := t.Context()
-	spacesStore, permStore := setupStores(t)
-
 	owner := syntax.DID("did:plc:owner")
-	org := testOrg
-	collection := syntax.NSID("network.habitat.example")
-
-	spaceURI, err := spacesStore.CreateSpace(
-		ctx, owner, syntax.NSID("network.habitat.space.type"), habitat_syntax.SpaceKey("test"),
-	)
-	require.NoError(t, err)
-	recordURI, recordCid, err := spacesStore.PutRecord(
-		ctx, spaceURI, owner, collection, "abc123",
-		spaces_testutil.MustMarshalRecord(t, map[string]any{"hello": "world"}),
-	)
-	require.NoError(t, err)
-
-	searcher := &fakeRecordSearcher{
-		matches: []search.Match{
-			{
-				URI: recordURI,
-				Record: spaces.Record{
-					Space: spaceURI,
-					Value: map[string]any{"hello": "world"},
-					Cid:   *recordCid,
-				},
-				Snippet: "<mark>hello</mark>",
-			},
-		},
-	}
-	newHTTPServer := func(s RecordSearcher, opts ...Option) *httptest.Server {
-		srv := New(
-			fakeTokens{}, spacesStore, permStore, s,
-			nil,
-			nil,
-			newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
-			opts...,
-		)
-		return httptest.NewServer(srv.Handler())
-	}
-	httpServer := newHTTPServer(searcher)
-	defer httpServer.Close()
-
-	t.Run("searches as the caller", func(t *testing.T) {
-		session, err := connectAs(t, ctx, httpServer.URL, owner.String())
-		require.NoError(t, err)
-		defer func() { _ = session.Close() }()
-
-		result, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name: "search_records",
-			Arguments: map[string]any{
-				"query":      "hello",
-				"collection": collection.String(), "limit": 5,
-			},
-		})
-		require.NoError(t, err)
-		require.False(t, result.IsError, "%+v", result)
-		require.Equal(t, owner, searcher.caller)
-		require.Equal(t, search.Query{
-			Text: "hello", Org: org, Collections: []syntax.NSID{collection}, Limit: 5,
-			SnippetLength: defaultMCPSnippetLength,
-		}, searcher.query)
-
-		out, ok := result.StructuredContent.(map[string]any)
-		require.True(t, ok)
-		hits, ok := out["hits"].([]any)
-		require.True(t, ok)
-		require.Len(t, hits, 1)
-		hit, ok := hits[0].(map[string]any)
-		require.True(t, ok)
-		require.Equal(t, recordURI.String(), hit["uri"])
-		require.Equal(t, map[string]any{"hello": "world"}, hit["value"])
-		require.Equal(t, "<mark>hello</mark>", hit["snippet"])
-	})
-
-	t.Run("snippet length is configurable", func(t *testing.T) {
-		session, err := connectAs(t, ctx, httpServer.URL, owner.String())
-		require.NoError(t, err)
-		defer func() { _ = session.Close() }()
-
-		result, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name:      "search_records",
-			Arguments: map[string]any{"query": "hello", "snippet_length": 500},
-		})
-		require.NoError(t, err)
-		require.False(t, result.IsError, "%+v", result)
-		require.Equal(t, 500, searcher.query.SnippetLength)
-	})
-
-	t.Run("invalid input is rejected", func(t *testing.T) {
-		session, err := connectAs(t, ctx, httpServer.URL, owner.String())
-		require.NoError(t, err)
-		defer func() { _ = session.Close() }()
-
-		for _, args := range []map[string]any{
-			{"query": ""},
-			{"query": "x", "org": "not-a-did"},
-			{"query": "x", "collection": "nope"},
-			{"query": "x", "limit": 101},
-			{"query": "x", "snippet_length": 0},
-			{"query": "x", "snippet_length": 1001},
-		} {
-			result, err := session.CallTool(ctx, &mcp.CallToolParams{
-				Name: "search_records", Arguments: args,
-			})
-			require.NoError(t, err)
-			require.True(t, result.IsError, "%v", args)
-		}
-	})
+	servers := newFakeConnectedServers()
+	svc, _ := newTestSearch(t)
+	httpServer := newContextTestServer(t, servers, WithSearch(svc))
 
 	t.Run("instructions and description say when to search", func(t *testing.T) {
 		session, err := connectAs(t, ctx, httpServer.URL, owner.String())
@@ -362,14 +241,14 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 		tools, err := session.ListTools(ctx, nil)
 		require.NoError(t, err)
 		idx := slices.IndexFunc(tools.Tools, func(tool *mcp.Tool) bool {
-			return tool.Name == "search_records"
+			return tool.Name == "get_context"
 		})
 		require.NotEqual(t, -1, idx)
-		require.Equal(t, searchRecordsDescription, tools.Tools[idx].Description)
+		require.Equal(t, getContextDescription, tools.Tools[idx].Description)
 	})
 
 	// textSeen connects with header set to TextOverridesHeader and returns
-	// the instructions and search_records description the session sees.
+	// the instructions and get_context description the session sees.
 	textSeen := func(
 		t *testing.T, serverURL, header string,
 	) (instructions, description string, err error) {
@@ -388,23 +267,21 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 		tools, err := session.ListTools(ctx, nil)
 		require.NoError(t, err)
 		idx := slices.IndexFunc(tools.Tools, func(tool *mcp.Tool) bool {
-			return tool.Name == "search_records"
+			return tool.Name == "get_context"
 		})
 		require.NotEqual(t, -1, idx)
 		return session.InitializeResult().Instructions, tools.Tools[idx].Description, nil
 	}
 	text := func(s string) *string { return &s }
+	custom := TextOverrides{
+		Instructions:       text("custom instructions"),
+		ContextDescription: text("custom description"),
+	}
 
 	t.Run("text overrides apply when enabled", func(t *testing.T) {
-		overridable := newHTTPServer(searcher, WithTextOverrides())
-		defer overridable.Close()
+		overridable := newContextTestServer(t, servers, WithSearch(svc), WithTextOverrides())
 
-		instructions, description, err := textSeen(t, overridable.URL, mustEncode(t, TextOverrides{
-			Instructions: text(
-				"custom instructions",
-			),
-			SearchDescription: text("custom description"),
-		}))
+		instructions, description, err := textSeen(t, overridable.URL, mustEncode(t, custom))
 		require.NoError(t, err)
 		require.Equal(t, "custom instructions", instructions)
 		require.Equal(t, "custom description", description)
@@ -415,37 +292,25 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Empty(t, instructions)
-		require.Equal(t, searchRecordsDescription, description)
+		require.Equal(t, getContextDescription, description)
 
 		_, _, err = textSeen(t, overridable.URL, "not base64!")
 		require.Error(t, err, "an invalid override is rejected, not ignored")
 	})
 
 	t.Run("text overrides are ignored unless enabled", func(t *testing.T) {
-		instructions, description, err := textSeen(t, httpServer.URL, mustEncode(t, TextOverrides{
-			Instructions: text(
-				"custom instructions",
-			),
-			SearchDescription: text("custom description"),
-		}))
+		instructions, description, err := textSeen(t, httpServer.URL, mustEncode(t, custom))
 		require.NoError(t, err)
 		require.Equal(t, serverInstructions, instructions)
-		require.Equal(t, searchRecordsDescription, description)
+		require.Equal(t, getContextDescription, description)
 	})
 
-	t.Run("tool and instructions are absent when search is not configured", func(t *testing.T) {
-		noSearch := newHTTPServer(nil)
-		defer noSearch.Close()
+	t.Run("no instructions when get_context doesn't search", func(t *testing.T) {
+		noSearch := newContextTestServer(t, servers)
 		session, err := connectAs(t, ctx, noSearch.URL, owner.String())
 		require.NoError(t, err)
 		defer func() { _ = session.Close() }()
-
 		require.Empty(t, session.InitializeResult().Instructions)
-		tools, err := session.ListTools(ctx, nil)
-		require.NoError(t, err)
-		for _, tool := range tools.Tools {
-			require.NotEqual(t, "search_records", tool.Name)
-		}
 	})
 }
 
@@ -474,7 +339,7 @@ func TestMCPServerGetBlobTool(t *testing.T) {
 	require.NoError(t, err)
 
 	srv := New(
-		fakeTokens{}, spacesStore, permStore, nil,
+		fakeTokens{}, spacesStore, permStore,
 		nil, blobs,
 		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
@@ -559,7 +424,7 @@ func TestMCPServerGetBlobTool(t *testing.T) {
 func TestMCPServerRejectsInvalidOrgPath(t *testing.T) {
 	spacesStore, permStore := setupStores(t)
 	srv := New(
-		fakeTokens{}, spacesStore, permStore, nil,
+		fakeTokens{}, spacesStore, permStore,
 		nil, nil,
 		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
@@ -578,7 +443,7 @@ func TestMCPServerRejectsInvalidOrgPath(t *testing.T) {
 func TestMCPServerAcceptsDPoPScheme(t *testing.T) {
 	spacesStore, permStore := setupStores(t)
 	srv := New(
-		fakeTokens{}, spacesStore, permStore, nil,
+		fakeTokens{}, spacesStore, permStore,
 		nil, nil,
 		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
@@ -600,7 +465,7 @@ func TestMCPServerAcceptsDPoPScheme(t *testing.T) {
 func TestMCPServerProtectedResourceMetadataIsPerOrg(t *testing.T) {
 	spacesStore, permStore := setupStores(t)
 	srv := New(
-		fakeTokens{}, spacesStore, permStore, nil,
+		fakeTokens{}, spacesStore, permStore,
 		nil, nil,
 		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
@@ -624,15 +489,8 @@ func TestMCPServerProtectedResourceMetadataIsPerOrg(t *testing.T) {
 
 func TestMCPServerOrgByHandle(t *testing.T) {
 	ctx := t.Context()
-	spacesStore, permStore := setupStores(t)
-	searcher := &fakeRecordSearcher{}
-	srv := New(
-		fakeTokens{}, spacesStore, permStore, searcher,
-		nil, nil,
-		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
-	)
-	httpServer := httptest.NewServer(srv.Handler())
-	defer httpServer.Close()
+	svc, resolver := newTestSearch(t)
+	httpServer := newContextTestServer(t, newFakeConnectedServers(), WithSearch(svc))
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
@@ -642,10 +500,7 @@ func TestMCPServerOrgByHandle(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = session.Close() }()
 
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "search_records", Arguments: map[string]any{"query": "hello"},
-	})
+	_, err = callGetContext(t, session, map[string]any{"query": "hello"})
 	require.NoError(t, err)
-	require.False(t, result.IsError, "%+v", result)
-	require.Equal(t, testOrg, searcher.query.Org)
+	require.Equal(t, testOrg, resolver.org)
 }

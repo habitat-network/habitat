@@ -10,7 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ProviderID identifies a Provider, e.g. "github-issues". It's reported with
+// ProviderID identifies a Provider, e.g. "slack-messages". It's reported with
 // every item and source so callers can tell which tool produced them.
 type ProviderID string
 

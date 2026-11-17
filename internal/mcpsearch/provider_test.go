@@ -117,8 +117,8 @@ func TestDefaultProvidersCoverPresets(t *testing.T) {
 		ids(mcpgateway.PresetURL(mcpgateway.PresetGoogleCalendar)))
 	require.Equal(t, []ProviderID{"gmail-threads"},
 		ids(mcpgateway.PresetURL(mcpgateway.PresetGmail)))
-	require.Equal(t, []ProviderID{"github-issues", "github-pull-requests", "github-code"},
-		ids(mcpgateway.PresetURL(mcpgateway.PresetGitHub)))
+	require.Empty(t, ids(mcpgateway.PresetURL(mcpgateway.PresetGitHub)),
+		"GitHub is a regular tool source, not a federated search source")
 }
 
 // providerByID returns the default provider id.
@@ -150,31 +150,6 @@ func TestGoogleDriveProvider(t *testing.T) {
 		{Title: "Q3 plan", URL: "https://docs.google.com/d/1", Snippet: "the plan"},
 		{Title: "Notes", Snippet: "no snippet"},
 	}, items)
-}
-
-func TestGitHubProviders(t *testing.T) {
-	issues := providerByID(t, "github-issues")
-	require.Equal(t, "search_issues", issues.ToolName())
-	require.Equal(t, map[string]any{"query": "login bug", "perPage": 3},
-		issues.Arguments(Query{Text: "login bug", Limit: 3}))
-	items, err := issues.Normalize(textResult(`{"total_count":1,"incomplete_results":false,
-		"items":[{"number":7,"title":"Login fails","html_url":"https://github.com/o/r/issues/7",
-		"body":"Steps to reproduce"}]}`))
-	require.NoError(t, err)
-	require.Equal(t, []Item{{
-		Title: "Login fails", URL: "https://github.com/o/r/issues/7", Snippet: "Steps to reproduce",
-	}}, items)
-
-	code := providerByID(t, "github-code")
-	require.Equal(t, "search_code", code.ToolName())
-	items, err = code.Normalize(textResult(`{"total_count":1,"items":[{"name":"auth.go",
-		"path":"internal/auth.go","html_url":"https://github.com/o/r/blob/main/internal/auth.go",
-		"repository":{"full_name":"o/r"}}]}`))
-	require.NoError(t, err)
-	require.Equal(t, []Item{{
-		Title: "internal/auth.go", URL: "https://github.com/o/r/blob/main/internal/auth.go",
-		Snippet: "o/r",
-	}}, items)
 }
 
 func TestSlackProvider(t *testing.T) {

@@ -16,9 +16,9 @@ const habitatServer = "habitat"
 // habitatToolPrefix prefixes every Habitat tool, its own and those it proxies.
 const habitatToolPrefix = "mcp__" + habitatServer + "__"
 
-// searchTool is Habitat's record search tool (see internal/mcpserver), which
+// searchTool is Habitat's get_context tool (see internal/mcpserver), which
 // should be called whenever a prompt needs company context.
-const searchTool = habitatToolPrefix + "search_records"
+const searchTool = habitatToolPrefix + "get_context"
 
 // metaTools are built-in tools that don't fetch anything themselves, skipped
 // when finding a run's first tool. Calls a subagent (Agent) makes are

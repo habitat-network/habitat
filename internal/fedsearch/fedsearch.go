@@ -33,7 +33,7 @@ import (
 )
 
 // BackendID identifies a backend within a search, stably across searches,
-// such as "records" or "mcp:github/github-issues".
+// such as "records" or "mcp:slack/slack-messages".
 type BackendID string
 
 // Kind is a type of backend, such as "records" or "mcp".
@@ -49,7 +49,7 @@ type Backend interface {
 	ID() BackendID
 	// Kind is the backend's type.
 	Kind() Kind
-	// Name is a display name, such as "GitHub issues".
+	// Name is a display name, such as "Slack messages".
 	Name() string
 	// Search returns the backend's results for q, most relevant first by the
 	// backend's own ranking, and at most q.Limit of them. It blocks until the
