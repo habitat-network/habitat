@@ -1,6 +1,7 @@
 package mcpsearch
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -180,7 +181,50 @@ func TestSlackProvider(t *testing.T) {
 		map[string]any{"query": "launch"},
 		p.Arguments(Query{Text: "launch", Limit: 5}),
 	)
-	items, err := p.Normalize(textResult("# Results\n- #general: launch is Tuesday"))
+
+	// Slack answers with a JSON object holding a markdown report.
+	report := "# Search Results for: launch\n\n## Messages (2 results)\n" +
+		"### Result 1 of 2\n" +
+		"Channel: DM (ID: D0CEABW53K4)\n" +
+		"From: Ada <ada@example.com> (ID: U0CEE8E6WS0) \n" +
+		"Time: 2026-11-02 17:43:36 PST\n" +
+		"Permalink: [link](https://example.slack.com/archives/D0CEABW53K4/p1)\n" +
+		"Text: \nlaunch is Tuesday\n- see the doc\n" +
+		"Context after: \n- From: Bo (ID: U2)\n  later message\n\n---\n\n" +
+		"### Result 2 of 2\n" +
+		"Channel: #eng (ID: C0CG6UEKZS4)\n" +
+		"From: Bo <bo@example.com> (ID: U2) \n" +
+		"Permalink: [link](https://example.slack.com/archives/C0CG6UEKZS4/p2?thread_ts=2&cid=C)\n" +
+		"Text: \nlaunch slipped\n"
+	body, err := json.Marshal(map[string]string{"results": report})
 	require.NoError(t, err)
-	require.Equal(t, []Item{{Snippet: "# Results\n- #general: launch is Tuesday"}}, items)
+	items, err := p.Normalize(textResult(string(body)))
+	require.NoError(t, err)
+	require.Equal(t, []Item{
+		{
+			Title:   "DM · Ada",
+			URL:     "https://example.slack.com/archives/D0CEABW53K4/p1",
+			Snippet: "launch is Tuesday\n- see the doc",
+		},
+		{
+			Title:   "#eng · Bo",
+			URL:     "https://example.slack.com/archives/C0CG6UEKZS4/p2?thread_ts=2&cid=C",
+			Snippet: "launch slipped",
+		},
+	}, items)
+
+	// A report with no messages is no matches, not an error.
+	for _, empty := range []string{
+		`{"results":""}`,
+		`{"results":"# Search Results for: zzq\n\nNo results found."}`,
+	} {
+		items, err = p.Normalize(textResult(empty))
+		require.NoError(t, err)
+		require.Empty(t, items, empty)
+	}
+
+	// A report in an unknown shape is kept whole rather than dropped.
+	items, err = p.Normalize(textResult(`{"results":"something new"}`))
+	require.NoError(t, err)
+	require.Equal(t, []Item{{Snippet: "something new"}}, items)
 }

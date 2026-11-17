@@ -18,6 +18,7 @@ import (
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/fedsearch"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -25,6 +26,7 @@ import (
 	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pdsoauth"
@@ -255,6 +257,17 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		)
 	}
 
+	// Over the server's own database too, so a cursor works on any server
+	// sharing it.
+	fedResolvers := []fedsearch.Resolver{mcpsearch.NewResolver(
+		mcpGatewayStore, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
+	)}
+	if searcher != nil {
+		fedResolvers = append(fedResolvers, search.NewResolver(searcher, 0))
+	}
+	fedSearch := fedsearch.NewService(encKV.Namespace("fedsearch"), fedResolvers)
+	t.Cleanup(fedSearch.Wait)
+
 	ts.CredentialRevocations = authn.NewCredentialRevocations(
 		kv.Namespace("space_credential_revoked"),
 	)
@@ -283,6 +296,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		EmailDomainStore: emailDomainStore,
 		Searcher:         searcher,
 		SearchConfig:     ts.SearchConfig,
+		FedSearch:        fedSearch,
 	})
 	ts.PermStore = ps
 	return &ts
