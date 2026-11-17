@@ -251,7 +251,7 @@ func getFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:    fRerankAPIKey,
-			Usage:   "API key sent as a bearer token to the Rerank API. If unset, get_context does not rerank.",
+			Usage:   "API key sent as a bearer token to the Rerank API. If unset, federated search results are ranked by their rank within each source.",
 			Sources: getSources(fRerankAPIKey),
 		},
 		&cli.StringFlag{

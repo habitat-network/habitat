@@ -24,10 +24,8 @@ import (
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
-	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/oauthserver"
-	"github.com/habitat-network/habitat/internal/reranker"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -155,24 +153,13 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	if cmd.Bool(fMCPTextOverrides) {
 		mcpOpts = append(mcpOpts, mcpserver.WithTextOverrides())
 	}
-	mcpOpts = append(mcpOpts, mcpserver.WithFederatedSearcher(mcpsearch.NewSearcher(
-		app.MCPGatewayStore, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
-	)))
+	mcpOpts = append(mcpOpts, mcpserver.WithSearch(app.FedSearch))
 	if u := cmd.String(fDecisionsURL); u != "" {
 		mcpOpts = append(mcpOpts, mcpserver.WithToolSelector(mcpserver.DecisionSelector{
 			Chooser: decisions.New(
 				u, cmd.String(fDecisionsAPIKey), cmd.String(fDecisionsModel), httpx.NewClient(),
 			),
 		}))
-	}
-	if key := cmd.String(fRerankAPIKey); key != "" {
-		model := cmd.String(fRerankModel)
-		if model == "" {
-			return fmt.Errorf("--%s is required when --%s is set", fRerankModel, fRerankAPIKey)
-		}
-		mcpOpts = append(mcpOpts, mcpserver.WithReranker(
-			reranker.NewCohere(cmd.String(fRerankURL), key, model, httpx.NewClient()),
-		))
 	}
 	mcpServer := mcpserver.New(
 		app.OAuthServer,

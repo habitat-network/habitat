@@ -163,9 +163,8 @@ func New(
 		}, blobResourceHandler(blobs, permStore))
 		if connectedServers != nil {
 			agent := &contextAgent{
-				org: org, records: searcher, federated: o.federated,
+				org: org, search: o.search,
 				connectedServers: connectedServers, selector: o.selector,
-				reranker: o.reranker, pages: newContextPages(),
 			}
 			mcp.AddTool(mcpServer, &mcp.Tool{
 				Name:        "get_context",

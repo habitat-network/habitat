@@ -13,6 +13,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/emaildomain"
+	"github.com/habitat-network/habitat/internal/fedsearch"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
@@ -76,6 +77,9 @@ type App struct {
 	// Searcher is nil when search (--meilisearch_url) is off.
 	Searcher     *search.Searcher
 	SearchConfig *searchconfig.Store
+	// FedSearch searches Habitat records and members' connected apps
+	// together.
+	FedSearch *fedsearch.Service
 }
 
 // New returns an App holding the given stores and services.
@@ -114,6 +118,7 @@ func New(
 	searchIndexer *search.Indexer,
 	searcher *search.Searcher,
 	searchConfigStore *searchconfig.Store,
+	fedSearch *fedsearch.Service,
 ) *App {
 	return &App{
 		DB:                    database,
@@ -150,6 +155,7 @@ func New(
 		SearchIndexer:         searchIndexer,
 		Searcher:              searcher,
 		SearchConfig:          searchConfigStore,
+		FedSearch:             fedSearch,
 	}
 }
 
