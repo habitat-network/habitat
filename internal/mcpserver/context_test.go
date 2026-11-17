@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/mcpsearch"
+	"github.com/habitat-network/habitat/internal/reranker"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -200,9 +201,21 @@ type fakeReranker struct {
 
 func (f *fakeReranker) Rerank(
 	_ context.Context, query string, docs []string, _ int,
-) ([]int, error) {
+) ([]reranker.Scored, error) {
 	f.query, f.docs = query, docs
-	return f.order, f.err
+	return scoredOrder(f.order), f.err
+}
+
+// scoredOrder scores order's indexes highest first, as a reranker would.
+func scoredOrder(order []int) []reranker.Scored {
+	if order == nil {
+		return nil
+	}
+	out := make([]reranker.Scored, len(order))
+	for i, idx := range order {
+		out[i] = reranker.Scored{Index: idx, Score: float64(len(order) - i)}
+	}
+	return out
 }
 
 func TestRerank(t *testing.T) {
@@ -270,7 +283,7 @@ type scriptedReranker struct{}
 
 func (scriptedReranker) Rerank(
 	_ context.Context, _ string, docs []string, topN int,
-) ([]int, error) {
+) ([]reranker.Scored, error) {
 	order := make([]int, len(docs))
 	for i := range order {
 		order[i] = i
@@ -279,7 +292,7 @@ func (scriptedReranker) Rerank(
 	if topN > 0 && topN < len(order) {
 		order = order[:topN]
 	}
-	return order, nil
+	return scoredOrder(order), nil
 }
 
 func TestGetContextPaginates(t *testing.T) {

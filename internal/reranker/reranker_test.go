@@ -30,7 +30,7 @@ func TestCohereRerank(t *testing.T) {
 	r := NewCohere(srv.URL, "key", "rerank-v3.5", srv.Client())
 	got, err := r.Rerank(t.Context(), "q", []string{"a", "b", "c"}, 2)
 	require.NoError(t, err)
-	require.Equal(t, []int{2, 0}, got)
+	require.Equal(t, []Scored{{Index: 2, Score: 0.9}, {Index: 0, Score: 0.4}}, got)
 	require.Equal(t, "Bearer key", gotAuth)
 	require.Equal(t, "rerank-v3.5", gotBody.Model)
 	require.Equal(t, "q", gotBody.Query)

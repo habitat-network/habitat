@@ -310,9 +310,9 @@ func rerank[T any](
 		return items
 	}
 	out := make([]T, 0, len(items))
-	for _, idx := range order {
-		if idx >= 0 && idx < len(items) {
-			out = append(out, items[idx])
+	for _, o := range order {
+		if o.Index >= 0 && o.Index < len(items) {
+			out = append(out, items[o.Index])
 		}
 	}
 	return out
