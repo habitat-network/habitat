@@ -24,7 +24,14 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
   preset: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string<{
       maxLength: 64
-      knownValues: ['google-drive', 'google-cloud', 'slack', 'github']
+      knownValues: [
+        'google-drive',
+        'google-cloud',
+        'google-calendar',
+        'gmail',
+        'slack',
+        'github',
+      ]
     }>({ maxLength: 64 }),
   ),
   url: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'uri' })),

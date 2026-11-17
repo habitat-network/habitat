@@ -93,6 +93,25 @@ function GoogleCloudLogo(props: ComponentProps<"svg">) {
   );
 }
 
+function GoogleCalendarLogo(props: ComponentProps<"svg">) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden {...props}>
+      <rect x="3" y="4" width="18" height="17" rx="2" fill="#4285f4" />
+      <rect x="3" y="4" width="18" height="5" fill="#1a73e8" />
+      <rect x="7" y="12" width="10" height="6" rx="1" fill="#fff" />
+    </svg>
+  );
+}
+
+function GmailLogo(props: ComponentProps<"svg">) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden {...props}>
+      <rect x="2" y="5" width="20" height="14" rx="2" fill="#ea4335" />
+      <path d="M2 7l10 7 10-7" stroke="#fff" strokeWidth="2" fill="none" />
+    </svg>
+  );
+}
+
 function GitHubLogo(props: ComponentProps<"svg">) {
   return (
     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden {...props}>
@@ -120,12 +139,38 @@ export const CONNECTORS: Connector[] = [
     preset: "google-cloud",
     memberAuth: "oauth",
     name: "Google Cloud",
-    description: "Run gcloud commands against each member's Google Cloud projects.",
+    description:
+      "Run gcloud commands against each member's Google Cloud projects.",
     defaultName: "google-cloud",
     docsUrl: "https://docs.cloud.google.com/sdk/use-gcloud-mcp",
     hostHint: "cloudcli",
     tile: "bg-white ring-1 ring-black/10",
     Logo: GoogleCloudLogo,
+  },
+  {
+    id: "google-calendar",
+    preset: "google-calendar",
+    memberAuth: "oauth",
+    name: "Google Calendar",
+    description: "Search and read events in each member's Google Calendar.",
+    defaultName: "google-calendar",
+    docsUrl:
+      "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+    hostHint: "calendarmcp",
+    tile: "bg-white ring-1 ring-black/10",
+    Logo: GoogleCalendarLogo,
+  },
+  {
+    id: "gmail",
+    preset: "gmail",
+    memberAuth: "oauth",
+    name: "Gmail",
+    description: "Search and read email in each member's Gmail.",
+    defaultName: "gmail",
+    docsUrl: "https://developers.google.com/workspace/gmail/api/reference/mcp",
+    hostHint: "gmailmcp",
+    tile: "bg-white ring-1 ring-black/10",
+    Logo: GmailLogo,
   },
   {
     id: "slack",

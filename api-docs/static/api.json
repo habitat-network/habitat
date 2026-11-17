@@ -3067,6 +3067,8 @@
                     "enum": [
                       "google-drive",
                       "google-cloud",
+                      "google-calendar",
+                      "gmail",
                       "slack",
                       "github"
                     ]

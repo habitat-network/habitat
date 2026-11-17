@@ -341,6 +341,14 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 				ID:     cmd.String(fMCPGoogleID),
 				Secret: cmd.String(fMCPGoogleSecret),
 			},
+			mcpgateway.PresetGoogleCalendar: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGmail: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
 			mcpgateway.PresetSlack: {
 				ID:     cmd.String(fMCPSlackID),
 				Secret: cmd.String(fMCPSlackSecret),

@@ -211,12 +211,12 @@ func getFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:    fMCPGoogleID,
-			Usage:   "OAuth client ID pear uses for the Google Drive and Google Cloud MCP presets, shared by all orgs. Register it with pear's /mcp-oauth/callback as a redirect URI. Unset disables the preset",
+			Usage:   "OAuth client ID pear uses for the Google Workspace and Google Cloud MCP presets, shared by all orgs. Register it with pear's /mcp-oauth/callback as a redirect URI. Unset disables the preset",
 			Sources: getSources(fMCPGoogleID),
 		},
 		&cli.StringFlag{
 			Name:    fMCPGoogleSecret,
-			Usage:   "OAuth client secret for the Google Drive and Google Cloud MCP presets",
+			Usage:   "OAuth client secret for the Google Workspace and Google Cloud MCP presets",
 			Sources: getSources(fMCPGoogleSecret),
 		},
 		&cli.StringFlag{
