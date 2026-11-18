@@ -16,14 +16,19 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   org: /*#__PURE__*/ l.string({ format: 'did' }),
-  query: /*#__PURE__*/ l.string({ maxLength: 1000 }),
-  servers: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ format: 'uri' }), {
-      maxLength: 50,
-    }),
-  ),
+  query: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ maxLength: 1000 })),
+  cursor: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
   limit: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.integer({ minimum: 1, maximum: 50 }),
+    /*#__PURE__*/ l.withDefault(
+      /*#__PURE__*/ l.integer({ minimum: 1, maximum: 50 }),
+      10,
+    ),
+  ),
+  timeoutMs: /*#__PURE__*/ l.optional(
+    /*#__PURE__*/ l.withDefault(
+      /*#__PURE__*/ l.integer({ minimum: 0, maximum: 30000 }),
+      10000,
+    ),
   ),
 })
 
@@ -31,10 +36,14 @@ export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  items: /*#__PURE__*/ l.array(/*#__PURE__*/ l.ref<Item>((() => item) as any)),
-  sources: /*#__PURE__*/ l.array(
-    /*#__PURE__*/ l.ref<Source>((() => source) as any),
+  results: /*#__PURE__*/ l.array(
+    /*#__PURE__*/ l.ref<Result>((() => result) as any),
   ),
+  cursor: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
+  backends: /*#__PURE__*/ l.array(
+    /*#__PURE__*/ l.ref<Backend>((() => backend) as any),
+  ),
+  ranking: /*#__PURE__*/ l.string<{ knownValues: ['reranker', 'fallback'] }>(),
 })
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
@@ -43,8 +52,10 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Search the caller's connected MCP servers in an org at once: pear calls every known search tool of each requested server in parallel, as the caller, and merges their results into one list. A server pear knows no search tool for, that the caller isn't connected to (or whose sign-in expired), that fails or that doesn't answer in time is reported in sources without failing the search. Requires service-auth. Callable by any org member. */
-const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
+/** Search everywhere the caller's org keeps data at once: Habitat records the caller may read, and every search tool pear knows of the caller's connected MCP servers. Each source is a backend, searched in the background as the caller. The call waits up to timeoutMs and returns what is ready, ranked across every backend; backends still running keep going. Pass cursor to page through the mixed results, or a backend's own cursor to page through only that backend's results, waiting for it if it is still running. A backend that fails, times out, or that the caller isn't connected to is reported in backends without failing the search. Requires service-auth. Callable by any org member. */
+const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
+  'InvalidCursor',
+])
 
 export { main }
 
@@ -54,100 +65,170 @@ type $lxm = typeof $lxm
 
 export { $lxm }
 
-type Item = {
-  $type?: 'network.habitat.mcp.search#item'
-  serverUrl: l.UriString
+type Result = {
+  $type?: 'network.habitat.mcp.search#result'
 
   /**
-   * The id of the org's server the result came from.
+   * Id of the backend the result came from, as in backends.
    */
-  serverId?: string
+  backend: string
 
   /**
-   * The search tool the result came from, e.g. github-issues.
+   * record: a Habitat record, described in record. item: a result from a connected app.
    */
-  provider: string
+  kind: 'record' | 'item' | l.UnknownString
+
+  /**
+   * Identifies the result within its backend.
+   */
+  id: string
   title?: string
 
   /**
-   * Where to open the result, if the tool gave one.
+   * Where to open the result: the app's link for an item, the record's URI for a record.
    */
   url?: string
 
   /**
-   * Context from the result, up to 2000 characters.
+   * Plain-text context from the result.
    */
   snippet?: string
+  record?: Record$0
 }
 
-export type { Item }
+export type { Result }
 
-const item = /*#__PURE__*/ l.typedObject<Item>(
+const result = /*#__PURE__*/ l.typedObject<Result>(
   $nsid,
-  'item',
+  'result',
   /*#__PURE__*/ l.object({
-    serverUrl: /*#__PURE__*/ l.string({ format: 'uri' }),
-    serverId: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
-    provider: /*#__PURE__*/ l.string(),
+    backend: /*#__PURE__*/ l.string(),
+    kind: /*#__PURE__*/ l.string<{ knownValues: ['record', 'item'] }>(),
+    id: /*#__PURE__*/ l.string(),
     title: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
     url: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
     snippet: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
+    record: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.ref<Record$0>((() => record$0) as any),
+    ),
   }),
 )
 
-export { item }
+export { result }
 
-type Source = {
-  $type?: 'network.habitat.mcp.search#source'
-  serverUrl: l.UriString
+type Record$0 = {
+  $type?: 'network.habitat.mcp.search#record'
 
   /**
-   * The org's server with this URL; omitted if the caller has none.
+   * URI of the record's space.
    */
-  serverId?: string
+  space: string
+  collection?: l.NsidString
 
   /**
-   * The search tool called; omitted when none was.
+   * The record's value.
    */
-  provider?: string
+  value?: l.LexMap
+}
+
+export type { Record$0 as Record }
+
+const record$0 = /*#__PURE__*/ l.typedObject<Record$0>(
+  $nsid,
+  'record',
+  /*#__PURE__*/ l.object({
+    space: /*#__PURE__*/ l.string(),
+    collection: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string({ format: 'nsid' }),
+    ),
+    value: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.lexMap()),
+  }),
+)
+
+export { record$0 as record }
+
+type Backend = {
+  $type?: 'network.habitat.mcp.search#backend'
 
   /**
-   * ok: the tool answered (possibly with no results). not_connected: the caller has no usable connection to this server; they never connected, or their sign-in expired. unsupported: pear knows no search tool for this server. timeout: the server didn't answer in time. error: the server or tool failed.
+   * Stable id, such as records or mcp:github/github-issues.
+   */
+  id: string
+
+  /**
+   * The type of source.
+   */
+  kind: 'records' | 'mcp' | l.UnknownString
+
+  /**
+   * Display name.
+   */
+  name: string
+
+  /**
+   * pending: still running. ok: answered, possibly with no results. error: failed. timeout: didn't answer within pear's backend timeout. not_connected: the caller has no usable connection to the server; they never connected, or their sign-in expired.
    */
   status:
-    | 'ok'
-    | 'not_connected'
-    | 'unsupported'
+    'pending' | 'ok' | 'error' | 'timeout' | 'not_connected' | l.UnknownString
+
+  /**
+   * Why the backend has no results, for any status but pending and ok. interrupted: pear restarted while the backend was running; search again.
+   */
+  errorCode?:
+    | 'upstream_error'
     | 'timeout'
-    | 'error'
+    | 'not_connected'
+    | 'interrupted'
     | l.UnknownString
 
   /**
-   * What went wrong, for any status but ok.
+   * What went wrong, safe to show.
    */
   error?: string
 
   /**
-   * How many results the tool returned.
+   * How many results the backend returned.
    */
   count: number
+
+  /**
+   * How long the backend took, once it is no longer pending.
+   */
+  elapsedMs?: number
+
+  /**
+   * Fetches this backend's results only. Omitted when it has none left to fetch.
+   */
+  cursor?: string
 }
 
-export type { Source }
+export type { Backend }
 
-const source = /*#__PURE__*/ l.typedObject<Source>(
+const backend = /*#__PURE__*/ l.typedObject<Backend>(
   $nsid,
-  'source',
+  'backend',
   /*#__PURE__*/ l.object({
-    serverUrl: /*#__PURE__*/ l.string({ format: 'uri' }),
-    serverId: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
-    provider: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
+    id: /*#__PURE__*/ l.string(),
+    kind: /*#__PURE__*/ l.string<{ knownValues: ['records', 'mcp'] }>(),
+    name: /*#__PURE__*/ l.string(),
     status: /*#__PURE__*/ l.string<{
-      knownValues: ['ok', 'not_connected', 'unsupported', 'timeout', 'error']
+      knownValues: ['pending', 'ok', 'error', 'timeout', 'not_connected']
     }>(),
+    errorCode: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string<{
+        knownValues: [
+          'upstream_error',
+          'timeout',
+          'not_connected',
+          'interrupted',
+        ]
+      }>(),
+    ),
     error: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
     count: /*#__PURE__*/ l.integer(),
+    elapsedMs: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.integer()),
+    cursor: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
   }),
 )
 
-export { source }
+export { backend }

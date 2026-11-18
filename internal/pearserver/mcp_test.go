@@ -463,28 +463,10 @@ func TestServer_McpSearch(t *testing.T) {
 		require.Equal(t, http.StatusOK, client.Procedure(adminTS.Server.AddServer, server, &addOut))
 	}
 
-	t.Run("reports servers it can't search without failing", func(t *testing.T) {
-		var out habitat.NetworkHabitatMcpSearchOutput
-		code := client.Procedure(
-			aliceTS.Server.McpSearch,
-			habitat.NetworkHabitatMcpSearchInput{
-				Org: orgDID, Query: "roadmap",
-				Servers: []string{fake.URL, "https://mcp.example.com/mcp/"},
-			},
-			&out,
-		)
-		require.Equal(t, http.StatusOK, code)
-		require.Empty(t, out.Items)
-		require.Len(t, out.Sources, 2)
+	t.Run("searches nothing when no backend is searchable", func(t *testing.T) {
 		// alice never signed in to the oauth server, and pear knows no search
-		// tool for the manual one.
-		require.Equal(t, fake.URL, out.Sources[0].ServerUrl)
-		require.Equal(t, "not_connected", out.Sources[0].Status)
-		require.Equal(t, "docs", out.Sources[1].ServerId)
-		require.Equal(t, "unsupported", out.Sources[1].Status)
-	})
-
-	t.Run("searches nothing when no connected server is searchable", func(t *testing.T) {
+		// tool for either server, so neither is a backend; search is off, so
+		// records aren't either.
 		var out habitat.NetworkHabitatMcpSearchOutput
 		code := client.Procedure(
 			aliceTS.Server.McpSearch,
@@ -492,8 +474,31 @@ func TestServer_McpSearch(t *testing.T) {
 			&out,
 		)
 		require.Equal(t, http.StatusOK, code)
-		require.Empty(t, out.Items)
-		require.Empty(t, out.Sources)
+		require.Empty(t, out.Results)
+		require.Empty(t, out.Backends)
+		require.Empty(t, out.Cursor)
+		require.Equal(t, "fallback", out.Ranking)
+	})
+
+	t.Run("rejects an invalid cursor", func(t *testing.T) {
+		var out habitat.NetworkHabitatMcpSearchOutput
+		code := client.Procedure(
+			aliceTS.Server.McpSearch,
+			habitat.NetworkHabitatMcpSearchInput{Org: orgDID, Cursor: "not-a-cursor"},
+			&out,
+		)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("rejects out of range limits and timeouts", func(t *testing.T) {
+		for _, input := range []habitat.NetworkHabitatMcpSearchInput{
+			{Org: orgDID, Query: "roadmap", Limit: 51},
+			{Org: orgDID, Query: "roadmap", TimeoutMs: 30001},
+		} {
+			var out habitat.NetworkHabitatMcpSearchOutput
+			code := client.Procedure(aliceTS.Server.McpSearch, input, &out)
+			require.Equal(t, http.StatusBadRequest, code, "%+v", input)
+		}
 	})
 
 	t.Run("rejects an empty query", func(t *testing.T) {

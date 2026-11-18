@@ -3,6 +3,7 @@ package mcpsearch
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -72,4 +73,20 @@ func TestResolverBackendNotConnected(t *testing.T) {
 	servers.listErr = errors.New("db down")
 	_, err = r.Backends(ctx, testCaller, testOrg)
 	require.Error(t, err)
+}
+
+func TestResolverBackendTruncatesLongSnippets(t *testing.T) {
+	url := newFakeSearchServer(t, "alpha", nil)
+	servers := newFakeConnectedServers()
+	servers.connect("alpha", url)
+	backends, err := NewResolver(servers, NewRegistry(testProvider("alpha", url, "search"))).
+		Backends(t.Context(), testCaller, testOrg)
+	require.NoError(t, err)
+	long := strings.Repeat("é", maxSnippetRunes+10)
+	// The fake server's snippet is "about <query>".
+	results, err := backends[0].Search(t.Context(), fedsearch.Query{Text: long, Limit: 1})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, maxSnippetRunes, len([]rune(results[0].Snippet)))
+	require.True(t, strings.HasSuffix(results[0].Snippet, "…"))
 }

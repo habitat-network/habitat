@@ -20,8 +20,8 @@ const TextOverridesHeader = "X-Habitat-Mcp-Text-Overrides"
 type TextOverrides struct {
 	// Instructions replaces serverInstructions.
 	Instructions *string `json:"instructions,omitempty"`
-	// SearchDescription replaces searchRecordsDescription.
-	SearchDescription *string `json:"search_description,omitempty"`
+	// ContextDescription replaces getContextDescription.
+	ContextDescription *string `json:"context_description,omitempty"`
 }
 
 // EncodeHeader encodes o as a TextOverridesHeader value.

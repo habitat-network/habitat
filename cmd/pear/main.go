@@ -143,12 +143,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	// route falls through to the rest of this mux.
 	mux.MatcherFunc(pearApp.Handles).Handler(pearApp)
 
-	// A nil *search.Searcher in an interface would be non-nil, so only set it
-	// when search is configured.
-	var mcpSearcher mcpserver.RecordSearcher
-	if app.Searcher != nil {
-		mcpSearcher = app.Searcher
-	}
 	var mcpOpts []mcpserver.Option
 	if cmd.Bool(fMCPTextOverrides) {
 		mcpOpts = append(mcpOpts, mcpserver.WithTextOverrides())
@@ -165,7 +159,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		app.OAuthServer,
 		app.SpacesStore,
 		app.PermStore,
-		mcpSearcher,
 		app.MCPGatewayStore,
 		app.BlobStore,
 		app.HiveDir,
