@@ -17,7 +17,10 @@ import {
   type ShareDialogRole,
 } from "internal";
 import { Button, toast } from "internal/components/ui";
-import { useActors } from "internal/hooks";
+import {
+  identityResolverUrl,
+  useHabitatActors,
+} from "@/hooks/useHabitatActors";
 import { HelpDialog } from "@/components/docs/HelpDialog";
 import {
   CommentSidebar,
@@ -53,14 +56,6 @@ const docInitialStateQueryOptions = (org: string, docId: string) =>
     queryKey: ["docInitialState", org, docId],
     queryFn: () => getDocInitialState({ data: { org, docId } }),
   });
-
-// Habitat server the share dialog's user search resolves handles against.
-// VITE_HABITAT_DOMAIN is only set by moon's dev task (moon.yml), pointing at
-// local pear — the only server that knows local handles. Production builds
-// leave it unset, so searchActorsTypeahead falls back to its default.
-const identityResolverUrl = import.meta.env.VITE_HABITAT_DOMAIN
-  ? `https://${import.meta.env.VITE_HABITAT_DOMAIN}`
-  : undefined;
 
 // caretColor derives a stable per-user cursor color from the DID, so a given
 // person looks the same to everyone without any coordination.
@@ -116,7 +111,7 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
     });
     // Memoized so useActors' query key doesn't churn on every render.
     const accessDids = useMemo(() => access.map((a) => a.did), [access]);
-    const getActor = useActors(accessDids);
+    const getActor = useHabitatActors(accessDids);
     // Not memoized: getActor's identity never changes, but what it returns
     // does once a profile resolves, so a memo would keep showing bare DIDs.
     const grantees: ShareDialogGrantee[] = access.map((a) => ({

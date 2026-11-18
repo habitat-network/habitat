@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserAvatar } from "internal";
 import { Button, Textarea, toast } from "internal/components/ui";
 import { X } from "lucide-react";
-import { useActors } from "internal/hooks";
+import { useHabitatActors } from "@/hooks/useHabitatActors";
 import {
   createComment,
   createReply,
@@ -86,7 +86,7 @@ export function CommentSidebar({
       ]),
     [comments],
   );
-  const getActor = useActors(authorDids);
+  const getActor = useHabitatActors(authorDids);
 
   const [reply, setReply] = useState("");
 
