@@ -18,10 +18,5 @@
   "intent": true,
   "version": 1,
   "framework": "react",
-  "chosenAddOns": [
-    "cloudflare",
-    "tanstack-query",
-    "posthog",
-    "drizzle"
-  ]
+  "chosenAddOns": ["cloudflare", "tanstack-query", "posthog", "drizzle"]
 }

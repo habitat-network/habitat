@@ -57,5 +57,6 @@
       "workerd",
       "better-sqlite3"
     ]
-  }
+  },
+  "packageManager": "pnpm@11.28.12"
 }
