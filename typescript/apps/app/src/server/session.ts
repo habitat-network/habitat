@@ -11,6 +11,8 @@ export interface AppSessionData {
   // this list instead of asking pear on every request; pear still enforces
   // its own access control on every call made to it.
   orgs?: string[];
+  // When orgs was last checked with pear (ms since the epoch).
+  orgsCheckedAt?: number;
 }
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // ~30 days
@@ -41,7 +43,11 @@ export async function useAppSession() {
   // Keep the small { data, update, clear } surface callers already use.
   return {
     get data(): AppSessionData {
-      return { did: session.did, orgs: session.orgs };
+      return {
+        did: session.did,
+        orgs: session.orgs,
+        orgsCheckedAt: session.orgsCheckedAt,
+      };
     },
     async update(patch: Partial<AppSessionData>) {
       for (const [key, value] of Object.entries(patch)) {
