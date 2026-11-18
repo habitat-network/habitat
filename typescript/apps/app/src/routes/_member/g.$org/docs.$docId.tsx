@@ -117,10 +117,12 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
     // Memoized so useActors' query key doesn't churn on every render.
     const accessDids = useMemo(() => access.map((a) => a.did), [access]);
     const getActor = useActors(accessDids);
-    const grantees: ShareDialogGrantee[] = useMemo(
-      () => access.map((a) => ({ ...getActor(a.did), role: a.role })),
-      [access, getActor],
-    );
+    // Not memoized: getActor's identity never changes, but what it returns
+    // does once a profile resolves, so a memo would keep showing bare DIDs.
+    const grantees: ShareDialogGrantee[] = access.map((a) => ({
+      ...getActor(a.did),
+      role: a.role,
+    }));
     const invalidateAccess = () =>
       queryClient.invalidateQueries({ queryKey: accessQueryKey });
 
