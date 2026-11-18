@@ -1,0 +1,59 @@
+import { createServerFn } from "@tanstack/react-start";
+import { env } from "cloudflare:workers";
+import { requireMember, resolveHandle } from "./functions.server";
+import { createOAuthClient, OAUTH_SCOPE } from "./oauth";
+import { useAppSession } from "./session";
+
+// Every export below is a createServerFn wrapper, safe to import from route
+// components: the client bundle only gets RPC stubs.
+
+// startLogin begins the member's OAuth sign-in, returning the authorization
+// server URL the browser should go to next.
+export const startLogin = createServerFn({ method: "POST" })
+  .validator((input: { handle: string }) => input)
+  .handler(async ({ data }) => {
+    const url = await createOAuthClient(env).authorize(data.handle, {
+      scope: OAUTH_SCOPE,
+    });
+    return { redirectUrl: url.toString() };
+  });
+
+// completeOAuth finishes the OAuth flow that just redirected back to
+// /oauth/callback: it exchanges the code and sets the session cookie.
+export const completeOAuth = createServerFn({ method: "POST" })
+  .validator((input: { params: Record<string, string> }) => input)
+  .handler(async ({ data }): Promise<{ to: "/" }> => {
+    const { session: oauthSession } = await createOAuthClient(env).callback(
+      new URLSearchParams(data.params),
+    );
+    const session = await useAppSession();
+    await session.update({ did: oauthSession.did });
+    return { to: "/" };
+  });
+
+export interface Member {
+  did: string;
+  handle: string | null;
+}
+
+// getMember returns the signed-in member, redirecting to /login if none.
+export const getMember = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Member> => {
+    const { did } = await requireMember();
+    return { did, handle: await resolveHandle(env, did) };
+  },
+);
+
+export const signOut = createServerFn({ method: "POST" }).handler(async () => {
+  const session = await useAppSession();
+  const did = session.data.did;
+  await session.clear();
+  if (did) {
+    // Best-effort: forget the member's tokens too.
+    try {
+      await createOAuthClient(env).revoke(did);
+    } catch (err) {
+      console.error("[app] revoking member session", err);
+    }
+  }
+});

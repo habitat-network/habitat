@@ -1,12 +1,11 @@
-import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+// --- OAuth (src/server/oauth.ts) -------------------------------------------
+//
+// The app is an atproto OAuth client of the Habitat instance and holds a
+// session per signed-in member. `value` is the session's JSON (token set plus
+// the DPoP private key), sealed with APP_CREDENTIALS_KEY (internal/oauthClient/seal.ts)
+// since it's a bearer credential for that DID.
 
-export const todos = sqliteTable("todos", {
-  id: integer({ mode: "number" }).primaryKey({
-    autoIncrement: true,
-  }),
-  title: text().notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(
-    sql`(unixepoch())`,
-  ),
-});
+// oauthStates holds in-flight authorization requests, keyed by the OAuth
+// `state` parameter. Rows are short-lived; expired ones are swept whenever a
+// new one is written (see DrizzleStateStore).
+export { oauthSessions, oauthStates } from "internal/oauthClient/schema";

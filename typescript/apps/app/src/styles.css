@@ -1,15 +1,6 @@
 @import "tailwindcss";
 
-* {
-  box-sizing: border-box;
-}
+@source "./**/*.{ts,tsx}";
+@source "../../../internal/src/**/*.{ts,tsx}";
 
-html,
-body,
-#app {
-  min-height: 100%;
-}
-
-body {
-  margin: 0;
-}
+@import "internal/styles.css";

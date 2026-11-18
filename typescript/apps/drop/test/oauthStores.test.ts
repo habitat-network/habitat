@@ -3,7 +3,7 @@ import { JoseKey } from "@atproto/jwk-jose";
 import type { InternalStateData, Session } from "@atproto/oauth-client";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "@/db";
-import { DrizzleSessionStore, DrizzleStateStore } from "@/db/oauthStores";
+import { DrizzleSessionStore, DrizzleStateStore } from "internal/oauthClient";
 import { oauthSessions, oauthStates } from "@/db/schema";
 
 describe("OAuth stores", () => {
