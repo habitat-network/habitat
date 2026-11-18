@@ -1,0 +1,14 @@
+allowBuilds:
+  esbuild: true
+  lightningcss: true
+  sharp: true
+  workerd: true
+  better-sqlite3: true
+  core-js: set this to true or false
+minimumReleaseAgeExclude:
+  - '@tanstack/query-core@5.108.0'
+  - '@tanstack/query-devtools@5.108.0'
+  - '@tanstack/react-query-devtools@5.108.0'
+  - '@tanstack/react-query@5.108.0'
+packages:
+  - .
