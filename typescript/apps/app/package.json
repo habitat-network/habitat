@@ -1,0 +1,64 @@
+{
+  "name": "app",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "generate-routes": "vite build",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "pnpm run build && wrangler deploy",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:pull": "drizzle-kit pull",
+    "db:studio": "drizzle-kit studio",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@posthog/react": "^1.7.0",
+    "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-devtools": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-query-devtools": "5.102.8",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/react-router-devtools": "catalog:",
+    "@tanstack/react-router-ssr-query": "1.167.3",
+    "@tanstack/react-start": "1.169.5",
+    "better-sqlite3": "^12.6.2",
+    "drizzle-kit": "^0.31.9",
+    "drizzle-orm": "^0.45.1",
+    "posthog-js": "^1.358.1",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tailwindcss": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.26.0",
+    "@tanstack/devtools-vite": "catalog:",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "dotenv": "^17.3.1",
+    "tsx": "^4.21.0",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "^4.70.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "lightningcss",
+      "sharp",
+      "workerd",
+      "better-sqlite3"
+    ]
+  },
+  "packageManager": "pnpm@11.28.12"
+}
