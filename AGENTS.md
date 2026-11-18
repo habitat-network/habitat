@@ -54,3 +54,4 @@ Highlights:
 - Go 1.26, linted by `golangci-lint` (`.golangci.yml`). Use the `go-tdd` skill for new functions, methods, and interface implementations.
 - Coverage thresholds are in `.testcoverage.yml` (70% package/total, 60% per file).
 - TypeScript is formatted with Prettier and linted with oxlint (`.oxlintrc.json`).
+- When writing Effect code, inspect `@external/effect/` for examples of idiomatic usage, tests, module structure, and API design. Treat it as the source of truth for Effect patterns.

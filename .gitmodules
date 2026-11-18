@@ -4,3 +4,6 @@
 [submodule "external/bluesky-proposals"]
 	path = external/bluesky-proposals
 	url = https://github.com/bluesky-social/proposals
+[submodule "external/effect"]
+	path = external/effect
+	url = https://github.com/Effect-TS/effect.git
