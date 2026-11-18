@@ -48,3 +48,8 @@ home.local.habitat.network {
 	reverse_proxy 127.0.0.1:2600
 	tls internal
 }
+
+app.local.habitat.network {
+	reverse_proxy 127.0.0.1:5173
+	tls internal
+}
