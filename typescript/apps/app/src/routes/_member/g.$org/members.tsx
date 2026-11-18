@@ -17,6 +17,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -38,12 +39,13 @@ import {
   toast,
 } from "internal/components/ui";
 import { MailPlus, MoreVertical, UserMinus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   EmptyState,
   PageBody,
   PageHeader,
 } from "@/components/shell/PageHeader";
+import { useHabitatActors } from "@/hooks/useHabitatActors";
 import { groupLabel, groupQuery } from "@/lib/queries";
 import { rolesQuery } from "@/lib/roles";
 import {
@@ -86,6 +88,10 @@ function MembersPage() {
     queryKey: ["groupInvites", org],
     queryFn: () => listGroupInvites({ data: { org } }),
   });
+  // Invitees aren't members yet, so pear has no group profile for them;
+  // resolve their handles the way the doc share dialog does.
+  const inviteeDids = useMemo(() => invites.map((i) => i.invitee), [invites]);
+  const getInvitee = useHabitatActors(inviteeDids);
   const { data: roles } = useQuery(rolesQuery(org));
   const can = (action: string) => group?.myActions.includes(action) ?? false;
 
@@ -168,44 +174,48 @@ function MembersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {invites.map((i) => (
-                      <TableRow key={i.id}>
-                        <TableCell className="max-w-0 pl-5">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <UserAvatar
-                              actor={{
-                                did: i.invitee,
-                                handle: i.inviteeHandle ?? undefined,
-                                displayName: i.inviteeName ?? undefined,
-                              }}
-                              size="sm"
-                            />
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">
-                                {i.inviteeName || i.inviteeHandle || i.invitee}
-                              </p>
-                              {i.inviteeHandle && (
-                                <p className="truncate text-xs text-muted-foreground">
-                                  @{i.inviteeHandle}
+                    {invites.map((i) => {
+                      const handle =
+                        i.inviteeHandle ?? getInvitee(i.invitee).handle;
+                      return (
+                        <TableRow key={i.id}>
+                          <TableCell className="max-w-0 pl-5">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <UserAvatar
+                                actor={{
+                                  did: i.invitee,
+                                  handle,
+                                  displayName: i.inviteeName ?? undefined,
+                                }}
+                                size="sm"
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">
+                                  {i.inviteeName || handle || i.invitee}
                                 </p>
-                              )}
+                                {handle && (
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    @{handle}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <RoleBadges
-                            ids={i.roles}
-                            roles={roles?.roles ?? []}
-                          />
-                        </TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
-                          {dateFormat.format(new Date(i.createdAt))}
-                        </TableCell>
-                        <TableCell className="pr-5 text-right">
-                          <RevokeButton org={org} id={i.id} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <RoleBadges
+                              ids={i.roles}
+                              roles={roles?.roles ?? []}
+                            />
+                          </TableCell>
+                          <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
+                            {dateFormat.format(new Date(i.createdAt))}
+                          </TableCell>
+                          <TableCell className="pr-5 text-right">
+                            <RevokeButton org={org} id={i.id} />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </Card>
@@ -327,7 +337,7 @@ function MemberRow({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
               {canAssign && (
-                <>
+                <DropdownMenuGroup>
                   <DropdownMenuLabel>Roles</DropdownMenuLabel>
                   {roles.map((r) => (
                     <DropdownMenuCheckboxItem
@@ -338,7 +348,7 @@ function MemberRow({
                       {r.name}
                     </DropdownMenuCheckboxItem>
                   ))}
-                </>
+                </DropdownMenuGroup>
               )}
               {canAssign && canEject && !isMe && <DropdownMenuSeparator />}
               {canEject && !isMe && (
