@@ -47,6 +47,9 @@ export interface CommentSidebarProps {
   // selected, if any — the sidebar highlights it and expands its reply
   // box. Cleared by the caller once handled (see $uri.tsx).
   activeCommentUri: string | null;
+  // Clicking a thread's card makes it the active one, which opens its reply
+  // box (the editor's highlight click does the same).
+  onSelectComment: (uri: string) => void;
   pendingAnchor?: PendingAnchor | null;
   onPendingAnchorResolved?: () => void;
   onClose: () => void;
@@ -58,6 +61,7 @@ export function CommentSidebar({
   currentUserDid,
   canComment,
   activeCommentUri,
+  onSelectComment,
   pendingAnchor,
   onPendingAnchorResolved,
   onClose,
@@ -145,15 +149,18 @@ export function CommentSidebar({
 
   if (comments.length === 0 && !showPendingThread) {
     return (
-      <aside className="w-80 shrink-0 border-l p-4 text-sm text-muted-foreground">
-        {canComment
-          ? 'No comments yet. Select some text and click "Comment" to start a thread.'
-          : "No comments yet."}
-        <div className="mt-4">
+      <aside className="w-80 shrink-0 border-l flex flex-col">
+        <div className="flex items-center justify-between p-3 border-b">
+          <h2 className="text-sm font-semibold">Comments</h2>
           <Button variant="ghost" size="sm" onClick={onClose}>
             Close
           </Button>
         </div>
+        <p className="p-4 text-sm text-muted-foreground">
+          {canComment
+            ? 'No comments yet. Select some text and click "Comment" to start a thread.'
+            : "No comments yet."}
+        </p>
       </aside>
     );
   }
@@ -198,6 +205,7 @@ export function CommentSidebar({
             <div
               key={comment.uri}
               id={`thread-${comment.uri}`}
+              onClick={() => onSelectComment(comment.uri)}
               className={"p-3 space-y-2 " + (isActive ? "bg-muted/50" : "")}
             >
               {comment.quotedText && (

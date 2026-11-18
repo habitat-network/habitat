@@ -114,7 +114,9 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
       queryKey: accessQueryKey,
       queryFn: () => listDocAccess({ data: { org, docId: uri } }),
     });
-    const getActor = useActors(access.map((a) => a.did));
+    // Memoized so useActors' query key doesn't churn on every render.
+    const accessDids = useMemo(() => access.map((a) => a.did), [access]);
+    const getActor = useActors(accessDids);
     const grantees: ShareDialogGrantee[] = useMemo(
       () => access.map((a) => ({ ...getActor(a.did), role: a.role })),
       [access, getActor],
@@ -305,6 +307,7 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
               currentUserDid={currentUserDid}
               canComment={canComment}
               activeCommentUri={activeCommentUri}
+              onSelectComment={setActiveCommentUri}
               pendingAnchor={pendingAnchor}
               onPendingAnchorResolved={() => setPendingAnchor(null)}
               onClose={() => {
