@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SignInForm } from "internal";
 import { BoxIcon } from "lucide-react";
 import { z } from "zod";
-import { startLogin } from "@/server/functions";
+import { startLogin } from "@/server/fns/auth";
 
 export const Route = createFileRoute("/login")({
   validateSearch: z.object({ error: z.string().optional() }),
@@ -12,9 +12,9 @@ export const Route = createFileRoute("/login")({
       <div className="flex min-h-svh flex-col items-center bg-muted/40">
         <div className="mt-24 flex flex-col items-center gap-3 text-center">
           <BoxIcon className="size-12" />
-          <h1 className="text-2xl font-semibold tracking-tight">App</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Habitat</h1>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Sign in with your Habitat handle.
+            Sign in with your Habitat handle or work email.
           </p>
         </div>
         <div className="w-full [&>div]:py-10">

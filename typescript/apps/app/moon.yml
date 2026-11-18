@@ -4,6 +4,10 @@ tasks:
   dev:
     env:
       SERVER_PORT: "5181"
+      # Habitat server the doc share dialog's user search resolves handles
+      # against. Unset in production builds, which fall back to
+      # pear.habitat.network.
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
       # workerd's outbound fetch only trusts public CAs plus this bundle, not
       # the macOS keychain, so without it every request to a Caddy-served
       # *.local.habitat.network host (pear's OAuth endpoints) fails TLS.
