@@ -53,10 +53,7 @@
       "indexes": {
         "comment_replies_thread": {
           "name": "comment_replies_thread",
-          "columns": [
-            "doc_space_uri",
-            "comment_uri"
-          ],
+          "columns": ["doc_space_uri", "comment_uri"],
           "isUnique": false
         }
       },
@@ -135,10 +132,7 @@
       "indexes": {
         "comments_doc_created": {
           "name": "comments_doc_created",
-          "columns": [
-            "doc_space_uri",
-            "created_at"
-          ],
+          "columns": ["doc_space_uri", "created_at"],
           "isUnique": false
         }
       },
@@ -227,19 +221,14 @@
       "indexes": {
         "doc_access_uri": {
           "name": "doc_access_uri",
-          "columns": [
-            "uri"
-          ],
+          "columns": ["uri"],
           "isUnique": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "doc_access_subject_did_space_uri_pk": {
-          "columns": [
-            "subject_did",
-            "space_uri"
-          ],
+          "columns": ["subject_did", "space_uri"],
           "name": "doc_access_subject_did_space_uri_pk"
         }
       },
@@ -288,19 +277,14 @@
       "indexes": {
         "doc_org_access_uri": {
           "name": "doc_org_access_uri",
-          "columns": [
-            "uri"
-          ],
+          "columns": ["uri"],
           "isUnique": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "doc_org_access_org_did_space_uri_pk": {
-          "columns": [
-            "org_did",
-            "space_uri"
-          ],
+          "columns": ["org_did", "space_uri"],
           "name": "doc_org_access_org_did_space_uri_pk"
         }
       },
@@ -349,17 +333,12 @@
       "indexes": {
         "docs_doc_id_unique": {
           "name": "docs_doc_id_unique",
-          "columns": [
-            "doc_id"
-          ],
+          "columns": ["doc_id"],
           "isUnique": true
         },
         "docs_owner_updated": {
           "name": "docs_owner_updated",
-          "columns": [
-            "owner_did",
-            "updated_at"
-          ],
+          "columns": ["owner_did", "updated_at"],
           "isUnique": false
         }
       },
@@ -452,18 +431,12 @@
       "indexes": {
         "files_org_created": {
           "name": "files_org_created",
-          "columns": [
-            "org_did",
-            "created_at"
-          ],
+          "columns": ["org_did", "created_at"],
           "isUnique": false
         },
         "files_space_repo": {
           "name": "files_space_repo",
-          "columns": [
-            "space",
-            "repo"
-          ],
+          "columns": ["space", "repo"],
           "isUnique": false
         }
       },
@@ -570,10 +543,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "sync_repos_space_did_pk": {
-          "columns": [
-            "space",
-            "did"
-          ],
+          "columns": ["space", "did"],
           "name": "sync_repos_space_did_pk"
         }
       },
@@ -643,9 +613,7 @@
       "indexes": {
         "sync_spaces_due": {
           "name": "sync_spaces_due",
-          "columns": [
-            "next_due_at"
-          ],
+          "columns": ["next_due_at"],
           "isUnique": false
         }
       },
