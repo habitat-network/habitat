@@ -11,12 +11,13 @@ import {
   type SpaceState,
 } from "internal/spaceSync";
 import { DrizzleSyncStore } from "internal/spaceSync/drizzle";
-import { docAccessSubjects, docByUri, getDb } from "@/db";
+import { docAccessSubjects, docByUri, getDb, memberDidsOf } from "@/db";
 import { docSpaceUriForComments } from "./docs/comments.server";
 import { DocSink } from "./docs/sink";
 import { FILE_SPACE_TYPE } from "./files/files.server";
 import { FileSink } from "./files/sink";
 import { HabitatClient } from "./habitatClient";
+import { MEMBERS_SPACE_TYPE, MembershipSink } from "./members/sink";
 
 // The app keeps its D1 mirror (docs, comments, sharing, files) and its doc
 // rooms in step with the group spaces it uses through internal/spaceSync,
@@ -62,6 +63,16 @@ async function delegationCandidates(
   space: SpaceRefString,
 ): Promise<string[]> {
   const db = getDb(env);
+  // A group's roster is readable by its members, so any of them whose
+  // session the app holds can mint the token too. The member who
+  // bootstrapped it is one (see refreshMemberships), which is what lets the
+  // roster's first sync run before the group is connected.
+  if (SpaceRef.parse(space).spaceType === MEMBERS_SPACE_TYPE) {
+    const org = SpaceRef.parse(space).spaceDid;
+    // A handful is plenty: each is tried in turn until one can.
+    const members = (await memberDidsOf(db, org)).slice(0, 10);
+    return [...new Set([org, ...members])];
+  }
   const docSpace = docSpaceUriForComments(space) ?? space;
   const [doc, grantees] = await Promise.all([
     docByUri(db, docSpace),
@@ -97,19 +108,20 @@ export async function issueDelegation(
 }
 
 // AppSink sends each batch to the sink for its space's type: file spaces to
-// Drop's FileSink, everything else (doc and comments spaces) to Chalk's
-// DocSink.
+// Drop's FileSink, groups' members spaces to the MembershipSink, everything
+// else (doc and comments spaces) to Chalk's DocSink.
 class AppSink implements PromiseSyncSink {
   constructor(
     private docs: DocSink,
     private files: FileSink,
+    private members: MembershipSink,
   ) {}
 
   apply(batch: PromiseRepoBatch, signal: AbortSignal): Promise<void> {
     const type = SpaceRef.parse(batch.space).spaceType;
-    return type === FILE_SPACE_TYPE
-      ? this.files.apply(batch, signal)
-      : this.docs.apply(batch, signal);
+    if (type === FILE_SPACE_TYPE) return this.files.apply(batch, signal);
+    if (type === MEMBERS_SPACE_TYPE) return this.members.apply(batch, signal);
+    return this.docs.apply(batch, signal);
   }
 }
 
@@ -129,6 +141,7 @@ function newSyncer(
       },
     }),
     new FileSink({ db }),
+    new MembershipSink({ db }),
   );
   syncer = createSpaceSyncer({
     serviceDid: serviceDid(env),

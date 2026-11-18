@@ -7,6 +7,7 @@ import { isConnectedOrg } from "@/db";
 import { BadRequest } from "@/server/effect/errors";
 import {
   currentMember,
+  myOrgs,
   refreshMemberships,
   requireOrg,
 } from "@/server/effect/member";
@@ -42,7 +43,7 @@ export const listMyGroups = createServerFn({ method: "GET" }).handler(() =>
     "groups.listMine",
     Effect.gen(function* () {
       const did = yield* currentMember;
-      const orgs = yield* refreshMemberships();
+      const orgs = yield* myOrgs();
       const names = yield* groupNames(did, orgs);
       return orgs.map((org): GroupSummary => ({
         did: org,

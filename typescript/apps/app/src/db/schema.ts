@@ -190,3 +190,26 @@ export { oauthSessions, oauthStates } from "internal/oauthClient/schema";
 // The tables live with DrizzleSyncStore, shared with the other apps; they are
 // re-exported here so drizzle-kit migrates them with this schema.
 export { syncRepos, syncSpaces } from "internal/spaceSync/drizzle";
+
+// --- Group membership (the syncer's MembershipSink, src/server/members/sink.ts)
+
+// memberships mirrors each group's community.opensocial.membership records,
+// synced from its members space: one row per (group, member), with the
+// roles the record names. It's what decides whether a member may open a
+// group's pages, so a member who leaves or is removed loses access as soon
+// as the syncer delivers the record's deletion, with no cached list to go
+// stale.
+export const memberships = sqliteTable(
+  "memberships",
+  {
+    orgDid: text("org_did").notNull(),
+    memberDid: text("member_did").notNull(),
+    // A JSON array of role ids.
+    roles: text("roles").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgDid, t.memberDid] }),
+    index("memberships_member").on(t.memberDid),
+  ],
+);
