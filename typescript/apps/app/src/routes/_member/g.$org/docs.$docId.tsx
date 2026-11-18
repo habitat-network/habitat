@@ -216,7 +216,7 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
         editorProps: {
           attributes: {
             class:
-              "prose max-w-none min-h-full px-[max(2rem,calc(50%-22.5rem))] py-10 outline-none",
+              "prose dark:prose-invert max-w-none min-h-full px-[max(2rem,calc(50%-22.5rem))] py-10 outline-none",
           },
         },
         onSelectionUpdate({ editor }) {
