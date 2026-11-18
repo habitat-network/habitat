@@ -54,7 +54,6 @@ async function sessionService() {
         }),
       clear: Effect.promise(async () => {
         data.did = undefined;
-        data.orgs = undefined;
         await cookie.clear();
       }),
     }),

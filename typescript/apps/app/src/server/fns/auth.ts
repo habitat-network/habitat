@@ -133,7 +133,7 @@ export const completeOAuth = createServerFn({ method: "POST" })
           );
 
         if (appState.kind === "member") {
-          yield* session.update({ did: oauthSession.did, orgs: undefined });
+          yield* session.update({ did: oauthSession.did });
           yield* refreshMemberships().pipe(
             Effect.catch((e) => Effect.logWarning("listing groups failed", e)),
           );

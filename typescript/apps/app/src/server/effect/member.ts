@@ -3,7 +3,12 @@ import { network } from "api";
 import { Context, Effect } from "effect";
 import type { AppSessionData } from "@/server/session";
 import { NotAMember, NotSignedIn } from "./errors";
-import { Habitat } from "./services";
+import { isMemberOf, orgsOf, reconcileMemberships } from "@/db";
+import {
+  MEMBERS_SPACE_TYPE,
+  MEMBERSHIP_COLLECTION,
+} from "@/server/members/sink";
+import { AppEnv, Database, Habitat } from "./services";
 
 // Request-scoped services: what runEffect (./run.ts) reads off the request
 // before running a server function's Effect.
@@ -26,70 +31,101 @@ export const currentMember = Effect.gen(function* () {
   return session.data.did as DidString;
 });
 
-export const MEMBERS_SPACE_TYPE = "community.opensocial.members";
+export { MEMBERS_SPACE_TYPE };
 
-// listMyOrgIds lists every group did currently belongs to. pear's listSpaces
-// returns every members space the member ever wrote into, which includes
-// groups they've left or been removed from, so each candidate is confirmed
-// by reading the member's own membership record in it.
-export const listMyOrgIds = Effect.fn("listMyOrgIds")(function* (did: string) {
+// confirmedMemberships asks pear which groups did belongs to, with the
+// roles it holds in each. pear's listSpaces returns every members space the
+// member ever wrote into, which includes groups they've left or been removed
+// from, so each candidate is confirmed by reading the member's own
+// membership record in it.
+const confirmedMemberships = Effect.fn("confirmedMemberships")(function* (
+  did: string,
+) {
   const habitat = yield* Habitat;
   const body = yield* habitat.xrpc(did, network.habitat.space.listSpaces.main, {
     params: { spaceType: MEMBERS_SPACE_TYPE },
   });
-  const candidates = body.spaces.map((s) => SpaceRef.parse(s.uri).spaceDid);
-  const confirmed = yield* Effect.forEach(
+  const candidates = body.spaces.map((s) => SpaceRef.parse(s.uri));
+  const found = yield* Effect.forEach(
     candidates,
-    (org) =>
+    (space) =>
       habitat
-        .call(did, "network.habitat.space.getRecord", "GET", {
-          space: new SpaceRef(org, MEMBERS_SPACE_TYPE, "self").toString(),
-          repo: org,
-          collection: "community.opensocial.membership",
-          rkey: did,
-        })
+        .call<{ value?: { roles?: unknown } }>(
+          did,
+          "network.habitat.space.getRecord",
+          "GET",
+          {
+            space: space.toString(),
+            repo: space.spaceDid,
+            collection: MEMBERSHIP_COLLECTION,
+            rkey: did,
+          },
+        )
         .pipe(
-          Effect.as(true),
+          Effect.map((r) => ({
+            orgDid: space.spaceDid as string,
+            space: space.toString(),
+            roles: Array.isArray(r.value?.roles)
+              ? r.value.roles.filter((x): x is string => typeof x === "string")
+              : [],
+          })),
           // A 4xx means no record for them or no access: not a member.
           // Anything else (pear down) must not read as "left every group".
           Effect.catchTag("HabitatError", (e) =>
             e.status >= 400 && e.status < 500
-              ? Effect.succeed(false)
+              ? Effect.succeed(null)
               : Effect.fail(e),
           ),
         ),
     { concurrency: 8 },
   );
-  return candidates.filter((_, i) => confirmed[i]);
+  return found.filter((f) => f !== null);
 });
 
-// refreshMemberships asks pear which groups the member belongs to and
-// remembers the answer in the session cookie.
+// refreshMemberships is the bootstrap: it asks pear which groups the member
+// belongs to, makes their rows in the memberships table match, and starts
+// syncing each group's roster so every later change (a member removed, a
+// role changed) arrives through spaceSync instead of being re-asked. The
+// member is recorded first, since their session is what mints the token
+// for a group's roster before the group itself is connected.
 export const refreshMemberships = Effect.fn("refreshMemberships")(function* () {
   const did = yield* currentMember;
-  const orgs = yield* listMyOrgIds(did);
-  const session = yield* CurrentSession;
-  yield* session.update({ orgs, orgsCheckedAt: Date.now() });
-  return orgs;
+  const db = yield* Database;
+  const env = yield* AppEnv;
+  const found = yield* confirmedMemberships(did);
+  yield* Effect.promise(() => reconcileMemberships(db, did, found));
+  // Imported lazily: sync.ts pulls in the sinks, which reach back into the
+  // modules that import this one.
+  yield* Effect.tryPromise(async () => {
+    const { watchSpaces } = await import("@/server/sync");
+    await watchSpaces(
+      env,
+      found.map((f) => f.space),
+    );
+  }).pipe(
+    Effect.catch((e) => Effect.logWarning("watching members spaces failed", e)),
+  );
+  return found.map((f) => f.orgDid as DidString);
 });
 
-// How long the session's cached group list is trusted before pear is asked
-// again, so a member who leaves or is removed loses access within a minute.
-const MEMBERSHIP_CACHE_MS = 60_000;
+// myOrgs lists the groups the member belongs to, as last synced; a member
+// with none yet (just signed in, or just joined) is bootstrapped from pear.
+export const myOrgs = Effect.fn("myOrgs")(function* () {
+  const did = yield* currentMember;
+  const db = yield* Database;
+  const orgs = yield* Effect.promise(() => orgsOf(db, did));
+  if (orgs.length > 0) return orgs as DidString[];
+  return yield* refreshMemberships();
+});
 
 // requireOrg checks the signed-in member belongs to org, the gate every
-// group-scoped server function starts with. The session's cached list
-// answers most calls; a group missing from it (joined since sign-in) is
-// checked with pear once, and the cache refreshed.
+// group-scoped server function starts with. The synced memberships table
+// answers it; a group missing from it (joined since the last sync) is
+// checked with pear once, which also starts syncing its roster.
 export const requireOrg = Effect.fn("requireOrg")(function* (org: string) {
   const did = yield* currentMember;
-  const session = yield* CurrentSession;
-  const { orgs: cached, orgsCheckedAt } = session.data;
-  if (
-    cached?.includes(org) &&
-    orgsCheckedAt !== undefined &&
-    Date.now() - orgsCheckedAt < MEMBERSHIP_CACHE_MS
-  ) {
+  const db = yield* Database;
+  if (yield* Effect.promise(() => isMemberOf(db, org, did))) {
     return { did, org: org as DidString };
   }
   const orgs = yield* refreshMemberships();

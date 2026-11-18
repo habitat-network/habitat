@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { DidString } from "@atproto/syntax";
+import type { DidString, SpaceRefString } from "@atproto/syntax";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { community } from "api";
 import { Effect, Schema } from "effect";
@@ -7,10 +7,12 @@ import { BadRequest } from "@/server/effect/errors";
 import { requireOrg } from "@/server/effect/member";
 import { runEffect } from "@/server/effect/run";
 import { AppEnv, Habitat } from "@/server/effect/services";
+import { syncNow } from "@/server/sync";
 import {
   getProfiles,
   listMembers,
   listRoles,
+  membersSpace,
   readPermissions,
   viaGroup,
   type ActionBinding,
@@ -221,6 +223,14 @@ export const removeMember = createServerFn({ method: "POST" })
           community.opensocial.ejectMember.main,
           { body: { org, member: data.member as DidString } },
           viaGroup(org),
+        );
+        // Bring the roster in step now, so they lose access at once rather
+        // than when pear's notification or the next cron run delivers it.
+        const env = yield* AppEnv;
+        yield* Effect.promise(() =>
+          syncNow(env, membersSpace(org) as SpaceRefString),
+        ).pipe(
+          Effect.catch((e) => Effect.logWarning("syncing roster failed", e)),
         );
         yield* Effect.logInfo("removed member", { org, member: data.member });
       }),
