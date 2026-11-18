@@ -6,19 +6,21 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "vite dev --port 3000",
-    "generate-routes": "vite build",
-    "build": "vite build",
+    "dev": "wrangler types && pnpm db:migrate-local && vite dev",
+    "build": "wrangler types && vite build",
     "preview": "vite preview",
-    "deploy": "pnpm run build && wrangler deploy",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:pull": "drizzle-kit pull",
-    "db:studio": "drizzle-kit studio",
-    "test": "vitest run"
+    "test": "wrangler types && vitest run",
+    "cf-typegen": "wrangler types",
+    "db:migrate-local": "CI=1 wrangler d1 migrations apply app --local",
+    "deploy": "pnpm run build && wrangler deploy"
   },
   "dependencies": {
+    "@atproto/jwk-jose": "^0.2.4",
+    "@atproto/lex": "catalog:",
+    "@atproto/oauth-client": "0.0.0-spaces-alpha-20261029171913",
+    "@atproto/syntax": "catalog:",
+    "@habitat-network/habitat": "workspace:*",
     "@posthog/react": "^1.7.0",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-devtools": "catalog:",
@@ -28,24 +30,25 @@
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/react-router-ssr-query": "1.167.3",
     "@tanstack/react-start": "1.169.5",
-    "better-sqlite3": "^12.6.2",
     "drizzle-kit": "^0.31.9",
     "drizzle-orm": "^0.45.1",
+    "internal": "workspace:*",
+    "iron-session": "^9.0.1",
+    "lucide-react": "catalog:",
     "posthog-js": "^1.358.1",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "tailwindcss": "catalog:"
+    "tailwindcss": "catalog:",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.26.0",
+    "@cloudflare/workers-types": "^5.20260823.1",
     "@tanstack/devtools-vite": "catalog:",
-    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "dotenv": "^17.3.1",
-    "tsx": "^4.21.0",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
@@ -56,8 +59,7 @@
       "esbuild",
       "lightningcss",
       "sharp",
-      "workerd",
-      "better-sqlite3"
+      "workerd"
     ]
   },
   "packageManager": "pnpm@11.28.12"

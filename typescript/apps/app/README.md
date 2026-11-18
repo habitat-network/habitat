@@ -1,3 +1,18 @@
+# Sign-in (atproto OAuth)
+
+The app is a public atproto OAuth client of a Habitat instance (pear), ported from Brain: `/login` takes a handle, `src/server/functions.ts` starts the flow, pear redirects to `/oauth/callback`, which exchanges the code and sets an encrypted `app_session` cookie naming the member's DID. The OAuth session itself (tokens + DPoP key) is sealed with `APP_CREDENTIALS_KEY` and stored in D1. Pages under `src/routes/_member` require sign-in; `memberSession()` in `functions.server.ts` returns an agent that calls pear as the member.
+
+Local setup: create `.dev.vars` with
+
+```
+APP_SESSION_SECRET=<32+ characters>
+APP_CREDENTIALS_KEY=<openssl rand -base64 32>
+APP_BASE_URL=https://app.local.habitat.network
+APP_HABITAT_URL=https://pear.local.habitat.network
+```
+
+then `moon run app:dev` (port 5181). For deployment, create the D1 database (`wrangler d1 create app`, paste the id into `wrangler.jsonc`) and `wrangler secret put` the two secrets.
+
 Welcome to your new TanStack Start app!
 
 # Getting Started
