@@ -1,0 +1,6 @@
+[submodule "external/opensocial-proposal"]
+	path = external/opensocial-proposal
+	url = https://tangled.org/opensocial.group/proposal
+[submodule "external/bluesky-proposals"]
+	path = external/bluesky-proposals
+	url = https://github.com/bluesky-social/proposals
