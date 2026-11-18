@@ -41,7 +41,17 @@
       "import": "./src/spaceSync/drizzle/index.ts",
       "default": "./src/spaceSync/drizzle/index.ts"
     },
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles.css",
+    "./oauthClient": {
+      "types": "./src/oauthClient/index.ts",
+      "import": "./src/oauthClient/index.ts",
+      "default": "./src/oauthClient/index.ts"
+    },
+    "./oauthClient/schema": {
+      "types": "./src/oauthClient/schema.ts",
+      "import": "./src/oauthClient/schema.ts",
+      "default": "./src/oauthClient/schema.ts"
+    }
   },
   "files": [
     "src"
@@ -57,8 +67,10 @@
     "@atproto/common-web": "catalog:",
     "@atproto/crypto": "catalog:",
     "@atproto/identity": "catalog:",
+    "@atproto/jwk-jose": "^0.2.4",
     "@atproto/lex": "catalog:",
     "@atproto/lex-server": "catalog:",
+    "@atproto/oauth-client": "0.0.0-spaces-alpha-20261029171913",
     "@atproto/oauth-client-browser": "0.0.0-spaces-alpha-20261029171913",
     "@atproto/space": "0.0.0-spaces-alpha-20261029171913",
     "@atproto/syntax": "catalog:",

@@ -983,11 +983,17 @@ importers:
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261029171913
+      '@atproto/jwk-jose':
+        specifier: ^0.2.4
+        version: 0.2.4
       '@atproto/lex':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261029171913
       '@atproto/lex-server':
         specifier: 'catalog:'
+        version: 0.0.0-spaces-alpha-20261029171913
+      '@atproto/oauth-client':
+        specifier: 0.0.0-spaces-alpha-20261029171913
         version: 0.0.0-spaces-alpha-20261029171913
       '@atproto/oauth-client-browser':
         specifier: 0.0.0-spaces-alpha-20261029171913

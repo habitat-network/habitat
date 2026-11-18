@@ -7,9 +7,9 @@ import type {
   SessionStore,
   StateStore,
 } from "@atproto/oauth-client";
-import type { Db } from "./index";
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import { oauthSessions, oauthStates } from "./schema";
-import { seal, unseal } from "../server/seal";
+import { seal, unseal } from "./seal";
 
 // Drizzle-backed stores for @atproto/oauth-client. The client keeps a live
 // `Key` object (the DPoP keypair) in both a session and a pending state, which
@@ -34,6 +34,9 @@ async function fromStored<T extends { dpopKey: Key }>(
   const { dpopJwk, ...rest } = stored;
   return { ...rest, dpopKey: await JoseKey.fromJWK(dpopJwk) } as unknown as T;
 }
+
+// Any async (D1) drizzle database; the stores only touch the oauth tables.
+type Db = BaseSQLiteDatabase<"async", any, any>;
 
 // An authorization request that's never completed (the user closes the tab
 // at the PDS) leaves its state row behind; anything older than this is swept.
