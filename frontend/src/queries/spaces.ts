@@ -1,4 +1,8 @@
-import { type AuthManager, wantCommitMacHeaders } from "internal";
+import {
+  type AuthManager,
+  wantCommitMacHeaders,
+  wantRecordMacHeaders,
+} from "internal";
 import {
   xrpc,
   XrpcResponseError,
@@ -232,6 +236,9 @@ export function spaceRecordQueryOptions(
             collection: collection as NsidString,
             rkey,
           },
+          // Required with a space credential; the MAC it requests is not
+          // checked here (see wantRecordMacHeaders).
+          headers: await wantRecordMacHeaders(),
         },
       );
       return { value: response.body.value as unknown, cid: response.body.cid };
