@@ -1,7 +1,7 @@
 import {
   type AuthManager,
-  wantCommitMacHeaders,
-  wantRecordMacHeaders,
+  acceptCommitMacHeaders,
+  acceptRecordMacHeaders,
 } from "internal";
 import {
   xrpc,
@@ -137,8 +137,8 @@ export function spaceLatestCommitQueryOptions(
             validateResponse: false,
             params: { space: space as SpaceRefString, repo: repo as DidString },
             // Required with a space credential; the MAC it requests is not
-            // checked here (see wantCommitMacHeaders).
-            headers: await wantCommitMacHeaders(),
+            // checked here (see acceptCommitMacHeaders).
+            headers: await acceptCommitMacHeaders(),
           },
         );
         return response.body.commit ?? null;
@@ -243,8 +243,8 @@ export function spaceRecordQueryOptions(
             rkey,
           },
           // Required with a space credential; the MAC it requests is not
-          // checked here (see wantRecordMacHeaders).
-          headers: await wantRecordMacHeaders(),
+          // checked here (see acceptRecordMacHeaders).
+          headers: await acceptRecordMacHeaders(),
         },
       );
       return { value: response.body.value as unknown, cid: response.body.cid };

@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "Get the current commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the commit's MAC is returned in the Atproto-Space-Mac response header.",
+      "description": "Get the current commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-commit), and the response carries it in Signature-Input and Signature headers covering an Atproto-Space-Commit header.",
       "parameters": {
         "type": "params",
         "required": ["space", "repo"],
@@ -42,8 +42,8 @@
         { "name": "RepoSuspended" },
         { "name": "RepoDeactivated" },
         {
-          "name": "BadSpaceMac",
-          "description": "The Atproto-Space-Want-Mac header is missing or malformed, names an unsupported type or version, or carries an invalid key share."
+          "name": "InvalidSpaceMac",
+          "description": "The MAC requested in the Accept-Signature header is missing or invalid."
         }
       ]
     }

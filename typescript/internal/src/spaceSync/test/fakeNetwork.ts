@@ -8,17 +8,10 @@ import {
   toBase64,
 } from "@atproto/lex";
 import {
-  COMMIT_MAC_TYPE,
   type Commit,
-  MAC_HEADER,
   RepoCommit,
   type SerializedRecord,
-  WANT_MAC_HEADER,
-  computeCommitMac,
   createSpaceToken,
-  decapsulate,
-  formatMacHeader,
-  parseWantMacHeader,
   parseSpaceToken,
   serializeRecord,
   serializeRepo,
@@ -35,6 +28,14 @@ import {
   type SpaceRefString,
 } from "@atproto/syntax";
 import { type HttpHandler, HttpResponse, http } from "msw";
+import {
+  ACCEPT_SIGNATURE_HEADER,
+  COMMIT_MAC_PROFILE,
+  INVALID_SPACE_MAC,
+  createCommitMacHeaders,
+  decapsulate,
+  parseMacRequest,
+} from "../../spaceMac";
 
 // In-memory stand-in for a PLC directory, a space host and repo hosts. Every
 // signature, credential and STAR uses the real @atproto/space code, so tests
@@ -333,26 +334,28 @@ export class FakeNetwork {
 
   /**
    * The repo's current commit, MACed under the shared secret the request's
-   * Atproto-Space-Want-Mac negotiates with the author's KEM key. Returns an
-   * error response for a missing or malformed key share.
+   * Accept-Signature negotiates with the author's KEM key. Returns an error
+   * response for a missing or malformed request.
    */
   private macCommit(
     request: Request,
     space: FakeSpace,
     did: string,
     opts: { corrupt: boolean },
-  ): { commit: Commit; macHeader: string } | Response {
+  ): { commit: Commit; macHeaders: Record<string, string> } | Response {
     const repo = space.repos.get(did)!;
     const author = this.accounts.get(did)!;
+    let macRequest;
     let sharedSecret: Uint8Array;
     try {
-      const keyShare = parseWantMacHeader(
-        request.headers.get(WANT_MAC_HEADER) ?? undefined,
-        COMMIT_MAC_TYPE,
+      macRequest = parseMacRequest(
+        request.headers.get(ACCEPT_SIGNATURE_HEADER),
+        COMMIT_MAC_PROFILE,
       );
-      sharedSecret = decapsulate(author.kem, keyShare);
+      if (!macRequest) return xrpcError(400, INVALID_SPACE_MAC);
+      sharedSecret = decapsulate(author.kem, macRequest.keyShare);
     } catch {
-      return xrpcError(400, "BadSpaceMac");
+      return xrpcError(400, INVALID_SPACE_MAC);
     }
     const commit = repo.commit.toCommit({
       space: space.id,
@@ -363,11 +366,11 @@ export class FakeNetwork {
     const maced = opts.corrupt
       ? { ...commit, rev: TID.nextStr(repo.rev) }
       : commit;
-    const macHeader = formatMacHeader(
-      COMMIT_MAC_TYPE,
-      computeCommitMac(sharedSecret, maced),
-    );
-    return { commit, macHeader };
+    const macHeaders = createCommitMacHeaders(maced, {
+      ...macRequest,
+      sharedSecret,
+    });
+    return { commit, macHeaders };
   }
 
   /** Verifies `Atproto-Space-Credential` credential + HTTP signature. Returns an error response, or undefined if authorized. */
@@ -592,7 +595,8 @@ export class FakeNetwork {
           ...(commit ? { commit } : {}),
           ...(last ? {} : { cursor: String(start + limit) }),
         });
-        if (maced) response.headers.set(MAC_HEADER, maced.macHeader);
+        for (const [name, value] of Object.entries(maced?.macHeaders ?? {}))
+          response.headers.set(name, value);
         return response;
       }),
 
@@ -622,7 +626,7 @@ export class FakeNetwork {
         return new HttpResponse(streamFrom(star), {
           headers: {
             "content-type": "application/octet-stream",
-            [MAC_HEADER]: maced.macHeader,
+            ...maced.macHeaders,
           },
         });
       }),

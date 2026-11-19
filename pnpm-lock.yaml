@@ -1064,6 +1064,9 @@ importers:
       shiki:
         specifier: ^4.6.0
         version: 4.6.0
+      structured-headers:
+        specifier: 1.0.1
+        version: 1.0.1
       tailwind-merge:
         specifier: ^3.0.0
         version: 3.6.0

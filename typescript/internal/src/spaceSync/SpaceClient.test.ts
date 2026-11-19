@@ -2,10 +2,11 @@
 import { it } from "@effect/vitest";
 import { P256Keypair } from "@atproto/crypto";
 import { cidForRawBytes } from "@atproto/lex";
-import { type Commit, verifyCommit } from "@atproto/space";
+import type { Commit } from "@atproto/space";
 import { Duration, Effect, Layer } from "effect";
 import { HttpResponse, delay, http } from "msw";
 import { describe, expect } from "vitest";
+import { verifyCommit } from "../spaceMac";
 import { server } from "../test/msw";
 import { Credentials } from "./Credentials";
 import { Identity } from "./Identity";
@@ -87,8 +88,7 @@ describe("SpaceClient", () => {
             verifyCommit(commit as Commit, {
               space: space.id,
               repo: bob.did,
-              sharedSecret: mac.sharedSecret,
-              mac: mac.mac!,
+              ...mac,
             }),
           ).toBe(true);
         }).pipe(Effect.provide(layer));
@@ -163,8 +163,7 @@ describe("SpaceClient", () => {
           verifyCommit(page.body.commit as Commit, {
             space: space.id,
             repo: bob.did,
-            sharedSecret: page.mac!.sharedSecret,
-            mac: page.mac!.mac!,
+            ...page.mac!,
           }),
         ).toBe(false);
         expect(yield* client.refreshKem(space.ref, bob.did)).toBe(true);
@@ -174,8 +173,7 @@ describe("SpaceClient", () => {
           verifyCommit(fresh.body.commit as Commit, {
             space: space.id,
             repo: bob.did,
-            sharedSecret: fresh.mac!.sharedSecret,
-            mac: fresh.mac!.mac!,
+            ...fresh.mac!,
           }),
         ).toBe(true);
         expect(space.listRepoOpsCalls).toBe(calls + 2);
@@ -194,7 +192,7 @@ describe("SpaceClient", () => {
           const { star, mac } = yield* Effect.flatMap(SpaceClient, (c) =>
             c.getRepo(space.ref, bob.did),
           );
-          expect(mac.mac).toBeInstanceOf(Uint8Array);
+          expect(mac.headers.get("atproto-space-commit")).toBeTruthy();
           let n = 0;
           yield* Effect.promise(async () => {
             for await (const chunk of star) n += chunk.length;
