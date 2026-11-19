@@ -24,7 +24,7 @@ the spaces sync protocol, not a reader of its own writes.
   picks up where the last left off.
 - **Stores**: the syncer's `SyncStore` is the drizzle/D1 `DrizzleSyncStore`
   shared with Chalk (`internal/spaceSync/drizzle`); the OAuth client's state
-  and session stores are in `src/db/oauthStores.ts`.
+  and session stores are in `internal/oauthClient`.
 - **Sink** (`src/server/sink.ts`): applies verified batches to the `files`
   table. Blobs aren't copied: downloads fetch them from the org's space on
   demand.

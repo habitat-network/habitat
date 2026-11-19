@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "app",
+  "main": "@tanstack/react-start/server-entry",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "app",
+      // Placeholder: run `wrangler d1 create app` and paste the real id.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  // Deployment values, not local dev's: override locally via `.dev.vars`.
+  // APP_SESSION_SECRET and APP_CREDENTIALS_KEY are wrangler secrets (see
+  // README.md).
+  "vars": {
+    "APP_BASE_URL": "https://app.habitat.network",
+    "APP_HABITAT_URL": "https://pear.habitat.network",
+  },
+  "dev": { "port": 5181 },
+}

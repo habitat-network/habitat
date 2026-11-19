@@ -60,7 +60,8 @@ type Sample struct {
 	// ReferenceTools the tools that search where the answer is.
 	SuggestedTools []SuggestedTool `json:"suggested_tools"`
 	ReferenceTools []string        `json:"reference_tools"`
-	// Notes are get_context's notes: the sources it couldn't search.
+	// Notes are the sources get_context couldn't search, as "name: status",
+	// and its other notes.
 	Notes []string `json:"notes,omitempty"`
 	// MockCalls are the calls the mock app servers received.
 	MockCalls  []mockmcp.Call `json:"mock_calls"`
@@ -72,14 +73,18 @@ type Sample struct {
 // contextOutput is the part of get_context's output a sample is built from
 // (getContextOutput in internal/mcpserver).
 type contextOutput struct {
-	Items []struct {
-		Server  string `json:"server"`
+	Results []struct {
+		Source  string `json:"source"`
 		Title   string `json:"title"`
 		URL     string `json:"url"`
 		Snippet string `json:"snippet"`
-	} `json:"items"`
+	} `json:"results"`
 	SuggestedTools []SuggestedTool `json:"suggested_tools"`
-	Notes          []string        `json:"notes"`
+	Backends       []struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	} `json:"backends"`
+	Notes []string `json:"notes"`
 }
 
 // yardsticks are searches of the same documents that don't go through pear,
@@ -159,7 +164,7 @@ func runQuestion(
 		s.Error = err.Error()
 		return s
 	}
-	for _, item := range out.Items {
+	for _, item := range out.Results {
 		// A result names its document by URL: its own, or, for a tool
 		// answering in text (Slack), the URLs in that text.
 		for _, id := range slice.Mentioned(item.URL + "\n" + item.Snippet) {
@@ -171,7 +176,10 @@ func runQuestion(
 			strings.TrimSpace(item.Title+"\n"+item.Snippet))
 	}
 	s.SuggestedTools = append(s.SuggestedTools, out.SuggestedTools...)
-	s.Notes = out.Notes
+	for _, b := range out.Backends {
+		s.Notes = append(s.Notes, b.Name+": "+b.Status)
+	}
+	s.Notes = append(s.Notes, out.Notes...)
 	return s
 }
 

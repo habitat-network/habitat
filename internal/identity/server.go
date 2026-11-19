@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/api/atproto"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -48,10 +49,15 @@ func NewServer(
 	validator authn.RequestValidator,
 	pdsForwarding *forwarding.PDSForwarding,
 	domain string,
+	hostKey atcrypto.PrivateKeyExportable,
 	opts ...utils.Opt[SpaceProxyDirectory],
 ) (*Server, error) {
 	directory := NewSpaceProxyDirectory(
-		NewWrappedDirectory(hive, identity.DefaultDirectory()),
+		// .test handles resolve locally so the frontend can sign in with them
+		// (see login.NewPassthroughProvider).
+		NewTestDirectory(
+			NewWrappedDirectory(hive, identity.DefaultDirectory()), hostKey, domain,
+		),
 		domain,
 		opts...,
 	)

@@ -13,6 +13,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/emaildomain"
+	"github.com/habitat-network/habitat/internal/fedsearch"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
@@ -28,6 +29,7 @@ import (
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacestream"
 )
 
 // App holds pear's stores and services.
@@ -42,7 +44,7 @@ type App struct {
 	HiveDir          identity.Directory
 	PDSClientFactory pdsoauth.HttpClientFactory
 	EmailDomainStore *emaildomain.Store
-	HostKey          atcrypto.PrivateKey
+	HostKey          atcrypto.PrivateKeyExportable
 	// HostKEMKey is the host's #atproto_kem key: space commit MACs for repo
 	// owners on external PDSes are keyed against it (habitat-managed owners
 	// use their own hive KEM key instead). See spacecommit.KEMKeys.
@@ -76,6 +78,12 @@ type App struct {
 	// Searcher is nil when search (--meilisearch_url) is off.
 	Searcher     *search.Searcher
 	SearchConfig *searchconfig.Store
+	// FedSearch searches Habitat records and members' connected apps
+	// together.
+	FedSearch *fedsearch.Service
+	// SpaceEvents wakes network.habitat.space.subscribe streams; SpacesStore
+	// notifies it of every write.
+	SpaceEvents *spacestream.Broadcaster
 }
 
 // New returns an App holding the given stores and services.
@@ -90,7 +98,7 @@ func New(
 	hiveDir identity.Directory,
 	pdsClientFactory pdsoauth.HttpClientFactory,
 	emailDomainStore *emaildomain.Store,
-	hostKey atcrypto.PrivateKey,
+	hostKey atcrypto.PrivateKeyExportable,
 	hostKEMKey *atcrypto.PrivateKeyP256,
 	notifyStore notify.Store,
 	notifier *notify.Deliverer,
@@ -114,6 +122,8 @@ func New(
 	searchIndexer *search.Indexer,
 	searcher *search.Searcher,
 	searchConfigStore *searchconfig.Store,
+	fedSearch *fedsearch.Service,
+	spaceEvents *spacestream.Broadcaster,
 ) *App {
 	return &App{
 		DB:                    database,
@@ -150,6 +160,8 @@ func New(
 		SearchIndexer:         searchIndexer,
 		Searcher:              searcher,
 		SearchConfig:          searchConfigStore,
+		FedSearch:             fedSearch,
+		SpaceEvents:           spaceEvents,
 	}
 }
 

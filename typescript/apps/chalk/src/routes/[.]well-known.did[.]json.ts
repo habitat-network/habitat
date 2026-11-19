@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
 import { SYNCER_SERVICE_ID } from "internal/spaceSync";
-import { trimTrailingSlashes } from "@/server/oauth";
+import { trimTrailingSlashes } from "internal/oauthClient";
 import { serviceDid } from "@/server/sync";
 
 // chalk's did:web document. registerNotify subscribes this DID to a space's

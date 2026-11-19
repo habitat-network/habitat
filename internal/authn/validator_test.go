@@ -14,9 +14,9 @@ import (
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -47,7 +47,7 @@ func TestValidator(t *testing.T) {
 
 	oauth, err := oauthserver.NewOAuthServer(
 		encrypt.TestKey,
-		&org.LoginRouter{},
+		&login.Router{},
 		nil,
 		db,
 		keyval_testutil.New(t),

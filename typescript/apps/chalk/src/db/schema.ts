@@ -153,22 +153,12 @@ export const commentReplies = sqliteTable(
 // connected (managing an org doc's sharing, minting its delegation tokens).
 // Both live in oauth_sessions keyed by DID. `value` is the session's JSON
 // (token set plus the DPoP private key), sealed with CHALK_CREDENTIALS_KEY
-// (src/server/seal.ts), since it's a bearer credential for that DID.
+// (internal/oauthClient/seal.ts), since it's a bearer credential for that DID.
 
 // oauthStates holds in-flight authorization requests, keyed by the OAuth
 // `state` parameter. Expired rows are swept whenever a new one is written
 // (see DrizzleStateStore).
-export const oauthStates = sqliteTable("oauth_states", {
-  key: text("key").primaryKey(),
-  value: bytes("value").notNull(),
-  expiresAt: integer("expires_at").notNull(),
-});
-
-export const oauthSessions = sqliteTable("oauth_sessions", {
-  did: text("did").primaryKey(),
-  value: bytes("value").notNull(),
-  updatedAt: integer("updated_at").notNull(),
-});
+export { oauthSessions, oauthStates } from "internal/oauthClient/schema";
 
 // --- Space sync (internal/spaceSync/drizzle's SyncStore) ----------------------
 

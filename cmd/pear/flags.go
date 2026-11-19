@@ -36,8 +36,8 @@ var (
 	fMCPTextOverrides      = "mcp_text_overrides"
 	fLoginHintCookieDomain = "login_hint_cookie_domain"
 	fMCPAllowPrivateNets   = "mcp_allow_private_networks"
-	fMCPGoogleDriveID      = "mcp_google_drive_client_id"
-	fMCPGoogleDriveSecret  = "mcp_google_drive_client_secret"
+	fMCPGoogleID           = "mcp_google_client_id"
+	fMCPGoogleSecret       = "mcp_google_client_secret"
 	fMCPSlackID            = "mcp_slack_client_id"
 	fMCPSlackSecret        = "mcp_slack_client_secret"
 	fDecisionsURL          = "decisions_url"
@@ -210,14 +210,14 @@ func getFlags() []cli.Flag {
 			Sources: getSources(fMCPAllowPrivateNets),
 		},
 		&cli.StringFlag{
-			Name:    fMCPGoogleDriveID,
-			Usage:   "OAuth client ID pear uses for the Google Drive MCP preset, shared by all orgs. Register it with pear's /mcp-oauth/callback as a redirect URI. Unset disables the preset",
-			Sources: getSources(fMCPGoogleDriveID),
+			Name:    fMCPGoogleID,
+			Usage:   "OAuth client ID pear uses for the Google Workspace and Google Cloud MCP presets, shared by all orgs. Register it with pear's /mcp-oauth/callback as a redirect URI. Unset disables the preset",
+			Sources: getSources(fMCPGoogleID),
 		},
 		&cli.StringFlag{
-			Name:    fMCPGoogleDriveSecret,
-			Usage:   "OAuth client secret for the Google Drive MCP preset",
-			Sources: getSources(fMCPGoogleDriveSecret),
+			Name:    fMCPGoogleSecret,
+			Usage:   "OAuth client secret for the Google Workspace and Google Cloud MCP presets",
+			Sources: getSources(fMCPGoogleSecret),
 		},
 		&cli.StringFlag{
 			Name:    fMCPSlackID,
@@ -251,7 +251,7 @@ func getFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:    fRerankAPIKey,
-			Usage:   "API key sent as a bearer token to the Rerank API. If unset, get_context does not rerank.",
+			Usage:   "API key sent as a bearer token to the Rerank API. If unset, federated search results are ranked by their rank within each source.",
 			Sources: getSources(fRerankAPIKey),
 		},
 		&cli.StringFlag{

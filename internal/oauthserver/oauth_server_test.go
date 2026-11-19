@@ -30,7 +30,6 @@ import (
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsoauth"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
@@ -67,7 +66,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
 		secret,
-		&org.LoginRouter{
+		&login.Router{
 			Pds: login_testutil.NewPassthroughProvider(t),
 		},
 		pdsoauth.NewDummyDirectory("http://pds.url"),
@@ -169,7 +168,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		&org.LoginRouter{
+		&login.Router{
 			Pds: pds,
 		},
 		dummyDir,
@@ -281,7 +280,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		&org.LoginRouter{
+		&login.Router{
 			Pds: pds,
 		},
 		dummyDir,
@@ -454,7 +453,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		&org.LoginRouter{
+		&login.Router{
 			Pds: pds,
 		},
 		h, // the OAuth server resolves handles/DIDs via hive, not a public directory
@@ -593,7 +592,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	dummyDir := pdsoauth.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		&org.LoginRouter{
+		&login.Router{
 			Pds: pds,
 		},
 		dummyDir,
@@ -782,7 +781,7 @@ func TestValidate(t *testing.T) {
 		p := login_testutil.NewPassthroughProvider(t)
 		s, srvErr := NewOAuthServer(
 			bytes,
-			&org.LoginRouter{
+			&login.Router{
 				Pds: p,
 			},
 			dummyDir,
@@ -877,7 +876,7 @@ func TestValidateWithScopeChecking(t *testing.T) {
 		p := login_testutil.NewPassthroughProvider(t)
 		s, srvErr := NewOAuthServer(
 			bytes,
-			&org.LoginRouter{
+			&login.Router{
 				Pds: p,
 			},
 			dummyDir,
@@ -983,7 +982,7 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 	dir := pdsoauth.NewDummyDirectory("https://habitat.example")
 	oauthServer, err := NewOAuthServer(
 		encrypt.TestKey,
-		&org.LoginRouter{
+		&login.Router{
 			Pds: loginProvider,
 		},
 		dir,
@@ -1156,7 +1155,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		&org.LoginRouter{
+		&login.Router{
 			Pds: pds,
 		},
 		dummyDir,
@@ -1281,7 +1280,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		&org.LoginRouter{
+		&login.Router{
 			Pds: pds,
 		},
 		dummyDir,
@@ -1428,7 +1427,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		&org.LoginRouter{
+		&login.Router{
 			Pds: pds,
 		},
 		dummyDir,
@@ -1533,7 +1532,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 	p := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		&org.LoginRouter{Pds: p},
+		&login.Router{Pds: p},
 		dummyDir,
 		db,
 		keyval_testutil.New(t),
@@ -1636,7 +1635,7 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		&org.LoginRouter{Pds: pds},
+		&login.Router{Pds: pds},
 		dummyDir,
 		db,
 		keyval_testutil.New(t),

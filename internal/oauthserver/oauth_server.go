@@ -25,8 +25,8 @@ import (
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/keyval"
+	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
@@ -127,7 +127,7 @@ type OAuthServer struct {
 	metrics *metrics
 
 	provider    fosite.OAuth2Provider
-	loginRouter *org.LoginRouter   // Routes login flows by org login method
+	loginRouter *login.Router      // Routes login flows by org login method
 	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
@@ -177,7 +177,7 @@ type OAuthServer struct {
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
 	secret []byte,
-	loginRouter *org.LoginRouter,
+	loginRouter *login.Router,
 	directory identity.Directory,
 	db *gorm.DB,
 	kv keyval.Store,
@@ -839,8 +839,9 @@ func (o *OAuthServer) ValidateRaw(
 	}
 
 	credInfo := &authn.CredentialInfo{
-		Subject: syntax.DID(did),
-		Method:  authn.ValidatorMethodOAuth,
+		Subject:   syntax.DID(did),
+		Method:    authn.ValidatorMethodOAuth,
+		ExpiresAt: session.GetExpiresAt(fosite.AccessToken),
 	}
 
 	return credInfo, true, nil

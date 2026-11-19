@@ -6,13 +6,12 @@ export {
 } from "./SignInForm";
 export { UserAvatar } from "./components/UserAvatar";
 export type { UserAvatarProps } from "./components/UserAvatar";
-export { UserDisplayName } from "./components/UserDisplayName";
-export type { UserDisplayNameProps } from "./components/UserDisplayName";
 export { OrgAvatar } from "./components/OrgAvatar";
 export type { OrgAvatarProps } from "./components/OrgAvatar";
 export { default as UserCombobox } from "./components/UserCombobox";
 export { SingleHandleCombobox } from "./components/SingleHandleCombobox";
 export type { Actor } from "./types/Actor";
+export { actorLabel } from "./types/Actor";
 export { AppHeader } from "./components/AppHeader";
 export { AppLayout } from "./components/AppLayout";
 export { HabitatLogo } from "./components/HabitatLogo";

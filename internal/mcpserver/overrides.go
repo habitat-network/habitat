@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/habitat-network/habitat/internal/reranker"
+	"github.com/habitat-network/habitat/internal/fedsearch"
 )
 
 // TextOverridesHeader, when the server is built WithTextOverrides, carries
@@ -20,8 +20,8 @@ const TextOverridesHeader = "X-Habitat-Mcp-Text-Overrides"
 type TextOverrides struct {
 	// Instructions replaces serverInstructions.
 	Instructions *string `json:"instructions,omitempty"`
-	// SearchDescription replaces searchRecordsDescription.
-	SearchDescription *string `json:"search_description,omitempty"`
+	// ContextDescription replaces getContextDescription.
+	ContextDescription *string `json:"context_description,omitempty"`
 }
 
 // EncodeHeader encodes o as a TextOverridesHeader value.
@@ -67,28 +67,21 @@ type Option func(*options)
 
 type options struct {
 	textOverrides bool
-	federated     FederatedSearcher
+	search        *fedsearch.Service
 	selector      ToolSelector
-	reranker      reranker.Reranker
 }
 
-// WithFederatedSearcher lets get_context search the caller's connected MCP
-// servers too.
-func WithFederatedSearcher(s FederatedSearcher) Option {
-	return func(o *options) { o.federated = s }
+// WithSearch makes get_context search with s, which federates the search
+// across Habitat records and the caller's connected apps. Without it
+// get_context only suggests tools.
+func WithSearch(s *fedsearch.Service) Option {
+	return func(o *options) { o.search = s }
 }
 
 // WithToolSelector sets how get_context ranks connected servers' tools for a
 // query. The default is LexicalSelector.
 func WithToolSelector(s ToolSelector) Option {
 	return func(o *options) { o.selector = s }
-}
-
-// WithReranker makes get_context reorder the records and connected-app
-// results it finds by relevance to the query. Without it they keep the order
-// their sources returned them in.
-func WithReranker(r reranker.Reranker) Option {
-	return func(o *options) { o.reranker = r }
 }
 
 // WithTextOverrides lets requests override the instructions and the search

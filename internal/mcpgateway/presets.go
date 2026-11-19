@@ -8,9 +8,12 @@ import "errors"
 type Preset string
 
 const (
-	PresetGoogleDrive Preset = "google-drive"
-	PresetSlack       Preset = "slack"
-	PresetGitHub      Preset = "github"
+	PresetGoogleDrive    Preset = "google-drive"
+	PresetGoogleCloud    Preset = "google-cloud"
+	PresetGoogleCalendar Preset = "google-calendar"
+	PresetGmail          Preset = "gmail"
+	PresetSlack          Preset = "slack"
+	PresetGitHub         Preset = "github"
 )
 
 // presetServers are the fixed parts of each preset. None of these providers
@@ -22,6 +25,17 @@ var presetServers = map[Preset]struct {
 }{
 	// https://developers.google.com/workspace/drive/api/guides/configure-mcp-server
 	PresetGoogleDrive: {URL: "https://drivemcp.googleapis.com/mcp/v1", AuthType: AuthTypeOAuth},
+	// https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server
+	PresetGoogleCalendar: {
+		URL:      "https://calendarmcp.googleapis.com/mcp/v1",
+		AuthType: AuthTypeOAuth,
+	},
+	// https://developers.google.com/workspace/gmail/api/reference/mcp
+	PresetGmail: {URL: "https://gmailmcp.googleapis.com/mcp/v1", AuthType: AuthTypeOAuth},
+	// https://docs.slack.dev/ai/slack-mcp-server/
+	// https://docs.cloud.google.com/sdk/use-gcloud-mcp. Its authorization
+	// server is Google's, so pear uses the same OAuth client as Google Drive.
+	PresetGoogleCloud: {URL: "https://cloudcli.googleapis.com/mcp", AuthType: AuthTypeOAuth},
 	// https://docs.slack.dev/ai/slack-mcp-server/
 	PresetSlack: {URL: "https://mcp.slack.com/mcp", AuthType: AuthTypeOAuth},
 	// https://github.com/github/github-mcp-server. Each host app needs its

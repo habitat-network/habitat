@@ -1,5 +1,5 @@
 import React from "react";
-import { Actor } from "@/types/Actor";
+import { Actor, actorLabel } from "../types/Actor";
 import { UserAvatar } from "./UserAvatar";
 import {
   Item,
@@ -25,17 +25,18 @@ export function UserItem({
   className,
   actions,
 }: UserItemProps) {
-  const { displayName, handle } = actor;
+  const { handle } = actor;
+  const label = actorLabel(actor);
   return (
     <Item className={className}>
       <ItemMedia variant="image">
         <UserAvatar actor={actor} link={avatarLink} size={size} />
       </ItemMedia>
       <ItemContent>
-        {displayName && <ItemTitle>{displayName}</ItemTitle>}
-        {handle && <ItemDescription>@{handle}</ItemDescription>}
-        {!displayName && !handle && (
-          <ItemDescription>Unknown User</ItemDescription>
+        <ItemTitle>{label}</ItemTitle>
+        {/* The handle is the title when there's no display name; don't repeat it. */}
+        {handle && label !== handle && (
+          <ItemDescription>{handle}</ItemDescription>
         )}
       </ItemContent>
       {actions && <ItemActions>{actions}</ItemActions>}

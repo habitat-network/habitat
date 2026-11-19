@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/fedsearch"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -25,13 +26,14 @@ import (
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/reranker"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -39,6 +41,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacestream"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 )
@@ -122,18 +125,31 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		hiveDomain = domain
 	}
 
+	// Habitat's single host signing key signs delegation tokens and space
+	// credentials.
+	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
+	if err != nil {
+		return nil, fmt.Errorf("parse space-host signing key: %w", err)
+	}
 	hive, err := hive.NewHive(hiveDomain, domain, database.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("setup hive (identity service for org): %w", err)
 	}
+	// did:web:*.test identities (the passthrough login's) sign with a key
+	// derived from the host key.
+	hive = habitat_identity.NewTestHive(hive, hostKey)
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
-	defaultDir := identity.DefaultDirectory()
+	defaultDir := habitat_identity.NewTestDirectory(identity.DefaultDirectory(), hostKey, domain)
 	// hive is the base directory (tried first) since it resolves DIDs under our
 	// own domain locally; falling back to defaultDir's network resolution first
 	// would make this server make an outbound HTTP request back to itself for
 	// any locally-hosted DID.
-	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
+	// The hive's handle lookups don't fall through to defaultDir for every
+	// miss, so .test handles are resolved before reaching it.
+	hiveDir := habitat_identity.NewTestDirectory(
+		habitat_identity.NewWrappedDirectory(hive, defaultDir), hostKey, domain,
+	)
 
 	oauthClient, err := pdsoauth.NewApp(
 		pdsoauth.Config{
@@ -158,10 +174,16 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("setup email domain store: %w", err)
 	}
 
-	loginRouter := &org.LoginRouter{
+	loginRouter := &login.Router{
 		Pds:        login.NewPDSProvider(oauthClient),
 		EmailStore: emailDomainStore,
 	}
+	// Handles ending in .test sign in without authentication. The TLD is
+	// reserved and never resolves publicly, so this only affects dev/test.
+	loginRouter.Passthrough = login.NewPassthroughProvider(
+		"https://" + domain + "/oauth-callback",
+	)
+	loginRouter.Directory = hiveDir
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
 	if googleClientID != "" && googleClientSecret != "" {
@@ -179,12 +201,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		slog.InfoContext(ctx, "google login provider enabled")
 	}
 
-	// Habitat's single host signing key signs delegation tokens and space
-	// credentials.
-	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
-	if err != nil {
-		return nil, fmt.Errorf("parse space-host signing key: %w", err)
-	}
 	// The host's KEM key keys permissioned-repo commit MACs for repo owners on
 	// external PDSes (habitat-managed owners use their own hive KEM key
 	// instead). It is derived from the host key rather than configured, so it
@@ -203,7 +219,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	// With Meilisearch configured, the search indexer follows space writes
 	// like any other syncer, so the spaces store notifies it alongside the
 	// registered ones.
-	notifiers := spaces.Notifiers{notifier}
+	// Subscribe streams (network.habitat.space.subscribe) are woken by every
+	// write too.
+	spaceEvents := spacestream.NewBroadcaster()
+	notifiers := spaces.Notifiers{notifier, spaceEvents}
 	blobBucket, err := blob.OpenBucket(ctx, cmd.String(fBlobBucket))
 	if err != nil {
 		return nil, fmt.Errorf("open blob bucket: %w", err)
@@ -322,8 +341,20 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		"https://"+domain+pearserver.MCPOAuthCallbackPath,
 		mcpgateway.WithPresetClients(map[mcpgateway.Preset]mcpgateway.PresetClient{
 			mcpgateway.PresetGoogleDrive: {
-				ID:     cmd.String(fMCPGoogleDriveID),
-				Secret: cmd.String(fMCPGoogleDriveSecret),
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGoogleCloud: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGoogleCalendar: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGmail: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
 			},
 			mcpgateway.PresetSlack: {
 				ID:     cmd.String(fMCPSlackID),
@@ -357,6 +388,11 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 			searchIndex, opensocialStore, spacesStore,
 			search.WithCollections(searchConfigStore),
 		)
+	}
+
+	fedSearch, err := setupFedSearch(cmd, encryptedKV, searcher, mcpGatewayStore)
+	if err != nil {
+		return nil, err
 	}
 
 	return pearapp.New(
@@ -394,7 +430,42 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		searchIndexer,
 		searcher,
 		searchConfigStore,
+		fedSearch,
+		spaceEvents,
 	), nil
+}
+
+// fedSearchSnippetLength is about how many words of context each record
+// result of a federated search carries: plenty for an agent, as connected
+// apps' results carry up to 2000 characters.
+const fedSearchSnippetLength = 300
+
+// setupFedSearch builds the federated search over Habitat records (when
+// searcher is set) and members' connected MCP servers, reranked with Cohere
+// when --rerank_api_key is set.
+func setupFedSearch(
+	cmd *cli.Command,
+	encryptedKV keyval.EncryptedStore,
+	searcher *search.Searcher,
+	mcpGatewayStore mcpgateway.Store,
+) (*fedsearch.Service, error) {
+	resolvers := []fedsearch.Resolver{mcpsearch.NewResolver(
+		mcpGatewayStore, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
+	)}
+	if searcher != nil {
+		resolvers = append(resolvers, search.NewResolver(searcher, fedSearchSnippetLength))
+	}
+	var opts []fedsearch.Option
+	if key := cmd.String(fRerankAPIKey); key != "" {
+		model := cmd.String(fRerankModel)
+		if model == "" {
+			return nil, fmt.Errorf("--%s is required when --%s is set", fRerankModel, fRerankAPIKey)
+		}
+		opts = append(opts, fedsearch.WithReranker(
+			reranker.NewCohere(cmd.String(fRerankURL), key, model, httpx.NewClient()),
+		))
+	}
+	return fedsearch.NewService(encryptedKV.Namespace("fedsearch"), resolvers, opts...), nil
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {

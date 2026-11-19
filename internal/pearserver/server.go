@@ -11,11 +11,11 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/emaildomain"
+	"github.com/habitat-network/habitat/internal/fedsearch"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pearapp"
@@ -25,6 +25,7 @@ import (
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacestream"
 )
 
 // PearServer is the consolidated HTTP server for habitat.
@@ -61,8 +62,9 @@ type PearServer struct {
 	simpleStore     *simplespace.Store
 	notifyStore     notify.Store
 	mcpGatewayStore mcpgateway.Store
-	// mcpSearcher answers mcp.search over members' connected MCP servers.
-	mcpSearcher *mcpsearch.Searcher
+	// fedSearch answers mcp.search over Habitat records and members'
+	// connected MCP servers.
+	fedSearch *fedsearch.Service
 
 	// llmStore holds each org's LLM model connections.
 	llmStore *llmgateway.Store
@@ -82,6 +84,9 @@ type PearServer struct {
 
 	// searchConfig stores the collections each org surfaces in search.
 	searchConfig *searchconfig.Store
+
+	// spaceStream serves network.habitat.space.subscribe.
+	spaceStream *spacestream.Server
 }
 
 // New creates a PearServer with the given dependencies and prepares
@@ -108,15 +113,19 @@ func New(app *pearapp.App) *PearServer {
 		notifyStore:           app.NotifyStore,
 		clientMeta:            app.ClientMetadata,
 		mcpGatewayStore:       app.MCPGatewayStore,
-		mcpSearcher: mcpsearch.NewSearcher(
-			app.MCPGatewayStore, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
-		),
-		llmStore:         app.LLMStore,
-		pdsForwarding:    app.PDSForwarding,
-		emailDomainStore: app.EmailDomainStore,
-		searcher:         app.Searcher,
-		searchConfig:     app.SearchConfig,
+		fedSearch:             app.FedSearch,
+		llmStore:              app.LLMStore,
+		pdsForwarding:         app.PDSForwarding,
+		emailDomainStore:      app.EmailDomainStore,
+		searcher:              app.Searcher,
+		searchConfig:          app.SearchConfig,
 	}
+	spaceEvents := app.SpaceEvents
+	if spaceEvents == nil {
+		// Nothing notifies this one, so streams fall back to polling.
+		spaceEvents = spacestream.NewBroadcaster()
+	}
+	ps.spaceStream = spacestream.NewServer(app.SpacesStore, app.PermStore, spaceEvents)
 	ps.registerRoutes()
 	return ps
 }

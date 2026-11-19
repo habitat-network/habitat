@@ -28,7 +28,7 @@ const (
 // emaildomain.Store.CreateDomainMapping). Minting only reserves a DID and
 // records the email->DID mapping; it does NOT add the identity to the org.
 // That only happens once the user actually completes sign-in with that
-// email (see org.LoginRouter.Exchange) — otherwise resolving a mistyped or
+// email (see login.Router.Exchange) — otherwise resolving a mistyped or
 // unowned email (e.g. while an OAuth client is merely rendering a login
 // screen) would silently enroll a ghost member.
 type EmailResolver struct {

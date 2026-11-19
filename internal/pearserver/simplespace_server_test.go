@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
@@ -41,10 +42,10 @@ func TestServer_Simplespace(t *testing.T) {
 
 	t.Run("create space", func(t *testing.T) {
 		t.Run("creates a space with an auto key", func(t *testing.T) {
-			var output habitat.NetworkHabitatSimplespaceCreateSpaceOutput
+			var output comatproto.ComAtprotoSpaceCreateSpaceOutput
 			code := client.Procedure(
 				ts.Server.CreateSpace,
-				habitat.NetworkHabitatSimplespaceCreateSpaceInput{Type: "network.habitat.group"},
+				relationSpaceInput("network.habitat.group", ""),
 				&output,
 			)
 			require.Equal(t, http.StatusOK, code)
@@ -53,48 +54,6 @@ func TestServer_Simplespace(t *testing.T) {
 				output.Uri,
 				"at://did:plc:org/space/network.habitat.group/",
 			)
-		})
-
-		t.Run("accepts only the caller did as the did param", func(t *testing.T) {
-			tests := []struct {
-				name    string
-				did     string
-				want    int
-				wantErr string
-			}{
-				{name: "caller did", did: owner.String(), want: http.StatusOK},
-				{
-					name:    "org did",
-					did:     org.String(),
-					want:    http.StatusBadRequest,
-					wantErr: "only the caller did is allowed",
-				},
-				{
-					name:    "other did",
-					did:     alice.String(),
-					want:    http.StatusBadRequest,
-					wantErr: "only the caller did is allowed",
-				},
-			}
-			for _, tt := range tests {
-				t.Run(tt.name, func(t *testing.T) {
-					var out json.RawMessage
-					code := client.Procedure(
-						ts.Server.CreateSpace,
-						habitat.NetworkHabitatSimplespaceCreateSpaceInput{
-							Did:  tt.did,
-							Type: "network.habitat.group",
-						},
-						&out,
-					)
-					require.Equal(t, tt.want, code)
-					if tt.wantErr != "" {
-						var apiErr atclient.ErrorBody
-						require.NoError(t, json.Unmarshal(out, &apiErr))
-						require.Equal(t, tt.wantErr, apiErr.Message)
-					}
-				})
-			}
 		})
 
 		// Duplicate pins the createSpace endpoint's duplicate handling: it must
@@ -109,10 +68,7 @@ func TestServer_Simplespace(t *testing.T) {
 			var apiErr atclient.ErrorBody
 			code := client.Procedure(
 				ts.Server.CreateSpace,
-				habitat.NetworkHabitatSimplespaceCreateSpaceInput{
-					Type: "network.habitat.group",
-					Skey: "dup",
-				},
+				relationSpaceInput("network.habitat.group", "dup"),
 				&apiErr,
 			)
 			require.Equal(t, http.StatusBadRequest, code)
@@ -223,11 +179,13 @@ func TestServer_Simplespace(t *testing.T) {
 		// the removal.
 		coll := syntax.NSID("network.habitat.note")
 
-		var createOutput habitat.NetworkHabitatSimplespaceCreateSpaceOutput
+		var createOutput comatproto.ComAtprotoSpaceCreateSpaceOutput
 		createCode := client.Procedure(
 			ts.Server.CreateSpace,
-			habitat.NetworkHabitatSimplespaceCreateSpaceInput{
+			comatproto.ComAtprotoSpaceCreateSpaceInput{
 				Type: "network.habitat.group", Skey: "lifecycle-shared",
+				// AddMember below needs a memberspace.
+				Policy: map[string]any{"$type": spaces.PolicyMemberSpace},
 			},
 			&createOutput,
 		)
@@ -351,7 +309,7 @@ func TestServer_Simplespace_Unauthorized(t *testing.T) {
 	var out struct{}
 	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 		ts.Server.CreateSpace,
-		habitat.NetworkHabitatSimplespaceCreateSpaceInput{Type: "network.habitat.group"},
+		relationSpaceInput("network.habitat.group", ""),
 		&out,
 	)
 	require.Equal(t, http.StatusUnauthorized, code)
@@ -430,4 +388,16 @@ func TestServer_SpacePolicy(t *testing.T) {
 			map[string]any{"space": uri, "did": alice.String(), "read": true, "write": true})
 		require.Equal(t, http.StatusBadRequest, code)
 	})
+}
+
+// relationSpaceInput is a com.atproto.space.createSpace input using habitat's
+// relationspace policy.
+func relationSpaceInput(
+	spaceType, skey string,
+) comatproto.ComAtprotoSpaceCreateSpaceInput {
+	return comatproto.ComAtprotoSpaceCreateSpaceInput{
+		Type:   spaceType,
+		Skey:   skey,
+		Policy: map[string]any{"$type": spaces.PolicyRelationSpace},
+	}
 }

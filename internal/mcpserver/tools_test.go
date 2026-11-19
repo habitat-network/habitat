@@ -74,7 +74,8 @@ func (f *fakeConnectedServers) Downstream(
 }
 
 // newFakeMCPServer stands in for a downstream MCP server the caller has
-// connected to, exposing a "ping" tool and an "echo" tool.
+// connected to, exposing a "ping" tool and an "echo" tool, plus the resources
+// and prompt of addFakeResourcesAndPrompts.
 //
 // If authorization is given, requests without it as their Authorization
 // header are refused.
@@ -109,6 +110,7 @@ func newFakeMCPServer(t *testing.T, authorization ...string) *httptest.Server {
 			Content: []mcp.Content{&mcp.TextContent{Text: in.Text}},
 		}, nil, nil
 	})
+	addFakeResourcesAndPrompts(srv)
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return srv
 	}, &mcp.StreamableHTTPOptions{DisableLocalhostProtection: true})
@@ -135,7 +137,6 @@ func newConnectedServerTestServer(
 		fakeTokens{},
 		spacesStore,
 		permStore,
-		nil,
 		servers,
 		nil,
 		newTestDirectory(),

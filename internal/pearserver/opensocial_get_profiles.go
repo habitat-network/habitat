@@ -73,7 +73,7 @@ func (p *PearServer) GetProfiles(w http.ResponseWriter, r *http.Request) {
 
 // buildProfileViews resolves each of members' profile within org: their
 // community.opensocial.memberProfile record if they have one, or their
-// public Bluesky profile otherwise, plus their org handle.
+// public Bluesky profile otherwise, plus their handle from identity resolution.
 func (p *PearServer) buildProfileViews(
 	ctx context.Context,
 	org syntax.DID,
@@ -84,9 +84,12 @@ func (p *PearServer) buildProfileViews(
 		return nil, fmt.Errorf("get member profiles: %w", err)
 	}
 
+	// Members without a member profile fall back to their public Bluesky
+	// profile. Bluesky has no placeholder for DIDs without an account, so
+	// those are simply absent from the result.
 	var noProfile []syntax.DID
 	for _, did := range members {
-		if _, ok := memberProfiles[did]; !ok {
+		if memberProfiles[did].UpdatedAt == "" {
 			noProfile = append(noProfile, did)
 		}
 	}
@@ -105,7 +108,10 @@ func (p *PearServer) buildProfileViews(
 			Did:    did.String(),
 			Handle: did.String(),
 		}
-		if ident, err := p.hive.LookupDID(ctx, did); err == nil {
+		// Resolve the identity through the general directory (hive, PLC,
+		// did:web, ...) for the handle. If it can't be resolved the handle
+		// stays the DID.
+		if ident, err := p.dir.LookupDID(ctx, did); err == nil && !ident.Handle.IsInvalidHandle() {
 			view.Handle = ident.Handle.String()
 		}
 		switch {

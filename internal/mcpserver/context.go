@@ -2,70 +2,76 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/fedsearch"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"github.com/habitat-network/habitat/internal/mcpsearch"
-	"github.com/habitat-network/habitat/internal/reranker"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/modelcontextprotocol/go-sdk/auth"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
-
-// FederatedSearcher searches a member's connected MCP servers. See
-// mcpsearch.Searcher for the concrete implementation.
-type FederatedSearcher interface {
-	Search(
-		ctx context.Context,
-		caller syntax.DID,
-		org syntax.DID,
-		serverURLs []string,
-		q mcpsearch.Query,
-	) (*mcpsearch.Result, error)
-}
 
 const (
 	defaultSuggestedTools = 5
 	maxSuggestedTools     = 20
-	// contextRecordLimit and contextItemLimit are how many records and
-	// connected-app results get_context returns from each source.
-	contextRecordLimit = 8
-	contextItemLimit   = 5
+	// contextPageSize is how many results one get_context page holds.
+	contextPageSize = 10
+	// contextTimeout is how long get_context waits for search backends
+	// before returning what's ready. A backend still running keeps going,
+	// and next_cursor waits for it.
+	contextTimeout = 10 * time.Second
 )
 
 const getContextDescription = "Start here. Give it what you're trying to find out or do, in a " +
 	"sentence or a few keywords, and it gathers context from everywhere this user's " +
 	"organization keeps data: Habitat records and files and the org's connected apps. It " +
-	"returns matching records (read one in full with get_record or get_blob), results from " +
-	"connected apps, and suggested tools in those apps for the request, each with its input " +
-	"schema, to run with call_tool. Call it again when the topic changes."
+	"returns matching results from all of them, ranked together (read a record in full with " +
+	"get_record or get_blob), and suggested tools in those apps for the request, each with " +
+	"its input schema, to run with call_tool. Sources that are slow or failed are listed in " +
+	"backends; while one is pending, next_cursor waits for its results. Call it again when " +
+	"the topic changes."
 
 const callToolDescription = "Run a tool of one of the organization's connected apps, by the " +
 	"name get_context suggested (for example \"github:search_issues\"), with arguments " +
 	"matching that tool's input_schema."
 
 type getContextInput struct {
-	Query string `json:"query" jsonschema:"what you want to find out or do, in a sentence or a few keywords"`
+	Query string `json:"query,omitempty" jsonschema:"what you want to find out or do, in a sentence or a few keywords; required unless cursor is given"`
 	// MaxTools is a pointer so omitted, which takes the default, differs
 	// from an explicit zero, which asks for no suggestions.
 	MaxTools *int `json:"max_tools,omitempty" jsonschema:"most tools to suggest, 0 to 20; defaults to 5"`
+	// Cursor continues a previous search: it returns the next page of that
+	// search's results. See the MCP pagination utility.
+	Cursor *string `json:"cursor,omitempty" jsonschema:"next_cursor from a previous get_context response, to get its next page of results; omit to start a search"`
 }
 
-type contextRecord struct {
-	URI     string `json:"uri"`
-	Space   string `json:"space"`
-	Snippet string `json:"snippet"`
-	Value   any    `json:"value"`
-}
-
-type contextItem struct {
-	Server  string `json:"server"`
-	Title   string `json:"title"`
+// contextResult is one search result, from any source.
+type contextResult struct {
+	// Source is the backend the result came from, such as "records" or
+	// "mcp:slack/slack-messages".
+	Source  string `json:"source"`
+	Kind    string `json:"kind"`
+	Title   string `json:"title,omitempty"`
 	URL     string `json:"url,omitempty"`
 	Snippet string `json:"snippet,omitempty"`
+	// Space and Value are set for a Habitat record, whose URL is its URI.
+	Space string         `json:"space,omitempty"`
+	Value map[string]any `json:"value,omitempty"`
+}
+
+// contextBackend is a source that hasn't answered yet or couldn't be
+// searched.
+type contextBackend struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
 }
 
 type suggestedTool struct {
@@ -77,27 +83,28 @@ type suggestedTool struct {
 }
 
 type getContextOutput struct {
-	Records        []contextRecord `json:"records"`
-	Items          []contextItem   `json:"items"`
+	Results        []contextResult `json:"results"`
 	SuggestedTools []suggestedTool `json:"suggested_tools"`
-	// Notes say which sources couldn't be searched and why, so an empty
-	// section isn't mistaken for "nothing there".
+	// Backends lists the sources that are still pending or failed, so an
+	// empty result isn't mistaken for "nothing there".
+	Backends []contextBackend `json:"backends,omitempty"`
+	// Notes say what else went wrong, such as tool suggestion failing.
 	Notes []string `json:"notes,omitempty"`
+	// NextCursor is present while more results are ranked beyond this page
+	// or a source is still pending. A missing one means the end of results.
+	NextCursor *string `json:"next_cursor,omitempty" jsonschema:"pass as cursor to get the next page of results"`
 }
 
 // contextAgent gathers what get_context returns for a query: it runs the
-// record search, the federated search over connected apps, and tool
-// selection concurrently, each as the caller. A source that fails is
-// reported in the output's notes rather than failing the whole call.
+// federated search (see internal/fedsearch) and tool selection
+// concurrently, each as the caller. A source that fails is reported in the
+// output rather than failing the whole call.
 type contextAgent struct {
-	org              syntax.DID
-	records          RecordSearcher
-	federated        FederatedSearcher
+	org syntax.DID
+	// search may be nil, when nothing is searched.
+	search           *fedsearch.Service
 	connectedServers mcpgateway.ConnectedServers
 	selector         ToolSelector
-	// reranker, when set, reorders the records and the connected-app results
-	// by relevance to the query.
-	reranker reranker.Reranker
 }
 
 func (a *contextAgent) handler() mcp.ToolHandlerFor[getContextInput, getContextOutput] {
@@ -109,6 +116,11 @@ func (a *contextAgent) handler() mcp.ToolHandlerFor[getContextInput, getContextO
 		tokenInfo := auth.TokenInfoFromContext(ctx)
 		if tokenInfo == nil || tokenInfo.UserID == "" {
 			return nil, getContextOutput{}, fmt.Errorf("missing authenticated caller")
+		}
+		caller := syntax.DID(tokenInfo.UserID)
+		if input.Cursor != nil {
+			out, err := a.page(ctx, caller, *input.Cursor)
+			return nil, out, err
 		}
 		if input.Query == "" {
 			return nil, getContextOutput{}, fmt.Errorf("query is required")
@@ -122,8 +134,38 @@ func (a *contextAgent) handler() mcp.ToolHandlerFor[getContextInput, getContextO
 				"max_tools must be between 0 and %d", maxSuggestedTools,
 			)
 		}
-		return nil, a.gather(ctx, syntax.DID(tokenInfo.UserID), input.Query, maxTools), nil
+		out, err := a.gather(ctx, caller, input.Query, maxTools)
+		return nil, out, err
 	}
+}
+
+// errInvalidCursor is get_context's answer to an unknown, expired or someone
+// else's cursor: Invalid params, as the MCP pagination utility asks.
+var errInvalidCursor = &jsonrpc.Error{
+	Code:    jsonrpc.CodeInvalidParams,
+	Message: "invalid or expired cursor; call get_context again with a query",
+}
+
+// page returns the page of a previous search that cursor points at, waiting
+// for a pending source as long as contextTimeout.
+func (a *contextAgent) page(
+	ctx context.Context,
+	caller syntax.DID,
+	cursor string,
+) (getContextOutput, error) {
+	if a.search == nil {
+		return getContextOutput{}, errInvalidCursor
+	}
+	page, err := a.search.Continue(ctx, caller, cursor, contextPageSize, contextTimeout)
+	if errors.Is(err, fedsearch.ErrInvalidCursor) || errors.Is(err, fedsearch.ErrNotFound) {
+		return getContextOutput{}, errInvalidCursor
+	}
+	if err != nil {
+		return getContextOutput{}, err
+	}
+	out := getContextOutput{SuggestedTools: []suggestedTool{}}
+	fillFromPage(ctx, &out, page)
+	return out, nil
 }
 
 func (a *contextAgent) gather(
@@ -131,71 +173,23 @@ func (a *contextAgent) gather(
 	caller syntax.DID,
 	query string,
 	maxTools int,
-) getContextOutput {
-	out := getContextOutput{
-		Records: []contextRecord{}, Items: []contextItem{}, SuggestedTools: []suggestedTool{},
-	}
+) (getContextOutput, error) {
+	out := getContextOutput{Results: []contextResult{}, SuggestedTools: []suggestedTool{}}
 	var (
-		wg   sync.WaitGroup
-		mu   sync.Mutex
-		note = func(format string, args ...any) {
-			mu.Lock()
-			defer mu.Unlock()
-			out.Notes = append(out.Notes, fmt.Sprintf(format, args...))
-		}
+		wg      sync.WaitGroup
+		page    fedsearch.Page
+		pageErr error
 	)
-	if a.records != nil {
+	if a.search != nil {
 		wg.Go(func() {
-			page, err := a.records.Search(ctx, caller, search.Query{
-				Text: query, Org: a.org, Limit: contextRecordLimit,
-				SnippetLength: defaultMCPSnippetLength,
-			})
+			s, err := a.search.Start(ctx, caller, a.org, fedsearch.Query{Text: query})
 			if err != nil {
-				slog.WarnContext(ctx, "mcp: get_context record search", "err", err)
-				note("Habitat record search failed")
+				pageErr = err
 				return
 			}
-			for _, m := range page.Matches {
-				out.Records = append(out.Records, contextRecord{
-					URI: m.URI.String(), Space: m.Record.Space.String(),
-					Snippet: m.Snippet, Value: m.Record.Value,
-				})
-			}
-			out.Records = rerank(ctx, a.reranker, query, out.Records,
-				func(r contextRecord) string { return r.Snippet }, func() {
-					note("reranking Habitat records failed")
-				})
-		})
-	}
-	if a.federated != nil {
-		wg.Go(func() {
-			res, err := a.federated.Search(ctx, caller, a.org, nil, mcpsearch.Query{
-				Text: query, Limit: contextItemLimit,
+			page, pageErr = s.Next(ctx, fedsearch.NextOptions{
+				Limit: contextPageSize, Timeout: contextTimeout, WaitAll: true,
 			})
-			if err != nil {
-				slog.WarnContext(ctx, "mcp: get_context federated search", "err", err)
-				note("searching connected apps failed")
-				return
-			}
-			for _, item := range res.Items {
-				out.Items = append(out.Items, contextItem{
-					Server: string(item.Source.ServerName), Title: item.Title,
-					URL: item.URL, Snippet: item.Snippet,
-				})
-			}
-			out.Items = rerank(ctx, a.reranker, query, out.Items,
-				func(i contextItem) string { return i.Title + "\n" + i.Snippet }, func() {
-					note("reranking connected app results failed")
-				})
-			for _, s := range res.Sources {
-				switch s.Status {
-				case mcpsearch.StatusOK, mcpsearch.StatusUnsupported:
-				case mcpsearch.StatusNotConnected:
-					note("%s: not connected", s.ServerName)
-				default:
-					note("%s: search %s", s.ServerName, s.Status)
-				}
-			}
 		})
 	}
 	if a.connectedServers != nil && maxTools > 0 {
@@ -203,47 +197,51 @@ func (a *contextAgent) gather(
 			tools, err := a.selectTools(ctx, caller, query, maxTools)
 			if err != nil {
 				slog.WarnContext(ctx, "mcp: get_context tool selection", "err", err)
-				note("suggesting tools failed")
+				out.Notes = append(out.Notes, "suggesting tools failed")
 				return
 			}
 			out.SuggestedTools = tools
 		})
 	}
 	wg.Wait()
-	return out
+	if pageErr != nil {
+		return getContextOutput{}, fmt.Errorf("search: %w", pageErr)
+	}
+	fillFromPage(ctx, &out, page)
+	return out, nil
 }
 
-// rerank reorders items by relevance to query using r, which may be nil to
-// leave them as they are. If reranking fails the original order is kept and
-// onErr is called, so a reranker outage never loses results.
-func rerank[T any](
-	ctx context.Context,
-	r reranker.Reranker,
-	query string,
-	items []T,
-	text func(T) string,
-	onErr func(),
-) []T {
-	if r == nil || len(items) < 2 {
-		return items
-	}
-	docs := make([]string, len(items))
-	for i, item := range items {
-		docs[i] = text(item)
-	}
-	order, err := r.Rerank(ctx, query, docs, len(items))
-	if err != nil {
-		slog.WarnContext(ctx, "mcp: get_context rerank", "err", err)
-		onErr()
-		return items
-	}
-	out := make([]T, 0, len(items))
-	for _, idx := range order {
-		if idx >= 0 && idx < len(items) {
-			out = append(out, items[idx])
+// fillFromPage sets out's results, backends and next cursor from page.
+func fillFromPage(ctx context.Context, out *getContextOutput, page fedsearch.Page) {
+	for _, b := range page.Backends {
+		if b.Status == fedsearch.StatusOK {
+			continue
 		}
+		cb := contextBackend{Name: b.Name, Status: string(b.Status)}
+		if b.Error != nil {
+			cb.Error = b.Error.Message
+		}
+		out.Backends = append(out.Backends, cb)
 	}
-	return out
+	out.Results = make([]contextResult, len(page.Results))
+	for i, r := range page.Results {
+		out.Results[i] = contextResult{
+			Source: string(r.Backend), Kind: string(r.Kind),
+			Title: r.Title, URL: r.URL, Snippet: r.Snippet,
+		}
+		if r.Kind != search.ResultKind {
+			continue
+		}
+		var record search.RecordData
+		if err := json.Unmarshal(r.Data, &record); err != nil {
+			slog.WarnContext(ctx, "mcp: get_context record result", "id", r.ID, "err", err)
+			continue
+		}
+		out.Results[i].Space, out.Results[i].Value = record.Space.String(), record.Value
+	}
+	if page.Cursor != "" {
+		out.NextCursor = &page.Cursor
+	}
 }
 
 // selectTools lists caller's connected servers' tools and asks the selector

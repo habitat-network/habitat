@@ -6,8 +6,8 @@ import {
 } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { xrpc, type DidString, type NsidString } from "@atproto/lex";
-import { network } from "api";
+import { xrpc, type NsidString } from "@atproto/lex";
+import { com } from "api";
 import { SpaceRef } from "@atproto/syntax";
 import {
   Button,
@@ -112,11 +112,15 @@ function CreateSpaceForm() {
     async mutationFn(type: string) {
       const response = await xrpc(
         authManager,
-        network.habitat.simplespace.createSpace.main,
+        com.atproto.space.createSpace.main,
         {
           body: {
-            did: authManager.getAuthInfo()!.did as DidString,
             type: type as NsidString,
+            // Habitat's own policy isn't in the upstream createSpace union, which
+            // the host still accepts by $type.
+            policy: {
+              $type: "network.habitat.relationspace.policy",
+            } as unknown as com.atproto.space.createSpace.$Input["body"]["policy"],
           },
           headers: {
             "atproto-proxy": `did:web:${import.meta.env.VITE_HABITAT_DOMAIN}#habitat`,

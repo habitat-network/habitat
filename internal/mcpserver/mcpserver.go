@@ -18,19 +18,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/perms"
-	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
-	"github.com/olgasafonova/mcp-otel-go/mcpotel"
 )
-
-// RecordSearcher runs a record search as a caller. See search.Searcher for
-// the concrete implementation.
-type RecordSearcher interface {
-	Search(ctx context.Context, caller syntax.DID, q search.Query) (search.Page, error)
-}
 
 // ProtectedResourceMetadataPath is the well-known path prefix (RFC 9728) under
 // which the protected resource metadata of each org's MCP endpoint is served,
@@ -40,31 +32,22 @@ const ProtectedResourceMetadataPath = "/.well-known/oauth-protected-resource/mcp
 
 // Path is the prefix under which Server.Handler should be mounted. Each org's
 // MCP endpoint lives at Path + "/" + <org DID or handle>, so tools such as
-// "search_records" know which org they act on.
+// "get_context" know which org they act on.
 const Path = "/mcp"
 
 // serverInstructions are sent to MCP clients on initialize, which typically
 // put them in the model's system prompt even when tools are deferred, so they
 // are the main place to tell agents when to reach for Habitat. They're only
-// sent when "search_records" is offered, since they direct agents to it.
-// integration/mcp-evals measures how well they work; rerun it after editing.
-const serverInstructions = `Habitat holds this user's organizational knowledge base: documents, notes, policies, files, plans, decisions and other data records shared within their org, including files they've uploaded.
+// sent when get_context searches (see WithSearch), since they direct agents to
+// it. integration/mcp-evals measures how well they work; rerun it after
+// editing.
+const serverInstructions = `Habitat holds this user's organizational knowledge base: documents, notes, policies, files, plans, decisions and other data records shared within their org, including files they've uploaded, and reaches the org's connected apps.
 
-Whenever a question is about the user's company, team, customers, projects or past discussions, call search_records before searching local files or the web. Search again for each new question in a conversation, even if you searched earlier: earlier results only cover what you searched for then. When a question touches a kind of document the org likely has (a pitch deck, strategy, thesis, roadmap, research, policy), search for that document and read it, rather than reconstructing it from notes or other sources.
+Whenever a question is about the user's company, team, customers, projects or past discussions, call get_context before searching local files or the web. Call it again for each new question in a conversation, even if you called it earlier: earlier results only cover what you asked about then. When a question touches a kind of document the org likely has (a pitch deck, strategy, thesis, roadmap, research, policy), look for that document and read it, rather than reconstructing it from notes or other sources.
 
-Call search_records with a few keywords as its query argument, e.g. {"query": "pricing decision"}, then read relevant results in full with get_record or get_blob. If nothing relevant turns up after a few searches, say so instead of guessing.
+Call get_context with what you're looking for, e.g. {"query": "pricing decision"}, then read relevant Habitat records in full with get_record or get_blob, and run the connected-app tools it suggests with call_tool. If nothing relevant turns up after a few tries, say so instead of guessing.
 
-Tools prefixed with an app's name are the org's connected apps, reached through Habitat. Use them for data that lives in those apps.
-
-get_context searches Habitat and the connected apps at once and suggests the connected-app tools that fit a request; run a suggested tool with call_tool.`
-
-// searchRecordsDescription is the "search_records" tool's description. Like
-// serverInstructions, it says when to search, not just how.
-const searchRecordsDescription = "Search your organization's knowledge in Habitat: documents, " +
-	"notes, policies, files, roadmaps, decisions and other data records shared with you. Use " +
-	"this first for any question about your company, team, customers or past work, and search " +
-	"again whenever the conversation turns to a new topic; earlier results don't cover it. " +
-	"Returns matching records with snippets; use get_record for the full content."
+Tools prefixed with an app's name are the org's connected apps, reached through Habitat. Use them for data that lives in those apps.`
 
 // Server exposes pear's data as an MCP server over streamable HTTP, guarded
 // by bearer tokens issued by internal/oauthserver.
@@ -96,10 +79,6 @@ func orgFromPath(p, prefix string) (syntax.AtIdentifier, error) {
 //   - blobs and permStore back blob reads, offered both as a resource template
 //     (resources/read) and the "get_blob" tool: permStore checks the caller
 //     holds at least a reader role on the blob's space before blobs returns it.
-//   - searcher backs the "search_records" tool, which searches as the caller
-//     within the org named in the endpoint's path.
-//     It may be nil when search isn't configured, in which case the tool isn't
-//     offered.
 //   - connectedServers lists the MCP servers of the org named in the
 //     endpoint's path that the caller can reach (see internal/mcpgateway):
 //     every one's tools are merged into
@@ -116,7 +95,6 @@ func New(
 	tokens authn.RawMethod,
 	spacesStore spaces.Store,
 	permStore perms.Store,
-	searcher RecordSearcher,
 	connectedServers mcpgateway.ConnectedServers,
 	blobs spaces.BlobStore,
 	dir identity.Directory,
@@ -133,17 +111,22 @@ func New(
 	}
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
 	newMCPServer := func(org syntax.DID, text TextOverrides) *mcp.Server {
-		var serverOpts *mcp.ServerOptions
-		if searcher != nil {
-			serverOpts = &mcp.ServerOptions{
-				Instructions: textOr(text.Instructions, serverInstructions),
-			}
+		serverOpts := &mcp.ServerOptions{
+			// Resources and prompts are advertised without listChanged or
+			// subscribe: pear doesn't relay connected servers' notifications
+			// (see resources.go). Tools are left to the SDK to infer.
+			Capabilities: &mcp.ServerCapabilities{
+				Resources: &mcp.ResourceCapabilities{},
+			},
+		}
+		if connectedServers != nil {
+			serverOpts.Capabilities.Prompts = &mcp.PromptCapabilities{}
+		}
+		if connectedServers != nil && o.search != nil {
+			serverOpts.Instructions = textOr(text.Instructions, serverInstructions)
 		}
 		mcpServer := mcp.NewServer(impl, serverOpts)
-		mcpServer.AddReceivingMiddleware(mcpotel.Middleware(mcpotel.Config{
-			ServiceName:    "habitat-mcp",
-			ServiceVersion: "0.0.1",
-		}))
+		mcpServer.AddReceivingMiddleware(otelMiddleware(otelMiddlewareConfig{}))
 		mcp.AddTool(mcpServer, &mcp.Tool{
 			Name: "get_record",
 			Description: "Get a single Habitat record by its space record URI, returned as " +
@@ -167,28 +150,23 @@ func New(
 		}, blobResourceHandler(blobs, permStore))
 		if connectedServers != nil {
 			agent := &contextAgent{
-				org: org, records: searcher, federated: o.federated,
+				org: org, search: o.search,
 				connectedServers: connectedServers, selector: o.selector,
-				reranker: o.reranker,
 			}
 			mcp.AddTool(mcpServer, &mcp.Tool{
 				Name:        "get_context",
-				Description: getContextDescription,
+				Description: textOr(text.ContextDescription, getContextDescription),
 			}, agent.handler())
 			mcp.AddTool(mcpServer, &mcp.Tool{
 				Name:        "call_tool",
 				Description: callToolDescription,
 			}, callToolHandler(connectedServers, org))
 		}
-		if searcher != nil {
-			mcp.AddTool(mcpServer, &mcp.Tool{
-				Name:        "search_records",
-				Description: textOr(text.SearchDescription, searchRecordsDescription),
-			}, searchRecordsHandler(searcher, org))
-		}
 		mcpServer.AddReceivingMiddleware(
 			mergeConnectedToolsMiddleware(connectedServers, org),
 			proxyConnectedToolCallMiddleware(connectedServers, org),
+			mergeConnectedResourcesMiddleware(connectedServers, org),
+			proxyConnectedResourcesMiddleware(connectedServers, org),
 		)
 		return mcpServer
 	}

@@ -24,6 +24,8 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc(
 		"/xrpc/network.habitat.space.notifyCredentialRevoked", p.NotifyCredentialRevoked,
 	)
+	p.router.HandleFunc("/xrpc/network.habitat.space.subscribe", p.Subscribe).
+		Methods(http.MethodGet)
 	p.router.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", p.UploadBlob)
 
 	// Opensocial
@@ -71,7 +73,6 @@ func (p *PearServer) registerRoutes() {
 		Methods(http.MethodPost)
 
 	// Simplespace
-	p.router.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", p.CreateSpace)
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.addMember", p.AddMember)
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", p.RemoveMember)
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", p.ListMembers)

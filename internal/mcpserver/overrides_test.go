@@ -20,9 +20,9 @@ func TestParseTextOverrides(t *testing.T) {
 			name: "both fields",
 			header: mustEncode(
 				t,
-				TextOverrides{Instructions: text("i"), SearchDescription: text("d")},
+				TextOverrides{Instructions: text("i"), ContextDescription: text("d")},
 			),
-			want: TextOverrides{Instructions: text("i"), SearchDescription: text("d")},
+			want: TextOverrides{Instructions: text("i"), ContextDescription: text("d")},
 		},
 		{
 			name:   "empty text is kept, to send none",

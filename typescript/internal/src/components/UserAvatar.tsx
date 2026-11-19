@@ -1,4 +1,4 @@
-import { Actor } from "@/types/Actor";
+import { Actor, actorLabel } from "../types/Actor";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import BoringAvatar from "boring-avatars";
 
@@ -15,9 +15,9 @@ export function UserAvatar({
   className,
   link = false,
 }: UserAvatarProps) {
-  const { displayName, handle, did } = actor;
-  // Generate alt text from displayName or handle
-  const alt = displayName || (handle ? `@${handle}` : "User");
+  const { handle, did } = actor;
+  // Alt text falls back from displayName to handle to DID.
+  const alt = actorLabel(actor);
 
   const avatar = (
     <Avatar size={size} className={className}>

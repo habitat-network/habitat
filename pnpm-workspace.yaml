@@ -66,7 +66,7 @@ catalog:
   react-hook-form: 7.91.0
   tailwindcss: ^4.3.3
   typescript: ^7.0.2
-  vite: 8.3.7
+  vite: 8.3.8
   vite-tsconfig-paths: ^6.0.0
   vitest: ^5.0.3
   zod: ^4.4.3
@@ -100,3 +100,7 @@ minimumReleaseAgeExclude:
   - '@atproto/oauth-client-browser@0.0.0-spaces-alpha-20261029171913'
   - '@atproto/oauth-types@0.0.0-spaces-alpha-20261029171913'
   - '@atproto/space@0.0.0-spaces-alpha-20261029171913'
+  - '@tanstack/query-core@5.108.0'
+  - '@tanstack/query-devtools@5.108.0'
+  - '@tanstack/react-query-devtools@5.108.0'
+  - '@tanstack/react-query@5.108.0'

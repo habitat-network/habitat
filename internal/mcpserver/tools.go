@@ -16,7 +16,6 @@ import (
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/perms"
-	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -318,102 +317,6 @@ func getBlobHandler(
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.EmbeddedResource{Resource: contents}},
 		}, nil, nil
-	}
-}
-
-// maxSearchLimit is the largest page the "search_records" tool returns,
-// matching the searchRecords endpoint.
-const maxSearchLimit = 100
-
-// defaultMCPSnippetLength is the snippet size in words when the caller gives
-// none. It is much larger than the searchRecords endpoint's default so agents
-// get substantial context around each match.
-const defaultMCPSnippetLength = 300
-
-type searchRecordsInput struct {
-	Query      string `json:"query"                jsonschema:"a few keywords to search for, not a full question"`
-	Collection string `json:"collection,omitempty" jsonschema:"only return records of this collection NSID"`
-	Limit      int    `json:"limit,omitempty"      jsonschema:"maximum number of hits to return, up to 100"`
-	// SnippetLength is a pointer so an omitted value, which takes the default,
-	// differs from an explicit zero, which is rejected.
-	SnippetLength *int `json:"snippet_length,omitempty" jsonschema:"approximate number of words of context in each hit's snippet, 1 to 1000; defaults to 300"`
-}
-
-type searchRecordsHit struct {
-	URI     string `json:"uri"`
-	Space   string `json:"space"`
-	CID     string `json:"cid"`
-	Value   any    `json:"value"`
-	Snippet string `json:"snippet"`
-}
-
-type searchRecordsOutput struct {
-	Hits []searchRecordsHit `json:"hits"`
-}
-
-// searchRecordsHandler implements the "search_records" MCP tool: run the same
-// search as the searchRecords endpoint as the authenticated caller, so the
-// index only matches records they may read. The search is scoped to org, the
-// org the MCP endpoint was reached through.
-func searchRecordsHandler(
-	searcher RecordSearcher,
-	org syntax.DID,
-) mcp.ToolHandlerFor[searchRecordsInput, searchRecordsOutput] {
-	return func(
-		ctx context.Context,
-		_ *mcp.CallToolRequest,
-		input searchRecordsInput,
-	) (*mcp.CallToolResult, searchRecordsOutput, error) {
-		tokenInfo := auth.TokenInfoFromContext(ctx)
-		if tokenInfo == nil || tokenInfo.UserID == "" {
-			return nil, searchRecordsOutput{}, fmt.Errorf("missing authenticated caller")
-		}
-		caller := syntax.DID(tokenInfo.UserID)
-
-		if input.Query == "" {
-			return nil, searchRecordsOutput{}, fmt.Errorf("query is required")
-		}
-		if input.Limit < 0 || input.Limit > maxSearchLimit {
-			return nil, searchRecordsOutput{}, fmt.Errorf(
-				"limit must be between 1 and %d", maxSearchLimit,
-			)
-		}
-		snippetLength := defaultMCPSnippetLength
-		if input.SnippetLength != nil {
-			snippetLength = *input.SnippetLength
-		}
-		if snippetLength < 1 || snippetLength > search.MaxSnippetLength {
-			return nil, searchRecordsOutput{}, fmt.Errorf(
-				"snippet_length must be between 1 and %d", search.MaxSnippetLength,
-			)
-		}
-		q := search.Query{
-			Text: input.Query, Org: org, Limit: input.Limit, SnippetLength: snippetLength,
-		}
-		if input.Collection != "" {
-			collection, err := syntax.ParseNSID(input.Collection)
-			if err != nil {
-				return nil, searchRecordsOutput{}, fmt.Errorf("invalid collection: %w", err)
-			}
-			q.Collections = []syntax.NSID{collection}
-		}
-
-		page, err := searcher.Search(ctx, caller, q)
-		if err != nil {
-			return nil, searchRecordsOutput{}, fmt.Errorf("searching records: %w", err)
-		}
-
-		out := searchRecordsOutput{Hits: make([]searchRecordsHit, len(page.Matches))}
-		for i, m := range page.Matches {
-			out.Hits[i] = searchRecordsHit{
-				URI:     m.URI.String(),
-				Space:   m.Record.Space.String(),
-				CID:     m.Record.Cid.String(),
-				Value:   m.Record.Value,
-				Snippet: m.Snippet,
-			}
-		}
-		return nil, out, nil
 	}
 }
 

@@ -4,40 +4,40 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Search the caller's connected MCP servers in an org at once: pear calls every known search tool of each requested server in parallel, as the caller, and merges their results into one list. A server pear knows no search tool for, that the caller isn't connected to (or whose sign-in expired), that fails or that doesn't answer in time is reported in sources without failing the search. Requires service-auth. Callable by any org member.",
+      "description": "Search everywhere the caller's org keeps data at once: Habitat records the caller may read, and every search tool pear knows of the caller's connected MCP servers. Each source is a backend, searched in the background as the caller. The call waits up to timeoutMs and returns what is ready, ranked across every backend; backends still running keep going. Pass cursor to page through the mixed results, or a backend's own cursor to page through only that backend's results, waiting for it if it is still running. A backend that fails, times out, or that the caller isn't connected to is reported in backends without failing the search. Requires service-auth. Callable by any org member.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "org",
-            "query"
-          ],
+          "required": ["org"],
           "properties": {
             "org": {
               "type": "string",
               "format": "did",
-              "description": "DID of the community whose MCP servers to search."
+              "description": "DID of the community to search."
             },
             "query": {
               "type": "string",
               "maxLength": 1000,
-              "description": "What to search for, typically a few keywords."
+              "description": "What to search for, typically a few keywords. Required unless cursor is given."
             },
-            "servers": {
-              "type": "array",
-              "maxLength": 50,
-              "items": {
-                "type": "string",
-                "format": "uri"
-              },
-              "description": "URLs of the servers to search, as configured in the org (see network.habitat.mcp.defs#server). Omitted or empty searches every connected server pear knows a search tool for."
+            "cursor": {
+              "type": "string",
+              "description": "A cursor from a previous response: its top-level cursor continues the mixed results, and a backend's cursor continues only that backend's. The query is then ignored."
             },
             "limit": {
               "type": "integer",
               "minimum": 1,
               "maximum": 50,
-              "description": "How many results to ask each search tool for, and the most kept from each. Defaults to 10."
+              "default": 10,
+              "description": "How many results to return in this page."
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 30000,
+              "default": 10000,
+              "description": "How long to wait for backends before returning what is ready. With a new query, waits until every backend has answered; with the mixed cursor, until a new result is ready; with a backend's cursor, until that backend has answered. 0 returns what is ready now."
             }
           }
         }
@@ -46,101 +46,103 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "items",
-            "sources"
-          ],
+          "required": ["results", "backends", "ranking"],
           "properties": {
-            "items": {
+            "results": {
               "type": "array",
-              "description": "Results, grouped by server in the order requested, then by search tool, each group in its tool's own ranking.",
-              "items": {
-                "type": "ref",
-                "ref": "#item"
-              }
+              "description": "This page of results, most relevant first.",
+              "items": { "type": "ref", "ref": "#result" }
             },
-            "sources": {
+            "cursor": {
+              "type": "string",
+              "description": "Continues this page's results: the mixed results, or the backend's when the request's cursor was a backend's. Omitted when there are no more, now or later."
+            },
+            "backends": {
               "type": "array",
-              "description": "How searching each requested server went: one entry per search tool called, or one for a server none was called on.",
-              "items": {
-                "type": "ref",
-                "ref": "#source"
-              }
+              "description": "Every backend of the search and how it stands.",
+              "items": { "type": "ref", "ref": "#backend" }
+            },
+            "ranking": {
+              "type": "string",
+              "knownValues": ["reranker", "fallback"],
+              "description": "reranker: a reranking model scored every result against the query. fallback: there is no reranker, or it failed for some results, which are ranked by their place in their backend's own results instead."
             }
           }
         }
-      }
+      },
+      "errors": [{ "name": "InvalidCursor" }]
     },
-    "item": {
+    "result": {
       "type": "object",
-      "required": [
-        "serverUrl",
-        "provider"
-      ],
+      "required": ["backend", "kind", "id"],
       "properties": {
-        "serverUrl": {
+        "backend": {
           "type": "string",
-          "format": "uri"
+          "description": "Id of the backend the result came from, as in backends."
         },
-        "serverId": {
+        "kind": {
           "type": "string",
-          "description": "The id of the org's server the result came from."
+          "knownValues": ["record", "item"],
+          "description": "record: a Habitat record, described in record. item: a result from a connected app."
         },
-        "provider": {
+        "id": {
           "type": "string",
-          "description": "The search tool the result came from, e.g. github-issues."
+          "description": "Identifies the result within its backend."
         },
-        "title": {
-          "type": "string"
-        },
+        "title": { "type": "string" },
         "url": {
           "type": "string",
-          "description": "Where to open the result, if the tool gave one."
+          "description": "Where to open the result: the app's link for an item, the record's URI for a record."
         },
         "snippet": {
           "type": "string",
-          "description": "Context from the result, up to 2000 characters."
-        }
+          "description": "Plain-text context from the result."
+        },
+        "record": { "type": "ref", "ref": "#record" }
       }
     },
-    "source": {
+    "record": {
       "type": "object",
-      "required": [
-        "serverUrl",
-        "status",
-        "count"
-      ],
+      "required": ["space"],
       "properties": {
-        "serverUrl": {
+        "space": { "type": "string", "description": "URI of the record's space." },
+        "collection": { "type": "string", "format": "nsid" },
+        "value": { "type": "unknown", "description": "The record's value." }
+      }
+    },
+    "backend": {
+      "type": "object",
+      "required": ["id", "kind", "name", "status", "count"],
+      "properties": {
+        "id": {
           "type": "string",
-          "format": "uri"
+          "description": "Stable id, such as records or mcp:github/github-issues."
         },
-        "serverId": {
+        "kind": {
           "type": "string",
-          "description": "The org's server with this URL; omitted if the caller has none."
+          "knownValues": ["records", "mcp"],
+          "description": "The type of source."
         },
-        "provider": {
-          "type": "string",
-          "description": "The search tool called; omitted when none was."
-        },
+        "name": { "type": "string", "description": "Display name." },
         "status": {
           "type": "string",
-          "knownValues": [
-            "ok",
-            "not_connected",
-            "unsupported",
-            "timeout",
-            "error"
-          ],
-          "description": "ok: the tool answered (possibly with no results). not_connected: the caller has no usable connection to this server; they never connected, or their sign-in expired. unsupported: pear knows no search tool for this server. timeout: the server didn't answer in time. error: the server or tool failed."
+          "knownValues": ["pending", "ok", "error", "timeout", "not_connected"],
+          "description": "pending: still running. ok: answered, possibly with no results. error: failed. timeout: didn't answer within pear's backend timeout. not_connected: the caller has no usable connection to the server; they never connected, or their sign-in expired."
         },
-        "error": {
+        "errorCode": {
           "type": "string",
-          "description": "What went wrong, for any status but ok."
+          "knownValues": ["upstream_error", "timeout", "not_connected", "interrupted"],
+          "description": "Why the backend has no results, for any status but pending and ok. interrupted: pear restarted while the backend was running; search again."
         },
-        "count": {
+        "error": { "type": "string", "description": "What went wrong, safe to show." },
+        "count": { "type": "integer", "description": "How many results the backend returned." },
+        "elapsedMs": {
           "type": "integer",
-          "description": "How many results the tool returned."
+          "description": "How long the backend took, once it is no longer pending."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Fetches this backend's results only. Omitted when it has none left to fetch."
         }
       }
     }
