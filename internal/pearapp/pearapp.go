@@ -25,6 +25,7 @@ import (
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/remotesync"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -84,6 +85,9 @@ type App struct {
 	// SpaceEvents wakes network.habitat.space.subscribe streams; SpacesStore
 	// notifies it of every write.
 	SpaceEvents *spacestream.Broadcaster
+	// RemoteSync fetches external writers' records from their PDSes when
+	// they notifyWrite, so SpaceEvents' streams carry them.
+	RemoteSync *remotesync.Syncer
 }
 
 // New returns an App holding the given stores and services.
@@ -124,6 +128,7 @@ func New(
 	searchConfigStore *searchconfig.Store,
 	fedSearch *fedsearch.Service,
 	spaceEvents *spacestream.Broadcaster,
+	remoteSync *remotesync.Syncer,
 ) *App {
 	return &App{
 		DB:                    database,
@@ -162,6 +167,7 @@ func New(
 		SearchConfig:          searchConfigStore,
 		FedSearch:             fedSearch,
 		SpaceEvents:           spaceEvents,
+		RemoteSync:            remoteSync,
 	}
 }
 
