@@ -10,3 +10,7 @@
 [submodule "external/jetstream"]
 	path = external/jetstream
 	url = https://github.com/bluesky-social/jetstream
+[submodule "external/atproto"]
+	path = external/atproto
+	url = https://github.com/bluesky-social/atproto
+	branch = permissioned-data
