@@ -3,6 +3,7 @@
  */
 
 import { l } from '@atproto/lex'
+import * as RelationspacePolicy from '../../network/habitat/relationspace/policy.defs.js'
 
 const $nsid = 'community.opensocial.createSpace'
 
@@ -18,6 +19,16 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
   org: /*#__PURE__*/ l.string({ format: 'did' }),
   type: /*#__PURE__*/ l.string({ format: 'nsid' }),
   skey: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ maxLength: 512 })),
+  policy: /*#__PURE__*/ l.optional(
+    /*#__PURE__*/ l.typedUnion(
+      [
+        /*#__PURE__*/ l.typedRef<RelationspacePolicy.Main>(
+          (() => RelationspacePolicy.main) as any,
+        ),
+      ],
+      false,
+    ),
+  ),
   roles: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.array(/*#__PURE__*/ l.string()),
   ),

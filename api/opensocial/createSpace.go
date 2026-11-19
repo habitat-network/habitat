@@ -4,10 +4,11 @@ package opensocial
 
 // CommunityOpensocialCreateSpaceInput represents the input for community.opensocial.createSpace
 type CommunityOpensocialCreateSpaceInput struct {
-	Org   string   `json:"org"`
-	Roles []string `json:"roles,omitempty"`
-	Skey  string   `json:"skey,omitempty"`
-	Type  string   `json:"type"`
+	Org    string      `json:"org"`
+	Policy interface{} `json:"policy,omitempty"`
+	Roles  []string    `json:"roles,omitempty"`
+	Skey   string      `json:"skey,omitempty"`
+	Type   string      `json:"type"`
 }
 
 // CommunityOpensocialCreateSpaceOutput represents the output for community.opensocial.createSpace

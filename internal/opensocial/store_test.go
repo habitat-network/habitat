@@ -88,6 +88,7 @@ func TestStore(t *testing.T) {
 			[]string{opensocial.MemberRoleRkey},
 			syntax.NSID("community.opensocial.channel"),
 			"general",
+			spaces.Policy{Type: spaces.PolicyRelationSpace},
 		)
 		require.NoError(t, err)
 		require.NotEmpty(t, spaceURI)
@@ -129,6 +130,7 @@ func TestStore(t *testing.T) {
 			[]string{opensocial.MemberRoleRkey},
 			syntax.NSID("community.opensocial.channel"),
 			"announcements",
+			spaces.Policy{Type: spaces.PolicyRelationSpace},
 		)
 		require.NoError(t, err)
 

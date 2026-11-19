@@ -137,20 +137,18 @@ describe("HabitatClient", () => {
 
   it("throws with the response body on a non-2xx response", async () => {
     server.use(
-      http.post(
-        "http://pds.test/xrpc/network.habitat.simplespace.createSpace",
-        () =>
-          HttpResponse.json({ error: "SpaceAlreadyExists" }, { status: 400 }),
+      http.post("http://pds.test/xrpc/com.atproto.space.createSpace", () =>
+        HttpResponse.json({ error: "SpaceAlreadyExists" }, { status: 400 }),
       ),
     );
     await expect(
       new HabitatClient(testEnv, "did:plc:member1").call(
-        "network.habitat.simplespace.createSpace",
+        "com.atproto.space.createSpace",
         "POST",
         {},
       ),
     ).rejects.toThrow(
-      'network.habitat.simplespace.createSpace failed (400): {"error":"SpaceAlreadyExists"}',
+      'com.atproto.space.createSpace failed (400): {"error":"SpaceAlreadyExists"}',
     );
   });
 

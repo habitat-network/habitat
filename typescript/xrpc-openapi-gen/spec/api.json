@@ -298,6 +298,13 @@
                     "description": "The space key. If not provided, one will be auto-generated (TID).",
                     "maxLength": 512
                   },
+                  "policy": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/network.habitat.relationspace.policy"
+                      }
+                    ]
+                  },
                   "roles": {
                     "type": "array",
                     "items": {
@@ -6064,138 +6071,6 @@
         }
       }
     },
-    "/network.habitat.simplespace.createSpace": {
-      "post": {
-        "tags": [
-          "network.habitat.simplespace"
-        ],
-        "summary": "network.habitat.simplespace.createSpace",
-        "description": "Create a new space managed by the simplespace implementation. The authenticated user becomes the space owner. Requires auth, implemented by PDS.",
-        "operationId": "network.habitat.simplespace.createSpace",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "did",
-                  "type"
-                ],
-                "properties": {
-                  "did": {
-                    "type": "string",
-                    "description": "The DID of the space.",
-                    "format": "did"
-                  },
-                  "type": {
-                    "type": "string",
-                    "description": "The NSID of the space type, describing the modality of the space (e.g. app.bsky.group, app.bsky.personal).",
-                    "format": "nsid"
-                  },
-                  "skey": {
-                    "type": "string",
-                    "description": "The space key. Used to differentiate multiple spaces of the same type under the same owner. If not provided, one will be auto-generated (TID).",
-                    "maxLength": 512
-                  },
-                  "config": {
-                    "$ref": "#/components/schemas/network.habitat.simplespace.defs.spaceConfig"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "uri"
-                  ],
-                  "properties": {
-                    "uri": {
-                      "type": "string",
-                      "description": "URI of the created space.",
-                      "format": "at-uri"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "SpaceAlreadyExists"
-                        },
-                        {
-                          "const": "InvalidType"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.simplespace.deleteSpace": {
       "post": {
         "tags": [
@@ -9912,6 +9787,11 @@
           }
         }
       },
+      "network.habitat.relationspace.policy": {
+        "type": "object",
+        "description": "A space policy: access is decided by the space's network.habitat.relationship userRelation and spaceRelation records (owner, manager, writer, reader), which the authority and its managers maintain. No configuration.",
+        "properties": {}
+      },
       "network.habitat.render.schema": {
         "type": "object",
         "required": [
@@ -10649,6 +10529,9 @@
     },
     {
       "name": "network.habitat.relationship"
+    },
+    {
+      "name": "network.habitat.relationspace"
     },
     {
       "name": "network.habitat.render"

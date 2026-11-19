@@ -1,0 +1,11 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.relationspace.policy",
+  "defs": {
+    "main": {
+      "type": "object",
+      "description": "A space policy: access is decided by the space's network.habitat.relationship userRelation and spaceRelation records (owner, manager, writer, reader), which the authority and its managers maintain. No configuration.",
+      "properties": {}
+    }
+  }
+}
