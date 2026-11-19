@@ -51,6 +51,9 @@ type deletedSpace struct {
 	Type      syntax.NSID             `gorm:"primaryKey"`
 	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
 	DeletedAt time.Time
+	// Seq is the deletion's position in the event log; 0 until
+	// [Store.SequenceEvents] gives it one.
+	Seq EventSeq `gorm:"not null;default:0;index"`
 }
 
 type spaceRecord struct {
@@ -62,9 +65,13 @@ type spaceRecord struct {
 	Rev        syntax.TID `gorm:"uniqueIndex"`
 	Cid        string
 	PrevCid    string // cid of the record's prior version, for the oplog
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	DeletedAt  gorm.DeletedAt
+	// Seq is the record's latest write's position in the event log. Every
+	// write resets it to 0, pending, and [Store.SequenceEvents] gives it the
+	// next seq once the write has committed.
+	Seq       EventSeq `gorm:"not null;default:0;index"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt
 }
 
 // blobRef tracks which record within a space references a blob CID.
@@ -318,6 +325,26 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
 	) (commit *spacecommit.Commit, err error)
+
+	// Event log
+	//
+	// SequenceEvents gives every committed write that has no seq yet the next
+	// seqs of the event log, and returns the log's head: its latest seq, or 0
+	// when it is empty. Writes leave their row pending rather than taking a
+	// seq themselves, so they never contend on the log; sequencing runs on its
+	// own and only ever sees committed rows, which is what keeps seqs
+	// becoming visible in order. Records are sequenced in rev order, then
+	// space deletions.
+	SequenceEvents(ctx context.Context) (EventSeq, error)
+	// ListEvents returns the sequenced events at seq >= cursor that match
+	// filter, in seq order, at most limit of them. Fewer than limit means the
+	// caller has reached the head.
+	ListEvents(
+		ctx context.Context,
+		filter EventFilter,
+		cursor EventSeq,
+		limit int,
+	) ([]Event, error)
 
 	// WithTx returns a copy of the store scoped to the given transaction, so its
 	// DB writes participate in a caller-managed transaction. FGA writes are not
@@ -1174,7 +1201,8 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 			Columns: []clause.Column{
 				{Name: "owner"}, {Name: "type"}, {Name: "skey"},
 			},
-			DoUpdates: clause.AssignmentColumns([]string{"deleted_at"}),
+			// A redeleted space is a new deletion, so it is sequenced again.
+			DoUpdates: clause.AssignmentColumns([]string{"deleted_at", "seq"}),
 		}).Create(&deletedSpace{
 			Owner:     uri.SpaceOwner(),
 			Type:      uri.SpaceType(),
@@ -1359,6 +1387,7 @@ func (s *store) DeleteRecord(
 				"deleted_at": time.Now(),
 				"rev":        rev,
 				"prev_cid":   rows[0].Cid,
+				"seq":        0,
 			}).Error; err != nil {
 			return fmt.Errorf("delete record: %w", err)
 		}
@@ -1592,6 +1621,7 @@ func (s *store) ApplyWrites(
 						"deleted_at": time.Now(),
 						"rev":        rev,
 						"prev_cid":   existing.Cid,
+						"seq":        0,
 					}).Error; err != nil {
 					return fmt.Errorf("delete record: %w", err)
 				}
@@ -1651,5 +1681,7 @@ func (s *store) ApplyWrites(
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}, &deletedSpace{}}
+	return []any{
+		&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}, &deletedSpace{}, &spaceEventSeq{},
+	}
 }

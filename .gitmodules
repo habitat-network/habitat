@@ -7,6 +7,9 @@
 [submodule "external/effect"]
 	path = external/effect
 	url = https://github.com/Effect-TS/effect.git
+[submodule "external/jetstream"]
+	path = external/jetstream
+	url = https://github.com/bluesky-social/jetstream
 [submodule "external/atproto"]
 	path = external/atproto
 	url = https://github.com/bluesky-social/atproto

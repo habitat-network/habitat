@@ -25,6 +25,7 @@ import (
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacestream"
 )
 
 // PearServer is the consolidated HTTP server for habitat.
@@ -83,6 +84,9 @@ type PearServer struct {
 
 	// searchConfig stores the collections each org surfaces in search.
 	searchConfig *searchconfig.Store
+
+	// spaceStream serves network.habitat.space.subscribe.
+	spaceStream *spacestream.Server
 }
 
 // New creates a PearServer with the given dependencies and prepares
@@ -116,6 +120,12 @@ func New(app *pearapp.App) *PearServer {
 		searcher:              app.Searcher,
 		searchConfig:          app.SearchConfig,
 	}
+	spaceEvents := app.SpaceEvents
+	if spaceEvents == nil {
+		// Nothing notifies this one, so streams fall back to polling.
+		spaceEvents = spacestream.NewBroadcaster()
+	}
+	ps.spaceStream = spacestream.NewServer(app.SpacesStore, app.PermStore, spaceEvents)
 	ps.registerRoutes()
 	return ps
 }

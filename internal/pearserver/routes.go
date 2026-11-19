@@ -24,6 +24,8 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc(
 		"/xrpc/network.habitat.space.notifyCredentialRevoked", p.NotifyCredentialRevoked,
 	)
+	p.router.HandleFunc("/xrpc/network.habitat.space.subscribe", p.Subscribe).
+		Methods(http.MethodGet)
 	p.router.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", p.UploadBlob)
 
 	// Opensocial

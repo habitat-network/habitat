@@ -10430,6 +10430,114 @@
             "description": "A fragment of the record's text with the matches wrapped in <mark></mark>. The rest is unescaped record text, so escape it before rendering as HTML."
           }
         }
+      },
+      "network.habitat.space.subscribe.commit": {
+        "type": "object",
+        "description": "A record's latest write: a create, update, or delete.",
+        "required": [
+          "seq",
+          "space",
+          "did",
+          "uri",
+          "time",
+          "rev",
+          "operation",
+          "collection",
+          "rkey"
+        ],
+        "properties": {
+          "seq": {
+            "type": "integer"
+          },
+          "space": {
+            "type": "string",
+            "description": "The space the record belongs to. The same author, collection, and rkey can exist in several spaces.",
+            "format": "at-uri"
+          },
+          "did": {
+            "type": "string",
+            "description": "The record's author: the account whose space repo holds it.",
+            "format": "did"
+          },
+          "uri": {
+            "type": "string",
+            "description": "The record's space record URI.",
+            "format": "at-uri"
+          },
+          "time": {
+            "type": "string",
+            "description": "When the write was stored, microsecond precision.",
+            "format": "date-time"
+          },
+          "rev": {
+            "type": "string",
+            "description": "The repo revision of the write; the record's oplog rev in listRepoOps.",
+            "format": "tid"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update",
+              "delete"
+            ]
+          },
+          "collection": {
+            "type": "string",
+            "format": "nsid"
+          },
+          "rkey": {
+            "type": "string",
+            "format": "record-key"
+          },
+          "record": {},
+          "cid": {
+            "type": "string",
+            "description": "CID of the record. Absent for deletes.",
+            "format": "cid"
+          }
+        }
+      },
+      "network.habitat.space.subscribe.spaceDeleted": {
+        "type": "object",
+        "description": "A space was deleted. Consumers drop every record and derived state they hold for it.",
+        "required": [
+          "seq",
+          "space",
+          "time"
+        ],
+        "properties": {
+          "seq": {
+            "type": "integer"
+          },
+          "space": {
+            "type": "string",
+            "format": "at-uri"
+          },
+          "time": {
+            "type": "string",
+            "description": "When the space was deleted, microsecond precision.",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.space.subscribe.info": {
+        "type": "object",
+        "description": "An advisory, non-fatal notice about the stream. Carries no seq and does not advance the cursor. FutureCursor: the requested cursor was beyond the next seq to be assigned, so the stream started at the live tip.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "FutureCursor"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
       }
     },
     "securitySchemes": {
