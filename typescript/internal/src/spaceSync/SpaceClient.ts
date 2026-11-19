@@ -99,10 +99,13 @@ const isTransient = (error: SpaceCallError): boolean =>
 export class SpaceClient extends Context.Service<
   SpaceClient,
   {
-    readonly listRepos: (
+    readonly listWriters: (
       space: SpaceRef,
       cursor?: string,
-    ) => Effect.Effect<com.atproto.space.listRepos.$OutputBody, SpaceCallError>;
+    ) => Effect.Effect<
+      com.atproto.space.listWriters.$OutputBody,
+      SpaceCallError
+    >;
     readonly registerNotify: (
       space: SpaceRef,
       service: string,
@@ -390,11 +393,11 @@ export class SpaceClient extends Context.Service<
           transient: false,
         });
 
-      const listRepos = Effect.fnUntraced(function* (
+      const listWriters = Effect.fnUntraced(function* (
         ref: SpaceRef,
         cursor?: string,
       ) {
-        const method = space.listRepos.main;
+        const method = space.listWriters.main;
         const res = yield* call(
           { space: ref, method, audience: ref.spaceDid, hostOf: "space" },
           (agent, signal) =>
@@ -590,7 +593,7 @@ export class SpaceClient extends Context.Service<
       });
 
       return SpaceClient.of({
-        listRepos,
+        listWriters,
         registerNotify,
         listRepoOps,
         getRepo,

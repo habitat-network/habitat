@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'com.atproto.memberspace.removeMember'
+const $nsid = 'com.atproto.space.notifyCredentialsRevoked'
 
 type $nsid = typeof $nsid
 
@@ -16,7 +16,10 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
-  did: /*#__PURE__*/ l.string({ format: 'did' }),
+  credentials: /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ minLength: 1 }), {
+    minLength: 1,
+    maxLength: 100,
+  }),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -30,11 +33,8 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Remove a member from a space's host-internal member list. Requires auth as the space owner. */
-const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
-  'SpaceNotFound',
-  'NotSpaceOwner',
-])
+/** Notify a repo host that space credentials have been revoked. Sent by the space host. Requires service auth, implemented by PDS. */
+const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }
 

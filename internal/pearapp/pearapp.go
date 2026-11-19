@@ -61,7 +61,7 @@ type App struct {
 	PermStore       perms.Store
 	Validator       authn.RequestValidator
 	// CredentialRevocations holds the space credentials authorities revoked
-	// through notifyCredentialRevoked; the validator refuses them.
+	// through notifyCredentialsRevoked; the validator refuses them.
 	CredentialRevocations *authn.CredentialRevocations
 	// DelegationTokensSpent records used delegation token jtis, so each is
 	// accepted by getSpaceCredential only once.

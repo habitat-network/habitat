@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'com.atproto.managedspace.checkUserAccess'
+const $nsid = 'com.atproto.managedspace.checkAccess'
 
 type $nsid = typeof $nsid
 
@@ -12,15 +12,15 @@ export { $nsid }
 
 export const $params = /*#__PURE__*/ l.params({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
-  user: /*#__PURE__*/ l.string({ format: 'did' }),
-  access: /*#__PURE__*/ l.string<{ knownValues: ['read', 'write'] }>(),
-  clientId: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
+  repo: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'did' })),
+  clientId: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'uri' })),
 })
 
 export type $Params = l.InferOutput<typeof $params>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  authorized: /*#__PURE__*/ l.boolean(),
+  read: /*#__PURE__*/ l.boolean(),
+  write: /*#__PURE__*/ l.boolean(),
 })
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
@@ -29,7 +29,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Ask a space's managing app whether to authorize a user to read or write. Served by the managingApp (not the PDS), called by the space authority when the space's policy is com.atproto.managedspace.policy. Authenticated with service auth from the authority. */
+/** Check an account's read and write access to a managed space. Called by the space host, implemented by the space's managing app. Requires service auth. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output)
 
 export { main }

@@ -26,7 +26,7 @@ const spaceCredentialKid = "#atproto"
 const CredentialRevocationTTL = 60 * time.Minute
 
 // CredentialRevocations records the space credentials a space authority has
-// revoked through notifyCredentialRevoked, by (space, jti), so repo reads
+// revoked through notifyCredentialsRevoked, by (space, jti), so repo reads
 // presenting them are refused until they would have expired anyway.
 type CredentialRevocations struct {
 	kv keyval.KV

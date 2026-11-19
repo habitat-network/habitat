@@ -10,7 +10,7 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
-// NotifyCredentialRevoked implements com.atproto.space.notifyCredentialRevoked
+// NotifyCredentialRevoked implements com.atproto.space.notifyCredentialsRevoked
 // on the repo host: the space's authority reports outstanding credentials,
 // identified by jti, as revoked. Authenticated with service auth from the space
 // authority, so only the space's owner can revoke its credentials.

@@ -41,9 +41,12 @@ describe("SpaceClient", () => {
         space.write(alice, "com.example.post", "1", { text: "a" }),
       );
       const page = yield* Effect.flatMap(SpaceClient, (c) =>
-        c.listRepos(space.ref),
+        c.listWriters(space.ref),
       ).pipe(Effect.provide(layer));
-      expect(page.repos.map((r) => r.did)).toEqual([bob.did, alice.did]);
+      expect(page.repos.map((r) => (r as { repo: string }).repo)).toEqual([
+        bob.did,
+        alice.did,
+      ]);
       expect(page.cursor).toBe(space.spaceRevOf(alice.did));
     }),
   );
@@ -102,7 +105,7 @@ describe("SpaceClient", () => {
         );
         yield* Effect.gen(function* () {
           const client = yield* SpaceClient;
-          yield* client.listRepos(space.ref);
+          yield* client.listWriters(space.ref);
           space.revokeAllCredentials();
           yield* client.listRepoOps(space.ref, bob.did, undefined);
           expect(space.credentialJtis).toHaveLength(2);
@@ -115,7 +118,7 @@ describe("SpaceClient", () => {
       const { space, layer } = yield* setup;
       space.deleted = true;
       const error = yield* Effect.flip(
-        Effect.flatMap(SpaceClient, (c) => c.listRepos(space.ref)),
+        Effect.flatMap(SpaceClient, (c) => c.listWriters(space.ref)),
       ).pipe(Effect.provide(layer));
       expect(error._tag).toBe("CredentialError");
       expect(error._tag === "CredentialError" && error.reason).toBe(
@@ -210,13 +213,13 @@ describe("SpaceClient", () => {
         requestRetries: 0,
       });
       server.use(
-        http.get("*/xrpc/com.atproto.space.listRepos", async () => {
+        http.get("*/xrpc/com.atproto.space.listWriters", async () => {
           await delay("infinite");
           return HttpResponse.json({ repos: [] });
         }),
       );
       const error = yield* Effect.flip(
-        Effect.flatMap(SpaceClient, (c) => c.listRepos(space.ref)).pipe(
+        Effect.flatMap(SpaceClient, (c) => c.listWriters(space.ref)).pipe(
           Effect.provide(layer),
         ),
       );

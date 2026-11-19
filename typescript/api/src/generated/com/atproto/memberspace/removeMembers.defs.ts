@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'com.atproto.memberspace.putMember'
+const $nsid = 'com.atproto.memberspace.removeMembers'
 
 type $nsid = typeof $nsid
 
@@ -16,9 +16,9 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
-  did: /*#__PURE__*/ l.string({ format: 'did' }),
-  read: /*#__PURE__*/ l.boolean(),
-  write: /*#__PURE__*/ l.boolean(),
+  dids: /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ format: 'did' }), {
+    maxLength: 100,
+  }),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -32,10 +32,11 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Add a member to a space's host-internal member list or replace their read and write access. Requires auth as the space owner. */
+/** Remove members from a space in a single commit. DIDs that are not members are ignored. Requires auth as the space authority, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
-  'NotSpaceOwner',
+  'NotAuthorized',
+  'PolicyMismatch',
 ])
 
 export { main }

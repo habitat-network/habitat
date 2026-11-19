@@ -10,39 +10,39 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** A space policy: access is decided by a member list maintained by the authority. */
+/** Space policy that grants access based on a member list. */
 type Main = {
   $type?: 'com.atproto.memberspace.policy'
 
   /**
-   * Anyone may read; no delegation token is required.
+   * If true, anyone may read the space. Otherwise, only members with read access.
    */
   publicRead?: boolean
 
   /**
-   * Writes from any user are tracked and forwarded, not just members'.
+   * If true, any account's writes are tracked in the writer set, except members without write access. Otherwise, only members with write access.
    */
   publicWrite?: boolean
 
   /**
-   * OAuth client IDs permitted to read, checked against the attested client_id. Does not apply to writes.
+   * If set, only these apps (by OAuth client ID) may read the space.
    */
-  allowedApps?: string[]
+  allowedApps?: l.UriString[]
 
   /**
-   * Publish the policy to readers as a record in the authority's repo.
+   * Publish the policy as a com.atproto.space.policy record in the space.
    */
   publishPolicy?: boolean
 
   /**
-   * Publish the member list to readers as records in the authority's repo.
+   * Publish the member list as com.atproto.memberspace.member records in the space.
    */
   publishMembers?: boolean
 }
 
 export type { Main }
 
-/** A space policy: access is decided by a member list maintained by the authority. */
+/** Space policy that grants access based on a member list. */
 const main = /*#__PURE__*/ l.typedObject<Main>(
   $nsid,
   'main',
@@ -54,10 +54,14 @@ const main = /*#__PURE__*/ l.typedObject<Main>(
       /*#__PURE__*/ l.withDefault(/*#__PURE__*/ l.boolean(), false),
     ),
     allowedApps: /*#__PURE__*/ l.optional(
-      /*#__PURE__*/ l.array(/*#__PURE__*/ l.string()),
+      /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ format: 'uri' })),
     ),
-    publishPolicy: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
-    publishMembers: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
+    publishPolicy: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.withDefault(/*#__PURE__*/ l.boolean(), false),
+    ),
+    publishMembers: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.withDefault(/*#__PURE__*/ l.boolean(), false),
+    ),
   }),
 )
 
