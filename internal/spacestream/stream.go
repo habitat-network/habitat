@@ -1,5 +1,6 @@
 // Package spacestream serves network.habitat.space.subscribe: one sequence of
-// the record writes and space deletions this host holds, across every space a
+// the record writes, external repos' writes (reported through notifyWrite),
+// and space deletions this host holds, across every space a
 // subscriber may read, so apps follow permissioned data without each running
 // their own sync of every space and repo.
 //
@@ -34,6 +35,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -336,6 +338,15 @@ func eventFrame(event spaces.Event) ([]byte, error) {
 			payload.Cid = e.Cid.String()
 		}
 		return messageFrame(payload)
+	case spaces.RepoSyncEvent:
+		return messageFrame(habitat.NetworkHabitatSpaceSubscribeRepoSync{
+			Seq:   int64(e.Seq),
+			Space: e.Space.String(),
+			Did:   e.Repo.String(),
+			Rev:   e.Rev.String(),
+			Data:  atdata.Bytes(e.Data),
+			Time:  wireTime(e.Time),
+		})
 	case spaces.SpaceDeletedEvent:
 		return messageFrame(habitat.NetworkHabitatSpaceSubscribeSpaceDeleted{
 			Seq:   int64(e.Seq),

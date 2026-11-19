@@ -107,8 +107,13 @@ type spaceRepo struct {
 	Rev   syntax.TID
 	// SpaceRev is the space revision at this repo's latest write, so listRepos
 	// can return only the repos that changed since a given space revision.
-	SpaceRev  syntax.TID
-	Remote    bool
+	SpaceRev syntax.TID
+	Remote   bool
+	// Seq is a Remote row's latest notifyWrite's position in the event log,
+	// as a [RepoSyncEvent]. Every remote write resets it to 0, pending, and
+	// [Store.SequenceEvents] gives it the next seq once it has committed.
+	// Local rows never take a seq: their records are in the log themselves.
+	Seq       EventSeq `gorm:"not null;default:0;index"`
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
 }
@@ -334,7 +339,8 @@ type Store interface {
 	// seq themselves, so they never contend on the log; sequencing runs on its
 	// own and only ever sees committed rows, which is what keeps seqs
 	// becoming visible in order. Records are sequenced in rev order, then
-	// space deletions.
+	// external repos' writes (from notifyWrite) in rev order, then space
+	// deletions.
 	SequenceEvents(ctx context.Context) (EventSeq, error)
 	// ListEvents returns the sequenced events at seq >= cursor that match
 	// filter, in seq order, at most limit of them. Fewer than limit means the
@@ -654,6 +660,8 @@ func saveRemoteRepoHash(
 		Rev:      rev,
 		SpaceRev: spaceRev,
 		Remote:   true,
+		// Pending until SequenceEvents numbers this write.
+		Seq: 0,
 	}).Error
 }
 

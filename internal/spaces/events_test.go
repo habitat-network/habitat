@@ -35,6 +35,8 @@ func commitKeys(t *testing.T, events []spaces.Event) []string {
 		case spaces.CommitEvent:
 			keys = append(keys, string(e.Repo)+" "+string(e.Collection)+"/"+
 				string(e.Rkey)+" "+string(e.Operation))
+		case spaces.RepoSyncEvent:
+			keys = append(keys, "sync "+string(e.Repo)+" "+string(e.Rev))
 		case spaces.SpaceDeletedEvent:
 			keys = append(keys, "deleted "+string(e.Space))
 		}
@@ -273,4 +275,76 @@ func TestEventsFilter(t *testing.T) {
 			require.Equal(t, tt.want, commitKeys(t, listAll(t, s, tt.filter)))
 		})
 	}
+}
+
+func TestEventsIncludeExternalRepoWrites(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+	ctx := t.Context()
+	space, err := s.CreateSpace(ctx, orgID, groupType, "external")
+	require.NoError(t, err)
+	other, err := s.CreateSpace(ctx, orgID, groupType, "other")
+	require.NoError(t, err)
+	external := syntax.DID("did:plc:external")
+	clock := syntax.NewTIDClock(0)
+	rev1, rev2, rev3 := clock.Next(), clock.Next(), clock.Next()
+
+	putNote(t, s, space, alice, noteCollection, "a", "local")
+	// An external member's PDS reports a write to the space through
+	// notifyWrite: this host holds none of its records, only its rev and
+	// commit data.
+	require.NoError(t, s.RegisterRemoteWrite(ctx, space, external, rev1, []byte("data-1")))
+	require.NoError(t, s.RegisterRemoteWrite(ctx, other, external, rev1, []byte("data-o")))
+
+	events := listAll(t, s, spaces.EventFilter{})
+	require.Equal(t, []string{
+		"did:plc:alice network.habitat.note/a create",
+		"sync did:plc:external " + string(rev1),
+		"sync did:plc:external " + string(rev1),
+	}, commitKeys(t, events))
+	sync, ok := events[1].(spaces.RepoSyncEvent)
+	require.True(t, ok)
+	require.Equal(t, space, sync.Space)
+	require.Equal(t, []byte("data-1"), sync.Data)
+	require.False(t, sync.Time.IsZero())
+	require.Greater(t, sync.Seq, events[0].EventSeq())
+
+	// Later notifications compact to one event at the latest seq, and a stale
+	// one is ignored.
+	require.NoError(t, s.RegisterRemoteWrite(ctx, space, external, rev3, []byte("data-3")))
+	require.NoError(t, s.RegisterRemoteWrite(ctx, space, external, rev2, []byte("data-2")))
+	putNote(t, s, space, alice, noteCollection, "b", "local again")
+	events = listAll(t, s, spaces.EventFilter{Spaces: []habitat_syntax.SpaceURI{space}})
+	require.Equal(t, []string{
+		"did:plc:alice network.habitat.note/a create",
+		"did:plc:alice network.habitat.note/b create",
+		"sync did:plc:external " + string(rev3),
+	}, commitKeys(t, events), "records sequence before repo syncs within a batch")
+	sync, ok = events[2].(spaces.RepoSyncEvent)
+	require.True(t, ok)
+	require.Equal(t, []byte("data-3"), sync.Data)
+
+	// The dids filter applies to repo syncs; the collection filter doesn't,
+	// since a sync may cover any collection.
+	require.Equal(t, []string{
+		"did:plc:alice network.habitat.note/a create",
+		"did:plc:alice network.habitat.note/b create",
+	}, commitKeys(t, listAll(t, s, spaces.EventFilter{
+		Spaces: []habitat_syntax.SpaceURI{space},
+		Repos:  []syntax.DID{alice},
+	})))
+	require.Equal(t, []string{
+		"sync did:plc:external " + string(rev3),
+	}, commitKeys(t, listAll(t, s, spaces.EventFilter{
+		Spaces:      []habitat_syntax.SpaceURI{space},
+		Repos:       []syntax.DID{external},
+		Collections: []syntax.NSID{likeCollection},
+	})))
+
+	// The cursor and limit page across both kinds of event.
+	page, err := s.ListEvents(ctx, spaces.EventFilter{}, events[1].EventSeq(), 2)
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"did:plc:alice network.habitat.note/b create",
+		"sync did:plc:external " + string(rev3),
+	}, commitKeys(t, page))
 }

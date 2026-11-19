@@ -10498,6 +10498,47 @@
           }
         }
       },
+      "network.habitat.space.subscribe.repoSync": {
+        "type": "object",
+        "description": "An external repo, whose records live on its own PDS rather than this host, reported through notifyWrite that it advanced in the space. This host holds none of its records, so consumers fetch the new ops from the repo's host with listRepoOps, from the last rev they synced. The log is compacted: each repo appears once per space, at the seq of its latest notification.",
+        "required": [
+          "seq",
+          "space",
+          "did",
+          "time",
+          "rev",
+          "data"
+        ],
+        "properties": {
+          "seq": {
+            "type": "integer"
+          },
+          "space": {
+            "type": "string",
+            "format": "at-uri"
+          },
+          "did": {
+            "type": "string",
+            "description": "The repo that advanced.",
+            "format": "did"
+          },
+          "time": {
+            "type": "string",
+            "description": "When this host received the notification, microsecond precision.",
+            "format": "date-time"
+          },
+          "rev": {
+            "type": "string",
+            "description": "The repo revision after the write.",
+            "format": "tid"
+          },
+          "data": {
+            "type": "string",
+            "format": "byte",
+            "description": "The repo's reported commit data (sha256 of its LtHash state) after the write, as sent in notifyWrite."
+          }
+        }
+      },
       "network.habitat.space.subscribe.spaceDeleted": {
         "type": "object",
         "description": "A space was deleted. Consumers drop every record and derived state they hold for it.",

@@ -139,3 +139,26 @@ func TestEventsPostgresSpaceDeleted(t *testing.T) {
 		Spaces: []habitat_syntax.SpaceURI{space},
 	})))
 }
+
+func TestEventsPostgresExternalRepoWrites(t *testing.T) {
+	if testing.Short() {
+		t.Skip("starts Postgres")
+	}
+	d := keyvaltest.NewDB(t)
+	require.NoError(t, db.Migrate(t.Context(), d, nil, spaces.Models()))
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(d))
+	ctx := t.Context()
+
+	space, err := s.CreateSpace(ctx, orgID, groupType, "external")
+	require.NoError(t, err)
+	external := syntax.DID("did:plc:external")
+	clock := syntax.NewTIDClock(0)
+	rev1, rev2 := clock.Next(), clock.Next()
+	require.NoError(t, s.RegisterRemoteWrite(ctx, space, external, rev1, []byte("one")))
+	putNote(t, s, space, alice, noteCollection, "a", "one")
+	require.NoError(t, s.RegisterRemoteWrite(ctx, space, external, rev2, []byte("two")))
+	require.Equal(t, []string{
+		"did:plc:alice network.habitat.note/a create",
+		"sync did:plc:external " + string(rev2),
+	}, commitKeys(t, listAll(t, s, spaces.EventFilter{})))
+}

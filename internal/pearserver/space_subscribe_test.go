@@ -36,6 +36,7 @@ type subscribeFrame struct {
 		URI    string         `json:"uri"`
 		Rkey   string         `json:"rkey"`
 		Cid    string         `json:"cid"`
+		Rev    string         `json:"rev"`
 		Record map[string]any `json:"record"`
 	} `json:"payload"`
 }
@@ -123,6 +124,19 @@ func TestServer_SubscribeStreamsReadableSpaces(t *testing.T) {
 	f = readFrame(t, conn)
 	require.Equal(t, "1", f.Payload.Rkey)
 	require.Nil(t, f.Payload.Record, "a delete carries no record")
+
+	// An external member, whose records live on its own PDS, reports a write
+	// through notifyWrite. It is streamed as a repo sync, whatever the
+	// collection filter, since a sync names no collection.
+	external := syntax.DID("did:plc:external")
+	rev := syntax.NewTIDNow(0)
+	require.NoError(t, ts.SpaceStore.RegisterRemoteWrite(ctx, hidden, external, rev, []byte("x")))
+	require.NoError(t, ts.SpaceStore.RegisterRemoteWrite(ctx, readable, external, rev, []byte("y")))
+	f = readFrame(t, conn)
+	require.Equal(t, "network.habitat.space.subscribe#repoSync", f.Payload.Type)
+	require.Equal(t, readable.String(), f.Payload.Space)
+	require.Equal(t, external.String(), f.Payload.Did)
+	require.Equal(t, rev.String(), f.Payload.Rev)
 }
 
 func TestServer_SubscribeRejectsBeforeUpgrade(t *testing.T) {

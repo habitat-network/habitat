@@ -1,8 +1,10 @@
 package spaces
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,8 +26,8 @@ import (
 // pending (see [Store.SequenceEvents]).
 type EventSeq int64
 
-// Event is one entry of the host's event log: a [CommitEvent] or a
-// [SpaceDeletedEvent].
+// Event is one entry of the host's event log: a [CommitEvent], a
+// [RepoSyncEvent], or a [SpaceDeletedEvent].
 type Event interface {
 	isEvent()
 	// EventSeq is the event's position in the log.
@@ -51,6 +53,24 @@ type CommitEvent struct {
 	Time time.Time
 }
 
+// RepoSyncEvent is an external repo's latest write to a space: a repo whose
+// records live on its own PDS, which reported through notifyWrite that it
+// advanced to Rev. This host holds no records for it, so the event carries
+// the repo's reported commit data rather than a record; consumers fetch the
+// ops with listRepoOps from the repo's host. Like commits, the log is
+// compacted: a repo has one event, at the seq of its latest notifyWrite.
+type RepoSyncEvent struct {
+	Seq   EventSeq
+	Space habitat_syntax.SpaceURI
+	Repo  syntax.DID
+	Rev   syntax.TID
+	// Data is the repo's reported commit data: the sha256 of its LtHash
+	// state after the write.
+	Data []byte
+	// Time is when the notification was stored.
+	Time time.Time
+}
+
 // SpaceDeletedEvent is the deletion of a space.
 type SpaceDeletedEvent struct {
 	Seq   EventSeq
@@ -61,13 +81,18 @@ type SpaceDeletedEvent struct {
 func (CommitEvent) isEvent()                                    {}
 func (e CommitEvent) EventSeq() EventSeq                        { return e.Seq }
 func (e CommitEvent) EventSpace() habitat_syntax.SpaceURI       { return e.Space }
+func (RepoSyncEvent) isEvent()                                  {}
+func (e RepoSyncEvent) EventSeq() EventSeq                      { return e.Seq }
+func (e RepoSyncEvent) EventSpace() habitat_syntax.SpaceURI     { return e.Space }
 func (SpaceDeletedEvent) isEvent()                              {}
 func (e SpaceDeletedEvent) EventSeq() EventSeq                  { return e.Seq }
 func (e SpaceDeletedEvent) EventSpace() habitat_syntax.SpaceURI { return e.Space }
 
 // EventFilter narrows [Store.ListEvents]. Each field matches everything when
-// empty, and the fields are ANDed. Repos and the collection fields only apply
-// to [CommitEvent]s; a [SpaceDeletedEvent] is matched by Spaces alone.
+// empty, and the fields are ANDed. Repos applies to [CommitEvent]s and
+// [RepoSyncEvent]s, and the collection fields to [CommitEvent]s alone: a
+// repo sync may cover any collection, so it is sent whatever the collection
+// filter. A [SpaceDeletedEvent] is matched by Spaces alone.
 type EventFilter struct {
 	Spaces []habitat_syntax.SpaceURI
 	Repos  []syntax.DID
@@ -140,6 +165,13 @@ func hasPendingEvents(db *gorm.DB) (bool, error) {
 	if len(revs) > 0 {
 		return true, nil
 	}
+	if err := db.Model(&spaceRepo{}).
+		Where("remote = ? AND seq = 0", true).Limit(1).Pluck("rev", &revs).Error; err != nil {
+		return false, fmt.Errorf("check pending remote repos: %w", err)
+	}
+	if len(revs) > 0 {
+		return true, nil
+	}
 	var owners []string
 	if err := db.Model(&deletedSpace{}).
 		Where("seq = 0").Limit(1).Pluck("owner", &owners).Error; err != nil {
@@ -149,8 +181,8 @@ func hasPendingEvents(db *gorm.DB) (bool, error) {
 }
 
 // sequenceBatch numbers up to sequenceBatchSize pending rows in one
-// transaction, records first in rev order, then space deletions, and returns
-// how many it numbered.
+// transaction, records first in rev order, then external repos' writes in rev
+// order, then space deletions, and returns how many it numbered.
 //
 // The counter row's lock, held until commit, is what orders seqs: a seq only
 // becomes visible once every lower one has committed. Pending rows are locked
@@ -189,8 +221,29 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 			}
 		}
 
-		var deletions []deletedSpace
+		var repos []spaceRepo
 		if room := sequenceBatchSize - len(records); room > 0 {
+			if err := tx.Clauses(skipLocked).
+				Select("space", "repo", "rev").
+				Where("remote = ? AND seq = 0", true).Order("rev ASC").Limit(room).
+				Find(&repos).Error; err != nil {
+				return fmt.Errorf("list pending remote repos: %w", err)
+			}
+		}
+		for _, r := range repos {
+			head++
+			// Matching the rev too leaves a row a later notifyWrite has
+			// rewritten since (to a new rev, pending again) for the next batch.
+			if err := tx.Model(&spaceRepo{}).
+				Where("space = ? AND repo = ? AND rev = ? AND remote = ?",
+					r.Space, r.Repo, r.Rev, true).
+				Update("seq", head).Error; err != nil {
+				return fmt.Errorf("sequence remote repo: %w", err)
+			}
+		}
+
+		var deletions []deletedSpace
+		if room := sequenceBatchSize - len(records) - len(repos); room > 0 {
 			if err := tx.Clauses(skipLocked).
 				Where("seq = 0").Order("deleted_at ASC").Limit(room).
 				Find(&deletions).Error; err != nil {
@@ -206,7 +259,7 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 			}
 		}
 
-		n = len(records) + len(deletions)
+		n = len(records) + len(repos) + len(deletions)
 		if n == 0 {
 			return nil
 		}
@@ -253,6 +306,20 @@ func (s *store) ListEvents(
 		return nil, fmt.Errorf("list record events: %w", err)
 	}
 
+	// External repos' writes: Remote rows of the repo table. The collection
+	// filter doesn't apply, since a repo sync names no collection.
+	repoQuery := db.Model(&spaceRepo{}).Where("remote = ? AND seq >= ?", true, cursor)
+	if len(filter.Spaces) > 0 {
+		repoQuery = repoQuery.Where("space IN ?", filter.Spaces)
+	}
+	if len(filter.Repos) > 0 {
+		repoQuery = repoQuery.Where("repo IN ?", filter.Repos)
+	}
+	var repos []spaceRepo
+	if err := repoQuery.Order("seq ASC").Limit(limit).Find(&repos).Error; err != nil {
+		return nil, fmt.Errorf("list remote repo events: %w", err)
+	}
+
 	deletionQuery := db.Model(&deletedSpace{}).Where("seq >= ?", cursor)
 	if len(filter.Spaces) > 0 {
 		cond, args := spaceKeyCondition(filter.Spaces)
@@ -263,28 +330,38 @@ func (s *store) ListEvents(
 		return nil, fmt.Errorf("list space deletion events: %w", err)
 	}
 
-	// Merge the two seq-ordered lists, keeping the first limit events. Each
-	// list was capped at limit, so fewer than limit merged means both ran out.
-	events := make([]Event, 0, min(limit, len(records)+len(deletions)))
-	i, j := 0, 0
-	for len(events) < limit && (i < len(records) || j < len(deletions)) {
-		if j >= len(deletions) || (i < len(records) && records[i].Seq < deletions[j].Seq) {
-			event, err := commitEvent(records[i])
-			if err != nil {
-				return nil, err
-			}
-			events = append(events, event)
-			i++
-			continue
+	// Merge the seq-ordered lists, keeping the first limit events. Each list
+	// was capped at limit, so the first limit of their union are among them,
+	// and fewer than limit merged means every list ran out.
+	events := make([]Event, 0, len(records)+len(repos)+len(deletions))
+	for _, r := range records {
+		event, err := commitEvent(r)
+		if err != nil {
+			return nil, err
 		}
-		d := deletions[j]
+		events = append(events, event)
+	}
+	for _, r := range repos {
+		events = append(events, RepoSyncEvent{
+			Seq:   r.Seq,
+			Space: r.Space,
+			Repo:  r.Repo,
+			Rev:   r.Rev,
+			Data:  r.Hash,
+			Time:  r.UpdatedAt,
+		})
+	}
+	for _, d := range deletions {
 		events = append(events, SpaceDeletedEvent{
 			Seq:   d.Seq,
 			Space: habitat_syntax.ConstructSpaceURI(d.Owner, d.Type, d.Skey),
 			Time:  d.DeletedAt,
 		})
-		j++
 	}
+	slices.SortFunc(events, func(a, b Event) int {
+		return cmp.Compare(a.EventSeq(), b.EventSeq())
+	})
+	events = events[:min(limit, len(events))]
 	span.SetAttributes(attribute.Int("habitat.events", len(events)))
 	return events, nil
 }

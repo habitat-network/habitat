@@ -82,6 +82,20 @@ func (l *fakeLog) add(space habitat_syntax.SpaceURI, rkey syntax.RecordKey) {
 	})
 }
 
+// addRepoSync appends an external repo's write to space at the next seq.
+func (l *fakeLog) addRepoSync(space habitat_syntax.SpaceURI, repo syntax.DID) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.events = append(l.events, spaces.RepoSyncEvent{
+		Seq:   spaces.EventSeq(len(l.events) + 1),
+		Space: space,
+		Repo:  repo,
+		Rev:   "3l3qo2vutsw2b",
+		Data:  []byte("commit data"),
+		Time:  time.Unix(0, 0),
+	})
+}
+
 // deleteSpace appends space's deletion at the next seq.
 func (l *fakeLog) deleteSpace(space habitat_syntax.SpaceURI) {
 	l.mu.Lock()
@@ -121,10 +135,15 @@ type frame struct {
 	Type    string `json:"$type"`
 	Error   string `json:"error"`
 	Payload struct {
-		Type   string `json:"$type"`
-		Seq    int64  `json:"seq"`
-		Space  string `json:"space"`
-		Rkey   string `json:"rkey"`
+		Type  string `json:"$type"`
+		Seq   int64  `json:"seq"`
+		Space string `json:"space"`
+		Rkey  string `json:"rkey"`
+		Did   string `json:"did"`
+		Rev   string `json:"rev"`
+		Data  struct {
+			Bytes string `json:"$bytes"`
+		} `json:"data"`
 		Name   string `json:"name"`
 		Record struct {
 			Text string `json:"text"`
@@ -165,6 +184,8 @@ func summary(frames []frame) []string {
 		switch f.Payload.Type {
 		case "network.habitat.space.subscribe#commit":
 			out[i] = "commit " + strconv.FormatInt(f.Payload.Seq, 10) + " " + f.Payload.Rkey
+		case "network.habitat.space.subscribe#repoSync":
+			out[i] = "sync " + strconv.FormatInt(f.Payload.Seq, 10) + " " + f.Payload.Did
 		case "network.habitat.space.subscribe#spaceDeleted":
 			out[i] = "deleted " + strconv.FormatInt(f.Payload.Seq, 10) + " " + f.Payload.Space
 		case "network.habitat.space.subscribe#info":
@@ -400,4 +421,33 @@ func TestPrepareNarrowsSpaceCredential(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []habitat_syntax.SpaceURI{spaceB}, sub.Query.Filter.Spaces)
+}
+
+func TestStreamExternalRepoWrites(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := &fakeLog{}
+		roles := &fakeRoles{readable: map[habitat_syntax.SpaceURI]bool{spaceA: true}}
+		broadcaster := NewBroadcaster()
+		external := syntax.DID("did:plc:external")
+		log.add(spaceA, "1")
+		log.addRepoSync(spaceA, external)
+		log.addRepoSync(spaceB, external)
+
+		conn, stop := setupStream(t, log, roles, broadcaster, Subscription{
+			Query:  Query{Cursor: new(spaces.EventSeq(0))},
+			Reader: UserReader{DID: alice},
+		})
+		frames := conn.take()
+		require.Equal(t, []string{"commit 1 1", "sync 2 " + string(external)}, summary(frames),
+			"external repos' writes reach readers of the space only")
+		sync := frames[1].Payload
+		require.Equal(t, string(spaceA), sync.Space)
+		require.Equal(t, "3l3qo2vutsw2b", sync.Rev)
+		require.NotEmpty(t, sync.Data.Bytes)
+
+		log.addRepoSync(spaceA, external)
+		notify(broadcaster)
+		require.Equal(t, []string{"sync 4 " + string(external)}, summary(conn.take()))
+		require.ErrorIs(t, stop(), context.Canceled)
+	})
 }

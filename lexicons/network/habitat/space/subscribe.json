@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "subscription",
-      "description": "Stream the record writes and space deletions this host holds, across every space the caller may read, as one sequence. Modeled on Jetstream's network.bsky.jetstream.subscribeEvents and framed the same way (xrpc.v1.json): each text frame is a message whose payload $type is network.habitat.space.subscribe#<kind>, or a terminal error frame. Events are replayed from cursor and then followed live. The log is compacted: each record appears once, at the seq of its latest write, so a replay converges on current state but skips intermediate versions. Delivery is at-least-once; consumers apply events idempotently, keyed by uri. Callable with OAuth or service auth (every space the caller holds the reader role on, rechecked as events are delivered) or with a space credential (that one space only). The stream closes with an ExpiredToken error when the presented credential expires; reconnect with a fresh one and the last seq. The spaces, dids, and collections filters are ANDed; each matches all when omitted. Only records stored on this host are streamed: repos synced in from other PDSes through notifyWrite are not.",
+      "description": "Stream the record writes and space deletions this host holds, across every space the caller may read, as one sequence. Modeled on Jetstream's network.bsky.jetstream.subscribeEvents and framed the same way (xrpc.v1.json): each text frame is a message whose payload $type is network.habitat.space.subscribe#<kind>, or a terminal error frame. Events are replayed from cursor and then followed live. The log is compacted: each record appears once, at the seq of its latest write, so a replay converges on current state but skips intermediate versions. Delivery is at-least-once; consumers apply events idempotently, keyed by uri. Callable with OAuth or service auth (every space the caller holds the reader role on, rechecked as events are delivered) or with a space credential (that one space only). The stream closes with an ExpiredToken error when the presented credential expires; reconnect with a fresh one and the last seq. The spaces, dids, and collections filters are ANDed; each matches all when omitted. Records stored on this host arrive as #commit events. Repos whose records live on their own PDS (external members writing to a space this host owns) report their writes through notifyWrite; each arrives as a #repoSync event carrying the repo's new rev and commit data, and consumers fetch its records from that repo's host with listRepoOps.",
       "parameters": {
         "type": "params",
         "properties": {
@@ -23,20 +23,20 @@
             "type": "array",
             "maxLength": 10000,
             "items": { "type": "string", "format": "did" },
-            "description": "Record authors to receive #commit events for. Omitted: every author."
+            "description": "Record authors to receive #commit and #repoSync events for. Omitted: every author."
           },
           "collections": {
             "type": "array",
             "maxLength": 100,
             "items": { "type": "string" },
-            "description": "Collection NSIDs or '<prefix>.*' patterns to receive #commit events for. Omitted: every collection."
+            "description": "Collection NSIDs or '<prefix>.*' patterns to receive #commit events for. Omitted: every collection. Does not apply to #repoSync events, which name no collection and are always sent."
           }
         }
       },
       "message": {
         "schema": {
           "type": "union",
-          "refs": ["#commit", "#spaceDeleted", "#info"]
+          "refs": ["#commit", "#repoSync", "#spaceDeleted", "#info"]
         }
       },
       "errors": [
@@ -95,6 +95,34 @@
           "type": "string",
           "format": "cid",
           "description": "CID of the record. Absent for deletes."
+        }
+      }
+    },
+    "repoSync": {
+      "type": "object",
+      "description": "An external repo, whose records live on its own PDS rather than this host, reported through notifyWrite that it advanced in the space. This host holds none of its records, so consumers fetch the new ops from the repo's host with listRepoOps, from the last rev they synced. The log is compacted: each repo appears once per space, at the seq of its latest notification.",
+      "required": ["seq", "space", "did", "time", "rev", "data"],
+      "properties": {
+        "seq": { "type": "integer" },
+        "space": { "type": "string", "format": "at-uri" },
+        "did": {
+          "type": "string",
+          "format": "did",
+          "description": "The repo that advanced."
+        },
+        "time": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When this host received the notification, microsecond precision."
+        },
+        "rev": {
+          "type": "string",
+          "format": "tid",
+          "description": "The repo revision after the write."
+        },
+        "data": {
+          "type": "bytes",
+          "description": "The repo's reported commit data (sha256 of its LtHash state) after the write, as sent in notifyWrite."
         }
       }
     },

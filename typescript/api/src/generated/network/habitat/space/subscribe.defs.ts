@@ -32,6 +32,7 @@ export type $Params = l.InferOutput<typeof $params>
 export const $message = /*#__PURE__*/ l.typedUnion(
   [
     /*#__PURE__*/ l.typedRef<Commit>((() => commit) as any),
+    /*#__PURE__*/ l.typedRef<RepoSync>((() => repoSync) as any),
     /*#__PURE__*/ l.typedRef<SpaceDeleted>((() => spaceDeleted) as any),
     /*#__PURE__*/ l.typedRef<Info>((() => info) as any),
   ],
@@ -40,7 +41,7 @@ export const $message = /*#__PURE__*/ l.typedUnion(
 
 export type $Message = l.InferOutput<typeof $message>
 
-/** Stream the record writes and space deletions this host holds, across every space the caller may read, as one sequence. Modeled on Jetstream's network.bsky.jetstream.subscribeEvents and framed the same way (xrpc.v1.json): each text frame is a message whose payload $type is network.habitat.space.subscribe#<kind>, or a terminal error frame. Events are replayed from cursor and then followed live. The log is compacted: each record appears once, at the seq of its latest write, so a replay converges on current state but skips intermediate versions. Delivery is at-least-once; consumers apply events idempotently, keyed by uri. Callable with OAuth or service auth (every space the caller holds the reader role on, rechecked as events are delivered) or with a space credential (that one space only). The stream closes with an ExpiredToken error when the presented credential expires; reconnect with a fresh one and the last seq. The spaces, dids, and collections filters are ANDed; each matches all when omitted. Only records stored on this host are streamed: repos synced in from other PDSes through notifyWrite are not. */
+/** Stream the record writes and space deletions this host holds, across every space the caller may read, as one sequence. Modeled on Jetstream's network.bsky.jetstream.subscribeEvents and framed the same way (xrpc.v1.json): each text frame is a message whose payload $type is network.habitat.space.subscribe#<kind>, or a terminal error frame. Events are replayed from cursor and then followed live. The log is compacted: each record appears once, at the seq of its latest write, so a replay converges on current state but skips intermediate versions. Delivery is at-least-once; consumers apply events idempotently, keyed by uri. Callable with OAuth or service auth (every space the caller holds the reader role on, rechecked as events are delivered) or with a space credential (that one space only). The stream closes with an ExpiredToken error when the presented credential expires; reconnect with a fresh one and the last seq. The spaces, dids, and collections filters are ANDed; each matches all when omitted. Records stored on this host arrive as #commit events. Repos whose records live on their own PDS (external members writing to a space this host owns) report their writes through notifyWrite; each arrives as a #repoSync event carrying the repo's new rev and commit data, and consumers fetch its records from that repo's host with listRepoOps. */
 const main = /*#__PURE__*/ l.subscription($nsid, $params, $message, [
   'InvalidRequest',
   'ExpiredToken',
@@ -126,6 +127,51 @@ const commit = /*#__PURE__*/ l.typedObject<Commit>(
 )
 
 export { commit }
+
+/** An external repo, whose records live on its own PDS rather than this host, reported through notifyWrite that it advanced in the space. This host holds none of its records, so consumers fetch the new ops from the repo's host with listRepoOps, from the last rev they synced. The log is compacted: each repo appears once per space, at the seq of its latest notification. */
+type RepoSync = {
+  $type?: 'network.habitat.space.subscribe#repoSync'
+  seq: number
+  space: l.AtUriString
+
+  /**
+   * The repo that advanced.
+   */
+  did: l.DidString
+
+  /**
+   * When this host received the notification, microsecond precision.
+   */
+  time: l.DatetimeString
+
+  /**
+   * The repo revision after the write.
+   */
+  rev: l.TidString
+
+  /**
+   * The repo's reported commit data (sha256 of its LtHash state) after the write, as sent in notifyWrite.
+   */
+  data: Uint8Array
+}
+
+export type { RepoSync }
+
+/** An external repo, whose records live on its own PDS rather than this host, reported through notifyWrite that it advanced in the space. This host holds none of its records, so consumers fetch the new ops from the repo's host with listRepoOps, from the last rev they synced. The log is compacted: each repo appears once per space, at the seq of its latest notification. */
+const repoSync = /*#__PURE__*/ l.typedObject<RepoSync>(
+  $nsid,
+  'repoSync',
+  /*#__PURE__*/ l.object({
+    seq: /*#__PURE__*/ l.integer(),
+    space: /*#__PURE__*/ l.string({ format: 'at-uri' }),
+    did: /*#__PURE__*/ l.string({ format: 'did' }),
+    time: /*#__PURE__*/ l.string({ format: 'datetime' }),
+    rev: /*#__PURE__*/ l.string({ format: 'tid' }),
+    data: /*#__PURE__*/ l.bytes(),
+  }),
+)
+
+export { repoSync }
 
 /** A space was deleted. Consumers drop every record and derived state they hold for it. */
 type SpaceDeleted = {
