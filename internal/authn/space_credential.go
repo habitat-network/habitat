@@ -178,10 +178,13 @@ func (s *SpaceCredentialAuthMethod) Validate(
 		return nil, false
 	}
 
+	// exp is required by the parse above.
+	exp, _ := token.Claims.GetExpirationTime()
 	return &CredentialInfo{
-		Space:    space,
-		Audience: audience,
-		Method:   ValidatorMethodSpaceCredential,
+		Space:     space,
+		Audience:  audience,
+		Method:    ValidatorMethodSpaceCredential,
+		ExpiresAt: exp.Time,
 	}, true
 }
 

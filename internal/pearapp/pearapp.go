@@ -29,6 +29,7 @@ import (
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacestream"
 )
 
 // App holds pear's stores and services.
@@ -80,6 +81,9 @@ type App struct {
 	// FedSearch searches Habitat records and members' connected apps
 	// together.
 	FedSearch *fedsearch.Service
+	// SpaceEvents wakes network.habitat.space.subscribe streams; SpacesStore
+	// notifies it of every write.
+	SpaceEvents *spacestream.Broadcaster
 }
 
 // New returns an App holding the given stores and services.
@@ -119,6 +123,7 @@ func New(
 	searcher *search.Searcher,
 	searchConfigStore *searchconfig.Store,
 	fedSearch *fedsearch.Service,
+	spaceEvents *spacestream.Broadcaster,
 ) *App {
 	return &App{
 		DB:                    database,
@@ -156,6 +161,7 @@ func New(
 		Searcher:              searcher,
 		SearchConfig:          searchConfigStore,
 		FedSearch:             fedSearch,
+		SpaceEvents:           spaceEvents,
 	}
 }
 

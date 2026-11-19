@@ -41,6 +41,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsoauth"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacestream"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 )
@@ -218,7 +219,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	// With Meilisearch configured, the search indexer follows space writes
 	// like any other syncer, so the spaces store notifies it alongside the
 	// registered ones.
-	notifiers := spaces.Notifiers{notifier}
+	// Subscribe streams (network.habitat.space.subscribe) are woken by every
+	// write too.
+	spaceEvents := spacestream.NewBroadcaster()
+	notifiers := spaces.Notifiers{notifier, spaceEvents}
 	blobBucket, err := blob.OpenBucket(ctx, cmd.String(fBlobBucket))
 	if err != nil {
 		return nil, fmt.Errorf("open blob bucket: %w", err)
@@ -427,6 +431,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		searcher,
 		searchConfigStore,
 		fedSearch,
+		spaceEvents,
 	), nil
 }
 
