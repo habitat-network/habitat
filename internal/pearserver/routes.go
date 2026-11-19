@@ -111,8 +111,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.getLatestCommit", p.GetLatestCommit)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getRepo", p.GetRepo)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getDelegationToken", p.GetDelegationToken)
-	p.router.HandleFunc("/xrpc/com.atproto.space.getSpaceCredential", p.GetSpaceCredential)
-	p.router.HandleFunc("/xrpc/com.atproto.space.registerNotify", p.RegisterNotify)
+	p.router.HandleFunc("/xrpc/com.atproto.space.authorizeSpaceSync", p.AuthorizeSpaceSync)
 	p.router.HandleFunc("/xrpc/com.atproto.space.notifyRepoUpdate", p.NotifyWrite)
 	p.router.HandleFunc(
 		"/xrpc/com.atproto.space.notifyCredentialsRevoked", p.NotifyCredentialRevoked,

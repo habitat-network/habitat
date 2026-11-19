@@ -1755,3 +1755,25 @@ func TestDeleteSpace_ClearsBlobReferences(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, referenced)
 }
+
+func TestStoreRemoveWriterNotifiesWithAdvancedSpaceRev(t *testing.T) {
+	n := &notify_testutil.TestNotifier{}
+	store := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(n))
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "removed")
+	require.NoError(t, err)
+	_, _, err = store.PutRecord(t.Context(), uri, owner, "network.habitat.note", "k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}))
+	require.NoError(t, err)
+	before, err := store.SpaceRev(t.Context(), uri)
+	require.NoError(t, err)
+
+	require.NoError(t, store.RemoveWriter(t.Context(), uri, owner))
+
+	after, err := store.SpaceRev(t.Context(), uri)
+	require.NoError(t, err)
+	require.NotEqual(t, before, after)
+	require.Len(t, n.Removed, 1)
+	require.Equal(t, owner, n.Removed[0].Repo)
+	require.Equal(t, before, n.Removed[0].PrevSpaceRev)
+	require.Equal(t, after, n.Removed[0].SpaceRev)
+}
