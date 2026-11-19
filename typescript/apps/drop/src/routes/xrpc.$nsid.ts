@@ -1,16 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
 import { notificationErrorStatus } from "internal/spaceSync";
-import { notifySpaceDeleted, notifyWrite } from "@/server/sync";
+import { confirmRegistration, notifySpaceUpdate } from "@/server/sync";
 
-// Inbound space notifications from space hosts. The body and Authorization
-// header go to the syncer untouched: it verifies the service-auth JWT
-// (issuer is the space authority, audience is Drop's service DID) itself.
+// Inbound space notifications from space hosts. The body goes to the syncer
+// untouched: the token in it is the authentication.
 export const Route = createFileRoute("/xrpc/$nsid")({
   server: {
     handlers: {
       POST: async ({ request, params }) => {
-        const authorization = request.headers.get("authorization") ?? undefined;
         let body: unknown;
         try {
           body = await request.json();
@@ -19,17 +17,16 @@ export const Route = createFileRoute("/xrpc/$nsid")({
         }
         try {
           switch (params.nsid) {
-            case "com.atproto.space.notifyWrite":
-              await notifyWrite(env, body, authorization);
-              break;
-            case "com.atproto.space.notifySpaceDeleted":
-              await notifySpaceDeleted(env, body, authorization);
+            case "com.atproto.space.confirmRegistration":
+              return Response.json(await confirmRegistration(env, body));
+            case "com.atproto.space.notifySpaceUpdate":
+              await notifySpaceUpdate(env, body);
               break;
             default:
               return xrpcError(501, "MethodNotImplemented", params.nsid);
           }
         } catch (err) {
-          // Space authorities retry a notification on 5xx and give up on
+          // Space hosts retry a notification on 5xx and give up on
           // 4xx, so only a rejected caller or a malformed body is a 4xx.
           const status = notificationErrorStatus(err);
           return xrpcError(

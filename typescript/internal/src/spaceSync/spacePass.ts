@@ -9,11 +9,7 @@ import {
   Option,
   Stream,
 } from "effect";
-import {
-  type SpaceSyncOptions,
-  SpaceSyncConfig,
-  syncerServiceRef,
-} from "./config";
+import { type SpaceSyncOptions, SpaceSyncConfig } from "./config";
 import {
   type SinkError,
   type StoreError,
@@ -158,7 +154,6 @@ export class SpacePass extends Context.Service<
       const sink = yield* SyncSink;
       const backoff = yield* RepoBackoff;
       const repoSync = yield* RepoSync;
-      const renewLeadMs = Duration.toMillis(config.registrationRenewLead);
       const fullIntervalMs = Duration.toMillis(config.fullPassInterval);
 
       /**
@@ -257,41 +252,6 @@ export class SpacePass extends Context.Service<
         let state = current.value;
         const now = yield* Clock.currentTimeMillis;
 
-        // Best effort: a failed registration only delays notifications, so it must
-        // not stop the pass. SpaceDeleted still propagates.
-        let registrationFailed = false;
-        if (
-          config.serviceDid &&
-          (state.registrationExpiresAt === undefined ||
-            state.registrationExpiresAt - now <= renewLeadMs)
-        ) {
-          const registered = yield* client
-            .registerNotify(ref, syncerServiceRef(config.serviceDid))
-            .pipe(
-              Effect.map(Option.some),
-              Effect.catchIf(
-                (error) =>
-                  !(
-                    error._tag === "CredentialError" &&
-                    error.reason === "SpaceDeleted"
-                  ),
-                (error) =>
-                  Effect.logWarning("registerNotify failed", error).pipe(
-                    Effect.as(Option.none<{ readonly expiresAt: number }>()),
-                  ),
-              ),
-            );
-          if (Option.isSome(registered)) {
-            state = {
-              ...state,
-              registrationExpiresAt: registered.value.expiresAt,
-            };
-            yield* store.putSpace(state);
-          } else {
-            registrationFailed = true;
-          }
-        }
-
         const full =
           requestFull ||
           state.spaceRev === undefined ||
@@ -371,9 +331,6 @@ export class SpacePass extends Context.Service<
               : state.failures;
         const lastFullPassAt = full ? now : state.lastFullPassAt;
         const candidates = [(lastFullPassAt ?? now) + fullIntervalMs];
-        if (state.registrationExpiresAt !== undefined)
-          candidates.push(state.registrationExpiresAt - renewLeadMs);
-        if (registrationFailed) candidates.push(now + backoffMillis(config, 1));
         for (const o of outcomes)
           if (o.kind === "failed" || o.kind === "deferred")
             candidates.push(o.retryAt);

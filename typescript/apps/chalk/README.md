@@ -50,7 +50,9 @@ sap in between:
 - **Sync** (`src/server/sync.ts`): doc spaces and their comments spaces are
   synced with `internal/spaceSync`. Creating a space, signing in, and
   connecting an org watch the relevant spaces; space hosts then notify
-  chalk of writes at `/xrpc/com.atproto.space.notifyWrite`, and a cron
+  chalk of changes at `/xrpc/com.atproto.space.notifySpaceUpdate` (registered
+  with each credential request and confirmed at
+  `/xrpc/com.atproto.space.confirmRegistration`), and a cron
   trigger (every minute) runs whatever has come due. All of the syncer's
   state lives in D1 (through `DrizzleSyncStore` from
   `internal/spaceSync/drizzle`, shared with Drop), so each short-lived

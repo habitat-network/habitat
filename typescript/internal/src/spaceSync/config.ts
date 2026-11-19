@@ -1,26 +1,21 @@
 import type { IdentityResolver } from "@atproto-labs/identity-resolver";
 import { Context, Duration, Layer } from "effect";
 
-/**
- * The DID document service entry space hosts deliver notifications to: a
- * syncer's DID document must publish `#atproto_space_syncer` with its base URL.
- */
-export const SYNCER_SERVICE_ID = "atproto_space_syncer";
-
-/**
- * The service identifier registerNotify subscribes: our DID plus the
- * `#atproto_space_syncer` fragment, which the space host resolves to the
- * delivery endpoint. A bare DID would resolve to our `#atproto_pds` instead.
- */
-export const syncerServiceRef = (serviceDid: string): string =>
-  `${serviceDid}#${SYNCER_SERVICE_ID}`;
-
 export interface SpaceSyncOptions {
   /**
-   * Our DID. registerNotify subscribes its `#atproto_space_syncer` service
-   * (see syncerServiceRef), and it's checked as `aud` on notifications.
+   * Base URL of this syncer's notification endpoint, which serves
+   * `com.atproto.space.confirmRegistration` and `notifySpaceUpdate`. When set,
+   * every space credential is requested with a registration for it, so the
+   * space host tells us about changes for as long as the credential is valid.
+   * Unset, the syncer only polls.
    */
-  readonly serviceDid: string;
+  readonly notifyEndpoint?: string;
+  /**
+   * Secret the notification tokens are derived from. Set it to keep
+   * registrations valid across restarts and across instances behind one
+   * endpoint; unset, a random one is generated per process.
+   */
+  readonly notifySecret?: string;
   /**
    * Resolves the DIDs of space authorities and repos. Defaults to the public
    * did:plc / did:web network; pass e.g. a HabitatIdentityResolver to resolve
@@ -34,7 +29,6 @@ export interface SpaceSyncOptions {
   readonly schedulerInterval: Duration.Duration;
   readonly schedulerPageSize: number;
   readonly fullPassInterval: Duration.Duration;
-  readonly registrationRenewLead: Duration.Duration;
   readonly backoffBase: Duration.Duration;
   readonly backoffCap: Duration.Duration;
   readonly credentialCacheCapacity: number;
@@ -52,13 +46,11 @@ export interface SpaceSyncOptions {
 }
 
 export const defaultSpaceSyncOptions: SpaceSyncOptions = {
-  serviceDid: "",
   maxActiveSpaces: 64,
   repoConcurrency: 8,
   schedulerInterval: Duration.seconds(30),
   schedulerPageSize: 500,
   fullPassInterval: Duration.hours(6),
-  registrationRenewLead: Duration.hours(1),
   backoffBase: Duration.seconds(30),
   backoffCap: Duration.hours(1),
   credentialCacheCapacity: 1024,
@@ -76,6 +68,5 @@ export const SpaceSyncConfig = Context.Reference<SpaceSyncOptions>(
   { defaultValue: () => defaultSpaceSyncOptions },
 );
 
-export const spaceSyncConfigLayer = (
-  options: Partial<SpaceSyncOptions> & { readonly serviceDid: string },
-) => Layer.succeed(SpaceSyncConfig, { ...defaultSpaceSyncOptions, ...options });
+export const spaceSyncConfigLayer = (options: Partial<SpaceSyncOptions> = {}) =>
+  Layer.succeed(SpaceSyncConfig, { ...defaultSpaceSyncOptions, ...options });

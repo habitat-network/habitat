@@ -1,12 +1,6 @@
 import { TID } from "@atproto/common-web";
 import { P256Keypair, Secp256k1Keypair } from "@atproto/crypto";
-import {
-  type Cid,
-  type LexMap,
-  type LexValue,
-  lexToJson,
-  toBase64,
-} from "@atproto/lex";
+import { type Cid, type LexMap, type LexValue, lexToJson } from "@atproto/lex";
 import {
   type Commit,
   RepoCommit,
@@ -120,7 +114,8 @@ export class FakeSpace {
   /** Repos whose host MACs a different rev than the listRepoOps commit reports. */
   readonly corruptOpsCommits = new Set<string>();
   readonly deniedUsers = new Set<string>();
-  readonly registrations: string[] = [];
+  /** Notification registrations made through authorizeSpaceSync, oldest first. */
+  readonly registrations: { endpoint: string; token: string }[] = [];
   readonly credentialJtis: string[] = [];
   readonly revokedJtis = new Set<string>();
   deleted = false;
@@ -129,7 +124,6 @@ export class FakeSpace {
   listReposPageSize = 1000;
   /** Runs after each listRepos page is computed, before it is returned (simulates writes mid-walk). */
   onListRepos: (() => Promise<void>) | undefined = undefined;
-  registrationLifetimeMs = 6 * 60 * 60 * 1000;
   credentialLifetimeSec = 600;
   listReposCalls = 0;
   listRepoOpsCalls = 0;
@@ -216,16 +210,20 @@ export class FakeSpace {
     );
   }
 
-  /** JSON body of the notifyWrite a space host would forward for this repo's latest write. */
-  notifyWriteBody(did: string, prevSpaceRev?: string): unknown {
+  /** JSON body of the notifySpaceUpdate a space host would send for this repo's latest write. */
+  notifySpaceUpdateBody(did: string, token: string): unknown {
     const repo = this.repos.get(did)!;
     return lexToJson({
       space: this.id,
-      repo: did,
-      repoRev: repo.rev,
-      data: repo.commit.setHash.digest(),
-      spaceRev: repo.spaceRev,
-      ...(prevSpaceRev ? { prevSpaceRev } : {}),
+      token,
+      update: {
+        $type: "com.atproto.space.defs#repoWrite",
+        repo: did,
+        repoRev: repo.rev,
+        data: repo.commit.setHash.digest(),
+        spaceRev: repo.spaceRev,
+        prevSpaceRev: repo.spaceRev,
+      },
     } as LexValue);
   }
 }
@@ -272,33 +270,6 @@ export class FakeNetwork {
     if (!fake)
       return Promise.reject(new Error(`no session can reach ${space}`));
     return this.delegationToken(fake.authority, space);
-  }
-
-  /** A service-auth JWT as a space authority would send with notifyWrite. */
-  async serviceAuth(
-    issuer: FakeAccount,
-    opts: {
-      aud: string;
-      lxm: string;
-      expSec?: number;
-      signer?: Secp256k1Keypair;
-    },
-  ): Promise<string> {
-    const enc = (v: unknown) =>
-      toBase64(new TextEncoder().encode(JSON.stringify(v)), "base64url");
-    const now = Math.floor(Date.now() / 1000);
-    const signer = opts.signer ?? issuer.keypair;
-    const head = enc({ alg: signer.jwtAlg, typ: "JWT" });
-    const body = enc({
-      iss: issuer.did,
-      aud: opts.aud,
-      lxm: opts.lxm,
-      iat: now,
-      exp: now + (opts.expSec ?? 60),
-      jti: TID.nextStr(),
-    });
-    const sig = await signer.sign(new TextEncoder().encode(`${head}.${body}`));
-    return `${head}.${body}.${toBase64(sig, "base64url")}`;
   }
 
   private didDoc(account: FakeAccount) {
@@ -430,18 +401,19 @@ export class FakeNetwork {
       }),
 
       http.post(
-        "*/xrpc/com.atproto.space.getSpaceCredential",
+        "*/xrpc/com.atproto.space.authorizeSpaceSync",
         async ({ request }) => {
           const body = (await request.json()) as {
             space?: string;
-            credentialKid?: string;
+            credentialKey?: string;
             delegationToken?: string;
+            notify?: { endpoint: string; token: string };
           };
           const space = this.spaceFor(body.space ?? null);
           if (space instanceof Response) return space;
           if (new URL(request.url).origin !== space.authority.pds)
             return xrpcError(400, "WrongHost");
-          const keyId = body.credentialKid;
+          const keyId = body.credentialKey;
           if (!keyId || !isP256DidKey(keyId))
             return xrpcError(400, "InvalidRequest");
           // No fake space is public: without a delegation token, answer as
@@ -455,7 +427,7 @@ export class FakeNetwork {
               sub: space.id,
             });
             if (space.deniedUsers.has(token.payload.iss))
-              return xrpcError(403, "UserNotAuthorized");
+              return xrpcError(403, "AccountNotAuthorized");
           } catch {
             return xrpcError(400, "InvalidDelegationToken");
           }
@@ -472,6 +444,9 @@ export class FakeNetwork {
           space.credentialJtis.push(
             parseSpaceToken("credential", credential).payload.jti,
           );
+          // The registration lives as long as the credential. A real host
+          // confirms the endpoint first; tests drive that step themselves.
+          if (body.notify) space.registrations.push(body.notify);
           return HttpResponse.json({ credential });
         },
       ),
@@ -513,30 +488,6 @@ export class FakeNetwork {
         await space.onListRepos?.();
         return json(response);
       }),
-
-      http.post(
-        "*/xrpc/com.atproto.space.registerNotify",
-        async ({ request }) => {
-          const body = (await request.json()) as {
-            space?: string;
-            service?: string;
-          };
-          const space = this.spaceFor(body.space ?? null);
-          if (space instanceof Response) return space;
-          const denied = await this.authorize(
-            request,
-            space,
-            space.authority.did,
-          );
-          if (denied) return denied;
-          space.registrations.push(body.service ?? "");
-          return HttpResponse.json({
-            expiresAt: new Date(
-              Date.now() + space.registrationLifetimeMs,
-            ).toISOString(),
-          });
-        },
-      ),
 
       http.get("*/xrpc/com.atproto.space.listRepoOps", async ({ request }) => {
         const url = new URL(request.url);

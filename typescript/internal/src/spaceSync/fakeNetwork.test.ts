@@ -21,13 +21,13 @@ describe("FakeNetwork", () => {
     const key = await P256Keypair.create();
     const delegation = await net.delegationToken(alice, space.id);
     const credRes = await fetch(
-      `${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`,
+      `${alice.pds}/xrpc/com.atproto.space.authorizeSpaceSync`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           space: space.id,
-          credentialKid: key.did(),
+          credentialKey: key.did(),
           delegationToken: delegation,
         }),
       },
@@ -71,12 +71,12 @@ describe("FakeNetwork", () => {
     const key = await P256Keypair.create();
     const delegation = await net.delegationToken(alice, space.id);
     const { credential } = (await (
-      await fetch(`${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`, {
+      await fetch(`${alice.pds}/xrpc/com.atproto.space.authorizeSpaceSync`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           space: space.id,
-          credentialKid: key.did(),
+          credentialKey: key.did(),
           delegationToken: delegation,
         }),
       })
@@ -100,11 +100,11 @@ describe("FakeNetwork", () => {
     const space = net.createSpace(alice);
     const key = await P256Keypair.create();
     const res = await fetch(
-      `${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`,
+      `${alice.pds}/xrpc/com.atproto.space.authorizeSpaceSync`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ space: space.id, credentialKid: key.did() }),
+        body: JSON.stringify({ space: space.id, credentialKey: key.did() }),
       },
     );
     expect(res.status).toBe(400);

@@ -11,12 +11,11 @@ export {
   type ResolvedIdentity,
 } from "./Identity";
 export {
-  NotificationAuth,
-  type NotificationMethod,
   notificationErrorStatus,
-  receiveNotifySpaceDeleted,
-  receiveNotifyWrite,
+  receiveConfirmRegistration,
+  receiveNotifySpaceUpdate,
 } from "./notification";
+export { NotifyToken } from "./NotifyToken";
 export {
   type CreateSpaceSyncerOptions,
   type PromiseDelegationSource,
