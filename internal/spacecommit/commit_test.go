@@ -173,7 +173,11 @@ func TestRecordMACBindsURIAndCID(t *testing.T) {
 
 	otherCID := cid.MustParse("bafyreihffx5a2e7k5uwrmmgofbvzujc5cmw5h4espouwuxt3liqoflx3ee")
 	require.ErrorIs(t, VerifyRecordMAC(h, uri, otherCID, refKeyShare, secret), ErrInvalidCommit)
-	require.ErrorIs(t, VerifyRecordMAC(h, uri+"2", recordCID, refKeyShare, secret), ErrInvalidCommit)
+	require.ErrorIs(
+		t,
+		VerifyRecordMAC(h, uri+"2", recordCID, refKeyShare, secret),
+		ErrInvalidCommit,
+	)
 }
 
 func TestCommitMatches(t *testing.T) {

@@ -69,7 +69,7 @@ func componentList(profile string) string {
 // profile's MAC keyed by keyShare.
 func FormatMACRequest(profile, keyShare string) string {
 	return fmt.Sprintf(
-		`%s=%s;keyid="%s";tag="%s"`, macLabel, componentList(profile), keyShare, profile,
+		`%s=%s;keyid=%q;tag=%q`, macLabel, componentList(profile), keyShare, profile,
 	)
 }
 
@@ -93,14 +93,23 @@ func ParseMACRequest(h http.Header, profile string) (*MACRequest, error) {
 	}
 	d, err := httpsfv.UnmarshalDictionary(values)
 	if err != nil {
-		return nil, fmt.Errorf("%w: malformed %s header: %w", ErrInvalidSpaceMAC, AcceptSignatureHeader, err)
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			AcceptSignatureHeader,
+			err,
+		)
 	}
 	label, params, err := memberWithTag(d, profile)
 	if err != nil || params == nil {
 		return nil, err
 	}
 	if got := serializeComponents(params.Items); got != componentList(profile) {
-		return nil, fmt.Errorf("%w: MAC must cover exactly %s", ErrInvalidSpaceMAC, componentList(profile))
+		return nil, fmt.Errorf(
+			"%w: MAC must cover exactly %s",
+			ErrInvalidSpaceMAC,
+			componentList(profile),
+		)
 	}
 	for _, name := range params.Params.Names() {
 		if name != "keyid" && name != "tag" && name != "alg" {
@@ -161,7 +170,10 @@ func setMAC(
 	h.Set(coveredHeader(profile), value)
 	h.Set(signatureInputHeader, req.Label+"="+req.SignatureParams)
 	h.Set(signatureHeader, req.Label+"=:"+base64.StdEncoding.EncodeToString(mac)+":")
-	h.Add("Access-Control-Expose-Headers", coveredHeader(profile)+", "+signatureInputHeader+", "+signatureHeader)
+	h.Add(
+		"Access-Control-Expose-Headers",
+		coveredHeader(profile)+", "+signatureInputHeader+", "+signatureHeader,
+	)
 	return nil
 }
 
@@ -218,7 +230,12 @@ func verifyMAC(
 	}
 	inputs, err := httpsfv.UnmarshalDictionary(h.Values(signatureInputHeader))
 	if err != nil {
-		return nil, fmt.Errorf("%w: malformed %s header: %w", ErrInvalidSpaceMAC, signatureInputHeader, err)
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			signatureInputHeader,
+			err,
+		)
 	}
 	label, params, err := memberWithTag(inputs, profile)
 	if err != nil {
@@ -228,7 +245,11 @@ func verifyMAC(
 		return nil, fmt.Errorf("%w: missing signature with tag %q", ErrInvalidSpaceMAC, profile)
 	}
 	if got := serializeComponents(params.Items); got != componentList(profile) {
-		return nil, fmt.Errorf("%w: MAC must cover exactly %s", ErrInvalidSpaceMAC, componentList(profile))
+		return nil, fmt.Errorf(
+			"%w: MAC must cover exactly %s",
+			ErrInvalidSpaceMAC,
+			componentList(profile),
+		)
 	}
 	if alg, ok := params.Params.Get("alg"); ok && alg != macAlg {
 		return nil, fmt.Errorf("%w: MAC algorithm must be %s", ErrInvalidSpaceMAC, macAlg)
@@ -238,7 +259,12 @@ func verifyMAC(
 	}
 	sigs, err := httpsfv.UnmarshalDictionary(h.Values(signatureHeader))
 	if err != nil {
-		return nil, fmt.Errorf("%w: malformed %s header: %w", ErrInvalidSpaceMAC, signatureHeader, err)
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			signatureHeader,
+			err,
+		)
 	}
 	member, _ := sigs.Get(label)
 	item, isItem := member.(httpsfv.Item)
@@ -249,12 +275,22 @@ func verifyMAC(
 
 	covered, err := httpsfv.UnmarshalDictionary(h.Values(coveredHeader(profile)))
 	if err != nil {
-		return nil, fmt.Errorf("%w: malformed %s header: %w", ErrInvalidSpaceMAC, coveredHeader(profile), err)
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			coveredHeader(profile),
+			err,
+		)
 	}
 	// The sf flag covers the header as re-serialized from its parsed form.
 	value, err := httpsfv.Marshal(covered)
 	if err != nil {
-		return nil, fmt.Errorf("%w: malformed %s header: %w", ErrInvalidSpaceMAC, coveredHeader(profile), err)
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			coveredHeader(profile),
+			err,
+		)
 	}
 	serializedParams, err := httpsfv.Marshal(*params)
 	if err != nil {
@@ -312,7 +348,7 @@ func serializeComponents(items []httpsfv.Item) string {
 // profile's header.
 func signatureBase(profile, headerValue, signatureParams string) []byte {
 	return []byte(fmt.Sprintf(
-		"\"%s\";sf: %s\n\"@signature-params\": %s",
+		"%q;sf: %s\n\"@signature-params\": %s",
 		coveredHeader(profile), strings.TrimSpace(headerValue), signatureParams,
 	))
 }
