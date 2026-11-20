@@ -1,7 +1,4 @@
 tasks:
-  dev:
-    env:
-      COMPOSE_PROFILES: frontend
   docker-build:
     deps:
       - target: build

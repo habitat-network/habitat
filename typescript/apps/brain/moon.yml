@@ -1,6 +1,4 @@
 layer: application
 language: typescript
-tasks:
-  dev:
-    env:
-      COMPOSE_PROFILES: brain
+# `dev` is inherited from .moon/tasks/all.yml and uses $project for the
+# Compose profile/service name.

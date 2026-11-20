@@ -1,4 +1,2 @@
-tasks:
-  dev:
-    env:
-      COMPOSE_PROFILES: sap
+# `dev` is inherited from .moon/tasks/all.yml and uses $project for the
+# Compose profile/service name.

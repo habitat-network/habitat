@@ -24,9 +24,6 @@ tasks:
       mergeArgs: replace
       runFromWorkspaceRoot: true
     preset: utility
-  dev:
-    env:
-      COMPOSE_PROFILES: pear
   docker-build:
     options:
       internal: false

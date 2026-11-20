@@ -31,8 +31,6 @@ tasks:
   lint-check:
     inputs:
       - '@group(root_test)'
-  # `dev` is inherited from .moon/tasks/all.yml: `docker compose up --build`
-  # with no profile, i.e. just the backing services.
   down:
     command: docker
     args: [compose, down]
