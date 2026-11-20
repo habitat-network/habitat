@@ -13,7 +13,11 @@ import type { OAuthClient, OAuthSession } from "@atproto/oauth-client";
 import { Context, Effect, Layer, Predicate } from "effect";
 import { getDb, type Db } from "@/db";
 import { createOAuthClient } from "@/server/oauth";
-import { HabitatClient, UnauthorizedError } from "@/server/habitatClient";
+import {
+  HabitatClient,
+  UnauthorizedError,
+  instanceProxy,
+} from "@/server/habitatClient";
 import { HabitatError, SessionExpired } from "./errors";
 
 // The services every server-side Effect in the app can ask for. They're all
@@ -114,9 +118,15 @@ export class Habitat extends Context.Service<
         call?: CallOptions,
       ) =>
         Effect.gen(function* () {
-          const agent: Agent = yield* session(did);
+          const oauthSession = yield* session(did);
+          const agent: Agent = oauthSession;
           const nsid = methodNsid(method);
-          const opts = withProxy(options ?? {}, call) as XrpcOptions<M>;
+          const opts = withProxy(
+            options ?? {},
+            call?.proxy
+              ? `${call.proxy}#habitat`
+              : instanceProxy(oauthSession, env, nsid),
+          ) as XrpcOptions<M>;
           const res = yield* Effect.tryPromise({
             try: () => lexXrpc(agent, method, opts),
             catch: (cause) => toHabitatError(did, nsid, cause, !!call?.proxy),
@@ -164,11 +174,11 @@ function methodNsid(method: unknown): string {
 
 function withProxy<O extends { headers?: HeadersInit }>(
   options: O,
-  call: CallOptions | undefined,
+  proxy: string | undefined,
 ): O {
-  if (!call?.proxy) return options;
+  if (!proxy) return options;
   const headers = new Headers(options.headers);
-  headers.set("atproto-proxy", `${call.proxy}#habitat`);
+  headers.set("atproto-proxy", proxy);
   return { ...options, headers };
 }
 

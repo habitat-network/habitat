@@ -78,6 +78,26 @@ export async function startLogin(
   }
 }
 
+// instanceProxy returns the Atproto-Proxy target that routes a Habitat
+// method (network.habitat.*) from the session's own server to this app's
+// Habitat instance, or undefined when the session already talks to the
+// instance. A member whose account lives on another PDS (such as the spaces
+// alpha PDS) signs in there rather than at pear, and their PDS would answer
+// those methods with "No service configured" unless told where to proxy them.
+export function instanceProxy(
+  session: Pick<OAuthSession, "serverMetadata">,
+  env: Pick<Env, "APP_HABITAT_URL">,
+  nsid: string,
+): string | undefined {
+  if (!nsid.startsWith("network.habitat.")) return undefined;
+  // Without either there is nothing to route by; send the call as is.
+  const issuer = session.serverMetadata?.issuer;
+  if (!issuer || !env.APP_HABITAT_URL) return undefined;
+  const instance = new URL(env.APP_HABITAT_URL);
+  if (new URL(issuer).origin === instance.origin) return undefined;
+  return `did:web:${instance.host}#habitat`;
+}
+
 // HabitatClient makes authenticated calls to the Habitat instance as a
 // specific DID — a member, or an org a member has connected — using the
 // OAuth session chalk holds for it (src/server/oauth.ts). Calls go to the
@@ -131,9 +151,9 @@ export class HabitatClient {
     let path = `/xrpc/${nsid}`;
     let body: string | undefined;
     const headers: Record<string, string> = {};
-    if (opts?.atprotoProxy) {
-      headers["atproto-proxy"] = opts.atprotoProxy;
-    }
+    const session = await this.agent();
+    const proxy = opts?.atprotoProxy ?? instanceProxy(session, this.env, nsid);
+    if (proxy) headers["atproto-proxy"] = proxy;
     if (method === "GET") {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(payload)) {
@@ -144,9 +164,7 @@ export class HabitatClient {
       body = JSON.stringify(payload);
       headers["content-type"] = "application/json";
     }
-    const res = await (
-      await this.agent()
-    ).fetchHandler(path, { method, body, headers });
+    const res = await session.fetchHandler(path, { method, body, headers });
     if (res.status === 401) {
       throw new UnauthorizedError(
         this.did,
@@ -173,11 +191,14 @@ export class HabitatClient {
     bytes: Uint8Array,
     mimeType: string,
   ): Promise<{ blob: unknown; cid: string }> {
-    const res = await (
-      await this.agent()
-    ).fetchHandler("/xrpc/network.habitat.repo.uploadBlob", {
+    const nsid = "network.habitat.repo.uploadBlob";
+    const session = await this.agent();
+    const headers: Record<string, string> = { "content-type": mimeType };
+    const proxy = instanceProxy(session, this.env, nsid);
+    if (proxy) headers["atproto-proxy"] = proxy;
+    const res = await session.fetchHandler(`/xrpc/${nsid}`, {
       method: "POST",
-      headers: { "content-type": mimeType },
+      headers,
       body: bytes as BodyInit,
     });
     if (res.status === 401) {

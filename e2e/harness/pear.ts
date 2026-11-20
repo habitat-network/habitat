@@ -53,6 +53,13 @@ export const PEAR_ORIGIN = `https://${PEAR_DOMAIN}`;
  */
 export const APP_ORIGIN = `https://app.${PEAR_DOMAIN}`;
 
+/**
+ * Where the Habitat app (typescript/apps/app: docs, files and group management,
+ * the successor of chalk) is served by the compose test bed. Pear fetches its
+ * OAuth client metadata from here.
+ */
+export const CHALK_ORIGIN = `https://chalk.${PEAR_DOMAIN}`;
+
 /** Where the alpha PDS (compose test bed only) is served, behind the same TLS proxy. */
 export const PDS_ORIGIN = `https://pds.${PEAR_DOMAIN}`;
 
@@ -151,6 +158,10 @@ async function startCompose(): Promise<PearInstance> {
     .withWaitStrategy(
       "pds-1",
       Wait.forHttp("/xrpc/_health", 3000).forStatusCode(200),
+    )
+    .withWaitStrategy(
+      "chalk-1",
+      Wait.forHttp("/oauth/client-metadata.json", 5181).forStatusCode(200),
     )
     .withWaitStrategy("caddy-1", Wait.forListeningPorts())
     // The first run also builds the PLC directory and pulls the PDS image.

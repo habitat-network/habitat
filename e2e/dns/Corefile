@@ -1,0 +1,18 @@
+# Wildcard DNS for the e2e test bed (see compose.yaml `dns`): every name under
+# habitat-e2e.dev is the TLS proxy (caddy's fixed address). Docker's own DNS has
+# no wildcards, and the orgs pear creates get did:webs at random subdomains
+# (did:web:<random>.habitat-e2e.dev) that the PDS and the app resolve when they
+# proxy a call to a group.
+habitat-e2e.dev {
+	template IN A {
+		answer "{{ .Name }} 60 IN A 10.231.17.10"
+	}
+	template IN AAAA {
+		rcode NOERROR
+	}
+}
+
+# Everything else goes to Docker's DNS in this container, which uses the host's.
+. {
+	forward . /etc/resolv.conf
+}

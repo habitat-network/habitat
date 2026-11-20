@@ -6,6 +6,7 @@ import type { SeedData } from "./seed";
 import type { PdsAccounts } from "./pds";
 import { MemberLoginPage } from "./pages/memberLogin";
 import { WebApp } from "./pages/webApp";
+import { ChalkApp } from "./pages/chalkApp";
 
 let orgCounter = 0;
 
@@ -26,6 +27,8 @@ interface Fixtures {
   memberLogin: MemberLoginPage;
   /** The web client (compose test bed only); see harness/pages/webApp.ts. */
   webApp: WebApp;
+  /** The Habitat app, for docs and files (compose test bed only); see harness/pages/chalkApp.ts. */
+  chalk: ChalkApp;
 }
 
 /**
@@ -75,6 +78,9 @@ export const test = base.extend<Fixtures>({
   },
   webApp: async ({ page }, use) => {
     await use(new WebApp(page));
+  },
+  chalk: async ({ page }, use) => {
+    await use(new ChalkApp(page));
   },
 });
 

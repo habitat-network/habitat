@@ -7,6 +7,7 @@ on:
       - e2e/**
       - frontend/**
       - typescript/internal/**
+      - typescript/apps/app/**
       - cmd/pear/**
       - internal/**
       - typescript/apps/pear-pages/**

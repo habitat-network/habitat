@@ -17,6 +17,13 @@ https://app.habitat-e2e.dev {
 	reverse_proxy frontend:80
 }
 
+# The Habitat app (typescript/apps/app). Pear fetches its OAuth client metadata
+# from here.
+https://chalk.habitat-e2e.dev {
+	tls /certs/cert.pem /certs/key.pem
+	reverse_proxy chalk:5181
+}
+
 # The instance itself, plus the host-routed identities (DID documents, handles)
 # of every org under it.
 https://habitat-e2e.dev, https://*.habitat-e2e.dev {
