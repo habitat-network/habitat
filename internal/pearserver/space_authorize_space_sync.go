@@ -100,7 +100,7 @@ func (p *PearServer) validateNotify(n comatproto.ComAtprotoSpaceAuthorizeSpaceSy
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return errors.New("endpoint must be an absolute URL without credentials or query")
 	}
-	if u.Scheme != "https" && !(p.insecureWebhooks && u.Scheme == "http") {
+	if u.Scheme != "https" && (!p.insecureWebhooks || u.Scheme != "http") {
 		return errors.New("endpoint must be https")
 	}
 	return nil
