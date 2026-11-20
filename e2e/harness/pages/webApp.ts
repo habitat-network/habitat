@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { APP_ORIGIN, PDS_ORIGIN, PEAR_ORIGIN } from "../pear";
+import { APP_ORIGIN, PDS_ORIGIN } from "../pear";
 import type { PdsAccount } from "../pds";
 import { PageErrors } from "../pageErrors";
 
@@ -23,9 +23,9 @@ export class WebApp {
   }
 
   /**
-   * Signs in as a PDS account: the web client sends the browser to pear, pear
-   * to the account's PDS (its own OAuth sign-in and consent pages), and the PDS
-   * back to pear's consent screen.
+   * Signs in as a PDS account. The web client is an atproto OAuth client of the
+   * account's PDS, so this is the PDS's own sign-in and consent pages and then
+   * straight back to the web client. (For a *.test handle, the "PDS" is pear.)
    */
   async signIn(account: PdsAccount) {
     const { page } = this;
@@ -39,14 +39,17 @@ export class WebApp {
     await page
       .getByRole("button", { name: /^(authorize|accept|allow)$/i })
       .click();
-    await page.waitForURL(`${PEAR_ORIGIN}/**`);
-    await this.finishSignIn();
+    await this.landed();
   }
 
-  /** Signs in with a *.test handle, which pear lets in without credentials. */
+  /**
+   * Signs in with a *.test handle, which pear lets in without credentials,
+   * leaving only pear's consent screen.
+   */
   async signInPassthrough(handle: string) {
     await this.startSignIn(handle);
-    await this.finishSignIn();
+    await this.page.getByRole("button", { name: "Authorize" }).click();
+    await this.landed();
   }
 
   private async startSignIn(handle: string) {
@@ -56,11 +59,10 @@ export class WebApp {
     await page.getByRole("button", { name: "Sign In" }).click();
   }
 
-  /** Pear's consent screen, then back on the web client. */
-  private async finishSignIn() {
+  /** Back on the web client, signed in. */
+  private async landed() {
     const { page } = this;
-    await page.getByRole("button", { name: "Authorize" }).click();
-    // Errors from pear's and the PDS's own sign-in pages (e.g. their missing
+    // Errors from pear's or the PDS's own sign-in pages (e.g. their missing
     // favicon) are not what the tests are about.
     await page.waitForURL(`${APP_ORIGIN}/**`);
     this.errors.reset();

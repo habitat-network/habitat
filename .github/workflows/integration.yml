@@ -33,9 +33,6 @@ jobs:
       # moon skips runInCI:false tasks when CI=true, which GitHub always sets.
       - name: Run integration tests
         run: pnpm --dir e2e exec playwright test
-        env:
-          # Prints these test bed services' logs at teardown.
-          E2E_PEAR_LOGS: pear,pds,plc
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}

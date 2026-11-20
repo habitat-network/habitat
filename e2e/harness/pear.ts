@@ -181,14 +181,21 @@ async function startCompose(): Promise<PearInstance> {
     pdsAddress: `${pds.getHost()}:${pds.getMappedPort(3000)}`,
     stop: async () => {
       // E2E_PEAR_LOGS=1 prints pear's logs; a comma-separated list of service
-      // names (e.g. "pear,pds,plc") prints those.
+      // names (e.g. "pear,pds,plc") prints those. (Container.logs() follows the
+      // log and never ends, so ask compose for what is there so far.)
       const logs = process.env.E2E_PEAR_LOGS;
       if (logs) {
         const services = logs === "1" ? ["pear"] : logs.split(",");
-        for (const service of services) {
-          process.stderr.write(`--- ${service} logs ---\n`);
-          const stream = await started.getContainer(`${service}-1`).logs();
-          for await (const chunk of stream) process.stderr.write(chunk);
+        try {
+          process.stderr.write(
+            execFileSync(
+              "docker",
+              ["compose", "-p", project, "logs", "--no-color", ...services],
+              { maxBuffer: 64 * 1024 * 1024 },
+            ),
+          );
+        } catch (err) {
+          process.stderr.write(`could not read test bed logs: ${err}\n`);
         }
       }
       await started.down({ removeVolumes: true, timeout: 5_000 });

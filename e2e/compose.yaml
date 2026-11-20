@@ -95,6 +95,9 @@ services:
   # volume, which the harness removes with the rest of the test bed.
   pds:
     image: ${PDS_IMAGE:-ghcr.io/bluesky-social/atproto:pds-spaces-alpha}
+    # The image runs as `node` but has no /pds, so the volume mounted there is
+    # root's.
+    user: root
     environment:
       PDS_HOSTNAME: pds.habitat-e2e.dev
       PDS_PORT: "3000"
@@ -108,7 +111,7 @@ services:
       # Throwaway secrets, for the test instance only.
       PDS_JWT_SECRET: e2e-jwt-secret-0123456789abcdef
       PDS_ADMIN_PASSWORD: e2e-admin-password
-      PDS_DPOP_SECRET: 0123456789abcdef0123456789abcdef
+      PDS_DPOP_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: 7ed17afd1a9ae5c1c9a2f6b0d3e5b4c8a1f2e3d4c5b6a79881726354453627a1
       # The PDS fetches OAuth client metadata from pear and the web client, which
       # are on the compose network behind the self-signed certificate.
