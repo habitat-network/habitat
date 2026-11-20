@@ -11,9 +11,26 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as MemberRouteImport } from './routes/_member'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DotwellKnownDidDotjsonRouteImport } from './routes/[.]well-known.did[.]json'
 import { Route as MemberIndexRouteImport } from './routes/_member/index'
+import { Route as MemberConnectionsRouteImport } from './routes/_member/connections'
+import { Route as MemberJoinRouteImport } from './routes/_member/join'
+import { Route as ApiDownloadRouteImport } from './routes/api.download'
+import { Route as ApiUploadRouteImport } from './routes/api.upload'
 import { Route as OauthCallbackRouteImport } from './routes/oauth.callback'
 import { Route as OauthClientMetadataDotjsonRouteImport } from './routes/oauth.client-metadata[.]json'
+import { Route as WsDocIdRouteImport } from './routes/ws.$docId'
+import { Route as XrpcNsidRouteImport } from './routes/xrpc.$nsid'
+import { Route as MemberGOrgRouteImport } from './routes/_member/g.$org'
+import { Route as MemberGroupsNewRouteImport } from './routes/_member/groups.new'
+import { Route as MemberGOrgIndexRouteImport } from './routes/_member/g.$org/index'
+import { Route as MemberGOrgFilesRouteImport } from './routes/_member/g.$org/files'
+import { Route as MemberGOrgMcpRouteImport } from './routes/_member/g.$org/mcp'
+import { Route as MemberGOrgMembersRouteImport } from './routes/_member/g.$org/members'
+import { Route as MemberGOrgRolesRouteImport } from './routes/_member/g.$org/roles'
+import { Route as MemberGOrgSearchRouteImport } from './routes/_member/g.$org/search'
+import { Route as MemberGOrgSettingsRouteImport } from './routes/_member/g.$org/settings'
+import { Route as MemberGOrgDocsDocIdRouteImport } from './routes/_member/g.$org/docs.$docId'
 
 const MemberRoute = MemberRouteImport.update({
   id: '/_member',
@@ -24,10 +41,35 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DotwellKnownDidDotjsonRoute = DotwellKnownDidDotjsonRouteImport.update({
+  id: '/.well-known/did.json',
+  path: '/.well-known/did.json',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MemberIndexRoute = MemberIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => MemberRoute,
+} as any)
+const MemberConnectionsRoute = MemberConnectionsRouteImport.update({
+  id: '/connections',
+  path: '/connections',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberJoinRoute = MemberJoinRouteImport.update({
+  id: '/join',
+  path: '/join',
+  getParentRoute: () => MemberRoute,
+} as any)
+const ApiDownloadRoute = ApiDownloadRouteImport.update({
+  id: '/api/download',
+  path: '/api/download',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiUploadRoute = ApiUploadRouteImport.update({
+  id: '/api/upload',
+  path: '/api/upload',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const OauthCallbackRoute = OauthCallbackRouteImport.update({
   id: '/oauth/callback',
@@ -40,46 +82,219 @@ const OauthClientMetadataDotjsonRoute =
     path: '/oauth/client-metadata.json',
     getParentRoute: () => rootRouteImport,
   } as any)
+const WsDocIdRoute = WsDocIdRouteImport.update({
+  id: '/ws/$docId',
+  path: '/ws/$docId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const XrpcNsidRoute = XrpcNsidRouteImport.update({
+  id: '/xrpc/$nsid',
+  path: '/xrpc/$nsid',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemberGOrgRoute = MemberGOrgRouteImport.update({
+  id: '/g/$org',
+  path: '/g/$org',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberGroupsNewRoute = MemberGroupsNewRouteImport.update({
+  id: '/groups/new',
+  path: '/groups/new',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberGOrgIndexRoute = MemberGOrgIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
+const MemberGOrgFilesRoute = MemberGOrgFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
+const MemberGOrgMcpRoute = MemberGOrgMcpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
+const MemberGOrgMembersRoute = MemberGOrgMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
+const MemberGOrgRolesRoute = MemberGOrgRolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
+const MemberGOrgSearchRoute = MemberGOrgSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
+const MemberGOrgSettingsRoute = MemberGOrgSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
+const MemberGOrgDocsDocIdRoute = MemberGOrgDocsDocIdRouteImport.update({
+  id: '/docs/$docId',
+  path: '/docs/$docId',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof MemberIndexRoute
   '/login': typeof LoginRoute
+  '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
+  '/connections': typeof MemberConnectionsRoute
+  '/join': typeof MemberJoinRoute
+  '/api/download': typeof ApiDownloadRoute
+  '/api/upload': typeof ApiUploadRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
+  '/ws/$docId': typeof WsDocIdRoute
+  '/xrpc/$nsid': typeof XrpcNsidRoute
+  '/g/$org': typeof MemberGOrgRouteWithChildren
+  '/groups/new': typeof MemberGroupsNewRoute
+  '/g/$org/files': typeof MemberGOrgFilesRoute
+  '/g/$org/mcp': typeof MemberGOrgMcpRoute
+  '/g/$org/members': typeof MemberGOrgMembersRoute
+  '/g/$org/roles': typeof MemberGOrgRolesRoute
+  '/g/$org/search': typeof MemberGOrgSearchRoute
+  '/g/$org/settings': typeof MemberGOrgSettingsRoute
+  '/g/$org/': typeof MemberGOrgIndexRoute
+  '/g/$org/docs/$docId': typeof MemberGOrgDocsDocIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
+  '/connections': typeof MemberConnectionsRoute
+  '/join': typeof MemberJoinRoute
+  '/api/download': typeof ApiDownloadRoute
+  '/api/upload': typeof ApiUploadRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
+  '/ws/$docId': typeof WsDocIdRoute
+  '/xrpc/$nsid': typeof XrpcNsidRoute
   '/': typeof MemberIndexRoute
+  '/groups/new': typeof MemberGroupsNewRoute
+  '/g/$org/files': typeof MemberGOrgFilesRoute
+  '/g/$org/mcp': typeof MemberGOrgMcpRoute
+  '/g/$org/members': typeof MemberGOrgMembersRoute
+  '/g/$org/roles': typeof MemberGOrgRolesRoute
+  '/g/$org/search': typeof MemberGOrgSearchRoute
+  '/g/$org/settings': typeof MemberGOrgSettingsRoute
+  '/g/$org': typeof MemberGOrgIndexRoute
+  '/g/$org/docs/$docId': typeof MemberGOrgDocsDocIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_member': typeof MemberRouteWithChildren
   '/login': typeof LoginRoute
+  '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
+  '/_member/connections': typeof MemberConnectionsRoute
+  '/_member/join': typeof MemberJoinRoute
+  '/api/download': typeof ApiDownloadRoute
+  '/api/upload': typeof ApiUploadRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
+  '/ws/$docId': typeof WsDocIdRoute
+  '/xrpc/$nsid': typeof XrpcNsidRoute
   '/_member/': typeof MemberIndexRoute
+  '/_member/g/$org': typeof MemberGOrgRouteWithChildren
+  '/_member/groups/new': typeof MemberGroupsNewRoute
+  '/_member/g/$org/files': typeof MemberGOrgFilesRoute
+  '/_member/g/$org/mcp': typeof MemberGOrgMcpRoute
+  '/_member/g/$org/members': typeof MemberGOrgMembersRoute
+  '/_member/g/$org/roles': typeof MemberGOrgRolesRoute
+  '/_member/g/$org/search': typeof MemberGOrgSearchRoute
+  '/_member/g/$org/settings': typeof MemberGOrgSettingsRoute
+  '/_member/g/$org/': typeof MemberGOrgIndexRoute
+  '/_member/g/$org/docs/$docId': typeof MemberGOrgDocsDocIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/oauth/callback' | '/oauth/client-metadata.json'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/.well-known/did.json'
+    | '/connections'
+    | '/join'
+    | '/api/download'
+    | '/api/upload'
+    | '/oauth/callback'
+    | '/oauth/client-metadata.json'
+    | '/ws/$docId'
+    | '/xrpc/$nsid'
+    | '/g/$org'
+    | '/groups/new'
+    | '/g/$org/files'
+    | '/g/$org/mcp'
+    | '/g/$org/members'
+    | '/g/$org/roles'
+    | '/g/$org/search'
+    | '/g/$org/settings'
+    | '/g/$org/'
+    | '/g/$org/docs/$docId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/oauth/callback' | '/oauth/client-metadata.json' | '/'
+  to:
+    | '/login'
+    | '/.well-known/did.json'
+    | '/connections'
+    | '/join'
+    | '/api/download'
+    | '/api/upload'
+    | '/oauth/callback'
+    | '/oauth/client-metadata.json'
+    | '/ws/$docId'
+    | '/xrpc/$nsid'
+    | '/'
+    | '/groups/new'
+    | '/g/$org/files'
+    | '/g/$org/mcp'
+    | '/g/$org/members'
+    | '/g/$org/roles'
+    | '/g/$org/search'
+    | '/g/$org/settings'
+    | '/g/$org'
+    | '/g/$org/docs/$docId'
   id:
     | '__root__'
     | '/_member'
     | '/login'
+    | '/.well-known/did.json'
+    | '/_member/connections'
+    | '/_member/join'
+    | '/api/download'
+    | '/api/upload'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
+    | '/ws/$docId'
+    | '/xrpc/$nsid'
     | '/_member/'
+    | '/_member/g/$org'
+    | '/_member/groups/new'
+    | '/_member/g/$org/files'
+    | '/_member/g/$org/mcp'
+    | '/_member/g/$org/members'
+    | '/_member/g/$org/roles'
+    | '/_member/g/$org/search'
+    | '/_member/g/$org/settings'
+    | '/_member/g/$org/'
+    | '/_member/g/$org/docs/$docId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   MemberRoute: typeof MemberRouteWithChildren
   LoginRoute: typeof LoginRoute
+  DotwellKnownDidDotjsonRoute: typeof DotwellKnownDidDotjsonRoute
+  ApiDownloadRoute: typeof ApiDownloadRoute
+  ApiUploadRoute: typeof ApiUploadRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
   OauthClientMetadataDotjsonRoute: typeof OauthClientMetadataDotjsonRoute
+  WsDocIdRoute: typeof WsDocIdRoute
+  XrpcNsidRoute: typeof XrpcNsidRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -98,12 +313,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/.well-known/did.json': {
+      id: '/.well-known/did.json'
+      path: '/.well-known/did.json'
+      fullPath: '/.well-known/did.json'
+      preLoaderRoute: typeof DotwellKnownDidDotjsonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_member/': {
       id: '/_member/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof MemberIndexRouteImport
       parentRoute: typeof MemberRoute
+    }
+    '/_member/connections': {
+      id: '/_member/connections'
+      path: '/connections'
+      fullPath: '/connections'
+      preLoaderRoute: typeof MemberConnectionsRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/join': {
+      id: '/_member/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof MemberJoinRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/api/download': {
+      id: '/api/download'
+      path: '/api/download'
+      fullPath: '/api/download'
+      preLoaderRoute: typeof ApiDownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/upload': {
+      id: '/api/upload'
+      path: '/api/upload'
+      fullPath: '/api/upload'
+      preLoaderRoute: typeof ApiUploadRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/oauth/callback': {
       id: '/oauth/callback'
@@ -119,15 +369,133 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthClientMetadataDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ws/$docId': {
+      id: '/ws/$docId'
+      path: '/ws/$docId'
+      fullPath: '/ws/$docId'
+      preLoaderRoute: typeof WsDocIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/xrpc/$nsid': {
+      id: '/xrpc/$nsid'
+      path: '/xrpc/$nsid'
+      fullPath: '/xrpc/$nsid'
+      preLoaderRoute: typeof XrpcNsidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_member/g/$org': {
+      id: '/_member/g/$org'
+      path: '/g/$org'
+      fullPath: '/g/$org'
+      preLoaderRoute: typeof MemberGOrgRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/groups/new': {
+      id: '/_member/groups/new'
+      path: '/groups/new'
+      fullPath: '/groups/new'
+      preLoaderRoute: typeof MemberGroupsNewRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/g/$org/': {
+      id: '/_member/g/$org/'
+      path: '/'
+      fullPath: '/g/$org/'
+      preLoaderRoute: typeof MemberGOrgIndexRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
+    '/_member/g/$org/files': {
+      id: '/_member/g/$org/files'
+      path: '/files'
+      fullPath: '/g/$org/files'
+      preLoaderRoute: typeof MemberGOrgFilesRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
+    '/_member/g/$org/mcp': {
+      id: '/_member/g/$org/mcp'
+      path: '/mcp'
+      fullPath: '/g/$org/mcp'
+      preLoaderRoute: typeof MemberGOrgMcpRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
+    '/_member/g/$org/members': {
+      id: '/_member/g/$org/members'
+      path: '/members'
+      fullPath: '/g/$org/members'
+      preLoaderRoute: typeof MemberGOrgMembersRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
+    '/_member/g/$org/roles': {
+      id: '/_member/g/$org/roles'
+      path: '/roles'
+      fullPath: '/g/$org/roles'
+      preLoaderRoute: typeof MemberGOrgRolesRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
+    '/_member/g/$org/search': {
+      id: '/_member/g/$org/search'
+      path: '/search'
+      fullPath: '/g/$org/search'
+      preLoaderRoute: typeof MemberGOrgSearchRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
+    '/_member/g/$org/settings': {
+      id: '/_member/g/$org/settings'
+      path: '/settings'
+      fullPath: '/g/$org/settings'
+      preLoaderRoute: typeof MemberGOrgSettingsRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
+    '/_member/g/$org/docs/$docId': {
+      id: '/_member/g/$org/docs/$docId'
+      path: '/docs/$docId'
+      fullPath: '/g/$org/docs/$docId'
+      preLoaderRoute: typeof MemberGOrgDocsDocIdRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
   }
 }
 
+interface MemberGOrgRouteChildren {
+  MemberGOrgFilesRoute: typeof MemberGOrgFilesRoute
+  MemberGOrgMcpRoute: typeof MemberGOrgMcpRoute
+  MemberGOrgMembersRoute: typeof MemberGOrgMembersRoute
+  MemberGOrgRolesRoute: typeof MemberGOrgRolesRoute
+  MemberGOrgSearchRoute: typeof MemberGOrgSearchRoute
+  MemberGOrgSettingsRoute: typeof MemberGOrgSettingsRoute
+  MemberGOrgIndexRoute: typeof MemberGOrgIndexRoute
+  MemberGOrgDocsDocIdRoute: typeof MemberGOrgDocsDocIdRoute
+}
+
+const MemberGOrgRouteChildren: MemberGOrgRouteChildren = {
+  MemberGOrgFilesRoute: MemberGOrgFilesRoute,
+  MemberGOrgMcpRoute: MemberGOrgMcpRoute,
+  MemberGOrgMembersRoute: MemberGOrgMembersRoute,
+  MemberGOrgRolesRoute: MemberGOrgRolesRoute,
+  MemberGOrgSearchRoute: MemberGOrgSearchRoute,
+  MemberGOrgSettingsRoute: MemberGOrgSettingsRoute,
+  MemberGOrgIndexRoute: MemberGOrgIndexRoute,
+  MemberGOrgDocsDocIdRoute: MemberGOrgDocsDocIdRoute,
+}
+
+const MemberGOrgRouteWithChildren = MemberGOrgRoute._addFileChildren(
+  MemberGOrgRouteChildren,
+)
+
 interface MemberRouteChildren {
+  MemberConnectionsRoute: typeof MemberConnectionsRoute
+  MemberJoinRoute: typeof MemberJoinRoute
   MemberIndexRoute: typeof MemberIndexRoute
+  MemberGOrgRoute: typeof MemberGOrgRouteWithChildren
+  MemberGroupsNewRoute: typeof MemberGroupsNewRoute
 }
 
 const MemberRouteChildren: MemberRouteChildren = {
+  MemberConnectionsRoute: MemberConnectionsRoute,
+  MemberJoinRoute: MemberJoinRoute,
   MemberIndexRoute: MemberIndexRoute,
+  MemberGOrgRoute: MemberGOrgRouteWithChildren,
+  MemberGroupsNewRoute: MemberGroupsNewRoute,
 }
 
 const MemberRouteWithChildren =
@@ -136,19 +504,23 @@ const MemberRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   MemberRoute: MemberRouteWithChildren,
   LoginRoute: LoginRoute,
+  DotwellKnownDidDotjsonRoute: DotwellKnownDidDotjsonRoute,
+  ApiDownloadRoute: ApiDownloadRoute,
+  ApiUploadRoute: ApiUploadRoute,
   OauthCallbackRoute: OauthCallbackRoute,
   OauthClientMetadataDotjsonRoute: OauthClientMetadataDotjsonRoute,
+  WsDocIdRoute: WsDocIdRoute,
+  XrpcNsidRoute: XrpcNsidRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
+import type { createStart } from '@tanstack/react-start'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

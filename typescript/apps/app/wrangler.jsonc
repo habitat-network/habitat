@@ -1,9 +1,15 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "app",
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/server/entry.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
+  // One DocRoom per document: it owns the doc's Yjs state and its editors'
+  // WebSockets (see src/server/docs/rooms/docRoom.ts).
+  "durable_objects": {
+    "bindings": [{ "name": "DOC", "class_name": "DocRoom" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DocRoom"] }],
   "d1_databases": [
     {
       "binding": "DB",
@@ -13,6 +19,8 @@
       "migrations_dir": "drizzle",
     },
   ],
+  // Runs the space sync passes that have come due (src/server/sync.ts).
+  "triggers": { "crons": ["* * * * *"] },
   // Deployment values, not local dev's: override locally via `.dev.vars`.
   // APP_SESSION_SECRET and APP_CREDENTIALS_KEY are wrangler secrets (see
   // README.md).
@@ -21,4 +29,10 @@
     "APP_HABITAT_URL": "https://pear.habitat.network",
   },
   "dev": { "port": 5181 },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+    },
+  },
 }

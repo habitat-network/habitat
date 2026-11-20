@@ -1,0 +1,410 @@
+// Queries over the docs mirror (docs, sharing, comments), ported from Chalk.
+import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  lt,
+  notInArray,
+  or,
+} from "drizzle-orm";
+import {
+  docs,
+  docAccess,
+  docOrgAccess,
+  connectedOrgs,
+  comments,
+  commentReplies,
+} from "./schema";
+import type { Db } from ".";
+
+export interface DocSummary {
+  docId: string;
+  uri: string;
+  ownerDid: string;
+  title: string;
+}
+
+export async function upsertDoc(
+  db: Db,
+  doc: {
+    spaceUri: string;
+    docId: string;
+    ownerDid: string;
+    title: string;
+  },
+): Promise<void> {
+  const now = Date.now();
+  await db
+    .insert(docs)
+    .values({ ...doc, updatedAt: now })
+    .onConflictDoUpdate({
+      target: docs.spaceUri,
+      set: {
+        docId: doc.docId,
+        ownerDid: doc.ownerDid,
+        title: doc.title,
+        updatedAt: now,
+      },
+    });
+}
+
+function toSummary(r: typeof docs.$inferSelect): DocSummary {
+  return {
+    docId: r.docId,
+    uri: r.spaceUri,
+    ownerDid: r.ownerDid,
+    title: r.title,
+  };
+}
+
+// docsFor returns the docs a subject can open, per the
+// doc_access rows synced from network.habitat.relationship.userRelation
+// (see sink.ts), and — in org mode — the doc_org_access rows that share a
+// doc with a whole org.
+//
+// Both modes are the same query, differing only in which docs are in scope.
+// A doc's ownerDid is its space authority (the <did> in
+// at://<did>/space/<type>/<skey>), so it says which identity the doc
+// belongs to: in org mode that's the org itself, and org mode lists the
+// org's docs the member can reach — shared with the whole org, or granted
+// to them personally, which covers a doc they created but haven't shared.
+//
+// Personal mode is the complement: docs belonging to a person rather than
+// an org, which is why it excludes any doc whose authority is an org this
+// deployment knows (connected_orgs — an org's docs only reach this DB once
+// somebody connects it). Without that an org doc would show up in its
+// creator's personal list, since they hold a personal grant on it. There's
+// no org to match either, so the org join finds nothing (no doc_org_access
+// row has an empty org DID) and only personal grants remain.
+//
+// Each join matches at most one row (both are keyed by their table's
+// primary key), so a doc reachable both ways still appears once.
+export async function docsFor(
+  db: Db,
+  subjectDid: string,
+  orgDid?: string,
+): Promise<DocSummary[]> {
+  const rows = await db
+    .select({
+      spaceUri: docs.spaceUri,
+      docId: docs.docId,
+      ownerDid: docs.ownerDid,
+      title: docs.title,
+      updatedAt: docs.updatedAt,
+    })
+    .from(docs)
+    .leftJoin(
+      docAccess,
+      and(
+        eq(docs.spaceUri, docAccess.spaceUri),
+        eq(docAccess.subjectDid, subjectDid),
+      ),
+    )
+    .leftJoin(
+      docOrgAccess,
+      and(
+        eq(docs.spaceUri, docOrgAccess.spaceUri),
+        eq(docOrgAccess.orgDid, orgDid ?? ""),
+      ),
+    )
+    .where(
+      and(
+        orgDid
+          ? eq(docs.ownerDid, orgDid)
+          : notInArray(
+              docs.ownerDid,
+              db.select({ orgDid: connectedOrgs.orgDid }).from(connectedOrgs),
+            ),
+        or(isNotNull(docAccess.spaceUri), isNotNull(docOrgAccess.spaceUri)),
+      ),
+    )
+    .orderBy(desc(docs.updatedAt));
+  return rows.map(toSummary);
+}
+
+// upsertDocAccess records or updates a live grant, keyed by
+// (subjectDid, spaceUri) — a user holds at most one role on a given space.
+// uri (the relation record's own URI) is stored alongside purely so the
+// matching delete tombstone, which carries only that URI, can find this row.
+export async function upsertDocAccess(
+  db: Db,
+  access: {
+    uri: string;
+    spaceUri: string;
+    subjectDid: string;
+    relation: string;
+  },
+): Promise<void> {
+  const row = { ...access, updatedAt: Date.now() };
+  await db
+    .insert(docAccess)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [docAccess.subjectDid, docAccess.spaceUri],
+      set: {
+        uri: row.uri,
+        relation: row.relation,
+        updatedAt: row.updatedAt,
+      },
+    });
+}
+
+// deleteDocAccess removes a grant by its relation record's URI, in response
+// to a synced delete of that record.
+export async function deleteDocAccess(db: Db, uri: string): Promise<void> {
+  await db.delete(docAccess).where(eq(docAccess.uri, uri));
+}
+
+// upsertDocOrgAccess records or updates a doc's org-wide grant, keyed by
+// (orgDid, spaceUri) — an org holds at most one relation on a given doc.
+export async function upsertDocOrgAccess(
+  db: Db,
+  access: {
+    uri: string;
+    spaceUri: string;
+    orgDid: string;
+    relation: string;
+  },
+): Promise<void> {
+  const row = { ...access, updatedAt: Date.now() };
+  await db
+    .insert(docOrgAccess)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [docOrgAccess.orgDid, docOrgAccess.spaceUri],
+      set: {
+        uri: row.uri,
+        relation: row.relation,
+        updatedAt: row.updatedAt,
+      },
+    });
+}
+
+// deleteDocOrgAccess removes a doc's org-wide grant by the spaceRelation
+// record's own URI, mirroring deleteDocAccess.
+export async function deleteDocOrgAccess(db: Db, uri: string): Promise<void> {
+  await db.delete(docOrgAccess).where(eq(docOrgAccess.uri, uri));
+}
+
+export async function docByUri(
+  db: Db,
+  spaceUri: string,
+): Promise<DocSummary | undefined> {
+  const [row] = await db
+    .select()
+    .from(docs)
+    .where(eq(docs.spaceUri, spaceUri))
+    .limit(1);
+  return row ? toSummary(row) : undefined;
+}
+
+export interface CommentRow {
+  uri: string;
+  cid: string;
+  docSpaceUri: string;
+  authorDid: string;
+  body: string;
+  anchorStart: Uint8Array;
+  anchorEnd: Uint8Array;
+  quotedText: string | null;
+  createdAt: number;
+}
+
+// upsertComment mirrors one network.habitat.docs.comment record — the root
+// of a thread — into the comments table. Keyed by the record's own URI, so
+// re-delivery of the same record by the syncer (delivery is at-least-once —
+// see sink.ts) updates in place rather than duplicating
+// the comment. cid is stored so a reply can build the
+// com.atproto.repo.strongRef it needs without a separate read.
+export async function upsertComment(
+  db: Db,
+  comment: {
+    uri: string;
+    cid: string;
+    docSpaceUri: string;
+    authorDid: string;
+    body: string;
+    anchorStart: Uint8Array;
+    anchorEnd: Uint8Array;
+    quotedText?: string | null;
+    createdAt?: number;
+  },
+): Promise<void> {
+  const row = {
+    ...comment,
+    quotedText: comment.quotedText ?? null,
+    createdAt: comment.createdAt ?? Date.now(),
+  };
+  await db
+    .insert(comments)
+    .values(row)
+    .onConflictDoUpdate({
+      target: comments.uri,
+      set: {
+        cid: row.cid,
+        docSpaceUri: row.docSpaceUri,
+        authorDid: row.authorDid,
+        body: row.body,
+        anchorStart: row.anchorStart,
+        anchorEnd: row.anchorEnd,
+        quotedText: row.quotedText,
+        createdAt: row.createdAt,
+      },
+    });
+}
+
+// commentsForDoc returns every thread-starting comment on a doc, oldest
+// first. Ordered by (createdAt, uri) rather than createdAt alone so two
+// comments written in the same millisecond still come back in a stable
+// order across calls.
+export async function commentsForDoc(
+  db: Db,
+  docSpaceUri: string,
+): Promise<CommentRow[]> {
+  return db
+    .select()
+    .from(comments)
+    .where(eq(comments.docSpaceUri, docSpaceUri))
+    .orderBy(asc(comments.createdAt), asc(comments.uri));
+}
+
+// commentByUri looks up a single root comment by its own URI — used to
+// resolve the strongRef a reply needs to reference it (uri + cid) when the
+// caller only has the URI in hand.
+export async function commentByUri(
+  db: Db,
+  uri: string,
+): Promise<CommentRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(comments)
+    .where(eq(comments.uri, uri))
+    .limit(1);
+  return row;
+}
+
+// deleteComment removes a comment by its record URI, in response to either
+// an explicit delete or the syncer delivering that record's deletion.
+// Its replies are left as-is (they reference the URI,
+// which still identifies the thread even once the root record is gone) —
+// cleaning those up isn't implemented; deleting a thread's root is not
+// itself a supported operation yet.
+export async function deleteComment(db: Db, uri: string): Promise<void> {
+  await db.delete(comments).where(eq(comments.uri, uri));
+}
+
+export interface CommentReplyRow {
+  uri: string;
+  docSpaceUri: string;
+  commentUri: string;
+  authorDid: string;
+  body: string;
+  createdAt: number;
+}
+
+// upsertCommentReply mirrors one network.habitat.docs.commentReply record.
+// Keyed by the reply's own URI, same reasoning as upsertComment.
+export async function upsertCommentReply(
+  db: Db,
+  reply: {
+    uri: string;
+    docSpaceUri: string;
+    commentUri: string;
+    authorDid: string;
+    body: string;
+    createdAt?: number;
+  },
+): Promise<void> {
+  const row = { ...reply, createdAt: reply.createdAt ?? Date.now() };
+  await db
+    .insert(commentReplies)
+    .values(row)
+    .onConflictDoUpdate({
+      target: commentReplies.uri,
+      set: {
+        docSpaceUri: row.docSpaceUri,
+        commentUri: row.commentUri,
+        authorDid: row.authorDid,
+        body: row.body,
+        createdAt: row.createdAt,
+      },
+    });
+}
+
+// repliesForDoc returns every reply on a doc, oldest first — grouped by
+// commentUri client-side the same way commentsForDoc's rows are grouped
+// into threads.
+export async function repliesForDoc(
+  db: Db,
+  docSpaceUri: string,
+): Promise<CommentReplyRow[]> {
+  return db
+    .select()
+    .from(commentReplies)
+    .where(eq(commentReplies.docSpaceUri, docSpaceUri))
+    .orderBy(asc(commentReplies.createdAt), asc(commentReplies.uri));
+}
+
+// deleteCommentReply removes a reply by its record URI.
+export async function deleteCommentReply(db: Db, uri: string): Promise<void> {
+  await db.delete(commentReplies).where(eq(commentReplies.uri, uri));
+}
+
+// docAccessSubjects lists every user holding a direct grant on spaceUri, as
+// mirrored in doc_access — the members chalk may hold a session for, which
+// sync.ts's delegation source falls back to when the space authority's own
+// session isn't available.
+export async function docAccessSubjects(
+  db: Db,
+  spaceUri: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ subjectDid: docAccess.subjectDid })
+    .from(docAccess)
+    .where(eq(docAccess.spaceUri, spaceUri));
+  return rows.map((r) => r.subjectDid);
+}
+
+// mirroredRecordUris lists the record URIs under prefix (a space, or one
+// repo within a space) across every table that mirrors synced records —
+// what the sink needs to clear out after a repo reset, a removed repo, or a
+// deleted space. A range scan rather than LIKE, whose pattern D1 caps at 50
+// bytes — shorter than any record URI prefix.
+export async function mirroredRecordUris(
+  db: Db,
+  prefix: string,
+): Promise<string[]> {
+  const under = (col: SQLiteColumn) =>
+    and(gte(col, prefix), lt(col, `${prefix}\uffff`));
+  const results = await Promise.all([
+    db
+      .select({ uri: docAccess.uri })
+      .from(docAccess)
+      .where(under(docAccess.uri)),
+    db
+      .select({ uri: docOrgAccess.uri })
+      .from(docOrgAccess)
+      .where(under(docOrgAccess.uri)),
+    db.select({ uri: comments.uri }).from(comments).where(under(comments.uri)),
+    db
+      .select({ uri: commentReplies.uri })
+      .from(commentReplies)
+      .where(under(commentReplies.uri)),
+  ]);
+  return results.flat().map((r) => r.uri);
+}
+
+// deleteMirroredRecord removes whatever row mirrors the record at uri, in
+// whichever table holds it.
+export async function deleteMirroredRecord(db: Db, uri: string): Promise<void> {
+  await db.batch([
+    db.delete(docAccess).where(eq(docAccess.uri, uri)),
+    db.delete(docOrgAccess).where(eq(docOrgAccess.uri, uri)),
+    db.delete(comments).where(eq(comments.uri, uri)),
+    db.delete(commentReplies).where(eq(commentReplies.uri, uri)),
+  ]);
+}
