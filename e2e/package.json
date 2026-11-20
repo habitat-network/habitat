@@ -10,6 +10,7 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@types/node": "catalog:",
+    "testcontainers": "^11.0.0",
     "typescript": "catalog:"
   }
 }

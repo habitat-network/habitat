@@ -1,6 +1,5 @@
 import { test, expect } from "../harness/fixtures";
-import { APP_ORIGIN } from "../harness/pear";
-import { PageErrors } from "../harness/pageErrors";
+import { WebApp } from "../harness/pages/webApp";
 
 test.skip(
   !process.env.E2E_APP,
@@ -13,40 +12,17 @@ test.skip(
 // error UI along the way.
 test("clicking through the spaces pages from the list to a record shows no errors", async ({
   page,
+  webApp,
 }) => {
-  const errors = new PageErrors(page);
-  const handle = `alice-${Date.now().toString(36)}-${test.info().parallelIndex}.test`;
+  const handle = WebApp.uniqueHandle("alice", test.info().parallelIndex);
   const did = `did:web:${handle}`;
   const spaceType = "network.habitat.e2e.thing";
   const collection = "network.habitat.e2e.note";
-
-  // Wherever we are, an error boundary or toast means something went wrong.
-  const expectNoErrorUi = async () => {
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
-    await expect(page.getByRole("alert")).toHaveCount(0);
-  };
-  const step = async () => {
-    await page.waitForLoadState("networkidle");
-    await errors.expectNone();
-    await expectNoErrorUi();
-  };
-
-  // The header's Spaces button (the breadcrumbs on deeper pages are links).
-  const openSpaces = () =>
-    page.getByRole("button", { name: "Spaces", exact: true }).click();
+  const step = () => webApp.expectClean();
+  const openSpaces = () => webApp.openSpaces();
 
   await test.step("sign in through the *.test provider", async () => {
-    await page.goto(`${APP_ORIGIN}/oauth-login`);
-    await page.getByPlaceholder(/alice\.bsky\.social/).fill(handle);
-    await page.getByRole("button", { name: "Sign In" }).click();
-    // The passthrough provider signs in without asking for credentials, leaving
-    // only pear's consent screen.
-    await page.getByRole("button", { name: "Authorize" }).click();
-    // Back on the web client. Errors from pear's own sign-in pages (e.g. their
-    // missing favicon) are not what this test is about.
-    await page.waitForURL(`${APP_ORIGIN}/**`);
-    errors.reset();
-    await expect(page.getByRole("button", { name: "Logout" })).toBeVisible();
+    await webApp.signIn(handle);
     await step();
   });
 

@@ -4,6 +4,7 @@ import { PEAR_ORIGIN, hostResolverRule } from "./pear";
 import { registerMcpClient, type McpClient } from "./oauth";
 import type { SeedData } from "./seed";
 import { MemberLoginPage } from "./pages/memberLogin";
+import { WebApp } from "./pages/webApp";
 
 let orgCounter = 0;
 
@@ -17,6 +18,8 @@ interface Fixtures {
   /** A freshly registered OAuth client for driving member sign-in. */
   mcpClient: McpClient;
   memberLogin: MemberLoginPage;
+  /** The web client (compose test bed only); see harness/pages/webApp.ts. */
+  webApp: WebApp;
 }
 
 /**
@@ -57,6 +60,9 @@ export const test = base.extend<Fixtures>({
   },
   memberLogin: async ({ page }, use) => {
     await use(new MemberLoginPage(page));
+  },
+  webApp: async ({ page }, use) => {
+    await use(new WebApp(page));
   },
 });
 

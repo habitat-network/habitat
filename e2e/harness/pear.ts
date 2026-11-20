@@ -3,6 +3,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  DockerComposeEnvironment,
+  Wait,
+  type StartedDockerComposeEnvironment,
+} from "testcontainers";
 
 const e2eRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -91,8 +96,9 @@ ${site} {
  *  - PEAR_BINARY=<path>               run a locally built pear binary and the
  *                                     caddy on PATH (CADDY_BIN to override);
  *                                     no Docker needed
- *  - default                          docker compose (compose.yaml): pear on
- *                                     Postgres, the web client and caddy
+ *  - default                          docker compose (compose.yaml, started with
+ *                                     testcontainers): pear on Postgres, the
+ *                                     web client and caddy
  *
  * Only the compose flavour serves the web client (APP_ORIGIN); tests that need
  * it check `E2E_APP`.
@@ -112,39 +118,55 @@ export async function startPear(): Promise<PearInstance> {
 }
 
 async function startCompose(): Promise<PearInstance> {
+  // E2E_COMPOSE_FILES adds comma-separated compose files (relative to e2e/) on
+  // top of compose.yaml, e.g. to run prebuilt images instead of building them.
+  const files = [
+    "compose.yaml",
+    ...(process.env.E2E_COMPOSE_FILES?.split(",").filter(Boolean) ?? []),
+  ];
   const project = `habitat-e2e-${process.pid}`;
-  const compose = (...args: string[]) =>
-    execFileSync("docker", ["compose", "-p", project, ...args], {
-      cwd: e2eRoot,
-      encoding: "utf8",
-      env: { ...process.env, ...PEAR_ENV, DOCKER_BUILDKIT: "1" },
-      stdio: ["ignore", "pipe", "inherit"],
-    });
-  const stop = async () => {
-    if (process.env.E2E_PEAR_LOGS) {
-      process.stderr.write(compose("logs", "--no-color", "pear"));
-    }
-    compose("down", "--volumes", "--remove-orphans", "--timeout", "5");
-  };
-  try {
+  const environment = new DockerComposeEnvironment(e2eRoot, files)
+    .withProjectName(project)
+    // Pear's secrets reach compose.yaml by interpolation.
+    .withEnvironment(PEAR_ENV)
     // Builds the pear and web client images on first use (cached afterwards).
-    compose("up", "--detach", "--build");
-    const mapped = (service: string, port: string) =>
-      // "0.0.0.0:49153" (or "[::]:49153") -> "localhost:49153"
-      `localhost:${compose("port", service, port).trim().split(":").pop()}`;
-    const address = mapped("pear", "8000");
-    await waitForHealth(address);
-    return { address, tlsAddress: mapped("caddy", "443"), app: true, stop };
+    .withBuild()
+    .withWaitStrategy(
+      "pear-1",
+      Wait.forHttp("/health", 8000).forStatusCode(200),
+    )
+    .withWaitStrategy("caddy-1", Wait.forListeningPorts())
+    .withStartupTimeout(120_000);
+  let started: StartedDockerComposeEnvironment;
+  try {
+    started = await environment.up(["pear", "caddy"]);
   } catch (err) {
-    let logs = "";
+    // `up` leaves what it started behind when it fails.
     try {
-      logs = compose("logs", "--no-color", "--tail", "60");
+      execFileSync(
+        "docker",
+        ["compose", "-p", project, "down", "--volumes", "--timeout", "5"],
+        { stdio: "ignore" },
+      );
     } catch {
       // best effort
     }
-    await stop().catch(() => {});
-    throw new Error(`test bed failed to start: ${err}\n--- logs ---\n${logs}`);
+    throw new Error(`test bed failed to start: ${err}`);
   }
+  const pear = started.getContainer("pear-1");
+  const caddy = started.getContainer("caddy-1");
+  return {
+    address: `${pear.getHost()}:${pear.getMappedPort(8000)}`,
+    tlsAddress: `${caddy.getHost()}:${caddy.getMappedPort(443)}`,
+    app: true,
+    stop: async () => {
+      if (process.env.E2E_PEAR_LOGS) {
+        const stream = await pear.logs();
+        for await (const chunk of stream) process.stderr.write(chunk);
+      }
+      await started.down({ removeVolumes: true, timeout: 5_000 });
+    },
+  };
 }
 
 async function startBinary(binary: string): Promise<PearInstance> {

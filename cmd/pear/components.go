@@ -310,7 +310,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	credentialRevocations := authn.NewCredentialRevocations(
 		kv.Namespace("space_credential_revoked"),
 	)
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, credentialRevocations)
+	// Credentials are signed by the space's authority, which for an org is a hive
+	// identity under this server's own domain: hiveDir resolves it locally
+	// instead of this server fetching its own DID document over the network.
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(hiveDir, credentialRevocations)
 	validator := authn.NewValidator(
 		oauthServer,
 		serviceAuth,
