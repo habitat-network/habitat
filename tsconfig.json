@@ -34,6 +34,9 @@
     },
     {
       "path": "./typescript/internal"
+    },
+    {
+      "path": "./typescript/jetstream"
     }
   ],
   "compilerOptions": {

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { DidString, SpaceRefString } from "@atproto/syntax";
+import type { DidString } from "@atproto/syntax";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { community } from "api";
 import { Effect, Schema } from "effect";
@@ -7,7 +7,8 @@ import { BadRequest } from "@/server/effect/errors";
 import { requireOrg } from "@/server/effect/member";
 import { runEffect } from "@/server/effect/run";
 import { AppEnv, Habitat } from "@/server/effect/services";
-import { syncNow } from "@/server/sync";
+import { MEMBERSHIP_COLLECTION } from "@/server/members/sink";
+import { awaitIndexed } from "@/server/stream";
 import {
   getProfiles,
   listMembers,
@@ -224,13 +225,17 @@ export const removeMember = createServerFn({ method: "POST" })
           { body: { org, member: data.member as DidString } },
           viaGroup(org),
         );
-        // Bring the roster in step now, so they lose access at once rather
-        // than when pear's notification or the next cron run delivers it.
+        // pear deletes the member's membership record from the roster;
+        // wait for the group's stream to index that, so they lose access
+        // here at once.
         const env = yield* AppEnv;
-        yield* Effect.promise(() =>
-          syncNow(env, membersSpace(org) as SpaceRefString),
+        const membership = `${membersSpace(org)}/${org}/${MEMBERSHIP_COLLECTION}/${data.member}`;
+        yield* Effect.tryPromise(() =>
+          awaitIndexed(env, org, membership, null),
         ).pipe(
-          Effect.catch((e) => Effect.logWarning("syncing roster failed", e)),
+          Effect.catch((e) =>
+            Effect.logWarning("indexing roster change failed", e),
+          ),
         );
         yield* Effect.logInfo("removed member", { org, member: data.member });
       }),

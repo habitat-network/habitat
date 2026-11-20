@@ -5,11 +5,19 @@
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   // One DocRoom per document: it owns the doc's Yjs state and its editors'
-  // WebSockets (see src/server/docs/rooms/docRoom.ts).
+  // WebSockets (see src/server/docs/rooms/docRoom.ts). One OrgStream per
+  // connected group: it follows the group's spaces over pear's subscribe
+  // stream and indexes them into D1 (see src/server/stream/orgStream.ts).
   "durable_objects": {
-    "bindings": [{ "name": "DOC", "class_name": "DocRoom" }],
+    "bindings": [
+      { "name": "DOC", "class_name": "DocRoom" },
+      { "name": "ORG_STREAM", "class_name": "OrgStream" },
+    ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DocRoom"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["DocRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["OrgStream"] },
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -19,7 +27,8 @@
       "migrations_dir": "drizzle",
     },
   ],
-  // Runs the space sync passes that have come due (src/server/sync.ts).
+  // Makes sure every connected group's stream is running
+  // (src/server/stream/index.ts).
   "triggers": { "crons": ["* * * * *"] },
   // Deployment values, not local dev's: override locally via `.dev.vars`.
   // APP_SESSION_SECRET and APP_CREDENTIALS_KEY are wrangler secrets (see

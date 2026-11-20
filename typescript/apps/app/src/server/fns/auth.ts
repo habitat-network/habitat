@@ -2,8 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import type { DidString } from "@atproto/syntax";
 import { Effect, Schema } from "effect";
 import { upsertConnectedOrg } from "@/db";
-import { COMMENTS_SPACE_TYPE } from "@/server/docs/comments.server";
-import { DOCS_SPACE_TYPE } from "@/server/docs/docs.server";
 import { BadRequest, Forbidden } from "@/server/effect/errors";
 import {
   CurrentSession,
@@ -13,24 +11,17 @@ import {
 } from "@/server/effect/member";
 import { runEffect } from "@/server/effect/run";
 import { AppEnv, Database, OAuth, messageOf } from "@/server/effect/services";
-import { FILE_SPACE_TYPE } from "@/server/files/files.server";
 import { readGroupProfile } from "@/server/groups";
 import type { OAuthAppState } from "@/server/habitatClient";
 import { EMAIL_DOMAIN_NOT_FOUND_MESSAGE } from "internal";
 import { OAUTH_SCOPE } from "@/server/oauth";
-import { watchSpacesOf } from "@/server/sync";
+import { followOrg } from "@/server/stream";
 
 // Sign-in, sign-out, and connecting a group. The app is a plain atproto
 // OAuth client of the Habitat instance: members sign in with their handle
 // (or work email), and an admin connects a group by running the same flow
 // with the group's DID, which pear routes through its admin approval. Both
 // sessions are stored in D1 under their DID.
-
-const SYNCED_SPACE_TYPES = [
-  DOCS_SPACE_TYPE,
-  COMMENTS_SPACE_TYPE,
-  FILE_SPACE_TYPE,
-];
 
 // authorize begins an OAuth flow for loginHint, returning the URL the
 // browser should go to next.
@@ -101,8 +92,8 @@ export const startGroupConnect = createServerFn({ method: "POST" })
 //   group's, and that the member who started it is still the one signed in,
 //   then records the group as connected.
 //
-// Either way, the spaces the new session can list start syncing:
-// best-effort, since a hiccup there shouldn't fail the sign-in.
+// A connected group's stream starts at once: best-effort, since a hiccup
+// there shouldn't fail the connect (the cron run starts it anyway).
 export const completeOAuth = createServerFn({ method: "POST" })
   .validator(
     Schema.decodeUnknownSync(
@@ -125,19 +116,11 @@ export const completeOAuth = createServerFn({ method: "POST" })
           ? (JSON.parse(state) as OAuthAppState)
           : { kind: "member" };
 
-        const watch = (did: string, owner?: string) =>
-          Effect.tryPromise(() =>
-            watchSpacesOf(env, did, SYNCED_SPACE_TYPES, owner),
-          ).pipe(
-            Effect.catch((e) => Effect.logWarning("watching spaces failed", e)),
-          );
-
         if (appState.kind === "member") {
           yield* session.update({ did: oauthSession.did });
           yield* refreshMemberships().pipe(
             Effect.catch((e) => Effect.logWarning("listing groups failed", e)),
           );
-          yield* watch(oauthSession.did);
           yield* Effect.logInfo("member signed in", { did: oauthSession.did });
           return { to: "/" };
         }
@@ -159,7 +142,11 @@ export const completeOAuth = createServerFn({ method: "POST" })
             connectedBy: appState.memberDid,
           }),
         );
-        yield* watch(org, org);
+        // Follow the group's stream from now on: it replays every record
+        // the group can read into D1, then follows it live.
+        yield* Effect.tryPromise(() => followOrg(env, org)).pipe(
+          Effect.catch((e) => Effect.logWarning("following group failed", e)),
+        );
         yield* Effect.logInfo("group connected", {
           org,
           by: appState.memberDid,

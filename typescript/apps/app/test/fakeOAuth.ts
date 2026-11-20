@@ -25,7 +25,9 @@ export function createOAuthClient() {
       fetchHandler: (path: string, init: RequestInit = {}) => {
         const headers = new Headers(init.headers);
         headers.set(TEST_DID_HEADER, did);
-        return fetch(`${PDS}${path}`, { ...init, headers });
+        // Absolute URLs (a stream's upgrade request) go where they say.
+        const url = /^https?:/.test(path) ? path : `${PDS}${path}`;
+        return fetch(url, { ...init, headers });
       },
     }),
   };

@@ -27,6 +27,9 @@ type CredentialInfo struct {
 	// minute or so, so, as with relays' subscriptions, one authorizes a stream
 	// when it opens.
 	ExpiresAt time.Time
+	// Scopes are the OAuth scopes granted to the token, for OAuth
+	// credentials; nil for every other method.
+	Scopes []string
 }
 
 type Validator interface {

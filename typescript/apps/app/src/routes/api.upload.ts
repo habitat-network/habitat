@@ -17,7 +17,6 @@ import {
   uploadBlob,
 } from "@/server/files/files.server";
 import { requireConnected } from "@/server/groups";
-import { syncNow } from "@/server/sync";
 import { MAX_FILE_BYTES, formatBytes } from "@/lib/files";
 
 // POST /api/upload?org=<group DID>&name=<file name> with the file's bytes as
@@ -26,8 +25,9 @@ import { MAX_FILE_BYTES, formatBytes } from "@/lib/files";
 //
 // The file gets its own group space (readable by every member), its blob,
 // and the record naming it, all written with the group's own session. The
-// list is only ever filled in by the syncer, so this waits briefly for the
-// new space's first pass; if that failed, syncError says why.
+// list is only ever filled in from the group's stream, so this returns once
+// the stream has indexed the new record; if that took too long, syncError
+// says so.
 export const Route = createFileRoute("/api/upload")({
   server: {
     handlers: {
@@ -76,8 +76,10 @@ export const Route = createFileRoute("/api/upload")({
                       cause,
                     ),
             });
-            yield* attempt(org, "files.putRecord", () =>
-              putFileRecord(session, org, space, {
+            // Returns once the group's stream has indexed the record, so
+            // the file list already shows it.
+            const { indexed } = yield* attempt(org, "files.putRecord", () =>
+              putFileRecord(env, org, space, {
                 name,
                 blob,
                 uploadedBy: did as DidString,
@@ -87,16 +89,11 @@ export const Route = createFileRoute("/api/upload")({
               space,
               bytes: bytes.byteLength,
               mimeType,
+              indexed,
             });
-            const { syncError } = yield* Effect.promise(() =>
-              syncNow(env, space),
-            );
-            if (syncError) {
-              yield* Effect.logWarning("first sync of uploaded file failed", {
-                space,
-                syncError,
-              });
-            }
+            const syncError = indexed
+              ? undefined
+              : "Uploaded, but it may take a moment to appear in the list";
             return Response.json({ space, syncError });
           }),
         ),

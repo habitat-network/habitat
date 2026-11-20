@@ -45,9 +45,14 @@ The app is a public atproto OAuth client of a Habitat instance (pear).
   are made as the signed-in member and proxied to the group's Habitat
   instance (`atproto-proxy: <org>#habitat`), so pear decides what each
   member may do. Pages only hide controls the member's roles don't grant.
-- **Sync**: docs, comments and files are mirrored into D1 by the space
-  syncer (`src/server/sync.ts`), driven by space notifications at
-  `/xrpc/...` and a once-a-minute cron.
+- **Sync**: docs, comments, files and rosters are indexed into D1 from each
+  connected group's `network.habitat.space.subscribe` stream, opened with
+  the group's own session by an `OrgStream` Durable Object
+  (`src/server/stream/`, using `@habitat-network/jetstream`), with one cursor
+  per group. Writes that must show at once (uploads, file deletes, removing
+  a member) go through it and return once their event is indexed. The
+  once-a-minute cron makes sure every connected group's stream is running.
+  Blobs are still read with a space credential (`src/server/sync.ts`).
 
 ## Server code and Effect
 

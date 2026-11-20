@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacescope"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -53,7 +54,7 @@ func TestServeWebSocketStreamsUntilSubscriberCloses(t *testing.T) {
 	log.add(spaceA, "1")
 	conn, result := setupWebSocket(t, log, Subscription{
 		Query:  Query{Cursor: new(spaces.EventSeq(0))},
-		Reader: UserReader{DID: alice},
+		Reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}},
 	})
 	require.Equal(t, []string{"commit 1 1"}, summary([]frame{readWSFrame(t, conn)}))
 
@@ -64,7 +65,7 @@ func TestServeWebSocketStreamsUntilSubscriberCloses(t *testing.T) {
 }
 
 func TestServeWebSocketRejectsClientData(t *testing.T) {
-	conn, result := setupWebSocket(t, &fakeLog{}, Subscription{Reader: UserReader{DID: alice}})
+	conn, result := setupWebSocket(t, &fakeLog{}, Subscription{Reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}}})
 	require.NoError(
 		t,
 		conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"options_update"}`)),
@@ -93,7 +94,7 @@ func TestServeWebSocketRequiresUpgrade(t *testing.T) {
 	server := NewServer(&fakeLog{}, &fakeRoles{}, NewBroadcaster())
 	w := httptest.NewRecorder()
 	err := server.ServeWebSocket(w, httptest.NewRequest(http.MethodGet, "/", http.NoBody),
-		Subscription{Reader: UserReader{DID: alice}})
+		Subscription{Reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}}})
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }

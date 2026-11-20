@@ -38,6 +38,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacescope"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -75,9 +76,12 @@ type Reader interface {
 }
 
 // UserReader is a stream authenticated as a user, with OAuth or service auth.
-// It carries events from every space the user holds the reader role on.
+// It carries events from every space the user holds the reader role on that
+// its credential's scope also covers: an OAuth token's space: grants, where
+// read_self narrows a space to the user's own records.
 type UserReader struct {
-	DID syntax.DID
+	DID   syntax.DID
+	Scope spacescope.Limit
 }
 
 // SpaceCredentialReader is a stream authenticated with a space credential. It
@@ -284,12 +288,20 @@ func (a *accessCache) allows(ctx context.Context, event spaces.Event) (bool, err
 	case SpaceCredentialReader:
 		return space == reader.Space, nil
 	case UserReader:
+		scope := reader.Scope.ReadAccess(space)
+		if scope == spacescope.ReadNone {
+			return false, nil
+		}
 		if _, ok := event.(spaces.SpaceDeletedEvent); ok {
 			// A deleted space has no roles left to check. Its deletion goes
 			// to subscribers that name it, which already know of it, and to
 			// its owner; see the lexicon's spaces parameter.
 			return space.SpaceOwner() == reader.DID ||
 				slices.Contains(a.sub.Query.Filter.Spaces, space), nil
+		}
+		if commit, ok := event.(spaces.CommitEvent); ok &&
+			scope == spacescope.ReadSelf && commit.Repo != reader.DID {
+			return false, nil
 		}
 		ok, cached := a.spaces[space]
 		if cached {

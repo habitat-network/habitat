@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacescope"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -65,14 +66,19 @@ func (l *fakeLog) ListEvents(
 	return out, nil
 }
 
-// add appends a commit in space at the next seq.
+// add appends alice's commit in space at the next seq.
 func (l *fakeLog) add(space habitat_syntax.SpaceURI, rkey syntax.RecordKey) {
+	l.addBy(space, rkey, alice)
+}
+
+// addBy appends repo's commit in space at the next seq.
+func (l *fakeLog) addBy(space habitat_syntax.SpaceURI, rkey syntax.RecordKey, repo syntax.DID) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.events = append(l.events, spaces.CommitEvent{
 		Seq:        spaces.EventSeq(len(l.events) + 1),
 		Space:      space,
-		Repo:       alice,
+		Repo:       repo,
 		Collection: "network.habitat.note",
 		Rkey:       rkey,
 		Rev:        "3l3qo2vutsw2b",
@@ -219,7 +225,7 @@ func TestStreamReplaysThenFollowsAuthorizedSpaces(t *testing.T) {
 		// A small page size, so the replay spans pages.
 		conn, stop := setupStream(t, log, roles, broadcaster, Subscription{
 			Query:  Query{Cursor: new(spaces.EventSeq(0))},
-			Reader: UserReader{DID: alice},
+			Reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}},
 		}, WithPageSize(2))
 		frames := conn.take()
 		require.Equal(t, []string{"commit 1 1", "commit 3 3"}, summary(frames),
@@ -278,7 +284,7 @@ func TestStreamCursor(t *testing.T) {
 				log.add(spaceA, "2")
 				conn, stop := setupStream(t, log, roles, broadcaster, Subscription{
 					Query:  Query{Cursor: tt.cursor},
-					Reader: UserReader{DID: alice},
+					Reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}},
 				})
 				log.add(spaceA, "3")
 				notify(broadcaster)
@@ -294,7 +300,7 @@ func TestStreamPollsWithoutWake(t *testing.T) {
 		log := &fakeLog{}
 		roles := &fakeRoles{readable: map[habitat_syntax.SpaceURI]bool{spaceA: true}}
 		conn, stop := setupStream(t, log, roles, NewBroadcaster(), Subscription{
-			Reader: UserReader{DID: alice},
+			Reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}},
 		}, WithPollInterval(time.Second))
 
 		// A write another pear instance made: no wake reaches this one.
@@ -337,12 +343,12 @@ func TestStreamSpaceDeletions(t *testing.T) {
 	}{
 		{
 			name:   "user receives deletions of spaces it owns",
-			reader: UserReader{DID: alice},
+			reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}},
 			want:   []string{"deleted 3 " + string(spaceC)},
 		},
 		{
 			name:   "user receives deletions of spaces it names",
-			reader: UserReader{DID: alice},
+			reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}},
 			filter: []habitat_syntax.SpaceURI{spaceA, spaceB},
 			want:   []string{"deleted 1 " + string(spaceA), "deleted 2 " + string(spaceB)},
 		},
@@ -396,8 +402,60 @@ func TestPrepareNarrowsSpaceCredential(t *testing.T) {
 	// A user's filter is left as asked.
 	sub, err = Prepare(Subscription{
 		Query:  Query{Filter: spaces.EventFilter{Spaces: []habitat_syntax.SpaceURI{spaceB}}},
-		Reader: UserReader{DID: alice},
+		Reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, []habitat_syntax.SpaceURI{spaceB}, sub.Query.Filter.Spaces)
+}
+
+func TestStreamLimitsUserToScope(t *testing.T) {
+	otherType := habitat_syntax.ConstructSpaceURI(org, "network.habitat.other", "d")
+	tests := []struct {
+		name   string
+		scopes []string
+		want   []string
+	}{
+		{
+			name:   "no space scopes read nothing",
+			scopes: []string{"atproto", "transition:generic"},
+			want:   nil,
+		},
+		{
+			name:   "a type-limited grant reads only that type",
+			scopes: []string{"space:network.habitat.group?authority=*&action=read"},
+			want:   []string{"commit 1 1", "commit 2 2"},
+		},
+		{
+			name:   "read_self reads only the user's own records",
+			scopes: []string{"space:*?authority=*&action=read_self"},
+			want:   []string{"commit 1 1", "commit 3 3"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := &fakeLog{}
+				log.add(spaceA, "1")
+				log.addBy(spaceA, "2", "did:plc:bob")
+				log.add(otherType, "3")
+				roles := &fakeRoles{readable: map[habitat_syntax.SpaceURI]bool{
+					spaceA: true, otherType: true,
+				}}
+				conn, stop := setupStream(t, log, roles, NewBroadcaster(), Subscription{
+					Query: Query{Cursor: new(spaces.EventSeq(0))},
+					Reader: UserReader{
+						DID:   alice,
+						Scope: spacescope.FromScopes(tt.scopes, alice),
+					},
+				})
+				got := summary(conn.take())
+				if tt.want == nil {
+					require.Empty(t, got)
+				} else {
+					require.Equal(t, tt.want, got)
+				}
+				require.ErrorIs(t, stop(), context.Canceled)
+			})
+		})
+	}
 }

@@ -6,9 +6,8 @@ import { deleteFileRecord } from "@/server/files/files.server";
 import { NotFound } from "@/server/effect/errors";
 import { requireOrg } from "@/server/effect/member";
 import { runEffect } from "@/server/effect/run";
-import { AppEnv, attempt, Database, Habitat } from "@/server/effect/services";
+import { AppEnv, attempt, Database } from "@/server/effect/services";
 import { getProfiles, requireConnected } from "@/server/groups";
-import { syncNow } from "@/server/sync";
 
 // Files: Drop's shared file bucket. Each uploaded file is its own group
 // space (type network.habitat.drop, readable by every member) holding one
@@ -67,17 +66,11 @@ export const deleteFile = createServerFn({ method: "POST" })
         if (!file || file.orgDid !== org) {
           return yield* new NotFound({ message: "File not found" });
         }
-        const habitat = yield* Habitat;
         const env = yield* AppEnv;
-        const session = yield* habitat.session(org);
+        // Returns once the files table no longer lists it.
         yield* attempt(org, "files.deleteRecord", () =>
-          deleteFileRecord(
-            session,
-            org as DidString,
-            file.space as SpaceRefString,
-          ),
+          deleteFileRecord(env, org as DidString, file.space as SpaceRefString),
         );
-        yield* Effect.promise(() => syncNow(env, file.space as SpaceRefString));
         yield* Effect.logInfo("deleted file", { file: data.uri });
       }),
     ),

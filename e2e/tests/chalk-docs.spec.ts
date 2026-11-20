@@ -7,8 +7,10 @@ test.skip(
 
 // A member on the alpha PDS (bob) signs in to the Habitat app (typescript/apps/app,
 // chalk's successor), creates a group, links it to the app (pear's admin
-// approval), then creates a doc and edits it. The edit must survive a reload
-// and show up as the doc's title in the group's files.
+// approval), uploads a file, then creates a doc and edits it. The upload must
+// be listed as soon as it returns, and the edit must survive a reload and
+// show up as the doc's title in the group's files: both arrive through the
+// group's subscribe stream.
 test("a member links a group, creates a doc and edits it", async ({
   page,
   chalk,
@@ -37,6 +39,32 @@ test("a member links a group, creates a doc and edits it", async ({
     await expect(
       page.getByRole("button", { name: "Connect group" }),
     ).toHaveCount(0);
+    await chalk.expectClean();
+  });
+
+  // An upload returns only once the group's stream has indexed its record
+  // (the app writes through @habitat-network/jetstream and waits for the
+  // event), so the list shows it with no polling or optimistic update.
+  await test.step("upload a file; it's listed once the upload returns", async () => {
+    await page.getByRole("link", { name: "Files" }).click();
+    const name = `e2e-${Date.now().toString(36)}.txt`;
+    const uploaded = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/upload") && res.request().method() === "POST",
+    );
+    await page.locator('input[type="file"]').setInputFiles({
+      name,
+      mimeType: "text/plain",
+      buffer: Buffer.from("uploaded by the e2e suite"),
+    });
+    const res = await uploaded;
+    expect(res.ok()).toBe(true);
+    expect(
+      ((await res.json()) as { syncError?: string }).syncError,
+    ).toBeUndefined();
+    await expect(page.getByRole("link", { name })).toBeVisible({
+      timeout: 5_000,
+    });
     await chalk.expectClean();
   });
 
