@@ -3,178 +3,359 @@ package spacecommit
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/binary"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/dunglas/httpsfv"
 	"github.com/ipfs/go-cid"
 )
 
 // Space repos authenticate commits and records with a MAC rather than a
-// signature. The MAC is keyed by a per-request shared secret (see
-// [Encapsulate] and [Decapsulate]) and carried in HTTP headers rather than in
-// the repo data:
+// signature, so a leaked response proves nothing to a third party. A MAC is an
+// HTTP message signature (RFC 9421) using hmac-sha256, keyed by a per-request
+// shared secret (see [Encapsulate] and [Decapsulate]).
 //
-//	Atproto-Space-Want-Mac: type="atproto-space-repo", ver=1, key_share="did:key:zDna..."
-//	Atproto-Space-Mac: type="atproto-space-repo", ver=1, mac=:<padded standard base64>:
-//	Vary: Atproto-Space-Want-Mac
+// The syncer requests a MAC with an Accept-Signature header whose tag names a
+// profile, with the key share as its keyid:
+//
+//	Accept-Signature: mac=("atproto-space-commit";sf);keyid="did:key:zDna...";tag="atproto-space-commit"
+//
+// The host answers with a header describing the commit or record it returned,
+// and a MAC covering that header:
+//
+//	Atproto-Space-Commit: ver=1, repo="did:...", space="at://...", rev="...", data=:...:
+//	Signature-Input: mac=("atproto-space-commit";sf);keyid="did:key:zDna...";tag="atproto-space-commit"
+//	Signature: mac=:<padded standard base64>:
+//	Vary: Accept-Signature
 const (
-	// WantMACHeader is the request header carrying the syncer's key share.
-	WantMACHeader = "Atproto-Space-Want-Mac"
-	// MACHeader is the response header carrying the MAC.
-	MACHeader = "Atproto-Space-Mac"
+	// AcceptSignatureHeader is the request header a syncer asks for a MAC with.
+	AcceptSignatureHeader = "Accept-Signature"
 
-	// CommitMACType authenticates a commit (getLatestCommit, listRepoOps,
-	// getRepo). Its version is the commit's own, [Version].
-	CommitMACType = "atproto-space-repo"
-	// RecordMACType authenticates a single record's URI and CID (getRecord).
+	// CommitMACType is the profile (and tag) of a commit's MAC, covering the
+	// Atproto-Space-Commit header (getLatestCommit, listRepoOps, getRepo).
+	CommitMACType = "atproto-space-commit"
+	// RecordMACType is the profile (and tag) of a record's MAC, covering the
+	// Atproto-Space-Record header (getRecord).
 	RecordMACType = "atproto-space-record"
-	// RecordMACVersion is the version of [RecordMACType].
-	RecordMACVersion = 1
+
+	macAlg = "hmac-sha256"
+	// macLabel is the label a syncer requests its MAC under; a host answers
+	// under whichever label it was requested with.
+	macLabel = "mac"
+
+	signatureInputHeader = "Signature-Input"
+	signatureHeader      = "Signature"
 )
 
-// ErrBadSpaceMAC reports a missing or malformed MAC header, an unsupported MAC
-// type or version, or an invalid key share. Repo hosts answer it as the
-// BadSpaceMac XRPC error.
-var ErrBadSpaceMAC = errors.New("bad space mac")
+// ErrInvalidSpaceMAC reports a missing or malformed MAC request or response
+// header, an unsupported profile or algorithm, or an invalid key share. Repo
+// hosts answer it as the InvalidSpaceMac XRPC error.
+var ErrInvalidSpaceMAC = errors.New("invalid space mac")
 
-// macVersion is the version a MAC type is currently on.
-func macVersion(typ string) int64 {
-	if typ == CommitMACType {
-		return Version
+// coveredHeader is the header a profile's MAC covers, which is also the
+// profile's name.
+func coveredHeader(profile string) string { return profile }
+
+// componentList is the covered component list of a profile's MAC: its header,
+// flagged sf as a structured field.
+func componentList(profile string) string {
+	return `("` + coveredHeader(profile) + `";sf)`
+}
+
+// FormatMACRequest builds the Accept-Signature request header value asking for
+// profile's MAC keyed by keyShare.
+func FormatMACRequest(profile, keyShare string) string {
+	return fmt.Sprintf(
+		`%s=%s;keyid=%q;tag=%q`, macLabel, componentList(profile), keyShare, profile,
+	)
+}
+
+// MACRequest is a MAC request as a host reads it from Accept-Signature.
+type MACRequest struct {
+	Label    string
+	KeyShare string
+	// SignatureParams is the requested signature parameters, serialized. The
+	// host's MAC uses them as given.
+	SignatureParams string
+}
+
+// ParseMACRequest finds the MAC requested for profile in a request's
+// Accept-Signature headers and checks the host can fulfill it. Requests with
+// other tags are ignored: it returns nil with no error when none is for
+// profile. Any other problem wraps [ErrInvalidSpaceMAC].
+func ParseMACRequest(h http.Header, profile string) (*MACRequest, error) {
+	values := h.Values(AcceptSignatureHeader)
+	if len(values) == 0 {
+		return nil, nil
 	}
-	return RecordMACVersion
+	d, err := httpsfv.UnmarshalDictionary(values)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			AcceptSignatureHeader,
+			err,
+		)
+	}
+	label, params, err := memberWithTag(d, profile)
+	if err != nil || params == nil {
+		return nil, err
+	}
+	if got := serializeComponents(params.Items); got != componentList(profile) {
+		return nil, fmt.Errorf(
+			"%w: MAC must cover exactly %s",
+			ErrInvalidSpaceMAC,
+			componentList(profile),
+		)
+	}
+	for _, name := range params.Params.Names() {
+		if name != "keyid" && name != "tag" && name != "alg" {
+			return nil, fmt.Errorf("%w: unsupported MAC parameter: %s", ErrInvalidSpaceMAC, name)
+		}
+	}
+	if alg, ok := params.Params.Get("alg"); ok && alg != macAlg {
+		return nil, fmt.Errorf("%w: MAC algorithm must be %s", ErrInvalidSpaceMAC, macAlg)
+	}
+	keyShare, ok := params.Params.Get("keyid")
+	keyShareStr, isString := keyShare.(string)
+	if !ok || !isString || !strings.HasPrefix(keyShareStr, "did:") {
+		return nil, fmt.Errorf("%w: missing or malformed keyid", ErrInvalidSpaceMAC)
+	}
+	serialized, err := httpsfv.Marshal(*params)
+	if err != nil {
+		return nil, fmt.Errorf("serialize signature params: %w", err)
+	}
+	return &MACRequest{Label: label, KeyShare: keyShareStr, SignatureParams: serialized}, nil
 }
 
-// RecordMAC computes a record's MAC under sharedSecret:
-//
-//	context = "atproto-space-record-v1" || uint16be(len(uri)) || uri
-//	mac = HMAC-SHA256(shared_secret, context || record_cid_bytes)
-//
-// uri is the full space record URI, and the CID is in its binary form.
-func RecordMAC(sharedSecret []byte, uri string, c cid.Cid) []byte {
-	b := []byte(RecordMACType + "-v1")
-	b = appendVec(b, []byte(uri))
-	return hmacSHA256(sharedSecret, b, c.Bytes())
+// SetCommitMAC sets a commit's response headers: Atproto-Space-Commit
+// describing it, and a MAC over that header requested by req and keyed by
+// sharedSecret. It also exposes the headers to browser apps. A host must list
+// Accept-Signature in Vary on every response that can carry a MAC, with or
+// without one.
+func SetCommitMAC(h http.Header, c Commit, req MACRequest, sharedSecret []byte) error {
+	d := httpsfv.NewDictionary()
+	d.Add("ver", httpsfv.NewItem(int64(c.Ver)))
+	d.Add("repo", httpsfv.NewItem(c.Repo.String()))
+	d.Add("space", httpsfv.NewItem(c.Space.String()))
+	d.Add("rev", httpsfv.NewItem(c.Rev))
+	d.Add("data", httpsfv.NewItem(c.Data))
+	return setMAC(h, CommitMACType, d, req, sharedSecret)
 }
 
-// VerifyRecordMAC checks mac against a record's URI and CID in constant time.
-// Returns an error wrapping [ErrInvalidCommit] on a mismatch.
-func VerifyRecordMAC(sharedSecret []byte, uri string, c cid.Cid, mac []byte) error {
-	if !hmac.Equal(RecordMAC(sharedSecret, uri, c), mac) {
-		return fmt.Errorf("%w: record mac mismatch", ErrInvalidCommit)
+// SetRecordMAC sets a record's response headers: Atproto-Space-Record naming
+// its URI and CID, and a MAC over that header. See [SetCommitMAC].
+func SetRecordMAC(h http.Header, uri string, c cid.Cid, req MACRequest, sharedSecret []byte) error {
+	d := httpsfv.NewDictionary()
+	d.Add("uri", httpsfv.NewItem(uri))
+	d.Add("cid", httpsfv.NewItem(c.String()))
+	return setMAC(h, RecordMACType, d, req, sharedSecret)
+}
+
+func setMAC(
+	h http.Header,
+	profile string,
+	covered *httpsfv.Dictionary,
+	req MACRequest,
+	sharedSecret []byte,
+) error {
+	value, err := httpsfv.Marshal(covered)
+	if err != nil {
+		return fmt.Errorf("format %s header: %w", coveredHeader(profile), err)
+	}
+	mac := hmacSHA256(sharedSecret, signatureBase(profile, value, req.SignatureParams))
+	h.Set(coveredHeader(profile), value)
+	h.Set(signatureInputHeader, req.Label+"="+req.SignatureParams)
+	h.Set(signatureHeader, req.Label+"=:"+base64.StdEncoding.EncodeToString(mac)+":")
+	h.Add(
+		"Access-Control-Expose-Headers",
+		coveredHeader(profile)+", "+signatureInputHeader+", "+signatureHeader,
+	)
+	return nil
+}
+
+// VerifyCommitMAC checks a response's MAC, and that the Atproto-Space-Commit
+// header it covers describes c, in constant time. keyShare and sharedSecret are
+// those the request was made with. A malformed or missing header wraps
+// [ErrInvalidSpaceMAC]; a mismatch wraps [ErrInvalidCommit].
+func VerifyCommitMAC(h http.Header, c Commit, keyShare string, sharedSecret []byte) error {
+	fields, err := verifyMAC(h, CommitMACType, keyShare, sharedSecret)
+	if err != nil {
+		return err
+	}
+	data, _ := fields["data"].([]byte)
+	if fields["ver"] != int64(c.Ver) ||
+		fields["repo"] != c.Repo.String() ||
+		fields["space"] != c.Space.String() ||
+		fields["rev"] != c.Rev ||
+		!hmac.Equal(data, c.Data) {
+		return fmt.Errorf("%w: commit does not match its mac", ErrInvalidCommit)
 	}
 	return nil
 }
 
-// FormatWantMAC builds the Atproto-Space-Want-Mac request header value.
-func FormatWantMAC(typ, keyShare string) (string, error) {
-	d := httpsfv.NewDictionary()
-	d.Add("type", httpsfv.NewItem(typ))
-	d.Add("ver", httpsfv.NewItem(macVersion(typ)))
-	d.Add("key_share", httpsfv.NewItem(keyShare))
-	return httpsfv.Marshal(d)
-}
-
-// ParseWantMAC parses an Atproto-Space-Want-Mac request header, checking its
-// type and version, and returns its key share. A missing header returns
-// ok=false with no error, so a caller can tell "not requested" (allowed on
-// OAuth requests) from "malformed"; any other problem wraps [ErrBadSpaceMAC].
-func ParseWantMAC(h http.Header, typ string) (keyShare string, ok bool, err error) {
-	values := h.Values(WantMACHeader)
-	if len(values) == 0 {
-		return "", false, nil
-	}
-	fields, err := parseMACDictionary(values, typ)
+// VerifyRecordMAC checks a response's MAC, and that the Atproto-Space-Record
+// header it covers names uri and c. See [VerifyCommitMAC].
+func VerifyRecordMAC(
+	h http.Header,
+	uri string,
+	c cid.Cid,
+	keyShare string,
+	sharedSecret []byte,
+) error {
+	fields, err := verifyMAC(h, RecordMACType, keyShare, sharedSecret)
 	if err != nil {
-		return "", true, err
+		return err
 	}
-	keyShare, isString := fields["key_share"].(string)
-	if !isString {
-		return "", true, fmt.Errorf("%w: missing or malformed key_share", ErrBadSpaceMAC)
+	if fields["uri"] != uri || fields["cid"] != c.String() {
+		return fmt.Errorf("%w: record does not match its mac", ErrInvalidCommit)
 	}
-	return keyShare, true, nil
-}
-
-// FormatMAC builds the Atproto-Space-Mac response header value.
-func FormatMAC(typ string, mac []byte) (string, error) {
-	d := httpsfv.NewDictionary()
-	d.Add("type", httpsfv.NewItem(typ))
-	d.Add("ver", httpsfv.NewItem(macVersion(typ)))
-	d.Add("mac", httpsfv.NewItem(mac))
-	return httpsfv.Marshal(d)
-}
-
-// SetMAC sets the Atproto-Space-Mac response header and lists the request
-// header in Vary, as a repo host must on every MAC-bearing response.
-func SetMAC(h http.Header, typ string, mac []byte) error {
-	value, err := FormatMAC(typ, mac)
-	if err != nil {
-		return fmt.Errorf("format mac header: %w", err)
-	}
-	h.Set(MACHeader, value)
-	h.Add("Vary", WantMACHeader)
 	return nil
 }
 
-// ParseMAC parses an Atproto-Space-Mac response header, checking its type and
-// version, and returns the MAC. Any problem, including a missing header,
-// wraps [ErrBadSpaceMAC].
-func ParseMAC(h http.Header, typ string) ([]byte, error) {
-	values := h.Values(MACHeader)
-	if len(values) == 0 {
-		return nil, fmt.Errorf("%w: missing %s header", ErrBadSpaceMAC, MACHeader)
+// verifyMAC checks the MAC tagged profile in h and returns the fields of the
+// header it covers, as bare values.
+func verifyMAC(
+	h http.Header,
+	profile, keyShare string,
+	sharedSecret []byte,
+) (map[string]any, error) {
+	for _, name := range []string{signatureInputHeader, signatureHeader, coveredHeader(profile)} {
+		if len(h.Values(name)) == 0 {
+			return nil, fmt.Errorf("%w: missing %s header", ErrInvalidSpaceMAC, name)
+		}
 	}
-	fields, err := parseMACDictionary(values, typ)
+	inputs, err := httpsfv.UnmarshalDictionary(h.Values(signatureInputHeader))
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			signatureInputHeader,
+			err,
+		)
+	}
+	label, params, err := memberWithTag(inputs, profile)
 	if err != nil {
 		return nil, err
 	}
-	mac, isBytes := fields["mac"].([]byte)
-	if !isBytes {
-		return nil, fmt.Errorf("%w: missing or malformed mac", ErrBadSpaceMAC)
+	if params == nil {
+		return nil, fmt.Errorf("%w: missing signature with tag %q", ErrInvalidSpaceMAC, profile)
 	}
-	return mac, nil
-}
-
-// parseMACDictionary parses either MAC header as a Structured Field
-// Dictionary, checks its type and version, and flattens it to bare values.
-func parseMACDictionary(values []string, typ string) (map[string]any, error) {
-	d, err := httpsfv.UnmarshalDictionary(values)
+	if got := serializeComponents(params.Items); got != componentList(profile) {
+		return nil, fmt.Errorf(
+			"%w: MAC must cover exactly %s",
+			ErrInvalidSpaceMAC,
+			componentList(profile),
+		)
+	}
+	if alg, ok := params.Params.Get("alg"); ok && alg != macAlg {
+		return nil, fmt.Errorf("%w: MAC algorithm must be %s", ErrInvalidSpaceMAC, macAlg)
+	}
+	if id, ok := params.Params.Get("keyid"); ok && id != keyShare {
+		return nil, fmt.Errorf("%w: MAC keyid does not match the key share", ErrInvalidSpaceMAC)
+	}
+	sigs, err := httpsfv.UnmarshalDictionary(h.Values(signatureHeader))
 	if err != nil {
-		return nil, fmt.Errorf("%w: malformed header: %w", ErrBadSpaceMAC, err)
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			signatureHeader,
+			err,
+		)
 	}
-	fields := make(map[string]any, len(d.Names()))
-	for _, name := range d.Names() {
-		member, _ := d.Get(name)
-		item, isItem := member.(httpsfv.Item)
-		if !isItem {
-			return nil, fmt.Errorf("%w: malformed header field %s", ErrBadSpaceMAC, name)
+	member, _ := sigs.Get(label)
+	item, isItem := member.(httpsfv.Item)
+	sig, isBytes := item.Value.([]byte)
+	if !isItem || !isBytes {
+		return nil, fmt.Errorf("%w: missing or malformed signature %q", ErrInvalidSpaceMAC, label)
+	}
+
+	covered, err := httpsfv.UnmarshalDictionary(h.Values(coveredHeader(profile)))
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			coveredHeader(profile),
+			err,
+		)
+	}
+	// The sf flag covers the header as re-serialized from its parsed form.
+	value, err := httpsfv.Marshal(covered)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: malformed %s header: %w",
+			ErrInvalidSpaceMAC,
+			coveredHeader(profile),
+			err,
+		)
+	}
+	serializedParams, err := httpsfv.Marshal(*params)
+	if err != nil {
+		return nil, fmt.Errorf("serialize signature params: %w", err)
+	}
+	want := hmacSHA256(sharedSecret, signatureBase(profile, value, serializedParams))
+	if !hmac.Equal(want, sig) {
+		return nil, fmt.Errorf("%w: mac mismatch", ErrInvalidCommit)
+	}
+
+	fields := make(map[string]any, len(covered.Names()))
+	for _, name := range covered.Names() {
+		if m, _ := covered.Get(name); m != nil {
+			if it, ok := m.(httpsfv.Item); ok {
+				fields[name] = it.Value
+			}
 		}
-		fields[name] = item.Value
-	}
-	if fields["type"] != typ {
-		return nil, fmt.Errorf("%w: unsupported mac type, expected %s", ErrBadSpaceMAC, typ)
-	}
-	if fields["ver"] != macVersion(typ) {
-		return nil, fmt.Errorf("%w: unsupported mac version for %s", ErrBadSpaceMAC, typ)
 	}
 	return fields, nil
 }
 
-// appendVec appends field to b length-prefixed with a big-endian uint16.
-func appendVec(b, field []byte) []byte {
-	var l [2]byte
-	binary.BigEndian.PutUint16(l[:], uint16(len(field)))
-	b = append(b, l[:]...)
-	return append(b, field...)
+// memberWithTag finds the one inner-list member of d tagged tag, returning its
+// label, or nil params when there is none. More than one wraps
+// [ErrInvalidSpaceMAC].
+func memberWithTag(d *httpsfv.Dictionary, tag string) (string, *httpsfv.InnerList, error) {
+	var label string
+	var found *httpsfv.InnerList
+	for _, name := range d.Names() {
+		member, _ := d.Get(name)
+		il, ok := member.(httpsfv.InnerList)
+		if !ok || il.Params == nil {
+			continue
+		}
+		if t, _ := il.Params.Get("tag"); t != tag {
+			continue
+		}
+		if found != nil {
+			return "", nil, fmt.Errorf("%w: more than one MAC with tag %q", ErrInvalidSpaceMAC, tag)
+		}
+		label, found = name, &il
+	}
+	return label, found, nil
 }
 
-// hmacSHA256 is HMAC-SHA256(key, context || data).
-func hmacSHA256(key, context, data []byte) []byte {
+// serializeComponents renders a covered component list without its parameters.
+func serializeComponents(items []httpsfv.Item) string {
+	s, err := httpsfv.Marshal(httpsfv.InnerList{Items: items, Params: httpsfv.NewParams()})
+	if err != nil {
+		return ""
+	}
+	return s
+}
+
+// signatureBase is the RFC 9421 section 2.5 signature base of a MAC covering
+// profile's header.
+func signatureBase(profile, headerValue, signatureParams string) []byte {
+	return []byte(fmt.Sprintf(
+		"%q;sf: %s\n\"@signature-params\": %s",
+		coveredHeader(profile), strings.TrimSpace(headerValue), signatureParams,
+	))
+}
+
+// hmacSHA256 is HMAC-SHA256(key, data).
+func hmacSHA256(key, data []byte) []byte {
 	m := hmac.New(sha256.New, key)
-	_, _ = m.Write(context)
 	_, _ = m.Write(data)
 	return m.Sum(nil)
 }

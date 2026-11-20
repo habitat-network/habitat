@@ -3,6 +3,9 @@ package spacecommit
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"testing"
@@ -16,24 +19,16 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// Reference vectors computed with @atproto/space 0.0.0-spaces-alpha-20261029171913
-// (decapsulate, computeCommitMac, computeRecordMac, formatWantMacHeader,
-// formatMacHeader), so pear and sap interoperate with the reference syncer and
-// repo host.
 var (
 	refSpace = habitat_syntax.SpaceURI(
 		"at://did:web:org.example.com/space/com.example.space/main",
 	)
-	refRepo       = syntax.DID("did:web:alice.example.com")
-	refRev        = "3l4qjqc2cak2a"
-	refData       = bytes.Repeat([]byte{7}, 32)
-	refKeyShare   = "did:key:zDnaex62me84JZnkEzmeYRa8FCLNe7y1asoSwBMK26GBYpL7c"
-	refSecret     = "76bccf1264f5f7f5b7df0b78b6c1037f2e22fb513288207ad2dede881710d4c3"
-	refCommitMAC  = "ddc2ab46552b23e4a419d517efa25a4fb9a1e4abaeb7d16d87a6af1cb2d25f8e"
-	refRecordMAC  = "14f998c8ca32ac0ee2c9a8e86da19609443940af7c25afba8903c3a323198964"
-	refRecordCID  = "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm"
-	refWantHeader = `type="atproto-space-repo", ver=1, key_share="` + refKeyShare + `"`
-	refMACHeader  = `type="atproto-space-repo", ver=1, mac=:3cKrRlUrI+SkGdUX76JaT7mh5Kuut9Fth6avHLLSX44=:`
+	refRepo      = syntax.DID("did:web:alice.example.com")
+	refRev       = "3l4qjqc2cak2a"
+	refData      = bytes.Repeat([]byte{1}, 32)
+	refRecordCID = "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm"
+	// Shared secret and key share of the reference syncer's request.
+	refKeyShare = "did:key:zDnaExample"
 )
 
 func unhex(t *testing.T, s string) []byte {
@@ -43,7 +38,7 @@ func unhex(t *testing.T, s string) []byte {
 	return b
 }
 
-// refAuthorKEM is the reference author's KEM keypair (private key 0x11 * 32).
+// refAuthorKEM is a fixed author KEM keypair.
 func refAuthorKEM(t *testing.T) *atcrypto.PrivateKeyP256 {
 	t.Helper()
 	key, err := atcrypto.ParsePrivateBytesP256(bytes.Repeat([]byte{0x11}, 32))
@@ -51,42 +46,92 @@ func refAuthorKEM(t *testing.T) *atcrypto.PrivateKeyP256 {
 	return key
 }
 
-func TestCommitMACMatchesReference(t *testing.T) {
-	secret, err := Decapsulate(refAuthorKEM(t), refKeyShare)
+// TestDecapsulateMatchesHPKESecretExport uses the export-only DHKEM(P-256,
+// HKDF-SHA256) entry of the HPKE test vectors, as @atproto/space's kem test
+// does: enc is the syncer's key share and skRm the author's KEM key. The
+// expected secret was computed with Go's crypto/hpke with info "atproto-mac"
+// and an empty exporter context.
+func TestDecapsulateMatchesHPKESecretExport(t *testing.T) {
+	enc := unhex(t, "04d804370b7e24b94749eb1dc8df6d4d4a5d75f9effad01739ebcad5c54a40d57a"+
+		"aa8b4190fc124dbde2e4f1e1d1b012a3bc4038157dc29b55533a932306d8d38d")
+	skRm := unhex(t, "62c3868357a464f8461d03aa0182c7cebcde841036aea7230ddc7339f1088346")
+	want := unhex(t, "2060e0558d1b34c10086bc137f849bb79ba59fcdc30544418e35c9cd301f0d0d")
+
+	kem, err := atcrypto.ParsePrivateBytesP256(skRm)
 	require.NoError(t, err)
-	require.Equal(t, unhex(t, refSecret), secret)
+	share, err := atcrypto.ParsePublicUncompressedBytesP256(enc)
+	require.NoError(t, err)
+	got, err := Decapsulate(kem, share.DIDKey())
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+var (
+	refCommitRequest = `mac=("atproto-space-commit";sf);keyid="` + refKeyShare +
+		`";tag="atproto-space-commit"`
+	refCommitParams = refCommitRequest[len("mac="):]
+)
+
+func refMACRequest(t *testing.T) *MACRequest {
+	t.Helper()
+	h := http.Header{}
+	h.Set(AcceptSignatureHeader, refCommitRequest)
+	req, err := ParseMACRequest(h, CommitMACType)
+	require.NoError(t, err)
+	require.NotNil(t, req)
+	return req
+}
+
+func TestCommitMACHeadersFollowRFC9421(t *testing.T) {
+	secret := bytes.Repeat([]byte{9}, 32)
+	require.Equal(t, refCommitRequest, FormatMACRequest(CommitMACType, refKeyShare))
+	req := refMACRequest(t)
+	require.Equal(t, &MACRequest{
+		Label: "mac", KeyShare: refKeyShare, SignatureParams: refCommitParams,
+	}, req)
 
 	c := New(refSpace, refRepo, refRev, refData)
-	require.Equal(t, unhex(t, refCommitMAC), c.MAC(secret))
-	require.NoError(t, c.Verify(refSpace, refRepo, secret, unhex(t, refCommitMAC)))
+	h := http.Header{}
+	require.NoError(t, SetCommitMAC(h, c, *req, secret))
 
-	recordURI := habitat_syntax.ConstructSpaceRecordURI(
-		refSpace, refRepo, "com.example.record", "abc",
-	).String()
-	recordCID := cid.MustParse(refRecordCID)
-	require.Equal(t, unhex(t, refRecordMAC), RecordMAC(secret, recordURI, recordCID))
-	require.NoError(t, VerifyRecordMAC(secret, recordURI, recordCID, unhex(t, refRecordMAC)))
+	covered := `ver=1, repo="did:web:alice.example.com", ` +
+		`space="at://did:web:org.example.com/space/com.example.space/main", ` +
+		`rev="3l4qjqc2cak2a", data=:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=:`
+	require.Equal(t, covered, h.Get("Atproto-Space-Commit"))
+	require.Equal(t, "mac="+refCommitParams, h.Get("Signature-Input"))
+
+	// An independent computation of the RFC 9421 signature base.
+	base := "\"atproto-space-commit\";sf: " + covered +
+		"\n\"@signature-params\": " + refCommitParams
+	m := hmac.New(sha256.New, secret)
+	m.Write([]byte(base))
+	require.Equal(t, "mac=:"+base64.StdEncoding.EncodeToString(m.Sum(nil))+":", h.Get("Signature"))
+
+	require.NoError(t, c.Verify(refSpace, refRepo, h, refKeyShare, secret))
 }
 
 func TestCommitVerifyRejectsMismatches(t *testing.T) {
-	secret := unhex(t, refSecret)
+	secret := bytes.Repeat([]byte{9}, 32)
 	c := New(refSpace, refRepo, refRev, refData)
-	mac := c.MAC(secret)
+	h := http.Header{}
+	require.NoError(t, SetCommitMAC(h, c, *refMACRequest(t), secret))
 	other := habitat_syntax.SpaceURI("at://did:web:org.example.com/space/com.example.space/other")
 
 	cases := map[string]func() error{
-		"wrong repo":   func() error { return c.Verify(refSpace, "did:web:bob.example.com", secret, mac) },
-		"wrong space":  func() error { return c.Verify(other, refRepo, secret, mac) },
-		"wrong secret": func() error { return c.Verify(refSpace, refRepo, bytes.Repeat([]byte{1}, 32), mac) },
+		"wrong repo":  func() error { return c.Verify(refSpace, "did:web:bob.example.com", h, refKeyShare, secret) },
+		"wrong space": func() error { return c.Verify(other, refRepo, h, refKeyShare, secret) },
+		"wrong secret": func() error {
+			return c.Verify(refSpace, refRepo, h, refKeyShare, bytes.Repeat([]byte{1}, 32))
+		},
 		"tampered data": func() error {
 			tampered := c
 			tampered.Data = bytes.Repeat([]byte{8}, 32)
-			return tampered.Verify(refSpace, refRepo, secret, mac)
+			return tampered.Verify(refSpace, refRepo, h, refKeyShare, secret)
 		},
 		"unsupported version": func() error {
 			v2 := c
 			v2.Ver = 2
-			return v2.Verify(refSpace, refRepo, secret, v2.MAC(secret))
+			return v2.Verify(refSpace, refRepo, h, refKeyShare, secret)
 		},
 	}
 	for name, verify := range cases {
@@ -95,16 +140,44 @@ func TestCommitVerifyRejectsMismatches(t *testing.T) {
 		})
 	}
 
-	recordURI := habitat_syntax.ConstructSpaceRecordURI(
-		refSpace,
-		refRepo,
-		"com.example.record",
-		"abc",
-	)
-	recordMAC := RecordMAC(secret, recordURI.String(), cid.MustParse(refRecordCID))
+	t.Run("another key share", func(t *testing.T) {
+		require.ErrorIs(t,
+			c.Verify(refSpace, refRepo, h, "did:key:zDnaOther", secret), ErrInvalidSpaceMAC)
+	})
+	t.Run("a record MAC is not a commit MAC", func(t *testing.T) {
+		rh := http.Header{}
+		recordReq := http.Header{}
+		recordReq.Set(AcceptSignatureHeader, FormatMACRequest(RecordMACType, refKeyShare))
+		req, err := ParseMACRequest(recordReq, RecordMACType)
+		require.NoError(t, err)
+		require.NoError(t, SetRecordMAC(rh, "at://x", cid.MustParse(refRecordCID), *req, secret))
+		require.ErrorIs(t, c.Verify(refSpace, refRepo, rh, refKeyShare, secret), ErrInvalidSpaceMAC)
+	})
+}
+
+func TestRecordMACBindsURIAndCID(t *testing.T) {
+	secret := bytes.Repeat([]byte{9}, 32)
+	uri := habitat_syntax.ConstructSpaceRecordURI(
+		refSpace, refRepo, "com.example.record", "abc",
+	).String()
+	recordCID := cid.MustParse(refRecordCID)
+	reqHeader := http.Header{}
+	reqHeader.Set(AcceptSignatureHeader, FormatMACRequest(RecordMACType, refKeyShare))
+	req, err := ParseMACRequest(reqHeader, RecordMACType)
+	require.NoError(t, err)
+
+	h := http.Header{}
+	require.NoError(t, SetRecordMAC(h, uri, recordCID, *req, secret))
+	require.Equal(t, `uri="`+uri+`", cid="`+refRecordCID+`"`, h.Get("Atproto-Space-Record"))
+	require.NoError(t, VerifyRecordMAC(h, uri, recordCID, refKeyShare, secret))
+
 	otherCID := cid.MustParse("bafyreihffx5a2e7k5uwrmmgofbvzujc5cmw5h4espouwuxt3liqoflx3ee")
-	require.ErrorIs(t,
-		VerifyRecordMAC(secret, recordURI.String(), otherCID, recordMAC), ErrInvalidCommit)
+	require.ErrorIs(t, VerifyRecordMAC(h, uri, otherCID, refKeyShare, secret), ErrInvalidCommit)
+	require.ErrorIs(
+		t,
+		VerifyRecordMAC(h, uri+"2", recordCID, refKeyShare, secret),
+		ErrInvalidCommit,
+	)
 }
 
 func TestCommitMatches(t *testing.T) {
@@ -115,55 +188,48 @@ func TestCommitMatches(t *testing.T) {
 	require.False(t, c.Matches(&LtHash{}))
 }
 
-func TestMACHeadersMatchReference(t *testing.T) {
-	want, err := FormatWantMAC(CommitMACType, refKeyShare)
+func TestParseMACRequestRejectsMalformed(t *testing.T) {
+	req, err := ParseMACRequest(http.Header{}, CommitMACType)
 	require.NoError(t, err)
-	require.Equal(t, refWantHeader, want)
+	require.Nil(t, req, "an absent header is not an error")
 
+	other := FormatMACRequest(RecordMACType, refKeyShare)
 	h := http.Header{}
-	require.NoError(t, SetMAC(h, CommitMACType, unhex(t, refCommitMAC)))
-	require.Equal(t, refMACHeader, h.Get(MACHeader))
-	require.Equal(t, WantMACHeader, h.Get("Vary"))
-
-	mac, err := ParseMAC(h, CommitMACType)
+	h.Set(AcceptSignatureHeader, other)
+	req, err = ParseMACRequest(h, CommitMACType)
 	require.NoError(t, err)
-	require.Equal(t, unhex(t, refCommitMAC), mac)
-
-	req := http.Header{}
-	req.Set(WantMACHeader, refWantHeader)
-	keyShare, ok, err := ParseWantMAC(req, CommitMACType)
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, refKeyShare, keyShare)
-}
-
-func TestMACHeadersRejectMalformed(t *testing.T) {
-	_, ok, err := ParseWantMAC(http.Header{}, CommitMACType)
-	require.NoError(t, err)
-	require.False(t, ok, "an absent header is not an error")
+	require.Nil(t, req, "requests for other tags are ignored")
 
 	for name, value := range map[string]string{
 		"not a dictionary": `"just a string"`,
-		"wrong type":       `type="atproto-space-record", ver=1, key_share="did:key:z"`,
-		"wrong version":    `type="atproto-space-repo", ver=2, key_share="did:key:z"`,
-		"missing share":    `type="atproto-space-repo", ver=1`,
-		"inner list":       `type="atproto-space-repo", ver=1, key_share=("a" "b")`,
+		"wrong components": `mac=("authorization");keyid="did:key:zDnaX";tag="atproto-space-commit"`,
+		"extra parameter":  refCommitRequest + `;created=1`,
+		"wrong algorithm":  refCommitRequest + `;alg="ecdsa-p256-sha256"`,
+		"missing keyid":    `mac=("atproto-space-commit";sf);tag="atproto-space-commit"`,
+		"duplicate tag":    refCommitRequest + `, two=` + refCommitRequest[len("mac="):],
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := http.Header{}
-			h.Set(WantMACHeader, value)
-			_, ok, err := ParseWantMAC(h, CommitMACType)
-			require.True(t, ok)
-			require.ErrorIs(t, err, ErrBadSpaceMAC)
+			h.Set(AcceptSignatureHeader, value)
+			_, err := ParseMACRequest(h, CommitMACType)
+			require.ErrorIs(t, err, ErrInvalidSpaceMAC)
 		})
 	}
+}
 
-	_, err = ParseMAC(http.Header{}, RecordMACType)
-	require.ErrorIs(t, err, ErrBadSpaceMAC, "a missing response header is an error")
+func TestVerifyCommitMACRejectsMissingHeaders(t *testing.T) {
+	c := New(refSpace, refRepo, refRev, refData)
+	secret := bytes.Repeat([]byte{9}, 32)
 	h := http.Header{}
-	h.Set(MACHeader, `type="atproto-space-record", ver=1, mac="not bytes"`)
-	_, err = ParseMAC(h, RecordMACType)
-	require.ErrorIs(t, err, ErrBadSpaceMAC)
+	require.NoError(t, SetCommitMAC(h, c, *refMACRequest(t), secret))
+	for _, name := range []string{"Atproto-Space-Commit", "Signature-Input", "Signature"} {
+		t.Run(name, func(t *testing.T) {
+			trimmed := h.Clone()
+			trimmed.Del(name)
+			require.ErrorIs(t,
+				c.Verify(refSpace, refRepo, trimmed, refKeyShare, secret), ErrInvalidSpaceMAC)
+		})
+	}
 }
 
 func TestEncapsulateDecapsulateRoundTrip(t *testing.T) {
@@ -192,11 +258,11 @@ func TestKEMRejectsInvalidKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	_, _, err = Encapsulate(k256Pub)
-	require.ErrorIs(t, err, ErrBadSpaceMAC, "KEM keys are P-256")
+	require.ErrorIs(t, err, ErrInvalidSpaceMAC, "KEM keys are P-256")
 	_, err = Decapsulate(refAuthorKEM(t), "not-a-did-key")
-	require.ErrorIs(t, err, ErrBadSpaceMAC)
+	require.ErrorIs(t, err, ErrInvalidSpaceMAC)
 	_, err = Decapsulate(refAuthorKEM(t), k256Pub.DIDKey())
-	require.ErrorIs(t, err, ErrBadSpaceMAC)
+	require.ErrorIs(t, err, ErrInvalidSpaceMAC)
 }
 
 func TestDeriveKEMKeyIsDeterministicAndDedicated(t *testing.T) {
@@ -253,5 +319,5 @@ func TestKEMKeysPicksMemberKeyElseHostKey(t *testing.T) {
 
 	noHost := NewKEMKeys(nil, fakeMemberKEM{did: refRepo, key: member})
 	_, err = noHost.Decapsulate(t.Context(), "did:plc:external", refKeyShare)
-	require.ErrorIs(t, err, ErrBadSpaceMAC)
+	require.ErrorIs(t, err, ErrInvalidSpaceMAC)
 }

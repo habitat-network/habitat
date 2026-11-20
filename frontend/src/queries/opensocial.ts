@@ -1,4 +1,4 @@
-import { wantRecordMacHeaders, type AuthManager } from "internal";
+import { acceptRecordMacHeaders, type AuthManager } from "internal";
 import {
   getBlobCidString,
   xrpc,
@@ -257,7 +257,7 @@ export function orgProfileQueryOptions(
             rkey: "self",
           },
           // Required with a space credential; not checked here.
-          headers: await wantRecordMacHeaders(),
+          headers: await acceptRecordMacHeaders(),
         });
         const value = response.body.value as {
           name: string;
@@ -472,7 +472,7 @@ export function orgPermissionsQueryOptions(
               rkey: "self",
             },
             // Required with a space credential; not checked here.
-            headers: await wantRecordMacHeaders(),
+            headers: await acceptRecordMacHeaders(),
           },
         );
         const value = response.body.value as {

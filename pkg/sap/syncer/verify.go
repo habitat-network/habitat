@@ -25,9 +25,10 @@ import (
 
 // Verifier authenticates what a repo host serves sap. Commits and records
 // carry no signature: for each request sap generates an ephemeral key, derives
-// a shared secret against the repo's KEM key, and sends the key share in an
-// Atproto-Space-Want-Mac header; the host answers with a MAC over the commit
-// or record under that secret (see spacecommit.Encapsulate).
+// a shared secret against the repo's KEM key (HPKE secret export), and sends
+// the key share as the keyid of an Accept-Signature header; the host answers
+// with an RFC 9421 MAC over the commit or record under that secret (see
+// spacecommit.Encapsulate).
 //
 // The KEM key is the author's own #atproto_kem when the host being read is
 // the author's PDS, as for habitat-managed authors. Habitat also hosts space
@@ -46,17 +47,17 @@ func NewVerifier(dir identity.Directory) *Verifier {
 	return &Verifier{dir: dir}
 }
 
-// macExchange is one MAC-bearing request: the Want-Mac header it sends and
-// the shared secret the response's MAC must be keyed by. A nil exchange is the
-// degraded, unauthenticated mode.
+// macExchange is one MAC-bearing request: the Accept-Signature header it
+// sends, the key share that names, and the shared secret the response's MAC
+// must be keyed by. A nil exchange is the degraded, unauthenticated mode.
 type macExchange struct {
-	typ    string
-	header string
-	secret []byte
+	header   string
+	keyShare string
+	secret   []byte
 }
 
-// wantMAC is the request's Atproto-Space-Want-Mac header value, empty in
-// degraded mode.
+// wantMAC is the request's Accept-Signature header value, empty in degraded
+// mode.
 func (x *macExchange) wantMAC() string {
 	if x == nil {
 		return ""
@@ -76,11 +77,7 @@ func (x *macExchange) verifyCommit(
 	if x == nil {
 		return nil
 	}
-	mac, err := spacecommit.ParseMAC(h, x.typ)
-	if err != nil {
-		return err
-	}
-	return c.Verify(space, repo, x.secret, mac)
+	return c.Verify(space, repo, h, x.keyShare, x.secret)
 }
 
 // verifyRecord checks that the response's MAC authenticates a record's URI
@@ -89,11 +86,7 @@ func (x *macExchange) verifyRecord(h http.Header, uri string, c cid.Cid) error {
 	if x == nil {
 		return nil
 	}
-	mac, err := spacecommit.ParseMAC(h, x.typ)
-	if err != nil {
-		return err
-	}
-	return spacecommit.VerifyRecordMAC(x.secret, uri, c, mac)
+	return spacecommit.VerifyRecordMAC(h, uri, c, x.keyShare, x.secret)
 }
 
 // checkData compares an authenticated commit's data with the locally folded
@@ -111,8 +104,8 @@ func checkData(c spacecommit.Commit, lt *spacecommit.LtHash) error {
 func isMACFailure(err error) bool {
 	var apiErr *atclient.APIError
 	return errors.Is(err, spacecommit.ErrInvalidCommit) ||
-		errors.Is(err, spacecommit.ErrBadSpaceMAC) ||
-		(errors.As(err, &apiErr) && apiErr.Name == "BadSpaceMac")
+		errors.Is(err, spacecommit.ErrInvalidSpaceMAC) ||
+		(errors.As(err, &apiErr) && apiErr.Name == "InvalidSpaceMac")
 }
 
 // withMAC runs one MAC-bearing request about author's repo at host, with a
@@ -162,11 +155,11 @@ func (v *Verifier) exchange(
 	if err != nil {
 		return nil, fmt.Errorf("encapsulate: %w", err)
 	}
-	header, err := spacecommit.FormatWantMAC(typ, keyShare)
-	if err != nil {
-		return nil, err
-	}
-	return &macExchange{typ: typ, header: header, secret: secret}, nil
+	return &macExchange{
+		header:   spacecommit.FormatMACRequest(typ, keyShare),
+		keyShare: keyShare,
+		secret:   secret,
+	}, nil
 }
 
 // kemKey resolves the KEM key a request about author's repo at host is keyed
@@ -229,7 +222,7 @@ func sameHost(a, b string) bool {
 	return errA == nil && errB == nil && ua.Host != "" && strings.EqualFold(ua.Host, ub.Host)
 }
 
-// getXRPC performs one XRPC query with an optional Atproto-Space-Want-Mac
+// getXRPC performs one XRPC query with an optional Accept-Signature
 // header, decoding a JSON response into out (or copying the raw body into a
 // *bytes.Buffer out), and returns the response headers so the caller can read
 // the MAC. Non-2xx responses are returned as *atclient.APIError, like
@@ -247,7 +240,7 @@ func getXRPC(
 		req.Headers.Set("Accept", "application/json")
 	}
 	if wantMAC != "" {
-		req.Headers.Set(spacecommit.WantMACHeader, wantMAC)
+		req.Headers.Set(spacecommit.AcceptSignatureHeader, wantMAC)
 	}
 	qp, err := atclient.ParseParams(params)
 	if err != nil {
