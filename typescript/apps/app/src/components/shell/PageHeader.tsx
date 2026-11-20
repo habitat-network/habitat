@@ -15,7 +15,6 @@ export function PageHeader({
   return (
     <header className="sticky top-0 z-10 flex min-h-14 items-center gap-3 border-b bg-background/95 px-4 py-2 backdrop-blur-sm">
       <SidebarTrigger />
-      <Separator orientation="vertical" className="h-5" />
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-base font-semibold">{title}</h1>
         {description && (
