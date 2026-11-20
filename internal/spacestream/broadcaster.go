@@ -60,3 +60,14 @@ func (b *Broadcaster) NotifyWrite(
 func (b *Broadcaster) NotifySpaceDeleted(context.Context, habitat_syntax.SpaceURI) {
 	b.wake()
 }
+
+// NotifyWriterRemoved implements [spaces.Notifier].
+func (b *Broadcaster) NotifyWriterRemoved(
+	context.Context,
+	habitat_syntax.SpaceURI,
+	syntax.DID,
+	syntax.TID,
+	syntax.TID,
+) {
+	b.wake()
+}

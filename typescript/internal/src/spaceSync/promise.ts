@@ -6,10 +6,10 @@ import { Credentials, DelegationSource } from "./Credentials";
 import { CredentialError, SinkError, StoreError, errorMessage } from "./errors";
 import { Identity } from "./Identity";
 import {
-  NotificationAuth,
-  receiveNotifySpaceDeleted,
-  receiveNotifyWrite,
+  receiveConfirmRegistration,
+  receiveNotifySpaceUpdate,
 } from "./notification";
+import { NotifyToken } from "./NotifyToken";
 import { SpaceClient } from "./SpaceClient";
 import { RepoSync } from "./repoSync";
 import { RepoBackoff, SpacePass } from "./spacePass";
@@ -56,7 +56,6 @@ export interface PromiseDelegationSource {
 }
 
 export interface CreateSpaceSyncerOptions extends Partial<SpaceSyncOptions> {
-  readonly serviceDid: string;
   readonly store: PromiseSyncStore;
   readonly sink: PromiseSyncSink;
   readonly delegation: PromiseDelegationSource;
@@ -145,12 +144,13 @@ const delegationLayer = (delegation: PromiseDelegationSource) => {
 export const createSpaceSyncer = (options: CreateSpaceSyncerOptions) => {
   const { store, sink, delegation, ...config } = options;
   const configLayer = spaceSyncConfigLayer(config);
-  const layer = Layer.mergeAll(SpaceSyncer.layer, NotificationAuth.layer).pipe(
+  const layer = SpaceSyncer.layer.pipe(
     Layer.provideMerge(SpacePass.layer),
     Layer.provideMerge(RepoSync.layer),
     Layer.provideMerge(RepoBackoff.layer),
     Layer.provideMerge(SpaceClient.layer),
     Layer.provideMerge(Credentials.layer),
+    Layer.provideMerge(NotifyToken.layer),
     Layer.provideMerge(Identity.layer),
     Layer.provideMerge(
       Layer.mergeAll(
@@ -183,12 +183,14 @@ export const createSpaceSyncer = (options: CreateSpaceSyncerOptions) => {
   return {
     watch: (space: string) => withSpace(space, (s, ref) => s.watch(ref)),
     unwatch: (space: string) => withSpace(space, (s, ref) => s.unwatch(ref)),
-    /** Pass the raw JSON body and Authorization header of an inbound notifyWrite. */
-    notifyWrite: (body: unknown, authorization: string | undefined) =>
-      run(receiveNotifyWrite(body, authorization)),
-    /** Pass the raw JSON body and Authorization header of an inbound notifySpaceDeleted. */
-    notifySpaceDeleted: (body: unknown, authorization: string | undefined) =>
-      run(receiveNotifySpaceDeleted(body, authorization)),
+    /**
+     * Pass the raw JSON body of an inbound confirmRegistration; the resolved
+     * value is the JSON body to answer with.
+     */
+    confirmRegistration: (body: unknown) =>
+      run(receiveConfirmRegistration(body)),
+    /** Pass the raw JSON body of an inbound notifySpaceUpdate. */
+    notifySpaceUpdate: (body: unknown) => run(receiveNotifySpaceUpdate(body)),
     getBlob: (space: string, did: DidString, cid: string) =>
       withSpace(space, (s, ref) => s.getBlob(ref, did, cid)),
     awaitIdle: (space: string) =>

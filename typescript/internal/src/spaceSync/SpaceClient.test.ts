@@ -10,6 +10,7 @@ import { verifyCommit } from "../spaceMac";
 import { server } from "../test/msw";
 import { Credentials } from "./Credentials";
 import { Identity } from "./Identity";
+import { NotifyToken } from "./NotifyToken";
 import { SpaceClient } from "./SpaceClient";
 import { FakeNetwork } from "./test/fakeNetwork";
 import { fakeDelegation, testConfig } from "./test/harness";
@@ -23,6 +24,7 @@ const setupWith = (overrides: Parameters<typeof testConfig>[0] = {}) =>
     const space = net.createSpace(alice);
     const layer = SpaceClient.layer.pipe(
       Layer.provideMerge(Credentials.layer),
+      Layer.provide(NotifyToken.layer),
       Layer.provideMerge(Identity.layer),
       Layer.provide(fakeDelegation(net)),
       Layer.provide(testConfig(overrides)),

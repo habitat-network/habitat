@@ -15,7 +15,6 @@ import { createSpaceSigHeaders } from "@atproto/space";
 import { com } from "api";
 import {
   Context,
-  DateTime,
   Effect,
   Layer,
   Option,
@@ -99,10 +98,6 @@ export class SpaceClient extends Context.Service<
       com.atproto.space.listWriters.$OutputBody,
       SpaceCallError
     >;
-    readonly registerNotify: (
-      space: SpaceRef,
-      service: string,
-    ) => Effect.Effect<{ readonly expiresAt: number }, SpaceCallError>;
     readonly listRepoOps: (
       space: SpaceRef,
       repo: DidString,
@@ -405,25 +400,6 @@ export class SpaceClient extends Context.Service<
         return res.result.body;
       });
 
-      const registerNotify = Effect.fnUntraced(function* (
-        ref: SpaceRef,
-        service: string,
-      ) {
-        const method = space.registerNotify.main;
-        const res = yield* call(
-          { space: ref, method, audience: ref.spaceDid, hostOf: "space" },
-          (agent, signal) =>
-            xrpc(agent, method, {
-              body: { space: ref.toString(), service },
-              signal,
-            }),
-        );
-        const expiresAt = DateTime.make(res.result.body.expiresAt);
-        if (Option.isNone(expiresAt))
-          return yield* invalidResponse(method, 200, "unparseable expiresAt");
-        return { expiresAt: DateTime.toEpochMillis(expiresAt.value) };
-      });
-
       const listRepoOps = Effect.fnUntraced(function* (
         ref: SpaceRef,
         repo: DidString,
@@ -584,7 +560,6 @@ export class SpaceClient extends Context.Service<
 
       return SpaceClient.of({
         listWriters,
-        registerNotify,
         listRepoOps,
         getRepo,
         getBlob,

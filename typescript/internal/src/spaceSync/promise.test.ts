@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { publicIdentityResolver } from "./Identity";
+import { NOTIFY_ENDPOINT } from "./test/harness";
 import { NotificationAuthError, SinkError, WireDecodeError } from "./errors";
 import { notificationErrorStatus } from "./notification";
 import type { VerifiedRecord } from "@atproto/space";
@@ -11,7 +12,6 @@ import {
   createSpaceSyncer,
 } from "./promise";
 import { FakeNetwork, PLC_URL } from "./test/fakeNetwork";
-import { SERVICE_DID } from "./test/harness";
 import type { RepoState, SpaceState } from "./types";
 
 const memoryStore = (): PromiseSyncStore => {
@@ -68,7 +68,8 @@ describe("createSpaceSyncer", () => {
 
     const applied: Array<{ tag: string; records?: string[] }> = [];
     const syncer = createSpaceSyncer({
-      serviceDid: SERVICE_DID,
+      notifyEndpoint: NOTIFY_ENDPOINT,
+      notifySecret: "test-secret",
       identityResolver: publicIdentityResolver(PLC_URL),
       store: memoryStore(),
       delegation: { issue: (s) => net.delegationTokenFor(s) },
@@ -90,18 +91,26 @@ describe("createSpaceSyncer", () => {
       expect(applied).toEqual([{ tag: "Reset", records: ["1"] }]);
 
       await space.write(alice, "com.example.post", "2", { text: "b" });
-      const lxm = "com.atproto.space.notifyWrite";
-      const goodAuth = `Bearer ${await net.serviceAuth(alice, { aud: SERVICE_DID, lxm })}`;
+      const [{ token }] = space.registrations;
       const rejected = await syncer
-        .notifyWrite(space.notifyWriteBody(alice.did), "Bearer nope")
+        .notifySpaceUpdate(space.notifySpaceUpdateBody(alice.did, "forged"))
         .then(
           () => undefined,
           (error: unknown) => error,
         );
       expect(rejected).toBeDefined();
-      // A rejected caller is permanent, so the authority stops retrying.
+      // A rejected caller is permanent, so the space host stops retrying.
       expect(notificationErrorStatus(rejected)).toBe(401);
-      await syncer.notifyWrite(space.notifyWriteBody(alice.did), goodAuth);
+      expect(
+        await syncer.confirmRegistration({
+          space: space.id,
+          token,
+          challenge: "c",
+        }),
+      ).toEqual({ challenge: "c" });
+      await syncer.notifySpaceUpdate(
+        space.notifySpaceUpdateBody(alice.did, token),
+      );
       await syncer.awaitIdle(space.id);
       expect(applied.at(-1)).toEqual({ tag: "Ops" });
     } finally {

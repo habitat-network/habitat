@@ -31,6 +31,37 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	token, ok := p.issueCredential(ctx, w, spaceURI, credentialRequest{
+		credentialKey:     input.CredentialKid,
+		delegationToken:   input.DelegationToken,
+		clientAttestation: input.ClientAttestation,
+		userNotAuthorized: "UserNotAuthorized",
+	})
+	if !ok {
+		return
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: token})
+}
+
+// credentialRequest is what getSpaceCredential and authorizeSpaceSync share.
+type credentialRequest struct {
+	// credentialKey is the did:key the credential is bound to.
+	credentialKey     string
+	delegationToken   string
+	clientAttestation string
+	// userNotAuthorized is the error name answered when the delegation token's
+	// user may not read the space, which the two endpoints spell differently.
+	userNotAuthorized string
+}
+
+// issueCredential authorizes req and mints the space credential, writing the
+// error response itself and returning false when it can't.
+func (p *PearServer) issueCredential(
+	ctx context.Context,
+	w http.ResponseWriter,
+	spaceURI habitat_syntax.SpaceURI,
+	req credentialRequest,
+) (string, bool) {
 	// A deleted space answers SpaceDeleted before any authorization, so a
 	// syncer that missed the notifySpaceDeleted learns of it when it renews:
 	// the deletion revoked every member, so it would otherwise only learn that
@@ -38,54 +69,54 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 	deleted, err := p.spacesStore.IsSpaceDeleted(ctx, spaceURI)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check space deleted: %w", err))
-		return
+		return "", false
 	} else if deleted {
 		httpx.WriteError(ctx, w, "SpaceDeleted", "space was deleted", http.StatusBadRequest)
-		return
+		return "", false
 	}
-	// The credential is bound to credentialKid: every request presenting it
-	// must be signed by that key.
-	if !httpsig.IsP256DIDKey(input.CredentialKid) {
+	// The credential is bound to the credential key: every request presenting
+	// it must be signed by that key.
+	if !httpsig.IsP256DIDKey(req.credentialKey) {
 		httpx.WriteInvalidRequest(
-			ctx, w, "credentialKid must be a P-256 did:key",
-			fmt.Errorf("bad credentialKid %q", input.CredentialKid),
+			ctx, w, "credentialKey must be a P-256 did:key",
+			fmt.Errorf("bad credentialKey %q", req.credentialKey),
 		)
-		return
+		return "", false
 	}
 	policy, err := p.spacesStore.GetSpacePolicy(ctx, spaceURI)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
-		return
+		return "", false
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("get space policy: %w", err))
-		return
+		return "", false
 	}
 	// Only a memberspace with publicRead issues credentials without a user:
 	// every other space gates on the user, so a request without a delegation
 	// token answers SpaceNotFound, which doesn't reveal whether the space
 	// exists.
 	publicRead := policy.Type == spaces.PolicyMemberSpace && policy.PublicRead
-	if input.DelegationToken == "" && !publicRead {
+	if req.delegationToken == "" && !publicRead {
 		httpx.WriteSpaceNotFound(ctx, w, errors.New("delegation token required"))
-		return
+		return "", false
 	}
-	if input.DelegationToken != "" {
-		if _, err := p.delegations.Verify(ctx, input.DelegationToken, spaceURI); err != nil {
+	if req.delegationToken != "" {
+		if _, err := p.delegations.Verify(ctx, req.delegationToken, spaceURI); err != nil {
 			switch {
 			case errors.Is(err, authn.ErrInvalidDelegationToken):
 				httpx.WriteError(
 					ctx, w, "InvalidDelegationToken", err.Error(), http.StatusBadRequest,
 				)
 			case errors.Is(err, authn.ErrUserNotAuthorized):
-				httpx.WriteError(ctx, w, "UserNotAuthorized", "", http.StatusBadRequest)
+				httpx.WriteError(ctx, w, req.userNotAuthorized, "", http.StatusBadRequest)
 			default:
 				httpx.WriteServerError(ctx, w, err)
 			}
-			return
+			return "", false
 		}
 	}
-	if !p.verifyClientAttestation(ctx, w, spaceURI, policy, input.ClientAttestation) {
-		return
+	if !p.verifyClientAttestation(ctx, w, spaceURI, policy, req.clientAttestation) {
+		return "", false
 	}
 	privKey, err := p.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
 	if errors.Is(err, identity.ErrDIDNotFound) {
@@ -94,16 +125,16 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 		privKey = p.hostKey
 	} else if err != nil {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
-		return
+		return "", false
 	}
 	token, err := utils.SpaceCredential(
-		privKey, spaceURI, utils.WithConfirmationKey(input.CredentialKid),
+		privKey, spaceURI, utils.WithConfirmationKey(req.credentialKey),
 	)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
-		return
+		return "", false
 	}
-	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: token})
+	return token, true
 }
 
 func (p *PearServer) verifyClientAttestation(

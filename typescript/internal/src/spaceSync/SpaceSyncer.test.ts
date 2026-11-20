@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
-import { Duration, Effect, Fiber, Option, Stream } from "effect";
+import { Effect, Fiber, Option, Stream } from "effect";
 import { TestClock } from "effect/testing";
 import { describe, expect } from "vitest";
 import { SpaceSyncer } from "./SpaceSyncer";
@@ -261,25 +261,6 @@ describe("SpaceSyncer", () => {
           rev: space.repoRevOf(alice.did),
         });
       }),
-    ),
-  );
-
-  it.live("the scheduler renews registrations before they expire", () =>
-    runWithSyncer(
-      ({ net }) =>
-        Effect.gen(function* () {
-          const alice = yield* Effect.promise(() => net.createAccount("alice"));
-          const space = net.createSpace(alice);
-          space.registrationLifetimeMs = 150;
-          yield* Effect.promise(() =>
-            space.write(alice, "com.example.post", "1", { text: "a" }),
-          );
-          const syncer = yield* SpaceSyncer;
-          yield* syncer.watch(space.ref);
-          yield* Effect.sleep("500 millis");
-          expect(space.registrations.length).toBeGreaterThanOrEqual(2);
-        }),
-      { registrationRenewLead: Duration.millis(100) },
     ),
   );
 
