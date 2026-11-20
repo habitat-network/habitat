@@ -1,5 +1,5 @@
 # TLS front for the e2e test bed (see compose.yaml). The certificate is the
-# self-signed one the `certs` service writes; pear trusts it too so it can fetch
+# self-signed one in certs/; pear trusts it too so it can fetch
 # the web client's OAuth metadata over HTTPS.
 {
 	admin off

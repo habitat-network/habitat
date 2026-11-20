@@ -3,20 +3,6 @@
 # own and reads the published ports back. Pear's secrets arrive from the
 # harness' environment so they are defined in one place.
 services:
-  # Self-signed certificate for habitat-e2e.dev and its subdomains.
-  certs:
-    image: alpine/openssl
-    entrypoint: ["sh", "-c"]
-    command:
-      - >-
-        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes
-        -days 2 -keyout /certs/key.pem -out /certs/cert.pem -subj /CN=habitat-e2e.dev
-        -addext subjectAltName=DNS:habitat-e2e.dev,DNS:*.habitat-e2e.dev
-        -addext basicConstraints=critical,CA:TRUE &&
-        chmod 644 /certs/key.pem /certs/cert.pem
-    volumes:
-      - certs:/certs
-
   postgres:
     image: postgres:16-alpine
     environment:
@@ -49,9 +35,8 @@ services:
     command: ["sh", "-c", "/app/pear migrate && exec /app/pear serve"]
     ports: ["8000"]
     volumes:
-      - certs:/certs:ro
+      - ./certs:/certs:ro
     depends_on:
-      certs: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
 
   frontend:
@@ -67,16 +52,12 @@ services:
     ports: ["443"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - certs:/certs:ro
+      - ./certs:/certs:ro
     networks:
       default:
         # Lets pear reach the web client's origin (for its OAuth metadata) and its
         # own (to resolve did:web:habitat-e2e.dev).
         aliases: [habitat-e2e.dev, app.habitat-e2e.dev]
     depends_on:
-      certs: { condition: service_completed_successfully }
       pear: { condition: service_started }
       frontend: { condition: service_started }
-
-volumes:
-  certs:
