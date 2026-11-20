@@ -170,4 +170,6 @@ it("indexes the group's stream, and writes return once indexed", async () => {
     expect(await state.storage.get("cursor")).toBe(4);
     expect(await state.storage.getAlarm()).not.toBeNull();
   });
-});
+  // The first run loads the sinks and the SDK into a cold Durable Object,
+  // which takes a few seconds on CI runners.
+}, 30_000);
