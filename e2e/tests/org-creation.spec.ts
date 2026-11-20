@@ -1,4 +1,4 @@
-import { test, expect } from "../harness/fixtures";
+import { test } from "../harness/fixtures";
 import { WebApp } from "../harness/pages/webApp";
 
 test.skip(
