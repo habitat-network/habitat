@@ -40,10 +40,13 @@ describe("FakeNetwork", () => {
     url.searchParams.set("repo", bob.did);
     const repoRes = await fetch(url, {
       headers: {
-        ...(await createSpaceSigHeaders(key, {
-          authorization: `Atproto-Space-Credential ${credential}`,
-          audience: bob.did as DidString,
-        })),
+        ...(
+          await createSpaceSigHeaders({
+            authorization: `Atproto-Space-Credential ${credential}`,
+            audience: bob.did as DidString,
+            keypair: key,
+          })
+        ).headers,
         // Repo hosts require a Accept-Signature key share on commit reads.
         ...(await acceptCommitMacHeaders()),
       },
@@ -85,10 +88,13 @@ describe("FakeNetwork", () => {
     url.searchParams.set("space", space.id);
     url.searchParams.set("repo", alice.did);
     const res = await fetch(url, {
-      headers: await createSpaceSigHeaders(key, {
-        authorization: `Atproto-Space-Credential ${credential}`,
-        audience: "did:plc:someoneelseaaaaaaaaaaaaa" as DidString,
-      }),
+      headers: (
+        await createSpaceSigHeaders({
+          authorization: `Atproto-Space-Credential ${credential}`,
+          audience: "did:plc:someoneelseaaaaaaaaaaaaa" as DidString,
+          keypair: key,
+        })
+      ).headers,
     });
     expect(res.status).toBe(401);
   });

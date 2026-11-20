@@ -11,6 +11,10 @@ bin/
 .worktrees/
 
 dev.env
+# Gitignored local env files must not be baked into images: Vite would pick up
+# placeholder or real dev keys (e.g. VITE_POSTHOG_KEY) from them at build time.
+**/.env.local
+**/.env.*.local
 
 .habitat
 

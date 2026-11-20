@@ -81,5 +81,8 @@ func SerializeRepoStar(
 			return nil, err
 		}
 	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
 	return buf.Bytes(), nil
 }

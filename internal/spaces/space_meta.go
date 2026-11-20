@@ -124,6 +124,9 @@ func WriteSpaceMetaStar(meta SpaceMeta) ([]byte, error) {
 			return nil, err
 		}
 	}
+	if err := sw.Close(); err != nil {
+		return nil, err
+	}
 	return buf.Bytes(), nil
 }
 

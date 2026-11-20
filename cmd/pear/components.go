@@ -399,7 +399,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, err
 	}
 
-	return pearapp.New(
+	app := pearapp.New(
 		database,
 		domain,
 		hiveDomain,
@@ -436,7 +436,15 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		searchConfigStore,
 		fedSearch,
 		spaceEvents,
-	), nil
+	)
+	if cmd.Bool(fInsecureWebhooks) {
+		// Webhook endpoints are reached like any other address, so a test bed's
+		// syncers on its private network can register and be notified.
+		webhookClient := httpx.NewClient()
+		app.WebhookClient = webhookClient
+		notifier.WithWebhookClient(webhookClient)
+	}
+	return app, nil
 }
 
 // fedSearchSnippetLength is about how many words of context each record

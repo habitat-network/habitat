@@ -90,6 +90,7 @@ func TestReadRepoStar_Rejects(t *testing.T) {
 		for i := range keys {
 			require.NoError(t, w.WritePair([]byte(keys[i]), values[i]))
 		}
+		require.NoError(t, w.Close())
 		return buf.Bytes()
 	}
 	good := archiveOf(t, store, uri)

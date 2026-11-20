@@ -11,19 +11,18 @@ import { getDb } from "@/db";
 // their DID, so `client.restore(did)` is how every call made on a member's
 // behalf gets its credentials.
 
-// Space scopes per proposal 0016: read every space (members list their
+// Space scopes per proposal 0016: members read every space (they list their
 // groups and read their records; the syncer reads doc and file spaces), and
-// create and manage the space types the app writes: docs, their comments,
-// and uploaded files.
-const MANAGED_SPACE =
-  "action=create&action=read&action=update&action=delete&manage=create&manage=update&manage=delete";
+// the app creates and writes the spaces it manages: docs, their comments, and
+// uploaded files. The write grant is for any space type rather than just those
+// three, the same grant as the web client's MANAGE_SPACES_SCOPE: the spaces
+// alpha PDS refuses sign-in ("Unable to retrieve space declarations") when
+// the scope names those space types.
 export const OAUTH_SCOPE = [
   "atproto",
   "transition:generic",
   "space:*?authority=*&action=read",
-  `space:network.habitat.docs?authority=*&${MANAGED_SPACE}`,
-  `space:network.habitat.docs.comments?authority=*&${MANAGED_SPACE}`,
-  `space:network.habitat.drop?authority=*&${MANAGED_SPACE}`,
+  "space:*?authority=*&collection=*&manage=create&manage=update&manage=delete",
 ].join(" ");
 
 export function clientMetadata(baseUrl: string) {

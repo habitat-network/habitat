@@ -114,6 +114,7 @@ func metaArchive(t *testing.T, meta map[string]any, pairs ...[2]any) []byte {
 		require.NoError(t, err)
 		require.NoError(t, w.WritePair([]byte(p[0].(string)), value))
 	}
+	require.NoError(t, w.Close())
 	return buf.Bytes()
 }
 

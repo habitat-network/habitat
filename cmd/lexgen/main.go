@@ -270,7 +270,8 @@ func generateQueryCode(
 			for _, propName := range propNames {
 				propSchema := defData.Output.Schema.Properties[propName]
 				isRequired := slices.Contains(defData.Output.Schema.Required, propName)
-				writeStructField(&builder, propName, propSchema, isRequired, id, schema)
+				isNullable := slices.Contains(defData.Output.Schema.Nullable, propName)
+				writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, schema)
 			}
 		}
 
@@ -307,7 +308,8 @@ func generateParamsCode(
 		for _, propName := range propNames {
 			propSchema := defData.Parameters.Properties[propName]
 			isRequired := slices.Contains(defData.Parameters.Required, propName)
-			writeStructField(builder, propName, propSchema, isRequired, id, schema)
+			isNullable := slices.Contains(defData.Parameters.Nullable, propName)
+			writeStructField(builder, propName, propSchema, isRequired, isNullable, id, schema)
 		}
 	}
 
@@ -345,7 +347,8 @@ func generateProcedureCode(
 			for _, propName := range propNames {
 				propSchema := defData.Input.Schema.Properties[propName]
 				isRequired := slices.Contains(defData.Input.Schema.Required, propName)
-				writeStructField(&builder, propName, propSchema, isRequired, id, schema)
+				isNullable := slices.Contains(defData.Input.Schema.Nullable, propName)
+				writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, schema)
 			}
 		}
 
@@ -368,7 +371,8 @@ func generateProcedureCode(
 			for _, propName := range propNames {
 				propSchema := defData.Output.Schema.Properties[propName]
 				isRequired := slices.Contains(defData.Output.Schema.Required, propName)
-				writeStructField(&builder, propName, propSchema, isRequired, id, schema)
+				isNullable := slices.Contains(defData.Output.Schema.Nullable, propName)
+				writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, schema)
 			}
 		}
 
@@ -407,7 +411,8 @@ func generateRecordCode(id string, defName string, defData *lex.TypeSchema) (str
 			for _, propName := range propNames {
 				propSchema := defData.Record.Properties[propName]
 				isRequired := slices.Contains(defData.Record.Required, propName)
-				writeStructField(&builder, propName, propSchema, isRequired, id, nil)
+				isNullable := slices.Contains(defData.Record.Nullable, propName)
+				writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, nil)
 			}
 		}
 
@@ -450,7 +455,8 @@ func generateObjectCode(id string, defName string, defData *lex.TypeSchema) (str
 		for _, propName := range propNames {
 			propSchema := defData.Properties[propName]
 			isRequired := slices.Contains(defData.Required, propName)
-			writeStructField(&builder, propName, propSchema, isRequired, id, nil)
+			isNullable := slices.Contains(defData.Nullable, propName)
+			writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, nil)
 		}
 	}
 
@@ -473,11 +479,20 @@ func writeStructField(
 	propName string,
 	propSchema *lex.TypeSchema,
 	isRequired bool,
+	isNullable bool,
 	lexiconID string,
 	lexSchema *lex.Schema,
 ) {
 	goType := schemaToGoType(propSchema, lexiconID, lexSchema)
-	if !isRequired && propSchema != nil && (propSchema.Type == "ref" || propSchema.Type == "blob") {
+	switch {
+	case !isRequired && propSchema != nil &&
+		(propSchema.Type == "ref" || propSchema.Type == "blob"):
+		goType = "*" + goType
+	case isRequired && isNullable && !strings.HasPrefix(goType, "*") &&
+		!strings.HasPrefix(goType, "[]") && goType != "interface{}":
+		// A required, nullable property is always present but may be null:
+		// a pointer without omitempty encodes nil as null rather than the
+		// zero value (e.g. "" for a cid, which isn't a valid CID).
 		goType = "*" + goType
 	}
 	jsonTag := propName

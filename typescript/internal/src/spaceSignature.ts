@@ -38,11 +38,13 @@ export async function createSpaceSignatureHeaders(
   authorization: string,
   audience: string,
 ): Promise<Record<string, string>> {
-  const key = await signingKey();
-  return createSpaceSigHeaders(key, {
+  const keypair = await signingKey();
+  const { headers } = await createSpaceSigHeaders({
     authorization,
     audience: audience as `did:${string}:${string}`,
+    keypair,
   });
+  return headers;
 }
 
 // acceptCommitMacHeaders builds the Accept-Signature header a repo host

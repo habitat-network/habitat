@@ -18,6 +18,7 @@ func writeArchive(t *testing.T, meta map[string]any, pairs [][2][]byte) []byte {
 	for _, p := range pairs {
 		require.NoError(t, w.WritePair(p[0], p[1]))
 	}
+	require.NoError(t, w.Close())
 	return buf.Bytes()
 }
 
@@ -31,6 +32,7 @@ func TestRoundTrip(t *testing.T) {
 		{[]byte("b"), big},
 	})
 	require.Equal(t, Magic, archive[:4])
+	require.Equal(t, byte(controlEnd), archive[len(archive)-1])
 
 	r, err := NewReader(bytes.NewReader(archive), 0)
 	require.NoError(t, err)
@@ -70,7 +72,9 @@ func TestReader_Malformed(t *testing.T) {
 	t.Parallel()
 
 	valid := writeArchive(t, map[string]any{"$type": "x"}, [][2][]byte{{[]byte("k"), []byte("v")}})
-	header := writeArchive(t, map[string]any{"$type": "x"}, nil)
+	// header is an archive's magic and metadata, without its end byte.
+	empty := writeArchive(t, map[string]any{"$type": "x"}, nil)
+	header := empty[:len(empty)-1]
 	noType, err := atdata.MarshalCBOR(map[string]any{"ver": int64(1)})
 	require.NoError(t, err)
 	// cat concatenates byte slices into a fresh one.
@@ -87,15 +91,24 @@ func TestReader_Malformed(t *testing.T) {
 		{name: "metadata without type", archive: cat(Magic, []byte{byte(len(noType))}, noType)},
 		{name: "metadata not cbor", archive: append(append([]byte{}, Magic...), 1, 0xff)},
 		{name: "truncated metadata", archive: valid[:6]},
-		{name: "missing value", archive: append(append([]byte{}, header...), 1, 'k'), atNext: true},
-		{name: "truncated value", archive: valid[:len(valid)-1], atNext: true},
-		{name: "non-canonical varint", archive: cat(header, []byte{0x81, 0x00}), atNext: true},
+		{name: "missing value", archive: cat(header, []byte{controlPair, 1, 'k'}), atNext: true},
+		{name: "truncated value", archive: valid[:len(valid)-2], atNext: true},
+		{name: "missing end", archive: header, atNext: true},
+		{name: "invalid control byte", archive: cat(header, []byte{0x02}), atNext: true},
+		{name: "bytes after end", archive: cat(empty, []byte{0}), atNext: true},
 		{
-			name:    "varint too long",
-			archive: cat(header, []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01}),
+			name:    "non-canonical varint",
+			archive: cat(header, []byte{controlPair, 0x81, 0x00}),
 			atNext:  true,
 		},
-		{name: "truncated varint", archive: cat(header, []byte{0x81}), atNext: true},
+		{
+			name: "varint too long",
+			archive: cat(header, []byte{
+				controlPair, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01,
+			}),
+			atNext: true,
+		},
+		{name: "truncated varint", archive: cat(header, []byte{controlPair, 0x81}), atNext: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

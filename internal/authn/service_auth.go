@@ -80,9 +80,19 @@ func (p *AtprotoServiceAuthMethod) Validate(
 		return nil, false
 	}
 	if !found {
+		// A bare DID is what a PDS puts in the token when it proxies a call
+		// (Atproto-Proxy: <did>#habitat): the instance's own DID, or an org
+		// it hosts, whose #habitat service is this instance.
 		if audienceDID != p.legacyDID {
-			httpx.WriteUnauthorized(ctx, w, "invalid aud claim", nil)
-			return nil, false
+			audienceID, err := p.dir.LookupDID(ctx, audienceDID)
+			if err != nil {
+				httpx.WriteUnauthorized(ctx, w, "failed to lookup audience", err)
+				return nil, false
+			}
+			if p.serviceEndpoint != audienceID.GetServiceEndpoint("habitat") {
+				httpx.WriteUnauthorized(ctx, w, "invalid aud claim", nil)
+				return nil, false
+			}
 		}
 	} else {
 		audienceID, err := p.dir.LookupDID(ctx, audienceDID)

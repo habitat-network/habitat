@@ -24,6 +24,7 @@ var (
 	fPdsOauthClientUri     = "pds_oauth_client_uri"
 	fUiDevProxy            = "ui_dev_proxy"
 	fPlcURL                = "plc_url"
+	fInsecureWebhooks      = "insecure_webhooks"
 	fBuiltinApps           = "builtin_app"
 	fBlobBucket            = "blob_bucket"
 	fMeilisearchURL        = "meilisearch_url"
@@ -135,6 +136,11 @@ func getFlags() []cli.Flag {
 			Name:    fPlcURL,
 			Usage:   "Base URL of the PLC directory used to resolve did:plc identities. Defaults to the public plc.directory; test beds point it at a local server",
 			Sources: getSources(fPlcURL),
+		},
+		&cli.BoolFlag{
+			Name:    fInsecureWebhooks,
+			Usage:   "Let syncers register notification endpoints (authorizeSpaceSync) at private addresses and over http, and deliver to them. For test beds and local development only: the endpoints come from callers",
+			Sources: getSources(fInsecureWebhooks),
 		},
 		&cli.StringFlag{
 			Name:    fUiDevProxy,

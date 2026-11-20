@@ -255,10 +255,11 @@ export class SpaceClient extends Context.Service<
           }
           const credential = yield* credentials.get(target.space);
           const agent = signedAgent(host, () =>
-            createSpaceSigHeaders(credential.key, {
+            createSpaceSigHeaders({
               authorization: `Atproto-Space-Credential ${credential.token}`,
               audience: target.audience,
-            }),
+              keypair: credential.key,
+            }).then(({ headers }) => headers),
           );
           const result = yield* Effect.tryPromise({
             try: (signal) => run(agent, signal, headers),

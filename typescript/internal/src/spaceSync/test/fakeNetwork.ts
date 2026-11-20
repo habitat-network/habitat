@@ -2,13 +2,14 @@ import { TID } from "@atproto/common-web";
 import { P256Keypair, Secp256k1Keypair } from "@atproto/crypto";
 import { type Cid, type LexMap, type LexValue, lexToJson } from "@atproto/lex";
 import {
-  type Commit,
+  type SpaceCommit as Commit,
   RepoCommit,
   type SerializedRecord,
-  createSpaceToken,
+  createDelegationToken,
+  createSpaceCredential,
   parseSpaceToken,
   serializeRecord,
-  serializeRepo,
+  writeRepoStar,
   spaceHostAud,
   isP256DidKey,
   verifyCredentialSig,
@@ -257,11 +258,12 @@ export class FakeNetwork {
   /** What getDelegationToken on `user`'s PDS would return. */
   delegationToken(user: FakeAccount, space: string): Promise<string> {
     const authority = space.split("/")[2];
-    return createSpaceToken(
-      "delegation",
-      { iss: user.did, sub: space, aud: spaceHostAud(authority) },
-      user.keypair,
-    );
+    return createDelegationToken({
+      iss: user.did as DidString,
+      sub: space as SpaceRefString,
+      aud: spaceHostAud(authority as DidString),
+      keypair: user.keypair,
+    });
   }
 
   /** Delegation from the space authority's own session. */
@@ -431,16 +433,13 @@ export class FakeNetwork {
           } catch {
             return xrpcError(400, "InvalidDelegationToken");
           }
-          const credential = await createSpaceToken(
-            "credential",
-            {
-              iss: space.authority.did,
-              sub: space.id,
-              keyId,
-              expiresInSec: space.credentialLifetimeSec,
-            },
-            space.authority.keypair,
-          );
+          const credential = await createSpaceCredential({
+            iss: space.authority.did as DidString,
+            sub: space.id as SpaceRefString,
+            keyId: keyId as DidString,
+            expiresInSec: space.credentialLifetimeSec,
+            keypair: space.authority.keypair,
+          });
           space.credentialJtis.push(
             parseSpaceToken("credential", credential).payload.jti,
           );
@@ -573,7 +572,7 @@ export class FakeNetwork {
         const records = [...repo.records.entries()]
           .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
           .map(([, record]) => record);
-        const star = serializeRepo(maced.commit, records);
+        const star = writeRepoStar(maced.commit, records);
         return new HttpResponse(streamFrom(star), {
           headers: {
             "content-type": "application/octet-stream",

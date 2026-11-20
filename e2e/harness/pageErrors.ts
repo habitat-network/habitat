@@ -21,6 +21,9 @@ export class PageErrors {
       this.errors.push(`uncaught exception: ${err.message}`);
     });
     page.on("requestfailed", (req) => {
+      // The page cancelled it (navigated away, or the app aborted a fetch it
+      // no longer needs): nothing failed on the server.
+      if (req.failure()?.errorText === "net::ERR_ABORTED") return;
       this.errors.push(
         `request failed: ${req.method()} ${req.url()} (${req.failure()?.errorText})`,
       );
