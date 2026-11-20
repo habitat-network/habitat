@@ -217,6 +217,20 @@ type Store interface {
 		repo syntax.DID,
 	) error
 
+	// ImportWriters records the writers a space meta archive carries, for a
+	// space migrated here: each is tracked as a repo at the revision and
+	// commit data the archive reports, as for a repo registered by
+	// RegisterRemoteWrite, since its records are not held here until the
+	// repo's own account imports them. A repo this host already tracks is left
+	// as it is. The space's revision moves up to the newest of the writers', so
+	// revisions stay monotonic across the migration. Returns ErrSpaceNotFound
+	// if the space does not exist.
+	ImportWriters(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		writers []MetaWriter,
+	) error
+
 	// RegisterRemoteWrite records that repo advanced to rev/hash on its own
 	// PDS, without this space host holding the record data locally. It is the
 	// space-host side of an inbound notifyWrite: a repo host whose PDS
@@ -945,6 +959,54 @@ func (s *store) RegisterRemoteWrite(
 	// Best-effort: forward to registered syncers, same as a local write.
 	s.notifier.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
 	return nil
+}
+
+// ImportWriters implements [Store].
+func (s *store) ImportWriters(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	writers []MetaWriter,
+) (err error) {
+	ctx, span := tracer.Start(ctx, "spaces.ImportWriters", trace.WithAttributes(
+		telemetry.Space(uri),
+		attribute.Int("habitat.writers", len(writers)),
+	))
+	defer func() { telemetry.End(span, err) }()
+	ok, err := s.CheckSpaceExists(ctx, uri)
+	if err != nil {
+		return fmt.Errorf("failed to get space: %w", err)
+	} else if !ok {
+		return ErrSpaceNotFound
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var newest syntax.TID
+		for _, w := range writers {
+			if err := lockRepo(tx, uri, w.DID); err != nil {
+				return err
+			}
+			var current spaceRepo
+			err := tx.Where("space = ? AND repo = ?", uri, w.DID).First(&current).Error
+			if err == nil {
+				continue
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("load repo: %w", err)
+			}
+			if err := saveRemoteRepoHash(
+				tx, uri, w.DID, w.Data, w.RepoRev, w.SpaceRev,
+			); err != nil {
+				return fmt.Errorf("save writer %s: %w", w.DID, err)
+			}
+			newest = max(newest, w.SpaceRev)
+		}
+		if newest == "" {
+			return nil
+		}
+		// Revisions are TIDs, which sort in time order: only ever move up.
+		return tx.Model(&space{}).
+			Where("owner = ? AND type = ? AND skey = ? AND rev < ?",
+				uri.SpaceOwner(), uri.SpaceType(), uri.Skey(), newest).
+			Update("rev", newest).Error
+	})
 }
 
 // ---- Record operations ----
