@@ -425,7 +425,7 @@ importers:
         version: link:../../internal
       iron-session:
         specifier: ^9.0.1
-        version: 9.0.1
+        version: 9.1.0
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
