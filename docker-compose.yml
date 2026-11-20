@@ -107,7 +107,6 @@ services:
           - brain.local.habitat.network
           - app.local.habitat.network
           - sap.local.habitat.network
-          - docs.local.habitat.network
           - home.local.habitat.network
     healthcheck:
       test: ['CMD-SHELL', 'test -f /data/caddy/pki/authorities/local/root.crt']
