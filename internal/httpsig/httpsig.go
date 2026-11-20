@@ -2,9 +2,10 @@
 // profile used by atproto permissioned data (spaces) to bind a space
 // credential to a key held by its syncer, replacing DPoP: a single signature
 // tagged "atproto-space-credential" (under any label, which carries no meaning
-// per RFC 9421 section 7.2.5), made with a P-256 key (algorithm ecdsa-p256-sha256, RFC 9421 section 3.3.4) over
-// a fixed list of request headers. The signing key is the credential's
-// cnf.kid, so the signature need not name it.
+// per RFC 9421 section 7.2.5), made with a P-256 key (algorithm
+// ecdsa-p256-sha256, RFC 9421 section 3.3.4) over a fixed list of request
+// headers. The signing key is the credential's cnf.kid, so the signature need
+// not name it.
 package httpsig
 
 import (

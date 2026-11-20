@@ -95,6 +95,11 @@ func TestVerifyReferenceClient(t *testing.T) {
 		return r
 	}
 
+	// relabel renames the reference signature's dictionary member to "sig".
+	relabel := func(field string) string {
+		return strings.Replace(field, "atproto-space-credential=", "sig=", 1)
+	}
+
 	t.Run("accepted", func(t *testing.T) {
 		require.NoError(t, httpsig.VerifyBound(use(), refKey, comps...))
 	})
@@ -152,15 +157,15 @@ func TestVerifyReferenceClient(t *testing.T) {
 	// "sig", and the signature is found by its tag.
 	t.Run("any label", func(t *testing.T) {
 		r := use()
-		r.Header.Set("Signature-Input", strings.Replace(refInput, "atproto-space-credential=", "sig=", 1))
-		r.Header.Set("Signature", strings.Replace(refSig, "atproto-space-credential=", "sig=", 1))
+		r.Header.Set("Signature-Input", relabel(refInput))
+		r.Header.Set("Signature", relabel(refSig))
 		require.NoError(t, httpsig.VerifyBound(r, refKey, comps...))
 	})
 
 	t.Run("two signatures with the tag", func(t *testing.T) {
 		r := use()
-		r.Header.Set("Signature-Input", refInput+", "+strings.Replace(refInput, "atproto-space-credential=", "sig=", 1))
-		r.Header.Set("Signature", refSig+", "+strings.Replace(refSig, "atproto-space-credential=", "sig=", 1))
+		r.Header.Set("Signature-Input", refInput+", "+relabel(refInput))
+		r.Header.Set("Signature", refSig+", "+relabel(refSig))
 		err := httpsig.VerifyBound(r, refKey, comps...)
 		require.ErrorContains(t, err, "more than one")
 	})

@@ -485,7 +485,8 @@ func writeStructField(
 ) {
 	goType := schemaToGoType(propSchema, lexiconID, lexSchema)
 	switch {
-	case !isRequired && propSchema != nil && (propSchema.Type == "ref" || propSchema.Type == "blob"):
+	case !isRequired && propSchema != nil &&
+		(propSchema.Type == "ref" || propSchema.Type == "blob"):
 		goType = "*" + goType
 	case isRequired && isNullable && !strings.HasPrefix(goType, "*") &&
 		!strings.HasPrefix(goType, "[]") && goType != "interface{}":
