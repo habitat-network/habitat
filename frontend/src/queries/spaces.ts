@@ -159,13 +159,26 @@ export function spaceLatestCommitQueryOptions(
 // and write access, but the host has not grown those yet and still answers
 // with { did } only, so the response is taken unvalidated. Relax when the
 // host starts returning read/write.
+//
+// Only memberspace-policy spaces have a member list. A space under another
+// policy (e.g. the relationspace spaces the spaces page creates, whose access
+// comes from userRelation/spaceRelation records) has none to ask for, which
+// resolves to null here.
 export function spaceMembersQueryOptions(
   space: string,
   authManager: AuthManager,
 ) {
   return queryOptions({
     queryKey: ["listMembers", space],
-    queryFn: async (): Promise<Member[]> => {
+    queryFn: async (): Promise<Member[] | null> => {
+      const { body: described } = await xrpc(
+        authManager,
+        com.atproto.space.getSpace.main,
+        { params: { space: space as SpaceRefString }, validateResponse: false },
+      );
+      if (described.policy.$type !== "com.atproto.memberspace.policy") {
+        return null;
+      }
       const response = await xrpc(
         authManager,
         com.atproto.memberspace.listMembers.main,

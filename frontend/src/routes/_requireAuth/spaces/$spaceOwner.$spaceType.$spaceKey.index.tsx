@@ -113,57 +113,59 @@ function SpaceMembers() {
       title={<span className="font-mono break-all">{params.spaceKey}</span>}
       subtitle={<span className="font-mono break-all">{space}</span>}
     >
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">
-            Members ({members.length})
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              accounts granted read access to this space
-            </span>
-          </h2>
-          <AddMemberDialog
-            space={space}
-            authManager={authManager}
-            onAdded={invalidateMembers}
-          />
-        </div>
+      {members && (
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium">
+              Members ({members.length})
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                accounts granted read access to this space
+              </span>
+            </h2>
+            <AddMemberDialog
+              space={space}
+              authManager={authManager}
+              onAdded={invalidateMembers}
+            />
+          </div>
 
-        {members.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-center text-muted-foreground">
-              This space has no members yet.
-            </CardContent>
-          </Card>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>DID</TableHead>
-                <TableHead className="w-0" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {members.map((member) => (
-                <TableRow key={member.did}>
-                  <TableCell className="font-mono">
-                    <DidHoverCard did={member.did}>{member.did}</DidHoverCard>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="destructive"
-                      size="icon-xs"
-                      aria-label={`Remove ${member.did}`}
-                      onClick={() => removeMember(member.did)}
-                    >
-                      <X />
-                    </Button>
-                  </TableCell>
+          {members.length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground">
+                This space has no members yet.
+              </CardContent>
+            </Card>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>DID</TableHead>
+                  <TableHead className="w-0" />
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </section>
+              </TableHeader>
+              <TableBody>
+                {members.map((member) => (
+                  <TableRow key={member.did}>
+                    <TableCell className="font-mono">
+                      <DidHoverCard did={member.did}>{member.did}</DidHoverCard>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="destructive"
+                        size="icon-xs"
+                        aria-label={`Remove ${member.did}`}
+                        onClick={() => removeMember(member.did)}
+                      >
+                        <X />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </section>
+      )}
 
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -360,7 +362,10 @@ function CreateRecordDialog({
       // The new record lands in the caller's own repo, which may also be a
       // brand new member of the space. The keys are prefixes, so every repo's
       // records and commit under this space are covered.
+      // listSpaces only lists spaces the caller has written to, so a first
+      // record can add this space to the (cached) spaces lists too.
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["listSpaces"] }),
         queryClient.invalidateQueries({ queryKey: ["listRecords", space] }),
         queryClient.invalidateQueries({ queryKey: ["listWriters", space] }),
         queryClient.invalidateQueries({ queryKey: ["getLatestCommit", space] }),

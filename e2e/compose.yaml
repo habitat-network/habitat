@@ -1,0 +1,82 @@
+# Test bed for the Playwright suite: pear on Postgres, the web client, and a TLS
+# front. The harness (harness/pear.ts) brings it up with a project name of its
+# own and reads the published ports back. Pear's secrets arrive from the
+# harness' environment so they are defined in one place.
+services:
+  # Self-signed certificate for habitat-e2e.dev and its subdomains.
+  certs:
+    image: alpine/openssl
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes
+        -days 2 -keyout /certs/key.pem -out /certs/cert.pem -subj /CN=habitat-e2e.dev
+        -addext subjectAltName=DNS:habitat-e2e.dev,DNS:*.habitat-e2e.dev
+        -addext basicConstraints=critical,CA:TRUE &&
+        chmod 644 /certs/key.pem /certs/cert.pem
+    volumes:
+      - certs:/certs
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: habitat
+      POSTGRES_USER: habitat
+      POSTGRES_PASSWORD: habitat
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U habitat -d habitat"]
+      interval: 1s
+      retries: 60
+
+  pear:
+    image: ${PEAR_IMAGE:-pear:e2e}
+    build:
+      context: ..
+      dockerfile: cmd/pear/Dockerfile
+    environment:
+      HABITAT_DOMAIN: ${HABITAT_DOMAIN:?}
+      HABITAT_PORT: "8000"
+      HABITAT_DB: postgres://habitat:habitat@postgres:5432/habitat?sslmode=disable
+      HABITAT_SPACE_SIGNING_KEY: ${HABITAT_SPACE_SIGNING_KEY:?}
+      HABITAT_PDS_CRED_ENCRYPT_KEY: ${HABITAT_PDS_CRED_ENCRYPT_KEY:?}
+      HABITAT_OAUTH_SERVER_SECRET: ${HABITAT_OAUTH_SERVER_SECRET:?}
+      HABITAT_OAUTH_CLIENT_SECRET: ${HABITAT_OAUTH_CLIENT_SECRET:?}
+      HABITAT_GOOGLE_CLIENT_ID: ${HABITAT_GOOGLE_CLIENT_ID:?}
+      HABITAT_GOOGLE_CLIENT_SECRET: ${HABITAT_GOOGLE_CLIENT_SECRET:?}
+      # Pear fetches the web client's OAuth metadata from https://app.habitat-e2e.dev.
+      SSL_CERT_FILE: /certs/cert.pem
+    # The server does not migrate on startup, so migrate first.
+    command: ["sh", "-c", "/app/pear migrate && exec /app/pear serve"]
+    ports: ["8000"]
+    volumes:
+      - certs:/certs:ro
+    depends_on:
+      certs: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: e2e/frontend.Dockerfile
+      args:
+        APP_ORIGIN: https://app.habitat-e2e.dev
+        HABITAT_DOMAIN: habitat-e2e.dev
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ["443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - certs:/certs:ro
+    networks:
+      default:
+        # Lets pear reach the web client's origin (for its OAuth metadata) and its
+        # own (to resolve did:web:habitat-e2e.dev).
+        aliases: [habitat-e2e.dev, app.habitat-e2e.dev]
+    depends_on:
+      certs: { condition: service_completed_successfully }
+      pear: { condition: service_started }
+      frontend: { condition: service_started }
+
+volumes:
+  certs:

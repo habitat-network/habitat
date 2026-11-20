@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - e2e/**
+      - frontend/**
+      - typescript/internal/**
       - cmd/pear/**
       - internal/**
       - typescript/apps/pear-pages/**
@@ -26,7 +28,7 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm install --frozen-lockfile --filter e2e... && pnpm --dir e2e exec playwright install --with-deps chromium
 
-      # Builds the pear image (via the harness), starts it in a testcontainer
+      # Brings up the docker compose test bed (builds the images)
       # and runs the Playwright suite. Run directly rather than through moon:
       # moon skips runInCI:false tasks when CI=true, which GitHub always sets.
       - name: Run integration tests

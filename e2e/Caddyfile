@@ -1,0 +1,19 @@
+# TLS front for the e2e test bed (see compose.yaml). The certificate is the
+# self-signed one the `certs` service writes; pear trusts it too so it can fetch
+# the web client's OAuth metadata over HTTPS.
+{
+	admin off
+	auto_https off
+}
+
+https://app.habitat-e2e.dev {
+	tls /certs/cert.pem /certs/key.pem
+	reverse_proxy frontend:80
+}
+
+# The instance itself, plus the host-routed identities (DID documents, handles)
+# of every org under it.
+https://habitat-e2e.dev, https://*.habitat-e2e.dev {
+	tls /certs/cert.pem /certs/key.pem
+	reverse_proxy pear:8000
+}
