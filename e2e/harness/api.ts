@@ -8,7 +8,7 @@ export interface CreateOrgInput {
 }
 
 export interface Org {
-  /** The org's DID, e.g. did:web:abc123.localhost */
+  /** The org's DID, e.g. did:web:abc123.habitat-e2e.dev */
   did: string;
   handle: string;
   /** Members sign in with <anything>@<domain>. */
