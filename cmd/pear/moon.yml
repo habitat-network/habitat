@@ -4,72 +4,29 @@ tasks:
     # Builds and embeds the pre-rendered /ui/ pages (member login, instance
     # admin) into the pear binary via internal/webui/dist.
     - pear-pages:build
-  # Applies pending migrations to the local database; the server doesn't migrate on startup.
+  # Applies pending migrations to the dev Postgres. Compose also runs this
+  # one-shot automatically before pear starts.
   migrate:
-    # Runs from the project directory like the air-run dev server, so both use
-    # the same default SQLite file (cmd/pear/repo.db).
-    command: go
-    args:
-    - run
-    - .
-    - migrate
-    env: &devEnv
-      HABITAT_PORT: '8000'
-      HABITAT_DEBUG: 'true'
-      HABITAT_SERVICE_NAME: "habitat_local"
-      HABITAT_DOMAIN: pear.local.habitat.network
-      HABITAT_PRETTY_LOGS: 'true'
-      # Reverse-proxy /ui/ to the pear-pages dev server instead of serving the
-      # embedded build, so UI changes are picked up live.
-      HABITAT_UI_DEV_PROXY: 'http://localhost:6010'
-      HABITAT_SPACE_SIGNING_KEY: 'z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd'
-      HABITAT_PDS_CRED_ENCRYPT_KEY: 'WRlpsucNQl8AVO1qNN+T+hzbVtYjdoF21QfF+0uDJSM='
-      HABITAT_OAUTH_SERVER_SECRET: 'KFLA79A/GPPsxz+y5kk7dLX2Nxxe7RM9Ik96rD2tO4c='
-      HABITAT_OAUTH_CLIENT_SECRET: 'RL4fcDJiumyAEMJ5US0WWu/QKDallQAZ/2GJHz99d4Y='
-      # Served by root:meilisearch, which runs without a master key.
-      # HABITAT_MEILISEARCH_URL: 'http://localhost:7700'
-      HABITAT_MCP_TEXT_OVERRIDES: 'true'
-      # Allow MCP servers running on this machine.
-      HABITAT_MCP_ALLOW_PRIVATE_NETWORKS: 'true'
+    command: docker
+    args: [compose, run, --rm, pear-migrate]
     options:
-      envFile:
-      - /dev.env
+      envFile: [/dev.env]
+      mergeArgs: replace
+      runFromWorkspaceRoot: true
     preset: utility
-  # Runs a pear task against the local database (backfills and other operator-run work):
+  # Runs a pear task against the dev database (backfills and other operator-run work):
   #   moon run pear:run -- <task> [args]
   run:
-    # Runs from the project directory like pear:migrate and pear:dev, so it
-    # opens the same default SQLite file.
-    command: go
-    args:
-    - run
-    - .
-    - run
-    env: *devEnv
+    command: docker
+    args: [compose, --profile, task, run, --rm, pear-task]
     options:
-      envFile:
-      - /dev.env
+      envFile: [/dev.env]
+      mergeArgs: replace
+      runFromWorkspaceRoot: true
     preset: utility
   dev:
-    args:
-      - --
-      - serve
-      - --pds_oauth_client_uri
-      - ${NGROK_DOMAIN}
-    env: *devEnv
-    deps:
-    - migrate
-    - root:caddy
-    - root:meilisearch
-    - ngrok
-    - pear-pages:dev
-  ngrok:
-    # we ngrok for authing with the public pds. if it's not installed, just skip. pds auth won't work
-    script: 'command -v ngrok >/dev/null 2>&1 && exec ngrok http "8000" --url "https://${NGROK_DOMAIN}" --log stdout --log-level error || echo "[ngrok] not installed, skipping tunnel" >&2'
-    preset: server
-    options:
-      envFile:
-      - /dev.env
+    env:
+      COMPOSE_PROFILES: pear
   docker-build:
     options:
       internal: false

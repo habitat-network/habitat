@@ -39,7 +39,7 @@ CI runs `moon ci` on pushes to main and on PRs. Local config lives in the gitign
 - `typescript/` — shared packages (`internal` design system, generated `api`, `xrpc-openapi-gen`) and demo apps.
 - `e2e/` — Playwright tests against a real `pear` (`moon run e2e:test`; not part of `moon ci`).
 - `integration/` — separate Go module holding the manually run `mcp-evals` CLI.
-- `api-docs/` (Docusaurus API reference), `website/` (Astro marketing site), `templates/web-app` (Moon generator), `docs/superpowers/` (design specs and plans), `infra/` (local Postgres).
+- `api-docs/` (Docusaurus API reference), `website/` (Astro marketing site), `templates/web-app` (Moon generator), `docs/superpowers/` (design specs and plans). Local dev services (Postgres, Meilisearch, Caddy, app dev servers) run under the root `docker-compose.yml`; the Node dev image lives in `typescript/node-dev.Dockerfile`.
 
 ## Search notes
 Search is off unless `--meilisearch_url` is set. After changing index settings, the embedder, or the record projection, run `pear run reindex` (never two at once); until then an older index serves reads but rejects writes with `search.ErrLegacyIndex`. Tests use `HABITAT_TEST_MEILISEARCH_URL` if set, otherwise testcontainers.

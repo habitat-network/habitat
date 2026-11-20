@@ -61,24 +61,5 @@ tasks:
       envFile:
       - /dev.env
     preset: server
-  dev:
-    command: air
-    args:
-    - -c
-    - $workspaceRoot/.air.toml
-    - --root
-    - $workspaceRoot
-    - --build.cmd
-    - go build -o $workspaceRoot/bin/$project .
-    - --build.entrypoint
-    - $workspaceRoot/bin/$project
-    - --build.include_dir
-    - cmd/$project,internal,api,pkg
-    - --log.main_only 
-    - 'true'
-    options:
-      envFile:
-      - /dev.env
-    preset: server
 inheritedBy:
   toolchain: go

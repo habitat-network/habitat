@@ -1,4 +1,13 @@
 tasks:
+  # Default dev task: bring up the local Compose stack. Projects that need a
+  # specific app set COMPOSE_PROFILES in their dev task's env.
+  dev:
+    command: docker
+    # --build picks up Dockerfile changes; otherwise Compose reuses a stale
+    # image from a previous stack (which can break dev after an image change).
+    args: [compose, up, --build]
+    options:
+      envFile: [/dev.env]
   docker-build:
     command: docker
     args:
