@@ -37,7 +37,6 @@ import { BadRequest, Forbidden } from "@/server/effect/errors";
 import { currentMember, requireOrg } from "@/server/effect/member";
 import { runEffect } from "@/server/effect/run";
 import { AppEnv, attempt, Database, Habitat } from "@/server/effect/services";
-import { watchSpaces } from "@/server/sync";
 import { requireConnected } from "@/server/groups";
 
 // Docs: Chalk's collaborative documents. Each doc is its own space owned by
@@ -169,7 +168,6 @@ export const createDoc = createServerFn({ method: "POST" })
           },
         );
 
-        yield* Effect.promise(() => watchSpaces(env, [uri]));
         // The comments space exists from the start, so the doc can be
         // shared with commenters right away.
         yield* attempt(did, "docs.ensureCommentsSpace", () =>

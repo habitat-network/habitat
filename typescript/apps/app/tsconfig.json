@@ -26,6 +26,7 @@
   "references": [
     { "path": "../../api" },
     { "path": "../../internal" },
-    { "path": "../../habitat" }
+    { "path": "../../habitat" },
+    { "path": "../../jetstream" }
   ]
 }

@@ -50,11 +50,12 @@ export function useUploads(orgDid: string) {
       send(orgDid, next.id, next.file, update)
         .then(async ({ syncError }) => {
           if (syncError) {
-            // Stored in the org, but the first sync pass failed, so it isn't
-            // listed yet. Say so rather than let it look like a clean upload.
+            // Stored in the org, but the group's stream hadn't indexed it
+            // when the upload returned, so it may not be listed yet. Say so
+            // rather than let it look like a clean upload.
             toast.add({
               type: "warning",
-              title: `${next.file.name} was uploaded but hasn't synced`,
+              title: `${next.file.name} was uploaded but isn't listed yet`,
               description: syncError,
             });
           }

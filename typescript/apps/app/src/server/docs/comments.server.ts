@@ -11,9 +11,7 @@ import {
   type Db,
 } from "@/db";
 import { DOCS_SPACE_TYPE, RELATION_SPACE_POLICY } from "./docs.server";
-import { env } from "cloudflare:workers";
 import type { HabitatClient } from "@/server/habitatClient";
-import { watchSpaces } from "@/server/sync";
 
 // Server-only comment helpers, kept out of functions.ts for the same reason
 // functions.server.ts is (see that file's header comment): only
@@ -198,20 +196,8 @@ export async function ensureCommentsSpace(
     }
   }
 
-  // Nothing else tells the syncer this space exists until some member's
-  // next sign-in lists it — same reason createDoc watches the doc space
-  // right after creating it. Without this, a comment/reply written by anyone
-  // other than whichever chalk instance happens to eagerly mirror its own
-  // writes locally (writeComment/writeReply) stays invisible to this
-  // instance's D1 mirror until then.
-  try {
-    await watchSpaces(env, [spaceUri]);
-  } catch (err) {
-    // Best-effort, same as the steps above — a transient failure here
-    // just means this call falls back to relying on the next sign-in.
-    console.error("[comments] watch comments space", spaceUri, err);
-  }
-
+  // No watch needed: the group's stream carries every space the group
+  // owns, this one included, from the moment it exists.
   return spaceUri;
 }
 

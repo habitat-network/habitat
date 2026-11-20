@@ -1,0 +1,175 @@
+import { env, runInDurableObject } from "cloudflare:test";
+import { beforeEach, expect, it, vi } from "vitest";
+import { fileByUri, getDb } from "@/db";
+import { files } from "@/db/schema";
+import { putFileRecord, deleteFileRecord } from "@/server/files/files.server";
+import type { OrgStream } from "@/server/stream/orgStream";
+import { TEST_DID_HEADER } from "./fakeOAuth";
+
+vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
+
+// The group's stream end to end inside workerd: the OrgStream Durable
+// Object opens pear's subscribe stream through the group's session (a
+// WebSocket upgrade through fetch, as in production), indexes what it
+// carries into D1, and a write made through it returns only once its event
+// has been indexed.
+
+const ORG = "did:web:org.example";
+const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile`;
+const URI = `${SPACE}/${ORG}/network.habitat.drop.file/self`;
+const BLOB = {
+  $type: "blob",
+  ref: { $link: "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku" },
+  mimeType: "text/plain",
+  size: 11,
+};
+const CID1 = "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm";
+const CID2 = "bafyreihbb7oqfrxctnelmhaswbqmdbkj2zhx6bmbrbnyuo3s5vetbmwamu";
+
+function fileCommit(seq: number, cid: string, name: string) {
+  return JSON.stringify({
+    $type: "message",
+    payload: {
+      $type: "network.habitat.space.subscribe#commit",
+      seq,
+      space: SPACE,
+      did: ORG,
+      uri: URI,
+      time: "2026-11-20T00:00:00.000000Z",
+      rev: "3l3qo2vutsw2b",
+      operation: seq === 1 ? "create" : "update",
+      collection: "network.habitat.drop.file",
+      rkey: "self",
+      cid,
+      record: {
+        $type: "network.habitat.drop.file",
+        name,
+        file: BLOB,
+        uploadedBy: "did:plc:alice",
+        createdAt: "2026-10-08T12:00:00.000Z",
+      },
+    },
+  });
+}
+
+function fileDelete(seq: number) {
+  return JSON.stringify({
+    $type: "message",
+    payload: {
+      $type: "network.habitat.space.subscribe#commit",
+      seq,
+      space: SPACE,
+      did: ORG,
+      uri: URI,
+      time: "2026-11-20T00:00:00.000000Z",
+      rev: "3l3qo2vutsw2c",
+      operation: "delete",
+      collection: "network.habitat.drop.file",
+      rkey: "self",
+    },
+  });
+}
+
+// pear stands in for the space host: the subscribe upgrade gets the server
+// half of a WebSocketPair, and writes are answered (and their events sent
+// down the stream) as pear would.
+let socket: WebSocket | undefined;
+let subscribeUrls: URL[] = [];
+let recordExists = false;
+const writes: { nsid: string; did: string | null; body: unknown }[] = [];
+
+beforeEach(async () => {
+  socket = undefined;
+  subscribeUrls = [];
+  recordExists = false;
+  writes.length = 0;
+  await getDb(env).delete(files);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const req = new Request(input, init);
+      const url = new URL(req.url);
+      const nsid = url.pathname.replace("/xrpc/", "");
+      if (nsid === "network.habitat.space.subscribe") {
+        expect(req.headers.get("Upgrade")).toBe("websocket");
+        expect(req.headers.get(TEST_DID_HEADER)).toBe(ORG);
+        subscribeUrls.push(url);
+        const pair = new WebSocketPair();
+        pair[1].accept();
+        socket = pair[1];
+        return new Response(null, { status: 101, webSocket: pair[0] });
+      }
+      const did = req.headers.get(TEST_DID_HEADER);
+      if (nsid === "com.atproto.space.getRecord") {
+        return recordExists
+          ? Response.json({ uri: URI, cid: CID2, value: {} })
+          : Response.json({ error: "RecordNotFound" }, { status: 400 });
+      }
+      const body = await req.json();
+      writes.push({ nsid, did, body });
+      if (nsid === "com.atproto.space.putRecord") {
+        // The event follows the response, as it would from pear's sequencer.
+        setTimeout(() => socket?.send(fileCommit(2, CID2, "renamed.txt")), 20);
+        return Response.json({ uri: URI, cid: CID2 });
+      }
+      if (nsid === "com.atproto.space.deleteRecord") {
+        setTimeout(() => socket?.send(fileDelete(3)), 20);
+        return Response.json({});
+      }
+      return Response.json({ error: "NotFound" }, { status: 404 });
+    }),
+  );
+});
+
+async function until(cond: () => Promise<boolean>) {
+  for (let i = 0; i < 200; i++) {
+    if (await cond()) return;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  expect(await cond()).toBe(true);
+}
+
+it("indexes the group's stream, and writes return once indexed", async () => {
+  const stub = env.ORG_STREAM.get(env.ORG_STREAM.idFromName(ORG));
+  await stub.ensure(ORG);
+  await until(async () => socket !== undefined);
+  // A fresh group replays from the start, asking only for what it indexes.
+  expect(subscribeUrls[0].searchParams.get("cursor")).toBe("0");
+  expect(subscribeUrls[0].searchParams.getAll("collections")).toContain(
+    "network.habitat.drop.file",
+  );
+
+  // The socket belongs to the object's I/O context, so it's written from
+  // inside it.
+  await runInDurableObject(stub, () =>
+    socket!.send(fileCommit(1, CID1, "notes.txt")),
+  );
+  const db = getDb(env);
+  await until(async () => (await fileByUri(db, URI)) !== undefined);
+  expect((await fileByUri(db, URI))?.name).toBe("notes.txt");
+
+  // A write made through the stream is in D1 by the time it returns.
+  const written = await putFileRecord(env, ORG, SPACE, {
+    name: "renamed.txt",
+    blob: BLOB,
+    uploadedBy: "did:plc:alice",
+  });
+  expect(written).toEqual({ uri: URI, cid: CID2, indexed: true });
+  expect((await fileByUri(db, URI))?.name).toBe("renamed.txt");
+  expect(writes[0]).toMatchObject({
+    nsid: "com.atproto.space.putRecord",
+    did: ORG,
+    body: { space: SPACE, repo: ORG, rkey: "self" },
+  });
+
+  recordExists = true;
+  await deleteFileRecord(env, ORG, SPACE);
+  expect(await fileByUri(db, URI)).toBeUndefined();
+
+  await runInDurableObject(stub, async (_: OrgStream, state) => {
+    expect(await state.storage.get("cursor")).toBe(4);
+    expect(await state.storage.getAlarm()).not.toBeNull();
+  });
+  // The first run loads the sinks and the SDK into a cold Durable Object,
+  // which takes a few seconds on CI runners.
+}, 30_000);

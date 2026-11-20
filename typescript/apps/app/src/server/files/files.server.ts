@@ -1,6 +1,11 @@
 import { type Agent, type LexValue, xrpc } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import { com, community, network } from "api";
+import { community, network } from "api";
+import {
+  deleteRecordIndexed,
+  type IndexedWrite,
+  putRecordIndexed,
+} from "../stream";
 import { FILE_COLLECTION } from "./sink";
 
 // Calls Drop made, and the app now makes, against the Habitat instance, each as a specific OAuth
@@ -79,41 +84,43 @@ export async function uploadBlob(
 export class FileTooLargeError extends Error {}
 
 // putFileRecord writes the network.habitat.drop.file record that names the
-// file and references its blob, into the org's own repo in the file's space.
+// file and references its blob, into the org's own repo in the file's space,
+// and returns once the group's stream has indexed it into the files table.
 export async function putFileRecord(
-  orgAgent: Agent,
+  env: Env,
   orgDid: DidString,
   space: SpaceRefString,
   file: { name: string; blob: LexValue; uploadedBy: DidString },
-): Promise<{ uri: string; cid: string }> {
-  const { body } = await xrpc(orgAgent, com.atproto.space.putRecord.main, {
-    body: {
-      space,
-      repo: orgDid,
-      collection: FILE_COLLECTION,
-      rkey: "self",
-      record: {
-        $type: FILE_COLLECTION,
-        name: file.name,
-        file: file.blob,
-        uploadedBy: file.uploadedBy,
-        createdAt: new Date().toISOString(),
-      },
+): Promise<IndexedWrite> {
+  return putRecordIndexed(env, orgDid, orgDid, {
+    space,
+    repo: orgDid,
+    collection: FILE_COLLECTION,
+    rkey: "self",
+    record: {
+      $type: FILE_COLLECTION,
+      name: file.name,
+      file: file.blob,
+      uploadedBy: file.uploadedBy,
+      createdAt: new Date().toISOString(),
     },
   });
-  return { uri: body.uri, cid: body.cid };
 }
 
-// deleteFileRecord removes a file's record from the org's repo in its space.
-// The blob it referenced is left for pear to garbage collect once nothing
-// references it; there's no direct blob deletion. Succeeds whether or not
-// the record was still there.
+// deleteFileRecord removes a file's record from the org's repo in its space,
+// and returns once the files table no longer lists it. The blob it
+// referenced is left for pear to garbage collect once nothing references
+// it; there's no direct blob deletion. Succeeds whether or not the record
+// was still there.
 export async function deleteFileRecord(
-  orgAgent: Agent,
+  env: Env,
   orgDid: DidString,
   space: SpaceRefString,
-): Promise<void> {
-  await xrpc(orgAgent, com.atproto.space.deleteRecord.main, {
-    body: { space, repo: orgDid, collection: FILE_COLLECTION, rkey: "self" },
+): Promise<IndexedWrite> {
+  return deleteRecordIndexed(env, orgDid, orgDid, {
+    space,
+    repo: orgDid,
+    collection: FILE_COLLECTION,
+    rkey: "self",
   });
 }

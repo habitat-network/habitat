@@ -20,7 +20,6 @@ import { Route as ApiUploadRouteImport } from './routes/api.upload'
 import { Route as OauthCallbackRouteImport } from './routes/oauth.callback'
 import { Route as OauthClientMetadataDotjsonRouteImport } from './routes/oauth.client-metadata[.]json'
 import { Route as WsDocIdRouteImport } from './routes/ws.$docId'
-import { Route as XrpcNsidRouteImport } from './routes/xrpc.$nsid'
 import { Route as MemberGOrgRouteImport } from './routes/_member/g.$org'
 import { Route as MemberGroupsNewRouteImport } from './routes/_member/groups.new'
 import { Route as MemberGOrgIndexRouteImport } from './routes/_member/g.$org/index'
@@ -87,11 +86,6 @@ const WsDocIdRoute = WsDocIdRouteImport.update({
   path: '/ws/$docId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const XrpcNsidRoute = XrpcNsidRouteImport.update({
-  id: '/xrpc/$nsid',
-  path: '/xrpc/$nsid',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const MemberGOrgRoute = MemberGOrgRouteImport.update({
   id: '/g/$org',
   path: '/g/$org',
@@ -154,7 +148,6 @@ export interface FileRoutesByFullPath {
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
   '/ws/$docId': typeof WsDocIdRoute
-  '/xrpc/$nsid': typeof XrpcNsidRoute
   '/g/$org': typeof MemberGOrgRouteWithChildren
   '/groups/new': typeof MemberGroupsNewRoute
   '/g/$org/files': typeof MemberGOrgFilesRoute
@@ -176,7 +169,6 @@ export interface FileRoutesByTo {
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
   '/ws/$docId': typeof WsDocIdRoute
-  '/xrpc/$nsid': typeof XrpcNsidRoute
   '/': typeof MemberIndexRoute
   '/groups/new': typeof MemberGroupsNewRoute
   '/g/$org/files': typeof MemberGOrgFilesRoute
@@ -200,7 +192,6 @@ export interface FileRoutesById {
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
   '/ws/$docId': typeof WsDocIdRoute
-  '/xrpc/$nsid': typeof XrpcNsidRoute
   '/_member/': typeof MemberIndexRoute
   '/_member/g/$org': typeof MemberGOrgRouteWithChildren
   '/_member/groups/new': typeof MemberGroupsNewRoute
@@ -226,7 +217,6 @@ export interface FileRouteTypes {
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
     | '/ws/$docId'
-    | '/xrpc/$nsid'
     | '/g/$org'
     | '/groups/new'
     | '/g/$org/files'
@@ -248,7 +238,6 @@ export interface FileRouteTypes {
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
     | '/ws/$docId'
-    | '/xrpc/$nsid'
     | '/'
     | '/groups/new'
     | '/g/$org/files'
@@ -271,7 +260,6 @@ export interface FileRouteTypes {
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
     | '/ws/$docId'
-    | '/xrpc/$nsid'
     | '/_member/'
     | '/_member/g/$org'
     | '/_member/groups/new'
@@ -294,7 +282,6 @@ export interface RootRouteChildren {
   OauthCallbackRoute: typeof OauthCallbackRoute
   OauthClientMetadataDotjsonRoute: typeof OauthClientMetadataDotjsonRoute
   WsDocIdRoute: typeof WsDocIdRoute
-  XrpcNsidRoute: typeof XrpcNsidRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -374,13 +361,6 @@ declare module '@tanstack/react-router' {
       path: '/ws/$docId'
       fullPath: '/ws/$docId'
       preLoaderRoute: typeof WsDocIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/xrpc/$nsid': {
-      id: '/xrpc/$nsid'
-      path: '/xrpc/$nsid'
-      fullPath: '/xrpc/$nsid'
-      preLoaderRoute: typeof XrpcNsidRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_member/g/$org': {
@@ -510,7 +490,6 @@ const rootRouteChildren: RootRouteChildren = {
   OauthCallbackRoute: OauthCallbackRoute,
   OauthClientMetadataDotjsonRoute: OauthClientMetadataDotjsonRoute,
   WsDocIdRoute: WsDocIdRoute,
-  XrpcNsidRoute: XrpcNsidRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

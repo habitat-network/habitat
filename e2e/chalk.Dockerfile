@@ -16,12 +16,14 @@ COPY --parents pnpm-lock.yaml pnpm-workspace.yaml package.json \
 	typescript/apps/app/package.json \
 	typescript/internal/package.json \
 	typescript/api/package.json \
-	typescript/habitat/package.json ./
+	typescript/habitat/package.json \
+	typescript/jetstream/package.json ./
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 	pnpm install --frozen-lockfile --filter app...
 
 COPY --parents tsconfig.options.json typescript/globals.d.ts \
-	typescript/apps/app typescript/internal typescript/api typescript/habitat ./
+	typescript/apps/app typescript/internal typescript/api typescript/habitat \
+	typescript/jetstream ./
 
 WORKDIR /app/typescript/apps/app
 # The browser resolves handles of DIDs bsky doesn't know through this pear.

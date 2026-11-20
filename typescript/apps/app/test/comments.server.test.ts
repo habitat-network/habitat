@@ -16,10 +16,6 @@ import {
 import { HabitatClient } from "../src/server/habitatClient";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
-const { watchSpaces } = vi.hoisted(() => ({
-  watchSpaces: vi.fn(async () => {}),
-}));
-vi.mock("../src/server/sync", () => ({ watchSpaces }));
 import { env as cfEnv } from "cloudflare:test";
 import { commentsForDoc, getDb, repliesForDoc, upsertComment } from "../src/db";
 
@@ -178,11 +174,6 @@ describe("ensureCommentsSpace", () => {
         relation: "manager",
         space: COMMENTS_SPACE,
       },
-    ]);
-    // Nothing else tells the syncer the comments space exists until some
-    // member's next sign-in — see ensureCommentsSpace's comment.
-    expect(watchSpaces).toHaveBeenCalledWith(expect.anything(), [
-      COMMENTS_SPACE,
     ]);
   });
 

@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.options.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noEmitOnError": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "../../.moon/cache/types/typescript/jetstream"
+  },
+  "include": ["src/**/*"]
+}

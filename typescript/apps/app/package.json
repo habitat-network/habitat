@@ -23,6 +23,7 @@
     "@atproto/oauth-client": "0.0.0-spaces-alpha-20261029171913",
     "@atproto/syntax": "catalog:",
     "@habitat-network/habitat": "workspace:*",
+    "@habitat-network/jetstream": "workspace:*",
     "@posthog/react": "^1.7.0",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-devtools": "catalog:",

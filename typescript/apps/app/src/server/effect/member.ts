@@ -3,7 +3,12 @@ import { network } from "api";
 import { Context, Effect } from "effect";
 import type { AppSessionData } from "@/server/session";
 import { NotAMember, NotSignedIn } from "./errors";
-import { isMemberOf, orgsOf, reconcileMemberships } from "@/db";
+import {
+  connectedOrgNames,
+  isMemberOf,
+  orgsOf,
+  reconcileMemberships,
+} from "@/db";
 import {
   MEMBERS_SPACE_TYPE,
   MEMBERSHIP_COLLECTION,
@@ -83,28 +88,26 @@ const confirmedMemberships = Effect.fn("confirmedMemberships")(function* (
 });
 
 // refreshMemberships is the bootstrap: it asks pear which groups the member
-// belongs to, makes their rows in the memberships table match, and starts
-// syncing each group's roster so every later change (a member removed, a
-// role changed) arrives through spaceSync instead of being re-asked. The
-// member is recorded first, since their session is what mints the token
-// for a group's roster before the group itself is connected.
+// belongs to and makes their rows in the memberships table match. Every
+// later change (a member removed, a role changed) to a connected group's
+// roster arrives through the group's stream instead of being re-asked, so
+// this also makes sure each connected group's stream is running.
 export const refreshMemberships = Effect.fn("refreshMemberships")(function* () {
   const did = yield* currentMember;
   const db = yield* Database;
   const env = yield* AppEnv;
   const found = yield* confirmedMemberships(did);
   yield* Effect.promise(() => reconcileMemberships(db, did, found));
-  // Imported lazily: sync.ts pulls in the sinks, which reach back into the
-  // modules that import this one.
+  // Imported lazily: the stream pulls in the sinks, which reach back into
+  // the modules that import this one.
   yield* Effect.tryPromise(async () => {
-    const { watchSpaces } = await import("@/server/sync");
-    await watchSpaces(
-      env,
-      found.map((f) => f.space),
+    const { followOrg } = await import("@/server/stream");
+    const connected = await connectedOrgNames(
+      db,
+      found.map((f) => f.orgDid),
     );
-  }).pipe(
-    Effect.catch((e) => Effect.logWarning("watching members spaces failed", e)),
-  );
+    await Promise.all([...connected.keys()].map((org) => followOrg(env, org)));
+  }).pipe(Effect.catch((e) => Effect.logWarning("following groups failed", e)));
   return found.map((f) => f.orgDid as DidString);
 });
 

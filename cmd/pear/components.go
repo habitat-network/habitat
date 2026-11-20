@@ -301,8 +301,12 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("setup oauth server: %w", err)
 	}
 
+	// hiveDir, not defaultDir: the audience can be an org this instance hosts,
+	// whose did:web must resolve locally. Over the network it points back at
+	// ourselves, which fails wherever the org's host isn't reachable from the
+	// container (local dev).
 	serviceAuth := authn.NewServiceAuthMethod(
-		defaultDir,
+		hiveDir,
 		syntax.DID("did:web:"+domain),
 		"https://"+domain,
 	)
