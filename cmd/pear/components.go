@@ -310,7 +310,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	credentialRevocations := authn.NewCredentialRevocations(
 		kv.Namespace("space_credential_revoked"),
 	)
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, credentialRevocations)
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(hiveDir, credentialRevocations)
 	validator := authn.NewValidator(
 		oauthServer,
 		serviceAuth,
