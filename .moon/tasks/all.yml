@@ -4,8 +4,6 @@ tasks:
   # token doubles as the profile and service name, so nothing is repeated per
   # project. --attach limits the log stream to this one service.
   dev:
-    deps:
-      - root:dev
     command: docker
     args: [compose, --profile, $project, up]
     options:
