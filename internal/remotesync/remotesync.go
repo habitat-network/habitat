@@ -410,10 +410,7 @@ func (r *repoReader) listRepoOps(
 	if err != nil {
 		return out, nil, fmt.Errorf("encapsulate: %w", err)
 	}
-	wantMAC, err := spacecommit.FormatWantMAC(spacecommit.CommitMACType, keyShare)
-	if err != nil {
-		return out, nil, err
-	}
+	wantMAC := spacecommit.FormatMACRequest(spacecommit.CommitMACType, keyShare)
 	q := url.Values{
 		"space": {r.space.String()},
 		"repo":  {r.repo.String()},
@@ -431,7 +428,7 @@ func (r *repoReader) listRepoOps(
 	req.Header.Set("Authorization", httpsig.CredentialScheme+" "+r.credential)
 	// Repo methods are presented to the repo they name.
 	req.Header.Set(httpsig.AudienceHeader, r.repo.String())
-	req.Header.Set(spacecommit.WantMACHeader, wantMAC)
+	req.Header.Set(spacecommit.AcceptSignatureHeader, wantMAC)
 	if err := httpsig.Sign(req, r.bindKey, "authorization", "atproto-space-audience"); err != nil {
 		return out, nil, fmt.Errorf("sign request: %w", err)
 	}
@@ -459,11 +456,7 @@ func (r *repoReader) listRepoOps(
 		return out, nil, nil
 	}
 	commit := spacecommit.FromComAtprotoXRPC(*out.Commit)
-	mac, err := spacecommit.ParseMAC(resp.Header, spacecommit.CommitMACType)
-	if err != nil {
-		return out, nil, err
-	}
-	if err := commit.Verify(r.space, r.repo, secret, mac); err != nil {
+	if err := commit.Verify(r.space, r.repo, resp.Header, keyShare, secret); err != nil {
 		return out, nil, err
 	}
 	return out, &commit, nil
@@ -488,10 +481,12 @@ func remoteOp(entry comatproto.ComAtprotoSpaceListRepoOpsOpEntry) (spaces.Remote
 		Rev:        rev,
 		Collection: collection,
 		Rkey:       rkey,
-		Cid:        entry.Cid,
-		Prev:       entry.Prev,
 	}
-	if entry.Cid == "" {
+	// cid is null for a delete, and prev for a create.
+	if entry.Prev != nil {
+		op.Prev = *entry.Prev
+	}
+	if entry.Cid == nil || *entry.Cid == "" {
 		return op, nil
 	}
 	if entry.Value == nil {
@@ -513,7 +508,8 @@ func remoteOp(entry comatproto.ComAtprotoSpaceListRepoOpsOpEntry) (spaces.Remote
 	if err != nil {
 		return spaces.RemoteOp{}, err
 	}
-	if sum.String() != entry.Cid {
+	op.Cid = *entry.Cid
+	if sum.String() != op.Cid {
 		return spaces.RemoteOp{}, fmt.Errorf("%w: op %s/%s value doesn't match its cid",
 			ErrInvalidOps, collection, rkey)
 	}

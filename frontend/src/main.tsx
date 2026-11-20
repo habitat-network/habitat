@@ -8,9 +8,15 @@ import {
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { reportWebVitals } from "internal";
+import {
+  MANAGE_SPACES_SCOPE,
+  reportWebVitals,
+  setPlcDirectory,
+} from "internal";
 import { AuthManager } from "internal/auth";
 import { Spinner } from "internal/components/ui";
+
+if (import.meta.env.VITE_PLC_URL) setPlcDirectory(import.meta.env.VITE_PLC_URL);
 
 const domainUrl = new URL(import.meta.env.VITE_BASE_URL);
 const authManager = new AuthManager(
@@ -21,6 +27,8 @@ const authManager = new AuthManager(
     router.invalidate();
     router.navigate({ to: "/oauth-login", search: { error } });
   },
+  // Same scope as the served client-metadata.json (vite.config.app.ts).
+  MANAGE_SPACES_SCOPE,
 );
 const queryClient = new QueryClient({
   defaultOptions: {

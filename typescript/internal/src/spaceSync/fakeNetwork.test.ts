@@ -3,7 +3,7 @@ import { P256Keypair } from "@atproto/crypto";
 import { createSpaceSigHeaders, readRepoStar } from "@atproto/space";
 import type { DidString } from "@atproto/syntax";
 import { describe, expect, it } from "vitest";
-import { wantCommitMacHeaders } from "../spaceSignature";
+import { acceptCommitMacHeaders } from "../spaceSignature";
 import { server } from "../test/msw";
 import { FakeNetwork } from "./test/fakeNetwork";
 
@@ -21,13 +21,13 @@ describe("FakeNetwork", () => {
     const key = await P256Keypair.create();
     const delegation = await net.delegationToken(alice, space.id);
     const credRes = await fetch(
-      `${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`,
+      `${alice.pds}/xrpc/com.atproto.space.authorizeSpaceSync`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           space: space.id,
-          credentialKid: key.did(),
+          credentialKey: key.did(),
           delegationToken: delegation,
         }),
       },
@@ -40,12 +40,15 @@ describe("FakeNetwork", () => {
     url.searchParams.set("repo", bob.did);
     const repoRes = await fetch(url, {
       headers: {
-        ...(await createSpaceSigHeaders(key, {
-          authorization: `Atproto-Space-Credential ${credential}`,
-          audience: bob.did as DidString,
-        })),
-        // Repo hosts require a Want-Mac key share on commit reads.
-        ...(await wantCommitMacHeaders()),
+        ...(
+          await createSpaceSigHeaders({
+            authorization: `Atproto-Space-Credential ${credential}`,
+            audience: bob.did as DidString,
+            keypair: key,
+          })
+        ).headers,
+        // Repo hosts require a Accept-Signature key share on commit reads.
+        ...(await acceptCommitMacHeaders()),
       },
     });
     expect(repoRes.status).toBe(200);
@@ -71,12 +74,12 @@ describe("FakeNetwork", () => {
     const key = await P256Keypair.create();
     const delegation = await net.delegationToken(alice, space.id);
     const { credential } = (await (
-      await fetch(`${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`, {
+      await fetch(`${alice.pds}/xrpc/com.atproto.space.authorizeSpaceSync`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           space: space.id,
-          credentialKid: key.did(),
+          credentialKey: key.did(),
           delegationToken: delegation,
         }),
       })
@@ -85,10 +88,13 @@ describe("FakeNetwork", () => {
     url.searchParams.set("space", space.id);
     url.searchParams.set("repo", alice.did);
     const res = await fetch(url, {
-      headers: await createSpaceSigHeaders(key, {
-        authorization: `Atproto-Space-Credential ${credential}`,
-        audience: "did:plc:someoneelseaaaaaaaaaaaaa" as DidString,
-      }),
+      headers: (
+        await createSpaceSigHeaders({
+          authorization: `Atproto-Space-Credential ${credential}`,
+          audience: "did:plc:someoneelseaaaaaaaaaaaaa" as DidString,
+          keypair: key,
+        })
+      ).headers,
     });
     expect(res.status).toBe(401);
   });
@@ -100,11 +106,11 @@ describe("FakeNetwork", () => {
     const space = net.createSpace(alice);
     const key = await P256Keypair.create();
     const res = await fetch(
-      `${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`,
+      `${alice.pds}/xrpc/com.atproto.space.authorizeSpaceSync`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ space: space.id, credentialKid: key.did() }),
+        body: JSON.stringify({ space: space.id, credentialKey: key.did() }),
       },
     );
     expect(res.status).toBe(400);

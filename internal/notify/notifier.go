@@ -21,6 +21,7 @@ import (
 	_ "github.com/bluesky-social/indigo/atproto/auth" // registers the ES256/ES256K signing methods jwt.GetSigningMethod resolves below
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -44,6 +45,9 @@ type Deliverer struct {
 	client *http.Client
 	signer ServiceAuthSigner
 	now    func() time.Time
+	// webhookClient delivers notifySpaceUpdate to the endpoints registered
+	// through authorizeSpaceSync; see [Deliverer.WithWebhookClient].
+	webhookClient *http.Client
 }
 
 const (
@@ -59,7 +63,10 @@ const (
 )
 
 func NewNotifier(store Store, client *http.Client, signer ServiceAuthSigner) *Deliverer {
-	return &Deliverer{store: store, client: client, signer: signer, now: time.Now}
+	return &Deliverer{
+		store: store, client: client, signer: signer, now: time.Now,
+		webhookClient: httpx.NewPublicClient(),
+	}
 }
 
 // NotifyWrite looks up the registrations that subscribe to a write on repo
@@ -75,6 +82,14 @@ func (d *Deliverer) NotifyWrite(
 	spaceRev syntax.TID,
 	prevSpaceRev syntax.TID,
 ) {
+	d.notifyWebhooks(
+		ctx,
+		space,
+		spaceRev,
+		repoWriteUpdate(repo, rev, hash, spaceRev, prevSpaceRev),
+		false,
+	)
+
 	regs, err := d.store.ListForRepo(ctx, space, repo)
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: list registrations",
@@ -113,6 +128,8 @@ func (d *Deliverer) NotifySpaceDeleted(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 ) {
+	d.notifyWebhooks(ctx, space, "", spaceDeletedUpdate(), true)
+
 	regs, err := d.store.ListForSpace(ctx, space)
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: list registrations", "err", err, "space", space)

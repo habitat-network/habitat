@@ -51,7 +51,7 @@ func TestServer_Simplespace(t *testing.T) {
 			require.Equal(t, http.StatusOK, code)
 			require.Contains(
 				t,
-				output.Uri,
+				output.Space,
 				"at://did:plc:org/space/network.habitat.group/",
 			)
 		})
@@ -183,14 +183,14 @@ func TestServer_Simplespace(t *testing.T) {
 		createCode := client.Procedure(
 			ts.Server.CreateSpace,
 			comatproto.ComAtprotoSpaceCreateSpaceInput{
-				Type: "network.habitat.group", Skey: "lifecycle-shared",
+				SpaceType: "network.habitat.group", Skey: "lifecycle-shared",
 				// AddMember below needs a memberspace.
 				Policy: map[string]any{"$type": spaces.PolicyMemberSpace},
 			},
 			&createOutput,
 		)
 		require.Equal(t, http.StatusOK, createCode)
-		uri := habitat_syntax.SpaceURI(createOutput.Uri)
+		uri := habitat_syntax.SpaceURI(createOutput.Space)
 
 		// PutRecord in the space, as the owner.
 		_, _, err := ts.SpaceStore.PutRecord(
@@ -333,17 +333,17 @@ func TestServer_SpacePolicy(t *testing.T) {
 	create := func(t *testing.T, policy map[string]any) (int, string) {
 		t.Helper()
 		code, body := call(t, ts.Server.CreateSpace, "com.atproto.space.createSpace",
-			map[string]any{"type": "network.habitat.group", "policy": policy})
+			map[string]any{"spaceType": "network.habitat.group", "policy": policy})
 		var out struct {
-			Uri string `json:"uri"`
+			Space string `json:"space"`
 		}
 		_ = json.Unmarshal(body, &out)
-		return code, out.Uri
+		return code, out.Space
 	}
 
 	t.Run("create requires a policy and rejects unsupported ones", func(t *testing.T) {
 		code, _ := call(t, ts.Server.CreateSpace, "com.atproto.space.createSpace",
-			map[string]any{"type": "network.habitat.group"})
+			map[string]any{"spaceType": "network.habitat.group"})
 		require.Equal(t, http.StatusBadRequest, code)
 		code, _ = create(t, map[string]any{
 			"$type": "com.atproto.managedspace.policy", "managingApp": "did:web:x",
@@ -373,11 +373,11 @@ func TestServer_SpacePolicy(t *testing.T) {
 		ts.Server.GetSpace(w, req)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		var out struct {
-			Uri    string         `json:"uri"`
+			Space  string         `json:"space"`
 			Policy map[string]any `json:"policy"`
 		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
-		require.Equal(t, uri, out.Uri)
+		require.Equal(t, uri, out.Space)
 		require.Equal(t, "com.atproto.memberspace.policy", out.Policy["$type"])
 	})
 
@@ -396,8 +396,8 @@ func relationSpaceInput(
 	spaceType, skey string,
 ) comatproto.ComAtprotoSpaceCreateSpaceInput {
 	return comatproto.ComAtprotoSpaceCreateSpaceInput{
-		Type:   spaceType,
-		Skey:   skey,
-		Policy: map[string]any{"$type": spaces.PolicyRelationSpace},
+		SpaceType: spaceType,
+		Skey:      skey,
+		Policy:    map[string]any{"$type": spaces.PolicyRelationSpace},
 	}
 }

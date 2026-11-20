@@ -44,17 +44,17 @@ export function spaceCredentialQueryOptions(
       const { token: delegationToken } = response.body;
       const host = await resolveSpaceHost(SpaceRef.parse(space).spaceDid);
       // The delegation token and the key to bind the minted credential to
-      // (credentialKid) travel in the body; the request itself carries no
-      // auth (see lexicons/com/atproto/space/getSpaceCredential.json).
+      // (credentialKey) travel in the body; the request itself carries no
+      // auth (see lexicons/com/atproto/space/authorizeSpaceSync.json).
       const {
         body: { credential },
       } = await xrpc(
         plainAgent(host),
-        com.atproto.space.getSpaceCredential.main,
+        com.atproto.space.authorizeSpaceSync.main,
         {
           body: {
             space: space as SpaceRefString,
-            credentialKid: await spaceCredentialKid(),
+            credentialKey: await spaceCredentialKid(),
             delegationToken,
           },
         },

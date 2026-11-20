@@ -60,11 +60,6 @@ tasks:
       - vitest.config.ts
   start:
     command: pnpm serve
-  dev:
-    command: pnpm dev
-    options:
-      envFile:
-        - /dev.env
 inheritedBy:
   toolchains:
     or: [typescript]

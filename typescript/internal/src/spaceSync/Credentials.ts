@@ -17,6 +17,7 @@ import {
 import { SpaceSyncConfig } from "./config";
 import { CredentialError, errorMessage } from "./errors";
 import { Identity, requirePds } from "./Identity";
+import { NotifyToken } from "./NotifyToken";
 import { signedAgent } from "./wire";
 
 export interface SpaceCredential {
@@ -50,7 +51,7 @@ export class DelegationSource extends Context.Service<
 const REASONS: Record<string, CredentialError["reason"]> = {
   SpaceDeleted: "SpaceDeleted",
   SpaceNotFound: "SpaceNotFound",
-  UserNotAuthorized: "NotAuthorized",
+  AccountNotAuthorized: "NotAuthorized",
   AppNotAuthorized: "NotAuthorized",
   NotAuthorized: "NotAuthorized",
   InvalidClientAttestation: "NotAuthorized",
@@ -108,6 +109,7 @@ export class Credentials extends Context.Service<
       const config = yield* SpaceSyncConfig;
       const identity = yield* Identity;
       const delegation = yield* DelegationSource;
+      const notifyToken = yield* NotifyToken;
       const refreshLeadMs = Duration.toMillis(config.credentialRefreshLead);
 
       const mint = Effect.fn("Credentials.mint")(function* ({
@@ -132,18 +134,28 @@ export class Credentials extends Context.Service<
           ? yield* delegation.attestation(space, spaceHostAud(authority))
           : undefined;
         // A new keypair per credential, per the proposal. The request carries
-        // no auth headers: the key to bind the credential to (credentialKid)
-        // and the delegation token travel in the body.
+        // no auth headers: the key to bind the credential to (credentialKey),
+        // the delegation token and the notification registration travel in
+        // the body. The host confirms the registration with our endpoint
+        // before answering, and it lasts as long as the credential.
+        const notify = config.notifyEndpoint
+          ? {
+              // The lexicon types a uri as `scheme:rest`; the host validates it.
+              endpoint: config.notifyEndpoint as `${string}:${string}`,
+              token: yield* notifyToken.issue(space),
+            }
+          : undefined;
         const key = yield* Effect.promise(() => P256Keypair.create());
         const agent = signedAgent(host, async () => ({}));
         const result = yield* Effect.tryPromise({
           try: (signal) =>
-            xrpcSafe(agent, com.atproto.space.getSpaceCredential.main, {
+            xrpcSafe(agent, com.atproto.space.authorizeSpaceSync.main, {
               body: {
                 space,
-                credentialKid: key.did(),
+                credentialKey: key.did(),
                 delegationToken: token,
                 ...(attestation ? { clientAttestation: attestation } : {}),
+                ...(notify ? { notify } : {}),
               },
               signal,
             }),

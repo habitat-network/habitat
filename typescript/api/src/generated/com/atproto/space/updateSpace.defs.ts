@@ -46,10 +46,10 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Replace a space's policy wholesale. If the policy $type is unchanged this is a configuration change; if it differs the space migrates to the new policy and state from the previous policy is discarded. The authenticated user must be the space authority. Requires auth, implemented by PDS. */
+/** Replace the policy of a space. Changing to a different policy type discards state held by the previous policy, such as a member list. Requires auth as the space authority, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
-  'NotSpaceOwner',
+  'NotAuthorized',
   'UnsupportedPolicy',
 ])
 

@@ -1,4 +1,13 @@
 tasks:
+  # Default dev task: `root:dev` starts the shared backing services once per
+  # moon pipeline, then each app starts its own Compose profile. Moon's $project
+  # token doubles as the profile and service name, so nothing is repeated per
+  # project. --attach limits the log stream to this one service.
+  dev:
+    command: docker
+    args: [compose, --profile, $project, up]
+    options:
+      envFile: [/dev.env]
   docker-build:
     command: docker
     args:

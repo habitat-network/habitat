@@ -20,7 +20,7 @@ export const $params = /*#__PURE__*/ l.params({
 export type $Params = l.InferOutput<typeof $params>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  uri: /*#__PURE__*/ l.string({ format: 'space-ref' }),
+  space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
   policy: /*#__PURE__*/ l.typedUnion(
     [
       /*#__PURE__*/ l.typedRef<PersonalspacePolicy.Main>(
@@ -43,8 +43,11 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Describe a space, including its policy. Served by the space host. Requires either OAuth (for a caller with an account on this host) or a space credential; either way the caller must be authorized for the space. */
-const main = /*#__PURE__*/ l.query($nsid, $params, $output, ['SpaceNotFound'])
+/** Get a space and its policy. Requires auth as the space authority, implemented by PDS. */
+const main = /*#__PURE__*/ l.query($nsid, $params, $output, [
+  'SpaceNotFound',
+  'NotAuthorized',
+])
 
 export { main }
 

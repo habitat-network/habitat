@@ -68,6 +68,7 @@ func TestServer_SubscribeStreamsReadableSpaces(t *testing.T) {
 		authntest.NewSuccessValidator(&authn.CredentialInfo{
 			Subject: alice,
 			Method:  authn.ValidatorMethodOAuth,
+			Scopes:  []string{"atproto", "space:*?authority=*&action=read"},
 		}),
 	))
 	ctx := t.Context()
@@ -135,8 +136,12 @@ func TestServer_SubscribeRejectsBeforeUpgrade(t *testing.T) {
 		query url.Values
 	}{
 		{
-			name:  "malformed cursor",
-			cred:  &authn.CredentialInfo{Subject: alice, Method: authn.ValidatorMethodOAuth},
+			name: "malformed cursor",
+			cred: &authn.CredentialInfo{
+				Subject: alice,
+				Method:  authn.ValidatorMethodOAuth,
+				Scopes:  []string{"space:*?authority=*&action=read"},
+			},
 			query: url.Values{"cursor": {"soon"}},
 		},
 		{
@@ -164,6 +169,78 @@ func TestServer_SubscribeRejectsBeforeUpgrade(t *testing.T) {
 			}
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 			require.Equal(t, "InvalidRequest", body.Error)
+		})
+	}
+}
+
+// TestServer_SubscribeOrgWideByScope pins the org-wide stream an app opens
+// with its org's OAuth session: every space the org owns, narrowed by the
+// collections filter and by the token's space: scopes.
+func TestServer_SubscribeOrgWideByScope(t *testing.T) {
+	docTp := syntax.NSID("network.habitat.docs")
+	otherTp := syntax.NSID("network.habitat.todo")
+	tests := []struct {
+		name   string
+		scopes []string
+		want   []string
+	}{
+		{
+			name:   "an any-space read grant sees every org space",
+			scopes: []string{"atproto", "space:*?authority=*&action=read"},
+			want:   []string{"a", "b"},
+		},
+		{
+			name:   "a type-limited grant sees only that type",
+			scopes: []string{"space:network.habitat.docs?authority=*&action=read"},
+			want:   []string{"a"},
+		},
+		{
+			name:   "no space grant sees nothing",
+			scopes: []string{"atproto", "transition:generic"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := pearserver_testutil.NewTestServer(t, pearserver_testutil.WithValidator(
+				authntest.NewSuccessValidator(&authn.CredentialInfo{
+					Subject: org,
+					Method:  authn.ValidatorMethodOAuth,
+					Scopes:  tt.scopes,
+				}),
+			))
+			ctx := t.Context()
+			docs, err := ts.SpaceStore.CreateSpace(ctx, org, docTp, "docs")
+			require.NoError(t, err)
+			todos, err := ts.SpaceStore.CreateSpace(ctx, org, otherTp, "todos")
+			require.NoError(t, err)
+			put := func(space habitat_syntax.SpaceURI, collection syntax.NSID, rkey string) {
+				t.Helper()
+				_, _, err := ts.SpaceStore.PutRecord(ctx, space, alice, collection,
+					syntax.RecordKey(rkey), spaces_testutil.MustMarshalRecord(t, map[string]any{}))
+				require.NoError(t, err)
+			}
+			put(docs, noteTp, "a")
+			put(docs, "network.habitat.unwanted", "skipped")
+			put(todos, noteTp, "b")
+			u, closeServer := setupSubscribe(t, ts, url.Values{
+				"cursor":      {"0"},
+				"collections": {noteTp.String()},
+			})
+			defer closeServer()
+			conn, resp, err := websocket.DefaultDialer.DialContext(ctx, u, nil)
+			require.NoError(t, err)
+			defer func() { _ = conn.Close() }()
+			defer func() { _ = resp.Body.Close() }()
+
+			var got []string
+			for range tt.want {
+				got = append(got, readFrame(t, conn).Payload.Rkey)
+			}
+			require.Equal(t, tt.want, got)
+			// Nothing else follows.
+			require.NoError(t, conn.SetReadDeadline(time.Now().Add(200*time.Millisecond)))
+			_, _, err = conn.ReadMessage()
+			require.Error(t, err)
 		})
 	}
 }

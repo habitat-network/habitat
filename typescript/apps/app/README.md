@@ -1,8 +1,86 @@
-# Sign-in (atproto OAuth)
+# Habitat app
 
-The app is a public atproto OAuth client of a Habitat instance (pear), ported from Brain: `/login` takes a handle, `src/server/functions.ts` starts the flow, pear redirects to `/oauth/callback`, which exchanges the code and sets an encrypted `app_session` cookie naming the member's DID. The OAuth session itself (tokens + DPoP key) is sealed with `APP_CREDENTIALS_KEY` and stored in D1. Pages under `src/routes/_member` require sign-in; `memberSession()` in `functions.server.ts` returns an agent that calls pear as the member.
+One app for working in a Habitat group. It combines and replaces three
+earlier apps:
 
-Local setup: create `.dev.vars` with
+- **chalk**: collaborative docs (tiptap + Yjs over a Durable Object), with
+  comment threads and sharing.
+- **drop**: a shared bucket of uploaded files.
+- **frontend**: the group's management plane: members and invites, roles
+  and permissions, MCP servers, and the member's own connections.
+
+Everything is scoped to a group, under `/g/$org/...`.
+
+## Pages
+
+| Sidebar section | Page                                                       | Route                 |
+| --------------- | ---------------------------------------------------------- | --------------------- |
+| Workspace       | Files (docs and uploads, list or grid, details panel)      | `/g/$org/files`       |
+|                 | Doc editor                                                 | `/g/$org/docs/$docId` |
+|                 | Search (group records plus connected MCP servers)          | `/g/$org/search`      |
+| Manage          | Members (roster, invites)                                  | `/g/$org/members`     |
+|                 | Roles & access                                             | `/g/$org/roles`       |
+|                 | MCP servers                                                | `/g/$org/mcp`         |
+|                 | Group settings (profile, your profile in the group, leave) | `/g/$org/settings`    |
+| You             | Connections (account, groups, authorized apps)             | `/connections`        |
+|                 | Join a group (invites, look up a group)                    | `/join`               |
+|                 | Create a group                                             | `/groups/new`         |
+
+The sidebar shell is `src/components/shell/AppSidebar.tsx`; pages use the
+`internal` design system (`internal/components/ui`).
+
+## How it talks to Habitat
+
+The app is a public atproto OAuth client of a Habitat instance (pear).
+
+- **Members** sign in at `/login` with their handle or work email. The
+  OAuth session (tokens + DPoP key) is sealed with `APP_CREDENTIALS_KEY` and
+  stored in D1, and an encrypted `app_session` cookie names the member's
+  DID and caches their groups.
+- **Groups** are connected by an admin, who runs the same OAuth flow with
+  the group's DID (pear shows its admin approval page). The app keeps the
+  group's own session too, which docs and files need: their spaces are
+  owned by the group. Until a group is connected its pages say so.
+- **Management calls** (`community.opensocial.*`, `network.habitat.mcp.*`)
+  are made as the signed-in member and proxied to the group's Habitat
+  instance (`atproto-proxy: <org>#habitat`), so pear decides what each
+  member may do. Pages only hide controls the member's roles don't grant.
+- **Sync**: docs, comments, files and rosters are indexed into D1 from each
+  connected group's `network.habitat.space.subscribe` stream, opened with
+  the group's own session by an `OrgStream` Durable Object
+  (`src/server/stream/`, using `@habitat-network/jetstream`), with one cursor
+  per group. Writes that must show at once (uploads, file deletes, removing
+  a member) go through it and return once their event is indexed. The
+  once-a-minute cron makes sure every connected group's stream is running.
+  Blobs are still read with a space credential (`src/server/sync.ts`).
+
+## Server code and Effect
+
+Server functions live in `src/server/fns/` (`auth`, `groups`, `manage`,
+`docs`, `files`, `mcp`). Each one is an `Effect` run by `runEffect`
+(`src/server/effect/run.ts`), which gives every call:
+
+- **Services** (`src/server/effect/services.ts`): `AppEnv`, `Database`,
+  `OAuth`, and `Habitat` (xrpc calls as a DID, optionally proxied to a
+  group). Promise code from chalk and drop is wrapped with `attempt`.
+- **Typed errors** (`src/server/effect/errors.ts`): `NotSignedIn`,
+  `SessionExpired`, `HabitatError`, `NotAMember`, `OrgNotConnected`,
+  `Forbidden`, `NotFound`, `BadRequest`. `runEffect` turns them into a
+  redirect to `/login`, a cleared session when the member's own session
+  expired, or an error with a message safe to show. Defects are logged with
+  their full cause and shown as a generic failure.
+- **Logging and tracing**: every call is a span and log span named after
+  the function, annotated with the member's DID; expected failures log at
+  debug or warning, unexpected ones at error. Logs are JSON in production
+  (Workers observability) and pretty in dev.
+
+Server routes (`/api/upload`, `/api/download`, `/ws/$docId`) use
+`runHandler`, which answers with a JSON error and status instead of
+throwing; the cron uses `runBackground`.
+
+## Local setup
+
+Create `.dev.vars` with
 
 ```
 APP_SESSION_SECRET=<32+ characters>
@@ -11,206 +89,13 @@ APP_BASE_URL=https://app.local.habitat.network
 APP_HABITAT_URL=https://pear.local.habitat.network
 ```
 
-then `moon run app:dev` (port 5181). For deployment, create the D1 database (`wrangler d1 create app`, paste the id into `wrangler.jsonc`) and `wrangler secret put` the two secrets.
+then `moon run app:dev` (port 5181; it applies D1 migrations locally
+first). After changing `src/db/schema.ts`, run `pnpm db:generate`.
 
-Welcome to your new TanStack Start app!
+## Deploying
 
-# Getting Started
-
-To run this application:
-
-```bash
-pnpm install
-pnpm dev
-```
-
-# Building For Production
-
-To build this application for production:
-
-```bash
-pnpm build
-```
-
-## Styling
-
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
-
-### Removing Tailwind CSS
-
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
-
-## Deploy to Cloudflare Workers
-
-This project uses the Cloudflare Vite plugin (configured in `vite.config.ts`) and `wrangler.jsonc`:
-
-1. Install Wrangler: `npm install -g wrangler`
-2. Authenticate: `wrangler login`
-3. Deploy: `npx wrangler deploy`
-
-For production env vars, run `wrangler secret put MY_VAR` for each secret listed in `.env.example`. Public (non-secret) vars go in `wrangler.jsonc` under `vars`.
-
-KV, D1, R2, and Durable Object bindings are configured in `wrangler.jsonc` — see https://developers.cloudflare.com/workers/wrangler/configuration/.
-
-## Setting up PostHog
-
-1. Create a PostHog account at [posthog.com](https://posthog.com)
-2. Get your Project API Key from [Project Settings](https://app.posthog.com/project/settings)
-3. Set `VITE_POSTHOG_KEY` in your `.env.local`
-
-### Optional Configuration
-
-- `VITE_POSTHOG_HOST` - Set this if you're using PostHog Cloud EU (`https://eu.i.posthog.com`) or self-hosting
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "My App" },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-});
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from "@tanstack/react-start";
-
-const getServerTime = createServerFn({
-  method: "GET",
-}).handler(async () => {
-  return new Date().toISOString();
-});
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState("");
-
-  useEffect(() => {
-    getServerTime().then(setTime);
-  }, []);
-
-  return <div>Server time: {time}</div>;
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from "@tanstack/react-router";
-import { json } from "@tanstack/react-start";
-
-export const Route = createFileRoute("/api/hello")({
-  server: {
-    handlers: {
-      GET: () => json({ message: "Hello, World!" }),
-    },
-  },
-});
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from "@tanstack/react-router";
-
-export const Route = createFileRoute("/people")({
-  loader: async () => {
-    const response = await fetch("https://swapi.dev/api/people");
-    return response.json();
-  },
-  component: PeopleComponent,
-});
-
-function PeopleComponent() {
-  const data = Route.useLoaderData();
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  );
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+Create the D1 database (`wrangler d1 create app`, paste its id into
+`wrangler.jsonc`), `wrangler secret put` the two secrets, apply migrations
+(`wrangler d1 migrations apply app --remote`), then `pnpm deploy`.
+`APP_BASE_URL` and `APP_HABITAT_URL` are `vars` in `wrangler.jsonc`.
+Optional: `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` for analytics.

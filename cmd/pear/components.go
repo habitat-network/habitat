@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
@@ -141,7 +140,9 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	hive = habitat_identity.NewTestHive(hive, hostKey)
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
-	defaultDir := habitat_identity.NewTestDirectory(identity.DefaultDirectory(), hostKey, domain)
+	defaultDir := habitat_identity.NewTestDirectory(
+		habitat_identity.NewDirectory(cmd.String(fPlcURL)), hostKey, domain,
+	)
 	// hive is the base directory (tried first) since it resolves DIDs under our
 	// own domain locally; falling back to defaultDir's network resolution first
 	// would make this server make an outbound HTTP request back to itself for
@@ -301,8 +302,12 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("setup oauth server: %w", err)
 	}
 
+	// hiveDir, not defaultDir: the audience can be an org this instance hosts,
+	// whose did:web must resolve locally. Over the network it points back at
+	// ourselves, which fails wherever the org's host isn't reachable from the
+	// container (local dev).
 	serviceAuth := authn.NewServiceAuthMethod(
-		defaultDir,
+		hiveDir,
 		syntax.DID("did:web:"+domain),
 		"https://"+domain,
 	)
@@ -311,7 +316,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	credentialRevocations := authn.NewCredentialRevocations(
 		kv.Namespace("space_credential_revoked"),
 	)
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, credentialRevocations)
+	// Credentials are signed by the space's authority, which for an org is a hive
+	// identity under this server's own domain: hiveDir resolves it locally
+	// instead of this server fetching its own DID document over the network.
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(hiveDir, credentialRevocations)
 	validator := authn.NewValidator(
 		oauthServer,
 		serviceAuth,
@@ -406,7 +414,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("setup remote sync: %w", err)
 	}
 
-	return pearapp.New(
+	app := pearapp.New(
 		database,
 		domain,
 		hiveDomain,
@@ -444,7 +452,15 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		fedSearch,
 		spaceEvents,
 		remoteSync,
-	), nil
+	)
+	if cmd.Bool(fInsecureWebhooks) {
+		// Webhook endpoints are reached like any other address, so a test bed's
+		// syncers on its private network can register and be notified.
+		webhookClient := httpx.NewClient()
+		app.WebhookClient = webhookClient
+		notifier.WithWebhookClient(webhookClient)
+	}
+	return app, nil
 }
 
 // fedSearchSnippetLength is about how many words of context each record

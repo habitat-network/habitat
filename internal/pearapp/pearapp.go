@@ -5,6 +5,8 @@
 package pearapp
 
 import (
+	"net/http"
+
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"gocloud.dev/blob"
@@ -49,9 +51,13 @@ type App struct {
 	// HostKEMKey is the host's #atproto_kem key: space commit MACs for repo
 	// owners on external PDSes are keyed against it (habitat-managed owners
 	// use their own hive KEM key instead). See spacecommit.KEMKeys.
-	HostKEMKey      *atcrypto.PrivateKeyP256
-	NotifyStore     notify.Store
-	Notifier        *notify.Deliverer
+	HostKEMKey  *atcrypto.PrivateKeyP256
+	NotifyStore notify.Store
+	Notifier    *notify.Deliverer
+	// WebhookClient overrides the client authorizeSpaceSync confirms
+	// registrations with (and allows http endpoints); nil uses a client that
+	// only reaches public addresses.
+	WebhookClient   *http.Client
 	BlobBucket      *blob.Bucket
 	BlobStore       spaces.BlobStore
 	SpacesStore     spaces.Store

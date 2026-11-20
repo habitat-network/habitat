@@ -138,10 +138,10 @@ func (p *fakePDS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	require.Equal(t, p.space.String(), r.URL.Query().Get("space"))
 	require.Equal(t, member.String(), r.URL.Query().Get("repo"))
 
-	keyShare, requested, err := spacecommit.ParseWantMAC(r.Header, spacecommit.CommitMACType)
+	macReq, err := spacecommit.ParseMACRequest(r.Header, spacecommit.CommitMACType)
 	require.NoError(t, err)
-	require.True(t, requested)
-	secret, err := spacecommit.Decapsulate(p.kem, keyShare)
+	require.NotNil(t, macReq)
+	secret, err := spacecommit.Decapsulate(p.kem, macReq.KeyShare)
 	require.NoError(t, err)
 
 	p.mu.Lock()
@@ -161,8 +161,12 @@ func (p *fakePDS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Rev:        op.rev.String(),
 			Collection: noteNSID.String(),
 			Rkey:       op.rkey.String(),
-			Cid:        op.cid,
-			Prev:       op.prev,
+		}
+		if op.cid != "" {
+			entry.Cid = new(op.cid)
+		}
+		if op.prev != "" {
+			entry.Prev = new(op.prev)
 		}
 		if op.value != nil {
 			entry.Value = op.value
@@ -183,8 +187,7 @@ func (p *fakePDS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if p.badMAC {
 			macSecret = []byte("not the secret")
 		}
-		require.NoError(t, spacecommit.SetMAC(w.Header(), spacecommit.CommitMACType,
-			commit.MAC(macSecret)))
+		require.NoError(t, spacecommit.SetCommitMAC(w.Header(), commit, *macReq, macSecret))
 		out.Commit = new(commit.ToComAtprotoXRPC())
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -227,6 +230,11 @@ func (n *countingNotifier) NotifyWrite(
 }
 
 func (n *countingNotifier) NotifySpaceDeleted(context.Context, habitat_syntax.SpaceURI) {}
+
+func (n *countingNotifier) NotifyWriterRemoved(
+	context.Context, habitat_syntax.SpaceURI, syntax.DID, syntax.TID, syntax.TID,
+) {
+}
 
 type testEnv struct {
 	store    spaces.Store

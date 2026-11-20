@@ -3,6 +3,7 @@ package pearserver_test
 import (
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -60,6 +61,34 @@ func TestServer_PutRecord(t *testing.T) {
 		val, ok := getOutput.Value.(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, "hello", val["text"])
+	})
+
+	t.Run("createRecord generates an rkey and refuses to replace a record", func(t *testing.T) {
+		uri := newSpace(t, "create-record")
+		client := httpx_testutil.NewTestXRPCClient(t)
+		create := func(rkey string) (int, habitat.NetworkHabitatSpacePutRecordOutput) {
+			var out habitat.NetworkHabitatSpacePutRecordOutput
+			code := client.Procedure(
+				ts.Server.CreateRecord,
+				habitat.NetworkHabitatSpacePutRecordInput{
+					Space: uri.String(), Repo: "did:plc:owner",
+					Collection: "network.habitat.note", Rkey: rkey,
+					Record: map[string]any{"text": "hello"},
+				},
+				&out,
+			)
+			return code, out
+		}
+
+		code, out := create("")
+		require.Equal(t, http.StatusOK, code)
+		_, err := syntax.ParseTID(out.Uri[strings.LastIndex(out.Uri, "/")+1:])
+		require.NoError(t, err, "a generated rkey is a TID")
+
+		code, _ = create("fixed")
+		require.Equal(t, http.StatusOK, code)
+		code, _ = create("fixed")
+		require.Equal(t, http.StatusBadRequest, code)
 	})
 
 	t.Run("rejects writing to another repo", func(t *testing.T) {

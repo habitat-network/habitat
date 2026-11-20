@@ -1,4 +1,4 @@
-h1:LpEXOi0oaMPlNhO5hwO8kbXjgBVC0gNzIJl3lLIEVWg=
+h1:W+vVXrmoZsSMMrnIvkDVsfnI0zwDs2hP0gRhNEuSaU0=
 20260522005939_init.sql h1:KUJYrNB1nXExOKZnn9/cDQw4vjS53DzmQZCuhaZYmNw=
 20260925150000_baseline.sql h1:RGgjF3jiIujGjOvwEajH4/GIDqcmsgCZ+bVO2BQRtrw=
 20261005235000_space_revisions.sql h1:yeI4Eqsb4IdEWLjXk8MPuv6b1dVx2lGMMZmR3lX/GiM=
@@ -16,4 +16,5 @@ h1:LpEXOi0oaMPlNhO5hwO8kbXjgBVC0gNzIJl3lLIEVWg=
 20261105090000_space_policy.sql h1:lEDdbjj8aog6gASE3oLx3QH5dP8x7t+i7jlJrGZUQHA=
 20261116200000_space_repo_removed.sql h1:r/nhMgLovyOea4uY6jv7sJSc5mqYiLM9rp0JD3tb9dM=
 20261119052554_space_event_log.sql h1:1QXg8RJPjIlQ5P+UcpV0S7jhXY7CVwEp6noEzc8/Tc8=
-20261119222453_remote_records.sql h1:gaH5FUVp/PFy1mMPkuIYuL20jGtHqMVYrTzANFj93D4=
+20261119230000_space_webhooks.sql h1:uCMnZlHbzKP7NJ+e0ohOlbANWR1zpv8IJHBW8VlyCH4=
+20261120235000_remote_records.sql h1:AHD9MULWckT+QxlWJz/6LKWGOdh0tq+7YWlqUM1jgas=

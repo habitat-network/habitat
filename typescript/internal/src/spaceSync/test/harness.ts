@@ -4,7 +4,7 @@ import { type SpaceSyncOptions, spaceSyncConfigLayer } from "../config";
 import { Credentials, DelegationSource } from "../Credentials";
 import { CredentialError, errorMessage } from "../errors";
 import { Identity, publicIdentityResolver } from "../Identity";
-import { NotificationAuth } from "../notification";
+import { NotifyToken } from "../NotifyToken";
 import { SpaceClient } from "../SpaceClient";
 import { RepoSync } from "../repoSync";
 import { RepoBackoff, SpacePass } from "../spacePass";
@@ -14,12 +14,14 @@ import { SyncStore } from "../SyncStore";
 import { FakeNetwork, PLC_URL } from "./fakeNetwork";
 import { type RecordingSinkState, makeRecordingSink } from "./recordingSink";
 
-export const SERVICE_DID = "did:web:syncer.test";
+/** Where the test syncer says it receives notifications. */
+export const NOTIFY_ENDPOINT = "https://syncer.test";
 
 /** Short intervals so live tests settle in milliseconds. */
 export const testConfig = (overrides: Partial<SpaceSyncOptions> = {}) =>
   spaceSyncConfigLayer({
-    serviceDid: SERVICE_DID,
+    notifyEndpoint: NOTIFY_ENDPOINT,
+    notifySecret: "test-secret",
     identityResolver: publicIdentityResolver(PLC_URL),
     requestRetryBase: Duration.millis(5),
     backoffBase: Duration.millis(50),
@@ -53,7 +55,7 @@ export type HarnessServices =
   | Identity
   | DelegationSource
   | RepoBackoff
-  | NotificationAuth
+  | NotifyToken
   | RepoSync
   | SpacePass;
 
@@ -70,8 +72,9 @@ export const makeHarness = async (
   server.use(...net.handlers);
   const sink = makeRecordingSink();
   const base = Layer.mergeAll(
-    Layer.mergeAll(SpaceClient.layer, NotificationAuth.layer).pipe(
+    SpaceClient.layer.pipe(
       Layer.provideMerge(Credentials.layer),
+      Layer.provideMerge(NotifyToken.layer),
       Layer.provideMerge(Identity.layer),
       Layer.provideMerge(fakeDelegation(net)),
     ),

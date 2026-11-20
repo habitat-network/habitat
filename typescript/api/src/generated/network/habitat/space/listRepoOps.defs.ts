@@ -45,13 +45,13 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and a response that includes the commit carries its MAC in the Atproto-Space-Mac response header. */
+/** List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-commit), and a response that includes the commit carries its MAC in Signature-Input and Signature headers covering an Atproto-Space-Commit header. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output, [
   'SpaceNotFound',
   'RepoTakendown',
   'RepoSuspended',
   'RepoDeactivated',
-  'BadSpaceMac',
+  'InvalidSpaceMac',
 ])
 
 export { main }

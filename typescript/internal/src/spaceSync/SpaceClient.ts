@@ -11,20 +11,10 @@ import {
   xrpc,
 } from "@atproto/lex";
 import type { DidString, SpaceRef } from "@atproto/syntax";
-import {
-  COMMIT_MAC_TYPE,
-  MAC_HEADER,
-  type MacType,
-  WANT_MAC_HEADER,
-  createSpaceSigHeaders,
-  encapsulate,
-  formatWantMacHeader,
-  parseMacHeader,
-} from "@atproto/space";
+import { createSpaceSigHeaders } from "@atproto/space";
 import { com } from "api";
 import {
   Context,
-  DateTime,
   Effect,
   Layer,
   Option,
@@ -32,6 +22,15 @@ import {
   type Scope,
   Stream,
 } from "effect";
+import {
+  ACCEPT_SIGNATURE_HEADER,
+  COMMIT_MAC_PROFILE,
+  INVALID_SPACE_MAC,
+  type MacProfile,
+  encapsulate,
+  formatMacRequest,
+  type Encapsulation,
+} from "../spaceMac";
 import { SpaceSyncConfig } from "./config";
 import { Credentials } from "./Credentials";
 import { CredentialError, XrpcError, errorMessage } from "./errors";
@@ -51,21 +50,23 @@ interface Target {
    */
   readonly hostOf: "repo" | "space";
   /**
-   * Set on a MAC-bearing repo call: the request carries an
-   * Atproto-Space-Want-Mac key share and the response's MAC is keyed by the
-   * shared secret it negotiates.
+   * Set on a MAC-bearing repo call: the request carries an Accept-Signature
+   * header with a key share and the response's MAC is keyed by the shared
+   * secret it negotiates.
    */
-  readonly macType?: MacType;
+  readonly macProfile?: MacProfile;
 }
 
 /**
- * What a MAC-bearing response is authenticated by: the request's shared secret
- * and the response's Atproto-Space-Mac, absent when the response carried none
- * (or a malformed one). Verification is the caller's job.
+ * What a MAC-bearing response is authenticated by: the key share and shared
+ * secret the request negotiated, and the response's headers (the covered
+ * Atproto-Space-Commit header, Signature-Input and Signature). Verification
+ * is the caller's job.
  */
 export interface ResponseMac {
+  readonly keyShare: string;
   readonly sharedSecret: Uint8Array;
-  readonly mac: Uint8Array | undefined;
+  readonly headers: Headers;
 }
 
 /**
@@ -84,15 +85,6 @@ const sameHost = (a: string | undefined, b: string): boolean => {
   }
 };
 
-/** The response's MAC of `type`, or undefined if it is missing or malformed. */
-const responseMac = (headers: Headers, type: MacType) => {
-  try {
-    return parseMacHeader(headers.get(MAC_HEADER) ?? undefined, type);
-  } catch {
-    return undefined;
-  }
-};
-
 const isTransient = (error: SpaceCallError): boolean =>
   error._tag === "XrpcError" ? error.transient : error.reason === "Transport";
 
@@ -106,10 +98,6 @@ export class SpaceClient extends Context.Service<
       com.atproto.space.listWriters.$OutputBody,
       SpaceCallError
     >;
-    readonly registerNotify: (
-      space: SpaceRef,
-      service: string,
-    ) => Effect.Effect<{ readonly expiresAt: number }, SpaceCallError>;
     readonly listRepoOps: (
       space: SpaceRef,
       repo: DidString,
@@ -218,8 +206,9 @@ export class SpaceClient extends Context.Service<
       /**
        * One signed request to the target's host. `run` throws an xrpc failure
        * (as `xrpc` and `XrpcResponse.fromFetchResponse` do) on an error response.
-       * For a MAC-bearing target it is handed the Want-Mac header to send, and
-       * the request's shared secret is returned beside its result.
+       * For a MAC-bearing target it is handed the Accept-Signature header to send,
+       * and the request's key share and shared secret are returned beside its
+       * result.
        */
       const attempt = <A>(
         target: Target,
@@ -229,7 +218,10 @@ export class SpaceClient extends Context.Service<
           headers: Record<string, string>,
         ) => Promise<A>,
       ): Effect.Effect<
-        { readonly result: A; readonly sharedSecret: Uint8Array | undefined },
+        {
+          readonly result: A;
+          readonly encapsulation: Encapsulation | undefined;
+        },
         SpaceCallError
       > =>
         Effect.gen(function* () {
@@ -238,16 +230,16 @@ export class SpaceClient extends Context.Service<
             .pipe(Effect.mapError((e) => identityError(target, e.message)));
           const host = yield* hostFor(target, resolved);
           // A fresh key share for every request, retries included.
-          let sharedSecret: Uint8Array | undefined;
+          let encapsulation: Encapsulation | undefined;
           const headers: Record<string, string> = {};
-          if (target.macType) {
+          if (target.macProfile) {
             const kemKey = yield* kemKeyFor(
               target,
               resolved,
               host,
               identity.resolve,
             );
-            const encapsulation = yield* Effect.tryPromise({
+            encapsulation = yield* Effect.tryPromise({
               try: () => encapsulate(kemKey),
               catch: (e) =>
                 identityError(
@@ -256,18 +248,18 @@ export class SpaceClient extends Context.Service<
                   false,
                 ),
             });
-            sharedSecret = encapsulation.sharedSecret;
-            headers[WANT_MAC_HEADER] = formatWantMacHeader(
-              target.macType,
+            headers[ACCEPT_SIGNATURE_HEADER] = formatMacRequest(
+              target.macProfile,
               encapsulation.keyShare,
             );
           }
           const credential = yield* credentials.get(target.space);
           const agent = signedAgent(host, () =>
-            createSpaceSigHeaders(credential.key, {
+            createSpaceSigHeaders({
               authorization: `Atproto-Space-Credential ${credential.token}`,
               audience: target.audience,
-            }),
+              keypair: credential.key,
+            }).then(({ headers }) => headers),
           );
           const result = yield* Effect.tryPromise({
             try: (signal) => run(agent, signal, headers),
@@ -306,7 +298,7 @@ export class SpaceClient extends Context.Service<
                 ),
             }),
           );
-          return { result, sharedSecret };
+          return { result, encapsulation };
         });
 
       /**
@@ -322,7 +314,7 @@ export class SpaceClient extends Context.Service<
           method: space.listRepoOps.main,
           audience: repo,
           hostOf: "repo",
-          macType: COMMIT_MAC_TYPE,
+          macProfile: COMMIT_MAC_PROFILE,
         };
         const keyOf = (
           lookup: (did: DidString) => Effect.Effect<ResolvedIdentity, unknown>,
@@ -363,7 +355,7 @@ export class SpaceClient extends Context.Service<
                 .pipe(Effect.flatMap(() => attempt(target, run)));
             // A refused key share may follow a KEM key rotation: re-resolve
             // and retry once if the key changed.
-            if (e.error === "BadSpaceMac" && target.macType)
+            if (e.error === INVALID_SPACE_MAC && target.macProfile)
               return refreshKem(target.space, target.audience).pipe(
                 Effect.flatMap((changed) =>
                   changed ? attempt(target, run) : Effect.fail(e),
@@ -409,25 +401,6 @@ export class SpaceClient extends Context.Service<
         return res.result.body;
       });
 
-      const registerNotify = Effect.fnUntraced(function* (
-        ref: SpaceRef,
-        service: string,
-      ) {
-        const method = space.registerNotify.main;
-        const res = yield* call(
-          { space: ref, method, audience: ref.spaceDid, hostOf: "space" },
-          (agent, signal) =>
-            xrpc(agent, method, {
-              body: { space: ref.toString(), service },
-              signal,
-            }),
-        );
-        const expiresAt = DateTime.make(res.result.body.expiresAt);
-        if (Option.isNone(expiresAt))
-          return yield* invalidResponse(method, 200, "unparseable expiresAt");
-        return { expiresAt: DateTime.toEpochMillis(expiresAt.value) };
-      });
-
       const listRepoOps = Effect.fnUntraced(function* (
         ref: SpaceRef,
         repo: DidString,
@@ -435,13 +408,13 @@ export class SpaceClient extends Context.Service<
         cursor?: string,
       ) {
         const method = space.listRepoOps.main;
-        const { result, sharedSecret } = yield* call(
+        const { result, encapsulation } = yield* call(
           {
             space: ref,
             method,
             audience: repo,
             hostOf: "repo",
-            macType: COMMIT_MAC_TYPE,
+            macProfile: COMMIT_MAC_PROFILE,
           },
           (agent, signal, headers) =>
             xrpc(agent, method, {
@@ -458,11 +431,8 @@ export class SpaceClient extends Context.Service<
         );
         // Only a page carrying the commit carries a MAC.
         const mac =
-          result.body.commit && sharedSecret
-            ? {
-                sharedSecret,
-                mac: responseMac(result.headers, COMMIT_MAC_TYPE),
-              }
+          result.body.commit && encapsulation
+            ? { ...encapsulation, headers: result.headers }
             : undefined;
         return { body: result.body, mac };
       });
@@ -512,7 +482,7 @@ export class SpaceClient extends Context.Service<
               method,
               audience: repo,
               hostOf: "repo",
-              macType: COMMIT_MAC_TYPE,
+              macProfile: COMMIT_MAC_PROFILE,
             },
             async (agent, signal, macHeaders) => {
               const params = method.parameters.toURLSearchParams({
@@ -539,14 +509,11 @@ export class SpaceClient extends Context.Service<
           ({ result: res }) =>
             Effect.sync(() => void res.body?.cancel().catch(() => undefined)),
         ).pipe(
-          Effect.flatMap(({ result: res, sharedSecret }) =>
-            res.body && sharedSecret
+          Effect.flatMap(({ result: res, encapsulation }) =>
+            res.body && encapsulation
               ? Effect.succeed({
                   star: Stream.toAsyncIterable(starStream(res.body)),
-                  mac: {
-                    sharedSecret,
-                    mac: responseMac(res.headers, COMMIT_MAC_TYPE),
-                  },
+                  mac: { ...encapsulation, headers: res.headers },
                 })
               : Effect.fail(invalidResponse(method, res.status, "empty body")),
           ),
@@ -594,7 +561,6 @@ export class SpaceClient extends Context.Service<
 
       return SpaceClient.of({
         listWriters,
-        registerNotify,
         listRepoOps,
         getRepo,
         getBlob,

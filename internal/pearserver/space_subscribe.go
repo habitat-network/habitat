@@ -7,6 +7,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spacescope"
 	"github.com/habitat-network/habitat/internal/spacestream"
 )
 
@@ -34,8 +35,15 @@ func (p *PearServer) Subscribe(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case cred.Space != "":
 		reader = spacestream.SpaceCredentialReader{Space: cred.Space}
+	case cred.Subject != "" && cred.Method == authn.ValidatorMethodOAuth:
+		// An OAuth client sees only the spaces its space: scopes cover,
+		// however many the user can read.
+		reader = spacestream.UserReader{
+			DID:   cred.Subject,
+			Scope: spacescope.FromScopes(cred.Scopes, cred.Subject),
+		}
 	case cred.Subject != "":
-		reader = spacestream.UserReader{DID: cred.Subject}
+		reader = spacestream.UserReader{DID: cred.Subject, Scope: spacescope.Unrestricted{}}
 	default:
 		httpx.WriteUnauthorized(ctx, w, "credential names no user or space", nil)
 		return

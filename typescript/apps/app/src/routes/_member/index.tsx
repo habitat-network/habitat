@@ -1,27 +1,13 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button } from "internal/components/ui";
-import { signOut } from "@/server/functions";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { myGroupsQuery } from "@/lib/queries";
 
-export const Route = createFileRoute("/_member/")({ component: Home });
-
-function Home() {
-  const { member } = Route.useRouteContext();
-  const navigate = useNavigate();
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-semibold">
-        Signed in as {member.handle ?? member.did}
-      </h1>
-      <Button
-        className="mt-4"
-        variant="outline"
-        onClick={async () => {
-          await signOut();
-          await navigate({ to: "/login" });
-        }}
-      >
-        Sign out
-      </Button>
-    </div>
-  );
-}
+// The home page is the member's first group, or joining one if they have
+// none yet.
+export const Route = createFileRoute("/_member/")({
+  beforeLoad: async ({ context }) => {
+    const groups = await context.queryClient.ensureQueryData(myGroupsQuery);
+    const first = groups[0];
+    if (!first) throw redirect({ to: "/join" });
+    throw redirect({ to: "/g/$org/files", params: { org: first.did } });
+  },
+});

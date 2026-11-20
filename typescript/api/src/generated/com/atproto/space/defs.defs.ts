@@ -10,7 +10,7 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header. */
+/** Commit to the current state of a space repo. Not signed; authenticated by the repo host with a MAC instead. */
 type Commit = {
   $type?: 'com.atproto.space.defs#commit'
 
@@ -18,31 +18,19 @@ type Commit = {
    * Commit format version, currently 1.
    */
   ver: number
-
-  /**
-   * The author DID of the repo.
-   */
   repo: l.DidString
-
-  /**
-   * Reference to the space.
-   */
   space: l.SpaceRefString
-
-  /**
-   * Commit revision (TID).
-   */
   rev: l.TidString
 
   /**
-   * sha256 digest of the LtHash state (32 bytes).
+   * SHA-256 digest of the repo's LtHash state.
    */
   data: Uint8Array
 }
 
 export type { Commit }
 
-/** A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header. */
+/** Commit to the current state of a space repo. Not signed; authenticated by the repo host with a MAC instead. */
 const commit = /*#__PURE__*/ l.typedObject<Commit>(
   $nsid,
   'commit',

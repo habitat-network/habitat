@@ -102,6 +102,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.listWriters", p.ListWriters)
 	p.router.HandleFunc("/xrpc/com.atproto.space.removeWriter", p.RemoveWriter)
 	p.router.HandleFunc("/xrpc/com.atproto.space.putRecord", p.PutRecord)
+	p.router.HandleFunc("/xrpc/com.atproto.space.createRecord", p.CreateRecord)
 	p.router.HandleFunc("/xrpc/com.atproto.space.applyWrites", p.ApplyWrites)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getRecord", p.GetRecord)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getBlob", p.GetBlob)
@@ -111,8 +112,11 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.getLatestCommit", p.GetLatestCommit)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getRepo", p.GetRepo)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getDelegationToken", p.GetDelegationToken)
-	p.router.HandleFunc("/xrpc/com.atproto.space.getSpaceCredential", p.GetSpaceCredential)
-	p.router.HandleFunc("/xrpc/com.atproto.space.registerNotify", p.RegisterNotify)
+	p.router.HandleFunc("/xrpc/com.atproto.space.clearRecords", p.ClearRecords)
+	p.router.HandleFunc("/xrpc/com.atproto.space.importRepo", p.ImportRepo)
+	p.router.HandleFunc("/xrpc/com.atproto.space.exportSpaceMeta", p.ExportSpaceMeta)
+	p.router.HandleFunc("/xrpc/com.atproto.space.importSpaceMeta", p.ImportSpaceMeta)
+	p.router.HandleFunc("/xrpc/com.atproto.space.authorizeSpaceSync", p.AuthorizeSpaceSync)
 	p.router.HandleFunc("/xrpc/com.atproto.space.notifyRepoUpdate", p.NotifyWrite)
 	p.router.HandleFunc(
 		"/xrpc/com.atproto.space.notifyCredentialsRevoked", p.NotifyCredentialRevoked,

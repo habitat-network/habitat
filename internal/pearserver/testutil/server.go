@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
@@ -56,8 +57,11 @@ type TestServer struct {
 	OpenSocialStore       *opensocial.Store
 	SimpleStore           *simplespace.Store
 	NotifyStore           notify.Store
-	Hive                  hive.Hive
-	HostKey               atcrypto.PrivateKeyExportable
+	// WebhookClient confirms registrations; the default reaches loopback so
+	// tests can use httptest servers as endpoints.
+	WebhookClient *http.Client
+	Hive          hive.Hive
+	HostKey       atcrypto.PrivateKeyExportable
 	// HostKEMKey keys commit MACs for repo owners hive does not manage;
 	// derived from HostKey unless set.
 	HostKEMKey       *atcrypto.PrivateKeyP256
@@ -295,6 +299,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		PermStore:        ps,
 		SimpleStore:      ss,
 		NotifyStore:      ts.NotifyStore,
+		WebhookClient:    cmp.Or(ts.WebhookClient, http.DefaultClient),
 		ClientMetadata:   clientmetadata.NewResolver(),
 		MCPGatewayStore:  mcpGatewayStore,
 		LLMStore:         ts.LLMStore,

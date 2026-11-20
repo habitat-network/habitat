@@ -7,6 +7,33 @@ import {
 } from "@atproto/oauth-client";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 
+// How long to wait on a lock holder before assuming it was cancelled.
+const LOCK_WAIT_MS = 15_000;
+const lockTails = new Map<string, Promise<void>>();
+
+// boundedLock is a per-name mutex that stops waiting on a predecessor that
+// never releases (see the requestLock comment in createOAuthClient).
+async function boundedLock<T>(name: string, fn: () => T | PromiseLike<T>) {
+  const prev = lockTails.get(name) ?? Promise.resolve();
+  let release!: () => void;
+  const tail = new Promise<void>((resolve) => (release = resolve));
+  lockTails.set(name, tail);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      prev,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, LOCK_WAIT_MS);
+      }),
+    ]);
+    return await fn();
+  } finally {
+    clearTimeout(timer);
+    release();
+    if (lockTails.get(name) === tail) lockTails.delete(name);
+  }
+}
+
 // Shared setup for the Cloudflare Worker apps (brain, chalk, drop, app), each
 // of which is a plain atproto OAuth client of the Habitat instance.
 
@@ -63,15 +90,17 @@ export function createOAuthClient(options: {
     identityResolver: new HabitatIdentityResolver(options.habitatUrl),
     fetch: (input, init) => fetch(input, init),
     runtimeImplementation: {
-      // No requestLock on purpose. Refreshes rotate the refresh token (pear
-      // deletes the old one as soon as it's used), and requests, cron passes
-      // and other isolates can't share an in-memory lock, so one can't stop
-      // two of them refreshing the same session at once. With no lock
-      // given, the client still serializes refreshes within an isolate (its
-      // own local lock) and also recovers from a cross-isolate race: on
-      // invalid_grant it waits briefly and re-reads the store, keeping the
-      // token the other isolate just saved. Passing any requestLock turns that
-      // recovery off, and the loser would delete the winner's fresh session.
+      // The client's built-in local lock is a module-level promise chain. A
+      // worker cancels the continuations of a finished request, so if one
+      // is cancelled while holding the lock (say the browser navigates away
+      // mid-refresh) the release never runs, and every later call for that
+      // session waits forever ("Worker's code had hung"). This lock gives
+      // up waiting for a stuck holder after LOCK_WAIT_MS. It still
+      // serializes refreshes within an isolate. Refresh tokens rotate (pear
+      // deletes the old one once used), so two isolates racing is still
+      // possible, and giving a requestLock turns off the client's
+      // invalid_grant recovery; a rare lost race costs a re-login.
+      requestLock: boundedLock,
       createKey: (algs) => JoseKey.generate(algs),
       getRandomValues: (length) =>
         crypto.getRandomValues(new Uint8Array(length)),

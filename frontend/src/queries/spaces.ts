@@ -1,7 +1,7 @@
 import {
   type AuthManager,
-  wantCommitMacHeaders,
-  wantRecordMacHeaders,
+  acceptCommitMacHeaders,
+  acceptRecordMacHeaders,
 } from "internal";
 import {
   xrpc,
@@ -60,7 +60,7 @@ export function spacesListQueryOptions(
         {
           validateResponse: false,
           params: {
-            did: filter.did as DidString | undefined,
+            spaceDid: filter.did as DidString | undefined,
             spaceType: filter.spaceType as NsidString | undefined,
           },
         },
@@ -137,8 +137,8 @@ export function spaceLatestCommitQueryOptions(
             validateResponse: false,
             params: { space: space as SpaceRefString, repo: repo as DidString },
             // Required with a space credential; the MAC it requests is not
-            // checked here (see wantCommitMacHeaders).
-            headers: await wantCommitMacHeaders(),
+            // checked here (see acceptCommitMacHeaders).
+            headers: await acceptCommitMacHeaders(),
           },
         );
         return response.body.commit ?? null;
@@ -159,13 +159,26 @@ export function spaceLatestCommitQueryOptions(
 // and write access, but the host has not grown those yet and still answers
 // with { did } only, so the response is taken unvalidated. Relax when the
 // host starts returning read/write.
+//
+// Only memberspace-policy spaces have a member list. A space under another
+// policy (e.g. the relationspace spaces the spaces page creates, whose access
+// comes from userRelation/spaceRelation records) has none to ask for, which
+// resolves to null here.
 export function spaceMembersQueryOptions(
   space: string,
   authManager: AuthManager,
 ) {
   return queryOptions({
     queryKey: ["listMembers", space],
-    queryFn: async (): Promise<Member[]> => {
+    queryFn: async (): Promise<Member[] | null> => {
+      const { body: described } = await xrpc(
+        authManager,
+        com.atproto.space.getSpace.main,
+        { params: { space: space as SpaceRefString }, validateResponse: false },
+      );
+      if (described.policy.$type !== "com.atproto.memberspace.policy") {
+        return null;
+      }
       const response = await xrpc(
         authManager,
         com.atproto.memberspace.listMembers.main,
@@ -243,8 +256,8 @@ export function spaceRecordQueryOptions(
             rkey,
           },
           // Required with a space credential; the MAC it requests is not
-          // checked here (see wantRecordMacHeaders).
-          headers: await wantRecordMacHeaders(),
+          // checked here (see acceptRecordMacHeaders).
+          headers: await acceptRecordMacHeaders(),
         },
       );
       return { value: response.body.value as unknown, cid: response.body.cid };

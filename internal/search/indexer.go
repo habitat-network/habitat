@@ -198,6 +198,17 @@ func (x *Indexer) NotifyWrite(
 	x.enqueue(ctx, job{kind: jobIndexRepo, space: space, repo: repo})
 }
 
+// NotifyWriterRemoved implements [spaces.Notifier]. Removing a writer does not
+// change any indexed document, so it does nothing.
+func (x *Indexer) NotifyWriterRemoved(
+	context.Context,
+	habitat_syntax.SpaceURI,
+	syntax.DID,
+	syntax.TID,
+	syntax.TID,
+) {
+}
+
 // NotifySpaceDeleted implements [spaces.Notifier] by queueing space's
 // documents to be deleted.
 func (x *Indexer) NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI) {

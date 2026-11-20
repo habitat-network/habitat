@@ -18,7 +18,7 @@ export const $params = /*#__PURE__*/ l.params()
 export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
-  type: /*#__PURE__*/ l.string({ format: 'nsid' }),
+  spaceType: /*#__PURE__*/ l.string({ format: 'nsid' }),
   skey: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string({ format: 'record-key' }),
   ),
@@ -42,7 +42,7 @@ export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  uri: /*#__PURE__*/ l.string({ format: 'space-ref' }),
+  space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
 })
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
@@ -51,7 +51,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Create a new space. The space is anchored on the authenticated user's DID, who becomes the space authority. Its policy governs configuration, access, and tracked writers. Requires auth, implemented by PDS. */
+/** Create a new space, with the authenticated account as its authority. Requires auth, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceAlreadyExists',
   'UnsupportedPolicy',

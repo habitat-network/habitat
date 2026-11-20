@@ -14,6 +14,7 @@ import (
 	"github.com/habitat-network/habitat/internal/fedsearch"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
@@ -62,7 +63,13 @@ type PearServer struct {
 	permStore       perms.Store
 	simpleStore     *simplespace.Store
 	notifyStore     notify.Store
-	mcpGatewayStore mcpgateway.Store
+	// webhookClient makes the confirmRegistration calls authorizeSpaceSync
+	// triggers. Endpoints are caller-supplied, so by default it only connects
+	// to public addresses; insecureWebhooks additionally allows http, and is set
+	// only when the client was overridden (tests).
+	webhookClient    *http.Client
+	insecureWebhooks bool
+	mcpGatewayStore  mcpgateway.Store
 	// fedSearch answers mcp.search over Habitat records and members'
 	// connected MCP servers.
 	fedSearch *fedsearch.Service
@@ -128,6 +135,11 @@ func New(app *pearapp.App) *PearServer {
 	if spaceEvents == nil {
 		// Nothing notifies this one, so streams fall back to polling.
 		spaceEvents = spacestream.NewBroadcaster()
+	}
+	if app.WebhookClient != nil {
+		ps.webhookClient, ps.insecureWebhooks = app.WebhookClient, true
+	} else {
+		ps.webhookClient = httpx.NewPublicClient()
 	}
 	ps.spaceStream = spacestream.NewServer(app.SpacesStore, app.PermStore, spaceEvents)
 	ps.registerRoutes()

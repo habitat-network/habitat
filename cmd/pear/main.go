@@ -110,6 +110,9 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 			"Signature-Input",
 			"atproto-space-audience",
 			"atproto-space-want-mac",
+			// Browser readers ask for a commit or record MAC with this (see
+			// acceptCommitMacHeaders in typescript/internal).
+			"Accept-Signature",
 		}),
 		handlers.MaxAge(86400),
 		// Browser syncers can only verify a commit or record MAC they can read.
@@ -174,6 +177,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 
 	idServer, err := habitat_identity.NewServer(
 		app.Hive, app.Validator, app.PDSForwarding, app.Domain, app.HostKey,
+		habitat_identity.NewDirectory(cmd.String(fPlcURL)),
 		habitat_identity.WithClient(httpx.NewClient()),
 		habitat_identity.WithEmailResolver(app.EmailResolver),
 	)
