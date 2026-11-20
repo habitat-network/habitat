@@ -9,6 +9,9 @@ services:
       POSTGRES_DB: habitat
       POSTGRES_USER: habitat
       POSTGRES_PASSWORD: habitat
+    volumes:
+      # Creates the database the PLC directory uses.
+      - ./pds/init-plc-db.sql:/docker-entrypoint-initdb.d/init-plc-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U habitat -d habitat"]
       interval: 1s
@@ -31,6 +34,8 @@ services:
       HABITAT_GOOGLE_CLIENT_SECRET: ${HABITAT_GOOGLE_CLIENT_SECRET:?}
       # Pear fetches the web client's OAuth metadata from https://app.habitat-e2e.dev.
       SSL_CERT_FILE: /certs/cert.pem
+      # Resolves the PDS accounts' did:plc DIDs against the local directory.
+      HABITAT_PLC_URL: http://plc:2582
     # The server does not migrate on startup, so migrate first.
     command: ["sh", "-c", "/app/pear migrate && exec /app/pear serve"]
     ports: ["8000"]
@@ -57,7 +62,66 @@ services:
       default:
         # Lets pear reach the web client's origin (for its OAuth metadata) and its
         # own (to resolve did:web:habitat-e2e.dev).
-        aliases: [habitat-e2e.dev, app.habitat-e2e.dev]
+        # Docker DNS has no wildcards, so the handles of the PDS accounts (see
+        # harness/pds.ts, PDS_ACCOUNTS) are listed one by one: an atproto handle
+        # resolves over HTTPS at its own host, and pear does that from here.
+        aliases:
+          - habitat-e2e.dev
+          - app.habitat-e2e.dev
+          - pds.habitat-e2e.dev
+          - alice.pds.habitat-e2e.dev
+          - bob.pds.habitat-e2e.dev
     depends_on:
       pear: { condition: service_started }
       frontend: { condition: service_started }
+      pds: { condition: service_started }
+
+  # Local PLC directory, so the PDS's accounts get did:plc identities without
+  # the public plc.directory. Built from the upstream server at a pinned commit.
+  plc:
+    build:
+      context: https://github.com/did-method-plc/did-method-plc.git#29f1a70ee9f6f80a25946cac103b2f745e371334
+      dockerfile: packages/server/Dockerfile
+    environment:
+      PORT: "2582"
+      ENABLE_MIGRATIONS: "true"
+      DB_CREDS_JSON: '{"username":"habitat","password":"habitat","host":"postgres","port":5432,"database":"plc"}'
+      DB_MIGRATE_CREDS_JSON: '{"username":"habitat","password":"habitat","host":"postgres","port":5432,"database":"plc"}'
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  # The alpha PDS with spaces support
+  # (https://atproto.com/blog/atproto-spaces-alpha). Its data lives in a named
+  # volume, which the harness removes with the rest of the test bed.
+  pds:
+    image: ${PDS_IMAGE:-ghcr.io/bluesky-social/atproto:pds-spaces-alpha}
+    environment:
+      PDS_HOSTNAME: pds.habitat-e2e.dev
+      PDS_PORT: "3000"
+      PDS_DATA_DIRECTORY: /pds
+      PDS_BLOBSTORE_DISK_LOCATION: /pds/blocks
+      PDS_DID_PLC_URL: http://plc:2582
+      PDS_SERVICE_HANDLE_DOMAINS: .pds.habitat-e2e.dev
+      PDS_INVITE_REQUIRED: "false"
+      PDS_RATE_LIMITS_ENABLED: "false"
+      PDS_CRAWLERS: ""
+      # Throwaway secrets, for the test instance only.
+      PDS_JWT_SECRET: e2e-jwt-secret-0123456789abcdef
+      PDS_ADMIN_PASSWORD: e2e-admin-password
+      PDS_DPOP_SECRET: 0123456789abcdef0123456789abcdef
+      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: 7ed17afd1a9ae5c1c9a2f6b0d3e5b4c8a1f2e3d4c5b6a79881726354453627a1
+      # The PDS fetches OAuth client metadata from pear and the web client, which
+      # are on the compose network behind the self-signed certificate.
+      PDS_DEV_MODE: "true"
+      PDS_DISABLE_SSRF_PROTECTION: "true"
+      NODE_EXTRA_CA_CERTS: /certs/cert.pem
+      LOG_ENABLED: "true"
+    ports: ["3000"]
+    volumes:
+      - pds-data:/pds
+      - ./certs:/certs:ro
+    depends_on:
+      plc: { condition: service_started }
+
+volumes:
+  pds-data:

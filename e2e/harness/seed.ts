@@ -10,6 +10,13 @@ import { PearApi, type Org } from "./api";
  * a binary blob that silently drifts from them, and the pear image runs on
  * Postgres anyway, not SQLite. Replaying the app's own endpoints on a freshly migrated database
  * stays correct as the schema evolves and is diffable in review.
+ *
+ * The same goes for the PDS accounts (harness/pds.ts). A snapshot of them
+ * would be the PDS's data directory plus the PLC directory's database, kept
+ * in step with each other, and the alpha PDS warns that its schema changes
+ * without clean migrations, so a snapshot breaks whenever its image moves.
+ * Creating the accounts takes about a second, against tens of seconds for
+ * starting the test bed, so they are seeded idempotently instead.
  */
 export interface SeedData {
   org: Org;

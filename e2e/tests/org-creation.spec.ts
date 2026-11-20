@@ -1,20 +1,20 @@
 import { test } from "../harness/fixtures";
-import { WebApp } from "../harness/pages/webApp";
 
 test.skip(
-  !process.env.E2E_APP,
-  "needs the compose test bed (serves the web client)",
+  !process.env.E2E_APP || !process.env.E2E_PDS_ACCOUNTS,
+  "needs the compose test bed (serves the web client and the PDS)",
 );
 
-// A member signs in through the *.test passthrough login and creates an
+// A member signs in with their account on the alpha PDS and creates an
 // organization from the web client. Landing in the new org and every page of
 // its settings must load without console errors, failed or 4xx/5xx requests,
 // or error UI.
 test("creating an org lands in it and its settings pages show no errors", async ({
   page,
   webApp,
+  pdsAccounts,
 }) => {
-  await webApp.signIn(WebApp.uniqueHandle("alice", test.info().parallelIndex));
+  await webApp.signIn(pdsAccounts.bob);
 
   await test.step("create the org", async () => {
     await page.waitForURL(/\/orgs\/?$/);
