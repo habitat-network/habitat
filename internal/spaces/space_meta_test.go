@@ -19,7 +19,9 @@ func sampleMeta() spaces.SpaceMeta {
 	return spaces.SpaceMeta{
 		Space: metaSpace,
 		Policy: spaces.Policy{
-			Type: spaces.PolicyMemberSpace, PublicRead: true, AllowedApps: []string{"https://app.test"},
+			Type:        spaces.PolicyMemberSpace,
+			PublicRead:  true,
+			AllowedApps: []string{"https://app.test"},
 		},
 		// Out of key order, and one with a localhost port, which is a
 		// percent-encoded colon in a DID but not in a record key.
