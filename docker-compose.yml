@@ -295,7 +295,7 @@ services:
     environment:
       # Dev-only vars; the dev image writes these to the app's .dev.vars.
       DEV_VAR_CHALK_SESSION_SECRET: chalk-dev-session-secret-0000000000000000
-      DEV_VAR_CHALK_CREDENTIALS_KEY: chalk-dev-credentials-key-000000000000000
+      DEV_VAR_CHALK_CREDENTIALS_KEY: WRlpsucNQl8AVO1qNN+T+hzbVtYjdoF21QfF+0uDJSM=
       DEV_VAR_CHALK_BASE_URL: https://chalk.local.habitat.network:${HABITAT_DEV_PORT:-443}
       DEV_VAR_CHALK_HABITAT_URL: https://pear.local.habitat.network:${HABITAT_DEV_PORT:-443}
       VITE_HABITAT_DOMAIN: pear.local.habitat.network
@@ -368,7 +368,7 @@ services:
         required: false
     environment:
       DEV_VAR_APP_SESSION_SECRET: app-dev-session-secret-000000000000000000
-      DEV_VAR_APP_CREDENTIALS_KEY: app-dev-credentials-key-0000000000000000
+      DEV_VAR_APP_CREDENTIALS_KEY: mi3L/t0aGwPU2fpSJszDYhSUEyGMA0Ui492AAHenbTw=
       DEV_VAR_APP_BASE_URL: https://app.local.habitat.network:${HABITAT_DEV_PORT:-443}
       DEV_VAR_APP_HABITAT_URL: https://pear.local.habitat.network:${HABITAT_DEV_PORT:-443}
       VITE_HABITAT_DOMAIN: pear.local.habitat.network
