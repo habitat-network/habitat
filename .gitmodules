@@ -1,9 +1,16 @@
 [submodule "external/opensocial-proposal"]
 	path = external/opensocial-proposal
 	url = https://tangled.org/opensocial.group/proposal
-[submodule "external/bluesky-proposals"]
-	path = external/bluesky-proposals
+[submodule "external/atproto-proposals"]
+	path = external/atproto-proposals
 	url = https://github.com/bluesky-social/proposals
 [submodule "external/effect"]
 	path = external/effect
 	url = https://github.com/Effect-TS/effect.git
+[submodule "external/jetstream"]
+	path = external/jetstream
+	url = https://github.com/bluesky-social/jetstream
+[submodule "external/atproto"]
+	path = external/atproto
+	url = https://github.com/bluesky-social/atproto
+	branch = permissioned-data

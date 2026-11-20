@@ -298,6 +298,13 @@
                     "description": "The space key. If not provided, one will be auto-generated (TID).",
                     "maxLength": 512
                   },
+                  "policy": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/network.habitat.relationspace.policy"
+                      }
+                    ]
+                  },
                   "roles": {
                     "type": "array",
                     "items": {
@@ -6064,138 +6071,6 @@
         }
       }
     },
-    "/network.habitat.simplespace.createSpace": {
-      "post": {
-        "tags": [
-          "network.habitat.simplespace"
-        ],
-        "summary": "network.habitat.simplespace.createSpace",
-        "description": "Create a new space managed by the simplespace implementation. The authenticated user becomes the space owner. Requires auth, implemented by PDS.",
-        "operationId": "network.habitat.simplespace.createSpace",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "did",
-                  "type"
-                ],
-                "properties": {
-                  "did": {
-                    "type": "string",
-                    "description": "The DID of the space.",
-                    "format": "did"
-                  },
-                  "type": {
-                    "type": "string",
-                    "description": "The NSID of the space type, describing the modality of the space (e.g. app.bsky.group, app.bsky.personal).",
-                    "format": "nsid"
-                  },
-                  "skey": {
-                    "type": "string",
-                    "description": "The space key. Used to differentiate multiple spaces of the same type under the same owner. If not provided, one will be auto-generated (TID).",
-                    "maxLength": 512
-                  },
-                  "config": {
-                    "$ref": "#/components/schemas/network.habitat.simplespace.defs.spaceConfig"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "uri"
-                  ],
-                  "properties": {
-                    "uri": {
-                      "type": "string",
-                      "description": "URI of the created space.",
-                      "format": "at-uri"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "SpaceAlreadyExists"
-                        },
-                        {
-                          "const": "InvalidType"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.simplespace.deleteSpace": {
       "post": {
         "tags": [
@@ -7060,7 +6935,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getLatestCommit",
-        "description": "Get the current commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the commit's MAC is returned in the Atproto-Space-Mac response header.",
+        "description": "Get the current commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-commit), and the response carries it in Signature-Input and Signature headers covering an Atproto-Space-Commit header.",
         "operationId": "network.habitat.space.getLatestCommit",
         "security": [
           {
@@ -7146,7 +7021,7 @@
                           "const": "RepoDeactivated"
                         },
                         {
-                          "const": "BadSpaceMac"
+                          "const": "InvalidSpaceMac"
                         }
                       ]
                     },
@@ -7189,7 +7064,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRecord",
-        "description": "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the record's MAC is returned in the Atproto-Space-Mac response header.",
+        "description": "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-record), and the response carries it in Signature-Input and Signature headers covering an Atproto-Space-Record header.",
         "operationId": "network.habitat.space.getRecord",
         "security": [
           {
@@ -7308,7 +7183,7 @@
                           "const": "RepoDeactivated"
                         },
                         {
-                          "const": "BadSpaceMac"
+                          "const": "InvalidSpaceMac"
                         }
                       ]
                     },
@@ -7351,7 +7226,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRepo",
-        "description": "Download an account's permissioned repo within a space as a STAR file, for full-state recovery. The archive's metadata is the repo's commit; each key/value pair is a record path ('{collection}/{rkey}') and the record's DRISL encoding, in strict lexicographic order of the path. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the MAC of the archive's commit is returned in the Atproto-Space-Mac response header.",
+        "description": "Download an account's permissioned repo within a space as a STAR file, for full-state recovery. The archive's metadata is the repo's commit; each key/value pair is a record path ('{collection}/{rkey}') and the record's DRISL encoding, in strict lexicographic order of the path. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-commit), and the response carries the archive commit's MAC in Signature-Input and Signature headers covering an Atproto-Space-Commit header.",
         "operationId": "network.habitat.space.getRepo",
         "security": [
           {
@@ -7428,7 +7303,7 @@
                           "const": "RepoDeactivated"
                         },
                         {
-                          "const": "BadSpaceMac"
+                          "const": "InvalidSpaceMac"
                         }
                       ]
                     },
@@ -7799,7 +7674,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.listRepoOps",
-        "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and a response that includes the commit carries its MAC in the Atproto-Space-Mac response header.",
+        "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-commit), and a response that includes the commit carries its MAC in Signature-Input and Signature headers covering an Atproto-Space-Commit header.",
         "operationId": "network.habitat.space.listRepoOps",
         "security": [
           {
@@ -7937,7 +7812,7 @@
                           "const": "RepoDeactivated"
                         },
                         {
-                          "const": "BadSpaceMac"
+                          "const": "InvalidSpaceMac"
                         }
                       ]
                     },
@@ -9912,6 +9787,11 @@
           }
         }
       },
+      "network.habitat.relationspace.policy": {
+        "type": "object",
+        "description": "A space policy: access is decided by the space's network.habitat.relationship userRelation and spaceRelation records (owner, manager, writer, reader), which the authority and its managers maintain. No configuration.",
+        "properties": {}
+      },
       "network.habitat.render.schema": {
         "type": "object",
         "required": [
@@ -10265,7 +10145,7 @@
       },
       "network.habitat.space.defs.commit": {
         "type": "object",
-        "description": "A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header.",
+        "description": "A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC over its Atproto-Space-Commit response header.",
         "required": [
           "ver",
           "repo",
@@ -10430,6 +10310,114 @@
             "description": "A fragment of the record's text with the matches wrapped in <mark></mark>. The rest is unescaped record text, so escape it before rendering as HTML."
           }
         }
+      },
+      "network.habitat.space.subscribe.commit": {
+        "type": "object",
+        "description": "A record's latest write: a create, update, or delete.",
+        "required": [
+          "seq",
+          "space",
+          "did",
+          "uri",
+          "time",
+          "rev",
+          "operation",
+          "collection",
+          "rkey"
+        ],
+        "properties": {
+          "seq": {
+            "type": "integer"
+          },
+          "space": {
+            "type": "string",
+            "description": "The space the record belongs to. The same author, collection, and rkey can exist in several spaces.",
+            "format": "at-uri"
+          },
+          "did": {
+            "type": "string",
+            "description": "The record's author: the account whose space repo holds it.",
+            "format": "did"
+          },
+          "uri": {
+            "type": "string",
+            "description": "The record's space record URI.",
+            "format": "at-uri"
+          },
+          "time": {
+            "type": "string",
+            "description": "When the write was stored, microsecond precision.",
+            "format": "date-time"
+          },
+          "rev": {
+            "type": "string",
+            "description": "The repo revision of the write; the record's oplog rev in listRepoOps.",
+            "format": "tid"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update",
+              "delete"
+            ]
+          },
+          "collection": {
+            "type": "string",
+            "format": "nsid"
+          },
+          "rkey": {
+            "type": "string",
+            "format": "record-key"
+          },
+          "record": {},
+          "cid": {
+            "type": "string",
+            "description": "CID of the record. Absent for deletes.",
+            "format": "cid"
+          }
+        }
+      },
+      "network.habitat.space.subscribe.spaceDeleted": {
+        "type": "object",
+        "description": "A space was deleted. Consumers drop every record and derived state they hold for it.",
+        "required": [
+          "seq",
+          "space",
+          "time"
+        ],
+        "properties": {
+          "seq": {
+            "type": "integer"
+          },
+          "space": {
+            "type": "string",
+            "format": "at-uri"
+          },
+          "time": {
+            "type": "string",
+            "description": "When the space was deleted, microsecond precision.",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.space.subscribe.info": {
+        "type": "object",
+        "description": "An advisory, non-fatal notice about the stream. Carries no seq and does not advance the cursor. FutureCursor: the requested cursor was beyond the next seq to be assigned, so the stream started at the live tip.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "FutureCursor"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -10541,6 +10529,9 @@
     },
     {
       "name": "network.habitat.relationship"
+    },
+    {
+      "name": "network.habitat.relationspace"
     },
     {
       "name": "network.habitat.render"

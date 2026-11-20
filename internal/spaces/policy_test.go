@@ -29,6 +29,12 @@ func TestParsePolicy(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, spaces.Policy{Type: spaces.PolicyPersonalSpace}, p)
 	})
+	t.Run("relationspace drops configuration", func(t *testing.T) {
+		p, err := spaces.ParsePolicy(json.RawMessage(
+			`{"$type":"network.habitat.relationspace.policy","publicRead":true}`))
+		require.NoError(t, err)
+		require.Equal(t, spaces.Policy{Type: spaces.PolicyRelationSpace}, p)
+	})
 	t.Run("managedspace and unknown policies are unsupported", func(t *testing.T) {
 		for _, raw := range []string{
 			`{"$type":"com.atproto.managedspace.policy","managingApp":"did:web:x"}`,

@@ -2,6 +2,7 @@ import { waitUntil } from "cloudflare:workers";
 import { type DidString, SpaceRef, type SpaceRefString } from "@atproto/syntax";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { Duration } from "effect";
+import { trimTrailingSlashes } from "internal/oauthClient";
 import {
   createSpaceSyncer,
   type CreateSpaceSyncerOptions,
@@ -55,9 +56,8 @@ export interface UploadInput {
   bytes: Uint8Array;
 }
 
-// serviceDid is Drop's own service identifier: the `aud` inbound space
-// notifications are addressed to, and what registerNotify subscribes.
-// Served from /.well-known/did.json (src/routes/[.well-known].did[.]json.ts).
+// serviceDid is Drop's own did:web identifier, served from
+// /.well-known/did.json (src/routes/[.well-known].did[.]json.ts).
 export function serviceDid(env: Env): string {
   return `did:web:${new URL(env.DROP_BASE_URL).host}`;
 }
@@ -69,7 +69,11 @@ function newSyncer(
   const db = getDb(env);
   const oauth = createOAuthClient(env);
   return createSpaceSyncer({
-    serviceDid: serviceDid(env),
+    // Space hosts deliver notifications to this origin, authenticated by tokens
+    // derived from the session secret (every request builds a new syncer, so
+    // the secret must be stable).
+    notifyEndpoint: trimTrailingSlashes(env.DROP_BASE_URL),
+    notifySecret: process.env.DROP_SESSION_SECRET,
     // Resolve space authorities (org DIDs) through pear too, not just OAuth.
     identityResolver: new HabitatIdentityResolver(env.DROP_HABITAT_URL),
     backoffCap: BACKOFF_CAP,
@@ -180,30 +184,27 @@ export async function deleteFile(
 }
 
 // Inbound space notifications from the Worker's XRPC route, with their raw
-// body and Authorization header (the syncer verifies the service-auth JWT
-// itself). Verification happens before these return; the pass a write
-// triggers finishes in the background.
-export async function notifyWrite(
+// body (the token in it is the authentication, checked by the syncer before
+// these return). The pass a notification triggers finishes in the background.
+export async function confirmRegistration(
   env: Env,
   body: unknown,
-  authorization: string | undefined,
-): Promise<void> {
+): Promise<unknown> {
   const syncer = requestSyncer(env);
   try {
-    await syncer.notifyWrite(body, authorization);
+    return await syncer.confirmRegistration(body);
   } finally {
-    finishInBackground(syncer, notifiedSpace(body));
+    await syncer.dispose();
   }
 }
 
-export async function notifySpaceDeleted(
+export async function notifySpaceUpdate(
   env: Env,
   body: unknown,
-  authorization: string | undefined,
 ): Promise<void> {
   const syncer = requestSyncer(env);
   try {
-    await syncer.notifySpaceDeleted(body, authorization);
+    await syncer.notifySpaceUpdate(body);
   } finally {
     finishInBackground(syncer, notifiedSpace(body));
   }

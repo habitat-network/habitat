@@ -23,3 +23,35 @@ func (t ComAtprotoSpaceDefsCommit) MarshalJSON() ([]byte, error) {
 	type alias ComAtprotoSpaceDefsCommit
 	return json.Marshal(alias(t))
 }
+
+// ComAtprotoSpaceDefsRepoRemoved represents a repoRemoved object
+type ComAtprotoSpaceDefsRepoRemoved struct {
+	LexiconTypeID string `json:"$type"`
+	PrevSpaceRev  string `json:"prevSpaceRev,omitempty"`
+	Repo          string `json:"repo"`
+	SpaceRev      string `json:"spaceRev"`
+}
+
+// MarshalJSON sets $type to "com.atproto.space.defs#repoRemoved" before encoding.
+func (t ComAtprotoSpaceDefsRepoRemoved) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "com.atproto.space.defs#repoRemoved"
+	type alias ComAtprotoSpaceDefsRepoRemoved
+	return json.Marshal(alias(t))
+}
+
+// ComAtprotoSpaceDefsRepoWrite represents a repoWrite object
+type ComAtprotoSpaceDefsRepoWrite struct {
+	LexiconTypeID string       `json:"$type"`
+	Data          atdata.Bytes `json:"data"`
+	PrevSpaceRev  string       `json:"prevSpaceRev,omitempty"`
+	Repo          string       `json:"repo"`
+	RepoRev       string       `json:"repoRev"`
+	SpaceRev      string       `json:"spaceRev"`
+}
+
+// MarshalJSON sets $type to "com.atproto.space.defs#repoWrite" before encoding.
+func (t ComAtprotoSpaceDefsRepoWrite) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "com.atproto.space.defs#repoWrite"
+	type alias ComAtprotoSpaceDefsRepoWrite
+	return json.Marshal(alias(t))
+}

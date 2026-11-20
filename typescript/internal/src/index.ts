@@ -29,8 +29,8 @@ export {
 export {
   createSpaceSignatureHeaders,
   spaceCredentialKid,
-  wantCommitMacHeaders,
-  wantRecordMacHeaders,
+  acceptCommitMacHeaders,
+  acceptRecordMacHeaders,
 } from "./spaceSignature";
 export {
   SidebarGroup,

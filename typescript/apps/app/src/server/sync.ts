@@ -2,6 +2,7 @@ import { waitUntil } from "cloudflare:workers";
 import { SpaceRef, type DidString, type SpaceRefString } from "@atproto/syntax";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { Duration } from "effect";
+import { trimTrailingSlashes } from "internal/oauthClient";
 import {
   createSpaceSyncer,
   type CreateSpaceSyncerOptions,
@@ -45,9 +46,8 @@ const BACKOFF_CAP = Duration.minutes(10);
 // picks the change up.
 const WRITE_SYNC_WAIT_MS = 10_000;
 
-// serviceDid is the app's own service identifier: the `aud` inbound space
-// notifications are addressed to, and what registerNotify subscribes.
-// Served from /.well-known/did.json.
+// serviceDid is the app's own did:web identifier, served from
+// /.well-known/did.json.
 export function serviceDid(env: Env): string {
   return `did:web:${new URL(env.APP_BASE_URL).host}`;
 }
@@ -144,7 +144,11 @@ function newSyncer(
     new MembershipSink({ db }),
   );
   syncer = createSpaceSyncer({
-    serviceDid: serviceDid(env),
+    // Space hosts deliver notifications to this origin, authenticated by tokens
+    // derived from the session secret (every request builds a new syncer, so
+    // the secret must be stable).
+    notifyEndpoint: trimTrailingSlashes(env.APP_BASE_URL),
+    notifySecret: process.env.APP_SESSION_SECRET,
     // Resolve space authorities (group DIDs) through pear too.
     identityResolver: new HabitatIdentityResolver(env.APP_HABITAT_URL),
     backoffCap: BACKOFF_CAP,
@@ -157,7 +161,7 @@ function newSyncer(
 }
 
 // requestSyncer is a syncer for one request: it runs only the passes the
-// request starts (watch, notifyWrite), never the scheduler's due spaces.
+// request starts (watch, notifySpaceUpdate), never the scheduler's due spaces.
 function requestSyncer(env: Env): PromiseSpaceSyncer {
   return newSyncer(env, { schedulerPageSize: 0 });
 }
@@ -252,30 +256,27 @@ export async function watchSpacesOf(
 }
 
 // Inbound space notifications from the Worker's XRPC route, with their raw
-// body and Authorization header (the syncer verifies the service-auth JWT
-// itself). Verification happens before these return; the pass a write
-// triggers finishes in the background.
-export async function notifyWrite(
+// body (the token in it is the authentication, checked by the syncer before
+// these return). The pass a notification triggers finishes in the background.
+export async function confirmRegistration(
   env: Env,
   body: unknown,
-  authorization: string | undefined,
-): Promise<void> {
+): Promise<unknown> {
   const syncer = requestSyncer(env);
   try {
-    await syncer.notifyWrite(body, authorization);
+    return await syncer.confirmRegistration(body);
   } finally {
-    finishInBackground(syncer, notifiedSpace(body));
+    await syncer.dispose();
   }
 }
 
-export async function notifySpaceDeleted(
+export async function notifySpaceUpdate(
   env: Env,
   body: unknown,
-  authorization: string | undefined,
 ): Promise<void> {
   const syncer = requestSyncer(env);
   try {
-    await syncer.notifySpaceDeleted(body, authorization);
+    await syncer.notifySpaceUpdate(body);
   } finally {
     finishInBackground(syncer, notifiedSpace(body));
   }

@@ -119,7 +119,7 @@ export class Habitat extends Context.Service<
           const opts = withProxy(options ?? {}, call) as XrpcOptions<M>;
           const res = yield* Effect.tryPromise({
             try: () => lexXrpc(agent, method, opts),
-            catch: (cause) => toHabitatError(did, nsid, cause),
+            catch: (cause) => toHabitatError(did, nsid, cause, !!call?.proxy),
           });
           return res.body;
         }).pipe(
@@ -140,7 +140,7 @@ export class Habitat extends Context.Service<
             new HabitatClient(env, did).call<T>(nsid, method, payload, {
               atprotoProxy: call?.proxy ? `${call.proxy}#habitat` : undefined,
             }),
-          catch: (cause) => toHabitatError(did, nsid, cause),
+          catch: (cause) => toHabitatError(did, nsid, cause, !!call?.proxy),
         }).pipe(Effect.withSpan("Habitat.call", { attributes: { did, nsid } }));
 
       return Habitat.of({
@@ -175,10 +175,18 @@ function withProxy<O extends { headers?: HeadersInit }>(
 // toHabitatError classifies whatever a call threw: a 401 (or a session that
 // couldn't be restored) is SessionExpired, anything else a HabitatError
 // carrying pear's status and XRPC error name when there was a response.
+//
+// proxied is true for a call made to a group through the member's pear
+// (atproto-proxy). Pear answers a denied action there with a 401 whose body
+// the proxy strips, so it can't be told from a lapsed session; the member's
+// own session was restored fine to get that far (a refresh failure is an
+// UnauthorizedError, handled above), so it is reported as a refusal rather
+// than signing the member out.
 export function toHabitatError(
   did: string,
   nsid: string,
   cause: unknown,
+  proxied = false,
 ): HabitatError | SessionExpired {
   for (let e = cause; e instanceof Error; e = e.cause) {
     if (e instanceof UnauthorizedError) {
@@ -189,12 +197,12 @@ export function toHabitatError(
     const status = Predicate.hasProperty(cause, "status")
       ? Number(cause.status)
       : 0;
-    if (status === 401) {
+    if (status === 401 && !proxied) {
       return new SessionExpired({ did, message: messageOf(cause) });
     }
     return new HabitatError({
       nsid,
-      status,
+      status: status === 401 ? 403 : status,
       error: cause.error,
       message: messageOf(cause),
     });

@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SpaceRef } from "@atproto/syntax";
 import { Effect } from "effect";
 import { hasDocAccess } from "@/server/docs/docs.server";
 import { Forbidden } from "@/server/effect/errors";
-import { currentMember } from "@/server/effect/member";
+import { currentMember, requireOrg } from "@/server/effect/member";
 import { runHandler } from "@/server/effect/run";
 import { AppEnv, Habitat } from "@/server/effect/services";
 
@@ -19,6 +20,15 @@ export const Route = createFileRoute("/ws/$docId")({
           "docs.connect",
           Effect.gen(function* () {
             const did = yield* currentMember;
+            // Every doc belongs to a group, and pear keeps reporting a removed
+            // member's group-derived relations, so being a current member of
+            // the doc's group is checked here too, before asking pear.
+            const org = yield* Effect.try({
+              try: () => SpaceRef.parse(params.docId).spaceDid,
+              catch: () =>
+                new Forbidden({ message: "You don't have access to this doc" }),
+            });
+            yield* requireOrg(org);
             const habitat = yield* Habitat;
             const allowed = yield* Effect.promise(() =>
               hasDocAccess(habitat.client(did), did, params.docId),

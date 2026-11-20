@@ -1,3 +1,4 @@
+import { XrpcError } from "@atproto/lex";
 import { describe, expect, it } from "vitest";
 import {
   HabitatError,
@@ -22,6 +23,20 @@ describe("toHabitatError", () => {
     );
     expect(error).toBeInstanceOf(SessionExpired);
     expect(error).toMatchObject({ did: "did:web:org.example" });
+  });
+
+  it("reports a 401 from a group call as a refusal, not an expired session", () => {
+    // Pear answers a denied action with 401 and the proxy strips the body.
+    const denied = Object.assign(Object.create(XrpcError.prototype), {
+      status: 401,
+      error: "AuthenticationRequired",
+      message: "Upstream server responded with a 401 error",
+    });
+    const nsid = "community.opensocial.ejectMember";
+    expect(toHabitatError(MEMBER, nsid, denied)).toBeInstanceOf(SessionExpired);
+    const proxied = toHabitatError(MEMBER, nsid, denied, true);
+    expect(proxied).toBeInstanceOf(HabitatError);
+    expect(proxied).toMatchObject({ status: 403, nsid });
   });
 
   it("reads the status out of a HabitatClient failure message", () => {

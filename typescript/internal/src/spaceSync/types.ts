@@ -8,7 +8,7 @@ import type { RepoVerificationError } from "./errors";
 export interface SpaceState {
   readonly space: SpaceRefString;
   readonly authority: DidString;
-  /** Last listRepos checkpoint every repo up to which has been applied. */
+  /** Last listWriters checkpoint every repo up to which has been applied. */
   readonly spaceRev?: string | undefined;
   readonly registrationExpiresAt?: number | undefined;
   readonly nextDueAt: number;
@@ -68,7 +68,7 @@ export type SyncEvent =
       readonly rev: string;
     };
 
-/** A writer as reported by listRepos. */
+/** A writer as reported by listWriters. */
 export interface ListedRepo {
   readonly did: DidString;
   readonly repoRev: string;

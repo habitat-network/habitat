@@ -40,9 +40,9 @@ func (p *PearServer) ListMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	if httpx.IsComAtprotoRequest(r) {
 		// Membership in a simplespace grants both read and write.
-		members := make([]comatproto.ComAtprotoMemberspaceListMembersMember, len(dids))
+		members := make([]comatproto.ComAtprotoMemberspaceDefsMember, len(dids))
 		for i, did := range dids {
-			members[i] = comatproto.ComAtprotoMemberspaceListMembersMember{
+			members[i] = comatproto.ComAtprotoMemberspaceDefsMember{
 				Did: did.String(), Read: true, Write: true,
 			}
 		}

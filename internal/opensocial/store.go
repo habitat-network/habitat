@@ -286,6 +286,7 @@ func (s *Store) CreateSpace(
 	roles []string,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
+	policy spaces.Policy,
 ) (_ habitat_syntax.SpaceURI, err error) {
 	ctx, span := tracer.Start(ctx, "opensocial.CreateSpace", trace.WithAttributes(
 		telemetry.Org(orgDID),
@@ -299,6 +300,9 @@ func (s *Store) CreateSpace(
 		spaceURI, err = spacesStoreTx.CreateSpace(ctx, orgDID, spaceType, skey)
 		if err != nil {
 			return fmt.Errorf("space store create: %w", err)
+		}
+		if err := spacesStoreTx.SetSpacePolicy(ctx, spaceURI, policy); err != nil {
+			return fmt.Errorf("set space policy: %w", err)
 		}
 		recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
 			Roles:     roles,

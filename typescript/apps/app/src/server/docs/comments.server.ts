@@ -10,7 +10,7 @@ import {
   type CommentRow,
   type Db,
 } from "@/db";
-import { DOCS_SPACE_TYPE } from "./docs.server";
+import { DOCS_SPACE_TYPE, RELATION_SPACE_POLICY } from "./docs.server";
 import { env } from "cloudflare:workers";
 import type { HabitatClient } from "@/server/habitatClient";
 import { watchSpaces } from "@/server/sync";
@@ -122,7 +122,7 @@ function isSpaceAlreadyExists(err: unknown): boolean {
 // never created surfaces downstream as an opaque SpaceNotFound.
 //
 // Both calls are made as the *doc owner*, not as the signed-in member.
-// createSpace only accepts the caller's own DID (or their org's), and
+// createSpace anchors the space on the caller's own DID, and
 // setSpaceRelation requires manager on the comments space, which only its
 // owner has — so a non-owner being the first to comment on a doc shared
 // with them would otherwise fail both steps and leave them unable to
@@ -155,20 +155,17 @@ export async function ensureCommentsSpace(
           org: opts.ownerDid,
           type: COMMENTS_SPACE_TYPE,
           skey: parts.skey,
+          policy: RELATION_SPACE_POLICY,
           roles: [],
         },
         { atprotoProxy: `${opts.ownerDid}#habitat` },
       );
     } else {
-      await ownerClient.call(
-        "network.habitat.simplespace.createSpace",
-        "POST",
-        {
-          did: opts.ownerDid,
-          type: COMMENTS_SPACE_TYPE,
-          skey: parts.skey,
-        },
-      );
+      await ownerClient.call("com.atproto.space.createSpace", "POST", {
+        type: COMMENTS_SPACE_TYPE,
+        skey: parts.skey,
+        policy: RELATION_SPACE_POLICY,
+      });
     }
   } catch (err) {
     // Already exists is the common case on every call after the first.

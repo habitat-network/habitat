@@ -5,6 +5,8 @@
 package pearapp
 
 import (
+	"net/http"
+
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"gocloud.dev/blob"
@@ -29,6 +31,7 @@ import (
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacestream"
 )
 
 // App holds pear's stores and services.
@@ -47,9 +50,13 @@ type App struct {
 	// HostKEMKey is the host's #atproto_kem key: space commit MACs for repo
 	// owners on external PDSes are keyed against it (habitat-managed owners
 	// use their own hive KEM key instead). See spacecommit.KEMKeys.
-	HostKEMKey      *atcrypto.PrivateKeyP256
-	NotifyStore     notify.Store
-	Notifier        *notify.Deliverer
+	HostKEMKey  *atcrypto.PrivateKeyP256
+	NotifyStore notify.Store
+	Notifier    *notify.Deliverer
+	// WebhookClient overrides the client authorizeSpaceSync confirms
+	// registrations with (and allows http endpoints); nil uses a client that
+	// only reaches public addresses.
+	WebhookClient   *http.Client
 	BlobBucket      *blob.Bucket
 	BlobStore       spaces.BlobStore
 	SpacesStore     spaces.Store
@@ -60,7 +67,7 @@ type App struct {
 	PermStore       perms.Store
 	Validator       authn.RequestValidator
 	// CredentialRevocations holds the space credentials authorities revoked
-	// through notifyCredentialRevoked; the validator refuses them.
+	// through notifyCredentialsRevoked; the validator refuses them.
 	CredentialRevocations *authn.CredentialRevocations
 	// DelegationTokensSpent records used delegation token jtis, so each is
 	// accepted by getSpaceCredential only once.
@@ -80,6 +87,9 @@ type App struct {
 	// FedSearch searches Habitat records and members' connected apps
 	// together.
 	FedSearch *fedsearch.Service
+	// SpaceEvents wakes network.habitat.space.subscribe streams; SpacesStore
+	// notifies it of every write.
+	SpaceEvents *spacestream.Broadcaster
 }
 
 // New returns an App holding the given stores and services.
@@ -119,6 +129,7 @@ func New(
 	searcher *search.Searcher,
 	searchConfigStore *searchconfig.Store,
 	fedSearch *fedsearch.Service,
+	spaceEvents *spacestream.Broadcaster,
 ) *App {
 	return &App{
 		DB:                    database,
@@ -156,6 +167,7 @@ func New(
 		Searcher:              searcher,
 		SearchConfig:          searchConfigStore,
 		FedSearch:             fedSearch,
+		SpaceEvents:           spaceEvents,
 	}
 }
 

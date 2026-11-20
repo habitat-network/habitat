@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
@@ -39,6 +40,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	"github.com/habitat-network/habitat/internal/spacestream"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -55,8 +57,11 @@ type TestServer struct {
 	OpenSocialStore       *opensocial.Store
 	SimpleStore           *simplespace.Store
 	NotifyStore           notify.Store
-	Hive                  hive.Hive
-	HostKey               atcrypto.PrivateKeyExportable
+	// WebhookClient confirms registrations; the default reaches loopback so
+	// tests can use httptest servers as endpoints.
+	WebhookClient *http.Client
+	Hive          hive.Hive
+	HostKey       atcrypto.PrivateKeyExportable
 	// HostKEMKey keys commit MACs for repo owners hive does not manage;
 	// derived from HostKey unless set.
 	HostKEMKey       *atcrypto.PrivateKeyP256
@@ -75,6 +80,9 @@ type TestServer struct {
 	llmModels llmgateway.ModelFactory
 	// SearchConfig stores the collections each org surfaces in search.
 	SearchConfig *searchconfig.Store
+	// SpaceEvents wakes subscribe streams. The default SpaceStore notifies it;
+	// one given with WithSpaceStore doesn't, so its streams only poll.
+	SpaceEvents *spacestream.Broadcaster
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -185,11 +193,13 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		require.NoError(t, err)
 		ts.Hive = hiveRep
 	}
+	ts.SpaceEvents = spacestream.NewBroadcaster()
 	if ts.SpaceStore == nil {
 		ts.SpaceStore = spaces_testutil.NewTestStore(
 			t,
 			spaces_testutil.WithDB(ts.DB),
 			spaces_testutil.WithFGA(ts.FGA),
+			spaces_testutil.WithNotifier(ts.SpaceEvents),
 		)
 	}
 	if ts.NotifyStore == nil {
@@ -289,6 +299,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		PermStore:        ps,
 		SimpleStore:      ss,
 		NotifyStore:      ts.NotifyStore,
+		WebhookClient:    cmp.Or(ts.WebhookClient, http.DefaultClient),
 		ClientMetadata:   clientmetadata.NewResolver(),
 		MCPGatewayStore:  mcpGatewayStore,
 		LLMStore:         ts.LLMStore,
@@ -297,6 +308,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		Searcher:         searcher,
 		SearchConfig:     ts.SearchConfig,
 		FedSearch:        fedSearch,
+		SpaceEvents:      ts.SpaceEvents,
 	})
 	ts.PermStore = ps
 	return &ts

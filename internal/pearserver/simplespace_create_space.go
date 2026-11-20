@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/habitat-network/habitat/api/comatproto"
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -15,8 +14,28 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// CreateSpace implements network.habitat.simplespace.createSpace and
-// com.atproto.space.createSpace.
+// parseSkeyInput parses an optional space key, writing an invalid-request
+// response and returning false on a malformed one. An empty key yields the
+// zero SpaceKey, which the store replaces with a generated TID.
+func parseSkeyInput(
+	w http.ResponseWriter,
+	r *http.Request,
+	skey string,
+) (habitat_syntax.SpaceKey, bool) {
+	if skey == "" {
+		return "", true
+	}
+	parsed, err := habitat_syntax.ParseSkey(skey)
+	if err != nil {
+		httpx.WriteInvalidRequest(r.Context(), w, "invalid skey", err)
+		return "", false
+	}
+	return parsed, true
+}
+
+// CreateSpace implements com.atproto.space.createSpace: it creates a space
+// owned by the host, makes the caller its owner, and stores the requested
+// policy.
 func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -25,59 +44,27 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// The two namespaces have their own generated inputs: network.habitat
-	// carries a `config` this host ignores, com.atproto.space carries the
-	// proposal's `policy`.
-	var input habitat.NetworkHabitatSimplespaceCreateSpaceInput
-	var rawPolicy json.RawMessage
-	if httpx.IsComAtprotoRequest(r) {
-		var in comatproto.ComAtprotoSpaceCreateSpaceInput
-		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-			httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
-			return
-		}
-		var err error
-		if rawPolicy, err = marshalPolicyInput(in.Policy); err != nil {
-			httpx.WriteInvalidRequest(ctx, w, "policy is required", err)
-			return
-		}
-		input.Type, input.Skey = in.Type, in.Skey
-	} else if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+	var input comatproto.ComAtprotoSpaceCreateSpaceInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
 	}
-	var policy spaces.Policy
-	if httpx.IsComAtprotoRequest(r) {
-		var err error
-		if policy, err = spaces.ParsePolicy(rawPolicy); !writePolicyError(ctx, w, err) {
-			return
-		}
-	} else {
-		policy = spaces.DefaultPolicy()
+	rawPolicy, err := marshalPolicyInput(input.Policy)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "policy is required", err)
+		return
+	}
+	policy, err := spaces.ParsePolicy(rawPolicy)
+	if !writePolicyError(ctx, w, err) {
+		return
 	}
 	spaceType, ok := httpx.ParseNSIDInput(ctx, w, input.Type, "space type")
 	if !ok {
 		return
 	}
-	var skey habitat_syntax.SpaceKey
-	if input.Skey != "" {
-		parsedKey, err := habitat_syntax.ParseSkey(input.Skey)
-		if err != nil {
-			httpx.WriteInvalidRequest(ctx, w, "invalid skey", err)
-			return
-		}
-		skey = parsedKey
-	}
-
-	if input.Did != "" {
-		parsedDID, ok := httpx.ParseDIDInput(ctx, w, input.Did, "did")
-		if !ok {
-			return
-		}
-		if parsedDID != credInfo.Subject {
-			httpx.WriteInvalidRequest(ctx, w, "only the caller did is allowed", nil)
-			return
-		}
+	skey, ok := parseSkeyInput(w, r, input.Skey)
+	if !ok {
+		return
 	}
 
 	uri, err := p.simpleStore.CreateSpace(ctx, credInfo.Subject, spaceType, skey)
@@ -92,7 +79,5 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("set space policy: %w", err))
 		return
 	}
-	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSimplespaceCreateSpaceOutput{
-		Uri: uri.String(),
-	})
+	httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceCreateSpaceOutput{Uri: uri.String()})
 }

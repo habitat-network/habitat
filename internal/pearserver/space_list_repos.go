@@ -7,7 +7,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
-	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -15,6 +14,8 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
+// ListRepos implements network.habitat.space.listRepos. The com.atproto
+// equivalent is [PearServer.ListWriters].
 func (p *PearServer) ListRepos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var params habitat.NetworkHabitatSpaceListReposParams
@@ -53,22 +54,6 @@ func (p *PearServer) ListRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list repos: %w", err))
-		return
-	}
-	if httpx.IsComAtprotoRequest(r) {
-		views := make([]comatproto.ComAtprotoSpaceListReposRepo, len(repos))
-		for i, repo := range repos {
-			views[i] = comatproto.ComAtprotoSpaceListReposRepo{
-				Did:      repo.DID.String(),
-				Data:     repo.Hash,
-				RepoRev:  repo.Rev,
-				SpaceRev: repo.SpaceRev.String(),
-			}
-		}
-		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceListReposOutput{
-			Repos:  views,
-			Cursor: spaceRev.String(),
-		})
 		return
 	}
 	repoViews := make([]habitat.NetworkHabitatSpaceListReposRepo, len(repos))

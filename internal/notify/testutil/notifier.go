@@ -10,6 +10,15 @@ import (
 type TestNotifier struct {
 	Writes  []writeCall
 	Deleted []habitat_syntax.SpaceURI
+	// Removed records the repos removed from spaces, in order.
+	Removed []removeCall
+}
+
+type removeCall struct {
+	Space        habitat_syntax.SpaceURI
+	Repo         syntax.DID
+	SpaceRev     syntax.TID
+	PrevSpaceRev syntax.TID
 }
 
 type writeCall struct {
@@ -42,4 +51,16 @@ func (n *TestNotifier) NotifySpaceDeleted(
 	space habitat_syntax.SpaceURI,
 ) {
 	n.Deleted = append(n.Deleted, space)
+}
+
+func (n *TestNotifier) NotifyWriterRemoved(
+	_ context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	spaceRev syntax.TID,
+	prevSpaceRev syntax.TID,
+) {
+	n.Removed = append(n.Removed, removeCall{
+		Space: space, Repo: repo, SpaceRev: spaceRev, PrevSpaceRev: prevSpaceRev,
+	})
 }

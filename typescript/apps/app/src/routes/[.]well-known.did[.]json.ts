@@ -1,12 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
-import { SYNCER_SERVICE_ID } from "internal/spaceSync";
-import { trimTrailingSlashes } from "internal/oauthClient";
 import { serviceDid } from "@/server/sync";
 
-// chalk's did:web document. registerNotify subscribes this DID to a space's
-// writes, and the space host delivers notifyWrite/notifySpaceDeleted to the
-// service endpoint named here (src/routes/xrpc.$nsid.ts).
+// The app's did:web document, which identifies it to the space hosts it syncs
+// with. Notifications are delivered to the endpoint it registers with each
+// credential request (src/routes/xrpc.$nsid.ts), not one named here.
 export const Route = createFileRoute("/.well-known/did.json")({
   server: {
     handlers: {
@@ -15,13 +13,6 @@ export const Route = createFileRoute("/.well-known/did.json")({
         return Response.json({
           "@context": ["https://www.w3.org/ns/did/v1"],
           id,
-          service: [
-            {
-              id: `#${SYNCER_SERVICE_ID}`,
-              type: "AtprotoSpaceSyncer",
-              serviceEndpoint: trimTrailingSlashes(env.APP_BASE_URL),
-            },
-          ],
         });
       },
     },

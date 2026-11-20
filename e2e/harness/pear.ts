@@ -4,21 +4,29 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  GenericContainer,
-  Network,
+  DockerComposeEnvironment,
   Wait,
-  type StartedNetwork,
-  type StartedTestContainer,
+  type StartedDockerComposeEnvironment,
 } from "testcontainers";
 
-const repoRoot = path.resolve(
+const e2eRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "../..",
+  "..",
 );
 
+/**
+ * The instance's domain. Not "localhost": atproto OAuth clients refuse loopback
+ * hosts for the server a DID names as its PDS (which is pear for *.test logins),
+ * and atproto directories refuse did:web hosts under reserved TLDs such as
+ * ".example", which pear needs to resolve its own DID. It is no real host: the
+ * host resolver rule below sends browsers to the test bed, and compose network
+ * aliases send pear's own requests there.
+ */
+export const PEAR_DOMAIN = "habitat-e2e.dev";
+
 // Throwaway secrets for the test instance only. Same values pear:dev uses.
-const PEAR_ENV = {
-  HABITAT_DOMAIN: "localhost",
+export const PEAR_ENV = {
+  HABITAT_DOMAIN: PEAR_DOMAIN,
   HABITAT_PORT: "8000",
   HABITAT_SPACE_SIGNING_KEY: "z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd",
   HABITAT_PDS_CRED_ENCRYPT_KEY: "WRlpsucNQl8AVO1qNN+T+hzbVtYjdoF21QfF+0uDJSM=",
@@ -34,21 +42,33 @@ const PEAR_ENV = {
  * must reach it over HTTPS at its domain on port 443. Pear itself speaks plain
  * HTTP; a Caddy in front terminates TLS with its internal CA (the browser
  * ignores the certificate error). Caddy and pear listen on arbitrary ports, so
- * the browser maps (see `hostResolverRule`) localhost:443 onto Caddy.
+ * the browser maps (see `hostResolverRule`) its domain on port 443 onto Caddy.
  */
-export const PEAR_ORIGIN = "https://localhost";
+export const PEAR_ORIGIN = `https://${PEAR_DOMAIN}`;
+
+/**
+ * Where the web client (frontend/) is served by the compose test bed, behind the
+ * same TLS proxy as pear. Pear fetches its OAuth client metadata from here, so
+ * the test bed is the only flavour that serves it.
+ */
+export const APP_ORIGIN = `https://app.${PEAR_DOMAIN}`;
 
 export interface PearInstance {
   /** host:port of pear's plain HTTP listener; used by Node-side API calls. */
   address: string;
   /** host:port of the TLS-terminating proxy in front of pear; used by browsers. */
   tlsAddress: string;
+  /** Whether the web client is served at APP_ORIGIN. */
+  app?: boolean;
   stop(): Promise<void>;
 }
 
-/** Chromium flag that sends PEAR_ORIGIN to the TLS proxy. */
+/**
+ * Chromium flag that sends PEAR_ORIGIN, APP_ORIGIN and the orgs' subdomains
+ * (all under PEAR_DOMAIN, port 443) to the TLS proxy.
+ */
 export function hostResolverRule(pear: Pick<PearInstance, "tlsAddress">) {
-  return `--host-resolver-rules=MAP localhost:443 ${pear.tlsAddress}`;
+  return `--host-resolver-rules=MAP *${PEAR_DOMAIN}:443 ${pear.tlsAddress}`;
 }
 
 /** Caddyfile that serves `site` over TLS and proxies to pear at `upstream`. */
@@ -71,13 +91,17 @@ ${site} {
  * from the environment:
  *
  *  - PEAR_ADDRESS + PEAR_TLS_ADDRESS  use an already-running pear and proxy
- *                                     whose domain is localhost (nothing is
+ *                                     whose domain is PEAR_DOMAIN (nothing is
  *                                     started or stopped)
  *  - PEAR_BINARY=<path>               run a locally built pear binary and the
  *                                     caddy on PATH (CADDY_BIN to override);
  *                                     no Docker needed
- *  - default                          run pear (on Postgres) and caddy:2 in
- *                                     testcontainers
+ *  - default                          docker compose (compose.yaml, started with
+ *                                     testcontainers): pear on Postgres, the
+ *                                     web client and caddy
+ *
+ * Only the compose flavour serves the web client (APP_ORIGIN); tests that need
+ * it check `E2E_APP`.
  */
 export async function startPear(): Promise<PearInstance> {
   if (process.env.PEAR_ADDRESS && process.env.PEAR_TLS_ADDRESS) {
@@ -90,114 +114,59 @@ export async function startPear(): Promise<PearInstance> {
   if (process.env.PEAR_BINARY) {
     return startBinary(path.resolve(process.env.PEAR_BINARY));
   }
-  return startContainers();
+  return startCompose();
 }
 
-async function startContainers(): Promise<PearInstance> {
-  const image = ensureImage();
-  const network: StartedNetwork = await new Network().start();
-  // The pear image is built without cgo, so it cannot use the SQLite driver
-  // that local runs default to; like production it needs Postgres.
-  const postgres = await new GenericContainer("postgres:16-alpine")
-    .withEnvironment({
-      POSTGRES_DB: "habitat",
-      POSTGRES_USER: "habitat",
-      POSTGRES_PASSWORD: "habitat",
-    })
-    .withNetwork(network)
-    .withNetworkAliases("postgres")
-    // The entrypoint restarts postgres once after init, hence two occurrences.
+async function startCompose(): Promise<PearInstance> {
+  // E2E_COMPOSE_FILES adds comma-separated compose files (relative to e2e/) on
+  // top of compose.yaml, e.g. to run prebuilt images instead of building them.
+  const files = [
+    "compose.yaml",
+    ...(process.env.E2E_COMPOSE_FILES?.split(",").filter(Boolean) ?? []),
+  ];
+  const project = `habitat-e2e-${process.pid}`;
+  const environment = new DockerComposeEnvironment(e2eRoot, files)
+    .withProjectName(project)
+    // Pear's secrets reach compose.yaml by interpolation.
+    .withEnvironment(PEAR_ENV)
+    // Builds the pear and web client images on first use (cached afterwards).
+    .withBuild()
     .withWaitStrategy(
-      Wait.forLogMessage(/database system is ready to accept connections/, 2),
+      "pear-1",
+      Wait.forHttp("/health", 8000).forStatusCode(200),
     )
-    .start();
-  const pearLogs: string[] = [];
-  const pear = await new GenericContainer(image)
-    .withEnvironment({
-      ...PEAR_ENV,
-      HABITAT_DB:
-        "postgres://habitat:habitat@postgres:5432/habitat?sslmode=disable",
-    })
-    .withLogConsumer((stream) => {
-      stream.on("data", (line) => pearLogs.push(String(line)));
-    })
-    .withNetwork(network)
-    .withNetworkAliases("pear")
-    .withExposedPorts(8000)
-    // The server does not migrate on startup, so migrate first.
-    .withCommand(["sh", "-c", "/app/pear migrate && exec /app/pear serve"])
-    .withWaitStrategy(Wait.forHttp("/health", 8000).forStatusCode(200))
-    .withStartupTimeout(60_000)
-    .start()
-    .catch(async (err) => {
-      await postgres.stop();
-      throw new Error(
-        `pear container failed to start: ${err}\n--- pear logs ---\n${pearLogs.slice(-60).join("")}`,
+    .withWaitStrategy("caddy-1", Wait.forListeningPorts())
+    .withStartupTimeout(120_000);
+  let started: StartedDockerComposeEnvironment;
+  try {
+    started = await environment.up(["pear", "caddy"]);
+  } catch (err) {
+    // `up` leaves what it started behind when it fails.
+    try {
+      execFileSync(
+        "docker",
+        ["compose", "-p", project, "down", "--volumes", "--timeout", "5"],
+        { stdio: "ignore" },
       );
-    });
-  const caddy = await new GenericContainer("caddy:2-alpine")
-    .withNetwork(network)
-    .withCopyContentToContainer([
-      {
-        content: caddyfile("localhost:443", "pear:8000"),
-        target: "/etc/caddy/Caddyfile",
-      },
-    ])
-    .withExposedPorts(443)
-    .withWaitStrategy(Wait.forListeningPorts())
-    .start()
-    .catch(async (err) => {
-      await pear.stop();
-      await postgres.stop();
-      throw new Error(`caddy container failed to start: ${err}`);
-    });
+    } catch {
+      // best effort
+    }
+    throw new Error(`test bed failed to start: ${err}`);
+  }
+  const pear = started.getContainer("pear-1");
+  const caddy = started.getContainer("caddy-1");
   return {
     address: `${pear.getHost()}:${pear.getMappedPort(8000)}`,
     tlsAddress: `${caddy.getHost()}:${caddy.getMappedPort(443)}`,
+    app: true,
     stop: async () => {
-      await dumpLogs(pear);
-      await caddy.stop();
-      await pear.stop();
-      await postgres.stop();
-      await network.stop();
+      if (process.env.E2E_PEAR_LOGS) {
+        const stream = await pear.logs();
+        for await (const chunk of stream) process.stderr.write(chunk);
+      }
+      await started.down({ removeVolumes: true, timeout: 5_000 });
     },
   };
-}
-
-/** Prints the container's logs when E2E_PEAR_LOGS is set, for debugging. */
-async function dumpLogs(container: StartedTestContainer) {
-  if (!process.env.E2E_PEAR_LOGS) return;
-  const stream = await container.logs();
-  for await (const chunk of stream) process.stderr.write(chunk);
-}
-
-/**
- * Returns the pear image to run, building it from cmd/pear/Dockerfile when it
- * is not there yet. Set PEAR_IMAGE to use an image built elsewhere (CI, moon).
- * Building goes through the docker CLI because the Dockerfile needs BuildKit.
- */
-function ensureImage(): string {
-  const image = process.env.PEAR_IMAGE ?? "pear:e2e";
-  if (process.env.PEAR_IMAGE || hasImage(image)) return image;
-  execFileSync(
-    "docker",
-    ["build", "-f", "cmd/pear/Dockerfile", "-t", image, "."],
-    {
-      cwd: repoRoot,
-      stdio: "inherit",
-      env: { ...process.env, DOCKER_BUILDKIT: "1" },
-    },
-  );
-  return image;
-}
-
-function hasImage(image: string): boolean {
-  try {
-    execFileSync("docker", ["image", "inspect", image], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function startBinary(binary: string): Promise<PearInstance> {
@@ -214,7 +183,7 @@ async function startBinary(binary: string): Promise<PearInstance> {
   const caddyConfig = path.join(dir, "Caddyfile");
   writeFileSync(
     caddyConfig,
-    caddyfile(`localhost:${tlsPort}`, `localhost:${pearPort}`),
+    caddyfile(`${PEAR_DOMAIN}:${tlsPort}`, `localhost:${pearPort}`),
   );
   const caddy: ChildProcess = spawn(
     process.env.CADDY_BIN ?? "caddy",

@@ -9,14 +9,14 @@ import (
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
 // CreateOpensocialSpace implements community.opensocial.createSpace: creates
-// a modality-specific space under the community DID, indexed with a
-// community.opensocial.space record and readable by the given roles (see
+// a modality-specific space under the community DID with the given policy
+// (default relationspace), indexed with a community.opensocial.space record
+// and readable by the given roles (see
 // opensocial.Store.CreateSpace). The org itself may call this with OAuth, and
 // a member may call it with service auth — see requireSpaceAuthority.
 func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Request) {
@@ -43,16 +43,23 @@ func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	var skey habitat_syntax.SpaceKey
-	if input.Skey != "" {
-		parsedKey, err := habitat_syntax.ParseSkey(input.Skey)
+	skey, ok := parseSkeyInput(w, r, input.Skey)
+	if !ok {
+		return
+	}
+	policy := spaces.Policy{Type: spaces.PolicyRelationSpace}
+	if input.Policy != nil {
+		rawPolicy, err := marshalPolicyInput(input.Policy)
 		if err != nil {
-			httpx.WriteInvalidRequest(ctx, w, "invalid skey", err)
+			httpx.WriteInvalidRequest(ctx, w, "invalid policy", err)
 			return
 		}
-		skey = parsedKey
+		policy, err = spaces.ParsePolicy(rawPolicy)
+		if !writePolicyError(ctx, w, err) {
+			return
+		}
 	}
-	uri, err := p.opensocialStore.CreateSpace(ctx, org, input.Roles, spaceType, skey)
+	uri, err := p.opensocialStore.CreateSpace(ctx, org, input.Roles, spaceType, skey, policy)
 	if errors.Is(err, spaces.ErrSpaceAlreadyExists) {
 		httpx.WriteError(ctx, w, "SpaceAlreadyExists", "", http.StatusBadRequest)
 		return

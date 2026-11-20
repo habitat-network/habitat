@@ -1,55 +1,61 @@
+# Dev ingress. Runs inside the caddy container (see docker-compose.yml) and
+# proxies to Compose service names. HABITAT_DEV_PORT comes from dev.env via the
+# moon dev task; :443 matches the existing *.local.habitat.network DNS.
 {
 	log {
 		format console
 		level warn
 	}
+	# The CA lives on the host and is already trusted there; don't try to
+	# install it into the container's (nonexistent) system trust store.
+	skip_install_trust
 }
 
-frontend.local.habitat.network {
-	reverse_proxy 127.0.0.1:6000
+frontend.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy frontend:6000
 	tls internal
 }
 
-docs.local.habitat.network {
-	reverse_proxy 127.0.0.1:5175
+chalk.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy chalk:5173
 	tls internal
 }
 
-chalk.local.habitat.network {
-	reverse_proxy 127.0.0.1:5177
+drop.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy drop:5173
 	tls internal
 }
 
-drop.local.habitat.network {
-	reverse_proxy 127.0.0.1:5178
+brain.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy brain:5173
 	tls internal
 }
 
-brain.local.habitat.network {
-	reverse_proxy 127.0.0.1:5179
+app.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy app:5173
 	tls internal
 }
 
-*.*.pear.local.habitat.network,
-*.pear.local.habitat.network,
-pear.local.habitat.network {
-	reverse_proxy 127.0.0.1:8000
+*.*.pear.local.habitat.network:{$HABITAT_DEV_PORT},
+*.pear.local.habitat.network:{$HABITAT_DEV_PORT},
+pear.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy pear:8000
 	tls internal {
 		on_demand
 	}
 }
 
-sap.local.habitat.network {
-	reverse_proxy 127.0.0.1:2580
+sap.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy sap:2580
 	tls internal
 }
 
-home.local.habitat.network {
-	reverse_proxy 127.0.0.1:2600
+home.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy host.docker.internal:2600
 	tls internal
 }
 
-app.local.habitat.network {
-	reverse_proxy 127.0.0.1:5173
+grafana.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy lgtm:3000
 	tls internal
 }

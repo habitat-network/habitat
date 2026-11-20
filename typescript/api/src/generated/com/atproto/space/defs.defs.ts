@@ -10,7 +10,7 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header. */
+/** A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC over its Atproto-Space-Commit response header. */
 type Commit = {
   $type?: 'com.atproto.space.defs#commit'
 
@@ -42,7 +42,7 @@ type Commit = {
 
 export type { Commit }
 
-/** A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header. */
+/** A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC over its Atproto-Space-Commit response header. */
 const commit = /*#__PURE__*/ l.typedObject<Commit>(
   $nsid,
   'commit',
@@ -56,3 +56,73 @@ const commit = /*#__PURE__*/ l.typedObject<Commit>(
 )
 
 export { commit }
+
+/** A repo in the space advanced to a new revision. */
+type RepoWrite = {
+  $type?: 'com.atproto.space.defs#repoWrite'
+  repo: l.DidString
+  repoRev: l.TidString
+  data: Uint8Array
+
+  /**
+   * The space revision at which this update was sequenced.
+   */
+  spaceRev: l.TidString
+
+  /**
+   * The space revision before this update, if any. Set in notifySpaceUpdate, where a gap indicates missed notifications, which can be recovered with listWriters.
+   */
+  prevSpaceRev?: l.TidString
+}
+
+export type { RepoWrite }
+
+/** A repo in the space advanced to a new revision. */
+const repoWrite = /*#__PURE__*/ l.typedObject<RepoWrite>(
+  $nsid,
+  'repoWrite',
+  /*#__PURE__*/ l.object({
+    repo: /*#__PURE__*/ l.string({ format: 'did' }),
+    repoRev: /*#__PURE__*/ l.string({ format: 'tid' }),
+    data: /*#__PURE__*/ l.bytes(),
+    spaceRev: /*#__PURE__*/ l.string({ format: 'tid' }),
+    prevSpaceRev: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string({ format: 'tid' }),
+    ),
+  }),
+)
+
+export { repoWrite }
+
+/** A repo was removed from the writer set. */
+type RepoRemoved = {
+  $type?: 'com.atproto.space.defs#repoRemoved'
+  repo: l.DidString
+
+  /**
+   * The space revision at which this update was sequenced.
+   */
+  spaceRev: l.TidString
+
+  /**
+   * The space revision before this update, if any. Set in notifySpaceUpdate, where a gap indicates missed notifications, which can be recovered with listWriters.
+   */
+  prevSpaceRev?: l.TidString
+}
+
+export type { RepoRemoved }
+
+/** A repo was removed from the writer set. */
+const repoRemoved = /*#__PURE__*/ l.typedObject<RepoRemoved>(
+  $nsid,
+  'repoRemoved',
+  /*#__PURE__*/ l.object({
+    repo: /*#__PURE__*/ l.string({ format: 'did' }),
+    spaceRev: /*#__PURE__*/ l.string({ format: 'tid' }),
+    prevSpaceRev: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string({ format: 'tid' }),
+    ),
+  }),
+)
+
+export { repoRemoved }

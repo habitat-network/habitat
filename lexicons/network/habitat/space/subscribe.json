@@ -1,0 +1,125 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.space.subscribe",
+  "defs": {
+    "main": {
+      "type": "subscription",
+      "description": "Stream the record writes and space deletions this host holds, across every space the caller may read, as one sequence. Modeled on Jetstream's network.bsky.jetstream.subscribeEvents and framed the same way (xrpc.v1.json): each text frame is a message whose payload $type is network.habitat.space.subscribe#<kind>, or a terminal error frame. Events are replayed from cursor and then followed live. The log is compacted: each record appears once, at the seq of its latest write, so a replay converges on current state but skips intermediate versions. Delivery is at-least-once; consumers apply events idempotently, keyed by uri. Callable with OAuth or service auth (every space the caller holds the reader role on, rechecked as events are delivered) or with a space credential (that one space only). The stream closes with an ExpiredToken error when the presented credential expires; reconnect with a fresh one and the last seq. The spaces, dids, and collections filters are ANDed; each matches all when omitted. Only records stored on this host are streamed: repos synced in from other PDSes through notifyWrite are not.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "cursor": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Resume position, inclusive: events with seq >= cursor are replayed, then the live tail follows. 0 replays from the start. A cursor beyond the next seq to be assigned starts at the live tip after an #info FutureCursor frame. Omitted: start at the live tip."
+          },
+          "spaces": {
+            "type": "array",
+            "maxLength": 100,
+            "items": { "type": "string", "format": "at-uri" },
+            "description": "Spaces to receive events for. Omitted: every space the caller may read. Spaces the caller may not read are ignored rather than rejected, so as not to reveal whether they exist. #spaceDeleted events are only sent for spaces listed here, the space a space credential is for, or spaces the caller owns."
+          },
+          "dids": {
+            "type": "array",
+            "maxLength": 10000,
+            "items": { "type": "string", "format": "did" },
+            "description": "Record authors to receive #commit events for. Omitted: every author."
+          },
+          "collections": {
+            "type": "array",
+            "maxLength": 100,
+            "items": { "type": "string" },
+            "description": "Collection NSIDs or '<prefix>.*' patterns to receive #commit events for. Omitted: every collection."
+          }
+        }
+      },
+      "message": {
+        "schema": {
+          "type": "union",
+          "refs": ["#commit", "#spaceDeleted", "#info"]
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Rejected before upgrade with HTTP 400: a malformed parameter, or a spaces filter that excludes the one space a space credential can read."
+        },
+        {
+          "name": "ExpiredToken",
+          "description": "Sent as a stream error frame, then the connection closes: the credential the stream was opened with has expired."
+        }
+      ]
+    },
+    "commit": {
+      "type": "object",
+      "description": "A record's latest write: a create, update, or delete.",
+      "required": ["seq", "space", "did", "uri", "time", "rev", "operation", "collection", "rkey"],
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "description": "This host's monotonic event sequence number; the stream cursor. Seqs increase but are not contiguous."
+        },
+        "space": {
+          "type": "string",
+          "format": "at-uri",
+          "description": "The space the record belongs to. The same author, collection, and rkey can exist in several spaces."
+        },
+        "did": {
+          "type": "string",
+          "format": "did",
+          "description": "The record's author: the account whose space repo holds it."
+        },
+        "uri": {
+          "type": "string",
+          "format": "at-uri",
+          "description": "The record's space record URI."
+        },
+        "time": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the write was stored, microsecond precision."
+        },
+        "rev": {
+          "type": "string",
+          "format": "tid",
+          "description": "The repo revision of the write; the record's oplog rev in listRepoOps."
+        },
+        "operation": { "type": "string", "knownValues": ["create", "update", "delete"] },
+        "collection": { "type": "string", "format": "nsid" },
+        "rkey": { "type": "string", "format": "record-key" },
+        "record": {
+          "type": "unknown",
+          "description": "The record's value. Absent for deletes."
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid",
+          "description": "CID of the record. Absent for deletes."
+        }
+      }
+    },
+    "spaceDeleted": {
+      "type": "object",
+      "description": "A space was deleted. Consumers drop every record and derived state they hold for it.",
+      "required": ["seq", "space", "time"],
+      "properties": {
+        "seq": { "type": "integer" },
+        "space": { "type": "string", "format": "at-uri" },
+        "time": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the space was deleted, microsecond precision."
+        }
+      }
+    },
+    "info": {
+      "type": "object",
+      "description": "An advisory, non-fatal notice about the stream. Carries no seq and does not advance the cursor. FutureCursor: the requested cursor was beyond the next seq to be assigned, so the stream started at the live tip.",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "knownValues": ["FutureCursor"] },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

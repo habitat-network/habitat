@@ -20,7 +20,8 @@ import (
 // be before it is rejected as a future timestamp.
 const maxRevClockSkew = 5 * time.Minute
 
-// NotifyWrite implements the space-host side of network.habitat.space.notifyWrite:
+// NotifyWrite implements the space-host side of network.habitat.space.notifyWrite
+// and com.atproto.space.notifyRepoUpdate:
 // a repo host whose PDS holds a space member's records directly (rather than
 // through this host's PutRecord) reports that the repo advanced to a new
 // revision, so ListRepos can include it. This host records the reported rev
@@ -52,7 +53,13 @@ func (p *PearServer) NotifyWrite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "can't notify for other repo", fmt.Errorf("wrong repo"))
 		return
 	}
-	rev, err := syntax.ParseTID(input.Rev)
+	// com.atproto.space.notifyRepoUpdate carries only repoRev; the habitat
+	// notifyWrite predates it and sends rev.
+	revStr := input.RepoRev
+	if revStr == "" {
+		revStr = input.Rev
+	}
+	rev, err := syntax.ParseTID(revStr)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "rev must be a TID", err)
 		return

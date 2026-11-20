@@ -2,13 +2,15 @@
 import { it } from "@effect/vitest";
 import { P256Keypair } from "@atproto/crypto";
 import { cidForRawBytes } from "@atproto/lex";
-import { type Commit, verifyCommit } from "@atproto/space";
+import type { Commit } from "@atproto/space";
 import { Duration, Effect, Layer } from "effect";
 import { HttpResponse, delay, http } from "msw";
 import { describe, expect } from "vitest";
+import { verifyCommit } from "../spaceMac";
 import { server } from "../test/msw";
 import { Credentials } from "./Credentials";
 import { Identity } from "./Identity";
+import { NotifyToken } from "./NotifyToken";
 import { SpaceClient } from "./SpaceClient";
 import { FakeNetwork } from "./test/fakeNetwork";
 import { fakeDelegation, testConfig } from "./test/harness";
@@ -22,6 +24,7 @@ const setupWith = (overrides: Parameters<typeof testConfig>[0] = {}) =>
     const space = net.createSpace(alice);
     const layer = SpaceClient.layer.pipe(
       Layer.provideMerge(Credentials.layer),
+      Layer.provide(NotifyToken.layer),
       Layer.provideMerge(Identity.layer),
       Layer.provide(fakeDelegation(net)),
       Layer.provide(testConfig(overrides)),
@@ -41,9 +44,12 @@ describe("SpaceClient", () => {
         space.write(alice, "com.example.post", "1", { text: "a" }),
       );
       const page = yield* Effect.flatMap(SpaceClient, (c) =>
-        c.listRepos(space.ref),
+        c.listWriters(space.ref),
       ).pipe(Effect.provide(layer));
-      expect(page.repos.map((r) => r.did)).toEqual([bob.did, alice.did]);
+      expect(page.repos.map((r) => (r as { repo: string }).repo)).toEqual([
+        bob.did,
+        alice.did,
+      ]);
       expect(page.cursor).toBe(space.spaceRevOf(alice.did));
     }),
   );
@@ -84,8 +90,7 @@ describe("SpaceClient", () => {
             verifyCommit(commit as Commit, {
               space: space.id,
               repo: bob.did,
-              sharedSecret: mac.sharedSecret,
-              mac: mac.mac!,
+              ...mac,
             }),
           ).toBe(true);
         }).pipe(Effect.provide(layer));
@@ -102,7 +107,7 @@ describe("SpaceClient", () => {
         );
         yield* Effect.gen(function* () {
           const client = yield* SpaceClient;
-          yield* client.listRepos(space.ref);
+          yield* client.listWriters(space.ref);
           space.revokeAllCredentials();
           yield* client.listRepoOps(space.ref, bob.did, undefined);
           expect(space.credentialJtis).toHaveLength(2);
@@ -115,7 +120,7 @@ describe("SpaceClient", () => {
       const { space, layer } = yield* setup;
       space.deleted = true;
       const error = yield* Effect.flip(
-        Effect.flatMap(SpaceClient, (c) => c.listRepos(space.ref)),
+        Effect.flatMap(SpaceClient, (c) => c.listWriters(space.ref)),
       ).pipe(Effect.provide(layer));
       expect(error._tag).toBe("CredentialError");
       expect(error._tag === "CredentialError" && error.reason).toBe(
@@ -160,8 +165,7 @@ describe("SpaceClient", () => {
           verifyCommit(page.body.commit as Commit, {
             space: space.id,
             repo: bob.did,
-            sharedSecret: page.mac!.sharedSecret,
-            mac: page.mac!.mac!,
+            ...page.mac!,
           }),
         ).toBe(false);
         expect(yield* client.refreshKem(space.ref, bob.did)).toBe(true);
@@ -171,8 +175,7 @@ describe("SpaceClient", () => {
           verifyCommit(fresh.body.commit as Commit, {
             space: space.id,
             repo: bob.did,
-            sharedSecret: fresh.mac!.sharedSecret,
-            mac: fresh.mac!.mac!,
+            ...fresh.mac!,
           }),
         ).toBe(true);
         expect(space.listRepoOpsCalls).toBe(calls + 2);
@@ -191,7 +194,7 @@ describe("SpaceClient", () => {
           const { star, mac } = yield* Effect.flatMap(SpaceClient, (c) =>
             c.getRepo(space.ref, bob.did),
           );
-          expect(mac.mac).toBeInstanceOf(Uint8Array);
+          expect(mac.headers.get("atproto-space-commit")).toBeTruthy();
           let n = 0;
           yield* Effect.promise(async () => {
             for await (const chunk of star) n += chunk.length;
@@ -210,13 +213,13 @@ describe("SpaceClient", () => {
         requestRetries: 0,
       });
       server.use(
-        http.get("*/xrpc/com.atproto.space.listRepos", async () => {
+        http.get("*/xrpc/com.atproto.space.listWriters", async () => {
           await delay("infinite");
           return HttpResponse.json({ repos: [] });
         }),
       );
       const error = yield* Effect.flip(
-        Effect.flatMap(SpaceClient, (c) => c.listRepos(space.ref)).pipe(
+        Effect.flatMap(SpaceClient, (c) => c.listWriters(space.ref)).pipe(
           Effect.provide(layer),
         ),
       );

@@ -24,6 +24,8 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc(
 		"/xrpc/network.habitat.space.notifyCredentialRevoked", p.NotifyCredentialRevoked,
 	)
+	p.router.HandleFunc("/xrpc/network.habitat.space.subscribe", p.Subscribe).
+		Methods(http.MethodGet)
 	p.router.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", p.UploadBlob)
 
 	// Opensocial
@@ -71,7 +73,6 @@ func (p *PearServer) registerRoutes() {
 		Methods(http.MethodPost)
 
 	// Simplespace
-	p.router.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", p.CreateSpace)
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.addMember", p.AddMember)
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", p.RemoveMember)
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", p.ListMembers)
@@ -96,9 +97,10 @@ func (p *PearServer) registerRoutes() {
 
 	// com.atproto aliases for the permissioned-data proposal's official NSIDs
 	// (proposal 0016). Same handlers as the network.habitat registrations
-	// above; com.atproto.memberspace.putMember aliases addMember.
+	// above; the memberspace batch methods are separate handlers.
 	p.router.HandleFunc("/xrpc/com.atproto.space.listSpaces", p.ListSpaces)
-	p.router.HandleFunc("/xrpc/com.atproto.space.listRepos", p.ListRepos)
+	p.router.HandleFunc("/xrpc/com.atproto.space.listWriters", p.ListWriters)
+	p.router.HandleFunc("/xrpc/com.atproto.space.removeWriter", p.RemoveWriter)
 	p.router.HandleFunc("/xrpc/com.atproto.space.putRecord", p.PutRecord)
 	p.router.HandleFunc("/xrpc/com.atproto.space.applyWrites", p.ApplyWrites)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getRecord", p.GetRecord)
@@ -109,10 +111,14 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.getLatestCommit", p.GetLatestCommit)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getRepo", p.GetRepo)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getDelegationToken", p.GetDelegationToken)
-	p.router.HandleFunc("/xrpc/com.atproto.space.getSpaceCredential", p.GetSpaceCredential)
-	p.router.HandleFunc("/xrpc/com.atproto.space.registerNotify", p.RegisterNotify)
+	p.router.HandleFunc("/xrpc/com.atproto.space.clearRecords", p.ClearRecords)
+	p.router.HandleFunc("/xrpc/com.atproto.space.importRepo", p.ImportRepo)
+	p.router.HandleFunc("/xrpc/com.atproto.space.exportSpaceMeta", p.ExportSpaceMeta)
+	p.router.HandleFunc("/xrpc/com.atproto.space.importSpaceMeta", p.ImportSpaceMeta)
+	p.router.HandleFunc("/xrpc/com.atproto.space.authorizeSpaceSync", p.AuthorizeSpaceSync)
+	p.router.HandleFunc("/xrpc/com.atproto.space.notifyRepoUpdate", p.NotifyWrite)
 	p.router.HandleFunc(
-		"/xrpc/com.atproto.space.notifyCredentialRevoked", p.NotifyCredentialRevoked,
+		"/xrpc/com.atproto.space.notifyCredentialsRevoked", p.NotifyCredentialRevoked,
 	)
 	p.router.HandleFunc("/xrpc/com.atproto.repo.uploadBlob", p.UploadBlob)
 
@@ -125,7 +131,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.updateSpace", p.UpdateSpace)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getSpace", p.GetSpace)
 	p.router.HandleFunc("/xrpc/com.atproto.space.deleteSpace", p.DeleteSpace)
-	p.router.HandleFunc("/xrpc/com.atproto.memberspace.putMember", p.AddMember)
-	p.router.HandleFunc("/xrpc/com.atproto.memberspace.removeMember", p.RemoveMember)
+	p.router.HandleFunc("/xrpc/com.atproto.memberspace.putMembers", p.PutMembers)
+	p.router.HandleFunc("/xrpc/com.atproto.memberspace.removeMembers", p.RemoveMembers)
 	p.router.HandleFunc("/xrpc/com.atproto.memberspace.listMembers", p.ListMembers)
 }

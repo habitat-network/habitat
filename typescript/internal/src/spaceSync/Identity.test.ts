@@ -139,9 +139,7 @@ describe("identityFromDoc #atproto_kem", () => {
 });
 
 describe("Identity.layer", () => {
-  const webLayer = Identity.layer.pipe(
-    Layer.provide(spaceSyncConfigLayer({ serviceDid: "did:web:s.test" })),
-  );
+  const webLayer = Identity.layer.pipe(Layer.provide(spaceSyncConfigLayer()));
 
   it.effect('resolves did:web without redirect: "error"', () =>
     Effect.gen(function* () {
@@ -185,7 +183,6 @@ describe("Identity.layer", () => {
             Identity.layer.pipe(
               Layer.provide(
                 spaceSyncConfigLayer({
-                  serviceDid: "did:web:s.test",
                   identityResolver,
                 }),
               ),
@@ -237,7 +234,6 @@ describe("Identity.layer", () => {
           Identity.layer.pipe(
             Layer.provide(
               spaceSyncConfigLayer({
-                serviceDid: "did:web:s.test",
                 identityResolver: publicIdentityResolver("https://plc.test"),
               }),
             ),
@@ -289,7 +285,6 @@ describe("Identity.layer", () => {
         Identity.layer.pipe(
           Layer.provide(
             spaceSyncConfigLayer({
-              serviceDid: "did:web:s.test",
               identityResolver: publicIdentityResolver("https://plc.test"),
             }),
           ),

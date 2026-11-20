@@ -1,4 +1,5 @@
 import { test, expect } from "../harness/fixtures";
+import { PEAR_ORIGIN } from "../harness/pear";
 
 // Member sign-in as far as it can go without a real identity provider: the
 // OAuth authorize request lands on pear's sign-in prompt, a work email is
@@ -26,7 +27,7 @@ test.describe("member login", () => {
       `alice@${seed.org.domain}`,
     );
     expect(google.searchParams.get("redirect_uri")).toBe(
-      "https://localhost/oauth-callback",
+      `${PEAR_ORIGIN}/oauth-callback`,
     );
   });
 
