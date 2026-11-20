@@ -65,7 +65,11 @@ func TestServeWebSocketStreamsUntilSubscriberCloses(t *testing.T) {
 }
 
 func TestServeWebSocketRejectsClientData(t *testing.T) {
-	conn, result := setupWebSocket(t, &fakeLog{}, Subscription{Reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}}})
+	conn, result := setupWebSocket(
+		t,
+		&fakeLog{},
+		Subscription{Reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}}},
+	)
 	require.NoError(
 		t,
 		conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"options_update"}`)),

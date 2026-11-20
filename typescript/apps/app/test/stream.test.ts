@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PromiseRepoBatch, PromiseSyncSink } from "internal/spaceSync";
-import {
-  appIndexer,
-  batchOf,
-  INDEXED_COLLECTIONS,
-} from "@/server/stream/indexer";
+import { appIndexer, INDEXED_COLLECTIONS } from "@/server/stream/indexer";
 import { Effect } from "effect";
 
 const SPACE = "at://did:web:org.example/space/network.habitat.docs/d1";

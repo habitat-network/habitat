@@ -73,19 +73,54 @@ func TestReadAccess(t *testing.T) {
 		want   spacescope.Read
 	}{
 		{"no space scopes", []string{"atproto", "transition:generic"}, forum, spacescope.ReadNone},
-		{"any authority read", []string{"space:*?authority=*&action=read"}, forum, spacescope.ReadAll},
-		{"default authority is self", []string{"space:com.example.forum"}, forum, spacescope.ReadNone},
-		{"default authority covers own", []string{"space:com.example.forum"}, mine, spacescope.ReadAll},
-		{"named authority", []string{"space:*?authority=" + org.String()}, notes, spacescope.ReadAll},
-		{"type mismatch", []string{"space:com.example.forum?authority=*"}, notes, spacescope.ReadNone},
+		{
+			"any authority read",
+			[]string{"space:*?authority=*&action=read"},
+			forum,
+			spacescope.ReadAll,
+		},
+		{
+			"default authority is self",
+			[]string{"space:com.example.forum"},
+			forum,
+			spacescope.ReadNone,
+		},
+		{
+			"default authority covers own",
+			[]string{"space:com.example.forum"},
+			mine,
+			spacescope.ReadAll,
+		},
+		{
+			"named authority",
+			[]string{"space:*?authority=" + org.String()},
+			notes,
+			spacescope.ReadAll,
+		},
+		{
+			"type mismatch",
+			[]string{"space:com.example.forum?authority=*"},
+			notes,
+			spacescope.ReadNone,
+		},
 		{"skey mismatch", []string{"space:*?authority=*&skey=other"}, forum, spacescope.ReadNone},
 		{"read_self", []string{"space:*?authority=*&action=read_self"}, forum, spacescope.ReadSelf},
-		{"writes only", []string{"space:*?authority=*&collection=*&action=create"}, forum, spacescope.ReadNone},
+		{
+			"writes only",
+			[]string{"space:*?authority=*&collection=*&action=create"},
+			forum,
+			spacescope.ReadNone,
+		},
 		{"read wins over read_self", []string{
 			"space:*?authority=*&action=read_self",
 			"space:com.example.forum?authority=*&action=read",
 		}, forum, spacescope.ReadAll},
-		{"malformed grants nothing", []string{"space:*?authority=*&action=bogus"}, forum, spacescope.ReadNone},
+		{
+			"malformed grants nothing",
+			[]string{"space:*?authority=*&action=bogus"},
+			forum,
+			spacescope.ReadNone,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

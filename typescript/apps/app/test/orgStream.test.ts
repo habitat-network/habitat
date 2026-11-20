@@ -141,7 +141,9 @@ it("indexes the group's stream, and writes return once indexed", async () => {
 
   // The socket belongs to the object's I/O context, so it's written from
   // inside it.
-  await runInDurableObject(stub, () => socket!.send(fileCommit(1, CID1, "notes.txt")));
+  await runInDurableObject(stub, () =>
+    socket!.send(fileCommit(1, CID1, "notes.txt")),
+  );
   const db = getDb(env);
   await until(async () => (await fileByUri(db, URI)) !== undefined);
   expect((await fileByUri(db, URI))?.name).toBe("notes.txt");
