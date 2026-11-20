@@ -108,7 +108,7 @@ func (p *PearServer) GetSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceGetSpaceOutput{
-		Uri: spaceURI.String(), Policy: policy,
+		Space: spaceURI.String(), Policy: policy,
 	})
 }
 

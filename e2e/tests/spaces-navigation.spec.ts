@@ -1,31 +1,28 @@
 import { test, expect } from "../harness/fixtures";
-import { WebApp } from "../harness/pages/webApp";
 
 test.skip(
-  !process.env.E2E_APP,
-  "needs the compose test bed (serves the web client)",
+  !process.env.E2E_APP || !process.env.E2E_PDS_ACCOUNTS,
+  "needs the compose test bed (serves the web client and the PDS)",
 );
 
-// Still on a *.test identity: with an account on the alpha PDS (pdsAccounts),
-// the web client's spaces calls do not yet match what the alpha PDS accepts
-// (see tests/pds-login.spec.ts for the sign-in itself).
-// Signs in to the web client through pear's *.test passthrough login (no
-// identity provider involved), then walks the spaces pages from the list down
+// Signs in to the web client with an account on the alpha PDS, then walks the spaces pages from the list down
 // to a record, failing on any console error, failed or 4xx/5xx request, or
 // error UI along the way.
 test("clicking through the spaces pages from the list to a record shows no errors", async ({
   page,
   webApp,
+  pdsAccounts,
 }) => {
-  const handle = WebApp.uniqueHandle("alice", test.info().parallelIndex);
-  const did = `did:web:${handle}`;
-  const spaceType = "network.habitat.e2e.thing";
+  const alice = pdsAccounts.alice;
+  const did = alice.did;
+  // Unique per run, so a kept-running test bed does not list earlier runs' spaces.
+  const spaceType = `network.habitat.e2e.thing${Date.now().toString(36)}`;
   const collection = "network.habitat.e2e.note";
   const step = () => webApp.expectClean();
   const openSpaces = () => webApp.openSpaces();
 
-  await test.step("sign in through the *.test provider", async () => {
-    await webApp.signInPassthrough(handle);
+  await test.step("sign in with the PDS account", async () => {
+    await webApp.signIn(alice);
     await step();
   });
 

@@ -51,6 +51,7 @@ services:
       args:
         APP_ORIGIN: https://app.habitat-e2e.dev
         HABITAT_DOMAIN: habitat-e2e.dev
+        PLC_URL: https://plc.habitat-e2e.dev
 
   caddy:
     image: caddy:2-alpine

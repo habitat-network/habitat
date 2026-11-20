@@ -10,5 +10,5 @@ type ComAtprotoSpaceGetSpaceParams struct {
 // ComAtprotoSpaceGetSpaceOutput represents the output for com.atproto.space.getSpace
 type ComAtprotoSpaceGetSpaceOutput struct {
 	Policy interface{} `json:"policy"`
-	Uri    string      `json:"uri"`
+	Space  string      `json:"space"`
 }

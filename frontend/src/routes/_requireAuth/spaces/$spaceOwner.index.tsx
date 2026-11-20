@@ -19,7 +19,7 @@ function SpacesByOwner() {
   const spaces = Route.useLoaderData();
 
   const typeCount = new Set(
-    spaces.map((space) => SpaceRef.parse(space.uri).spaceType),
+    spaces.map((space) => SpaceRef.parse(space.space).spaceType),
   ).size;
 
   return (

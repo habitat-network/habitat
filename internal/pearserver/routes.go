@@ -102,6 +102,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.listWriters", p.ListWriters)
 	p.router.HandleFunc("/xrpc/com.atproto.space.removeWriter", p.RemoveWriter)
 	p.router.HandleFunc("/xrpc/com.atproto.space.putRecord", p.PutRecord)
+	p.router.HandleFunc("/xrpc/com.atproto.space.createRecord", p.CreateRecord)
 	p.router.HandleFunc("/xrpc/com.atproto.space.applyWrites", p.ApplyWrites)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getRecord", p.GetRecord)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getBlob", p.GetBlob)

@@ -18,7 +18,7 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
   repo: /*#__PURE__*/ l.string({ format: 'did' }),
   collection: /*#__PURE__*/ l.string({ format: 'nsid' }),
-  rkey: /*#__PURE__*/ l.string({ format: 'record-key', maxLength: 512 }),
+  rkey: /*#__PURE__*/ l.string({ format: 'record-key' }),
   validate: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
   record: /*#__PURE__*/ l.lexMap(),
 })
@@ -40,7 +40,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Write a record in a permissioned space, creating or updating it as needed. Requires auth, implemented by PDS. */
+/** Write a record in a space repo, creating or updating it as needed. Requires auth, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
 ])

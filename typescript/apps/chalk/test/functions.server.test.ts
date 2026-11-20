@@ -89,7 +89,7 @@ describe("createDocSpace", () => {
         async ({ request }) => {
           body = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");
-          return HttpResponse.json({ uri: "at://did:plc:member1/space/x" });
+          return HttpResponse.json({ space: "at://did:plc:member1/space/x" });
         },
       ),
     );
@@ -98,7 +98,7 @@ describe("createDocSpace", () => {
     const client = new HabitatClient(testEnv, "did:plc:member1");
     const result = await createDocSpace(client, "did:plc:member1", undefined);
     expect(body).toEqual({
-      type: "network.habitat.docs",
+      spaceType: "network.habitat.docs",
       policy: { $type: "network.habitat.relationspace.policy" },
     });
     expect(proxyHeader).toBeNull();

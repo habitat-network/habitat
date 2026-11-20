@@ -55,12 +55,12 @@ export async function createDocSpace(
     );
     return { uri: created.uri, ownerDid: currentOrg };
   }
-  const created = await client.call<{ uri: string }>(
+  const created = await client.call<{ space: string }>(
     "com.atproto.space.createSpace",
     "POST",
-    { type: DOCS_SPACE_TYPE, policy: RELATION_SPACE_POLICY },
+    { spaceType: DOCS_SPACE_TYPE, policy: RELATION_SPACE_POLICY },
   );
-  return { uri: created.uri, ownerDid: did };
+  return { uri: created.space, ownerDid: did };
 }
 
 // fetchOrgName reads an org's display name off its

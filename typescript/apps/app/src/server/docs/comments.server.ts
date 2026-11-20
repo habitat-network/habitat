@@ -162,7 +162,7 @@ export async function ensureCommentsSpace(
       );
     } else {
       await ownerClient.call("com.atproto.space.createSpace", "POST", {
-        type: COMMENTS_SPACE_TYPE,
+        spaceType: COMMENTS_SPACE_TYPE,
         skey: parts.skey,
         policy: RELATION_SPACE_POLICY,
       });

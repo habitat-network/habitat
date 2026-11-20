@@ -15,7 +15,23 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
+// PutRecord implements com.atproto.space.putRecord (and
+// network.habitat.space.putRecord): it creates or replaces a record. An
+// omitted rkey gets a generated TID.
 func (p *PearServer) PutRecord(w http.ResponseWriter, r *http.Request) {
+	p.writeRecord(w, r, false /* create */)
+}
+
+// CreateRecord implements com.atproto.space.createRecord: like PutRecord, but
+// an existing record at the given rkey is an error rather than replaced.
+func (p *PearServer) CreateRecord(w http.ResponseWriter, r *http.Request) {
+	p.writeRecord(w, r, true /* create */)
+}
+
+// writeRecord writes the record in the request body, refusing to replace an
+// existing one when create is set. createRecord's input is putRecord's
+// without swapRecord, so one decoder serves both.
+func (p *PearServer) writeRecord(w http.ResponseWriter, r *http.Request, create bool) {
 	ctx := r.Context()
 	var input habitat.NetworkHabitatSpacePutRecordInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -66,6 +82,17 @@ func (p *PearServer) PutRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rkey = parsedRkey
+		if create {
+			// Not atomic with the write below; a concurrent put can still win.
+			_, err := p.spacesStore.GetRecord(ctx, spaceURI, repo, collection, rkey)
+			if err == nil {
+				httpx.WriteError(ctx, w, "RecordAlreadyExists", "" /* msg */, http.StatusBadRequest)
+				return
+			} else if !errors.Is(err, spaces.ErrRecordNotFound) && !errors.Is(err, spaces.ErrSpaceNotFound) {
+				httpx.WriteServerError(ctx, w, fmt.Errorf("get record: %w", err))
+				return
+			}
+		}
 	}
 	value, ok := input.Record.(map[string]any)
 	if !ok {

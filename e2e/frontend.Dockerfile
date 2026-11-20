@@ -24,7 +24,10 @@ COPY --parents tsconfig.options.json typescript/globals.d.ts \
 
 ARG APP_ORIGIN=https://app.habitat-e2e.dev
 ARG HABITAT_DOMAIN=habitat-e2e.dev
-ENV VITE_BASE_URL=$APP_ORIGIN VITE_HABITAT_DOMAIN=$HABITAT_DOMAIN OUT_DIR=/dist
+# The test bed's PLC directory (compose.yaml), which the browser resolves the
+# PDS accounts' did:plc DIDs against.
+ARG PLC_URL=https://plc.habitat-e2e.dev
+ENV VITE_BASE_URL=$APP_ORIGIN VITE_HABITAT_DOMAIN=$HABITAT_DOMAIN VITE_PLC_URL=$PLC_URL OUT_DIR=/dist
 # Skips `tsc --build`: typechecking is its own task and not what this image is for.
 RUN pnpm --filter frontend exec vite build
 

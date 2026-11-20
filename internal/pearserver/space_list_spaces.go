@@ -20,22 +20,35 @@ func (p *PearServer) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var params habitat.NetworkHabitatSpaceListSpacesParams
-	if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "decode query params", err)
-		return
+	// com.atproto.space.listSpaces names the authority filter spaceDid;
+	// network.habitat.space.listSpaces names it did.
+	var owner, spaceType string
+	if httpx.IsComAtprotoRequest(r) {
+		var params comatproto.ComAtprotoSpaceListSpacesParams
+		if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "decode query params", err)
+			return
+		}
+		owner, spaceType = params.SpaceDid, params.SpaceType
+	} else {
+		var params habitat.NetworkHabitatSpaceListSpacesParams
+		if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "decode query params", err)
+			return
+		}
+		owner, spaceType = params.Did, params.SpaceType
 	}
 	var filterOwner *syntax.DID
-	if params.Did != "" {
-		ownerDid, ok := httpx.ParseDIDInput(ctx, w, params.Did, "did")
+	if owner != "" {
+		ownerDid, ok := httpx.ParseDIDInput(ctx, w, owner, "spaceDid")
 		if !ok {
 			return
 		}
 		filterOwner = &ownerDid
 	}
 	var filterType *syntax.NSID
-	if params.SpaceType != "" {
-		t, ok := httpx.ParseNSIDInput(ctx, w, params.SpaceType, "type filter")
+	if spaceType != "" {
+		t, ok := httpx.ParseNSIDInput(ctx, w, spaceType, "type filter")
 		if !ok {
 			return
 		}
@@ -54,7 +67,7 @@ func (p *PearServer) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	if httpx.IsComAtprotoRequest(r) {
 		views := make([]comatproto.ComAtprotoSpaceListSpacesSpaceView, len(spaces))
 		for i, uri := range spaces {
-			views[i] = comatproto.ComAtprotoSpaceListSpacesSpaceView{Uri: uri.String()}
+			views[i] = comatproto.ComAtprotoSpaceListSpacesSpaceView{Space: uri.String()}
 		}
 		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceListSpacesOutput{Spaces: views})
 		return

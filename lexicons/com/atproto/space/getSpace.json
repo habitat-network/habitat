@@ -4,17 +4,14 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "Describe a space, including its policy. Served by the space host. Requires either OAuth (for a caller with an account on this host) or a space credential; either way the caller must be authorized for the space.",
+      "description": "Get a space and its policy. Requires auth as the space authority, implemented by PDS.",
       "parameters": {
         "type": "params",
-        "required": [
-          "space"
-        ],
+        "required": ["space"],
         "properties": {
           "space": {
             "type": "string",
-            "format": "space-ref",
-            "description": "Reference to the space."
+            "format": "space-ref"
           }
         }
       },
@@ -22,19 +19,15 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "uri",
-            "policy"
-          ],
+          "required": ["space", "policy"],
           "properties": {
-            "uri": {
+            "space": {
               "type": "string",
-              "format": "space-ref",
-              "description": "URI of the space."
+              "format": "space-ref"
             },
             "policy": {
               "type": "union",
-              "description": "The space policy.",
+              "description": "PDSes must support all of the listed policies. Other space hosts may support only some of them, and any host may support policies beyond those listed.",
               "refs": [
                 "com.atproto.personalspace.policy",
                 "com.atproto.memberspace.policy",
@@ -44,11 +37,7 @@
           }
         }
       },
-      "errors": [
-        {
-          "name": "SpaceNotFound"
-        }
-      ]
+      "errors": [{ "name": "SpaceNotFound" }, { "name": "NotAuthorized" }]
     }
   }
 }

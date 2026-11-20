@@ -4,12 +4,12 @@ package comatproto
 
 // ComAtprotoSpaceCreateSpaceInput represents the input for com.atproto.space.createSpace
 type ComAtprotoSpaceCreateSpaceInput struct {
-	Policy interface{} `json:"policy"`
-	Skey   string      `json:"skey,omitempty"`
-	Type   string      `json:"type"`
+	Policy    interface{} `json:"policy"`
+	Skey      string      `json:"skey,omitempty"`
+	SpaceType string      `json:"spaceType"`
 }
 
 // ComAtprotoSpaceCreateSpaceOutput represents the output for com.atproto.space.createSpace
 type ComAtprotoSpaceCreateSpaceOutput struct {
-	Uri string `json:"uri"`
+	Space string `json:"space"`
 }

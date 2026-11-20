@@ -49,14 +49,14 @@ export function SpacesTable({
       </TableHeader>
       <TableBody>
         {spaces.map((space) => {
-          const ref = SpaceRef.parse(space.uri);
+          const ref = SpaceRef.parse(space.space);
           const params = {
             spaceOwner: ref.spaceDid,
             spaceType: ref.spaceType,
             spaceKey: ref.skey,
           };
           return (
-            <TableRow key={space.uri}>
+            <TableRow key={space.space}>
               <TableCell className="font-mono">
                 <Link
                   to="/spaces/$spaceOwner/$spaceType/$spaceKey"

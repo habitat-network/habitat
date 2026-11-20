@@ -344,16 +344,14 @@ function CreateRecordDialog({
       } catch {
         throw new Error("Record must be valid JSON");
       }
-      await xrpc(authManager, com.atproto.space.putRecord.main, {
+      // createRecord leaves the rkey to the repo host (a TID).
+      await xrpc(authManager, com.atproto.space.createRecord.main, {
         body: {
           space: space as SpaceRefString,
           collection: collection as NsidString,
           record,
           repo: authManager.getAuthInfo()!.did as DidString,
-          // The canonical putRecord declares rkey required, but the host
-          // auto-assigns a TID when it's omitted (what the previous
-          // network.habitat contract did), so the body is widened.
-        } as unknown as com.atproto.space.putRecord.$InputBody,
+        },
       });
     },
     async onSuccess() {

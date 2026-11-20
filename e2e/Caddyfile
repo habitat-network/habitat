@@ -6,6 +6,12 @@
 	auto_https off
 }
 
+# The PLC directory, for browsers (pear and the PDS reach it at plc:2582).
+https://plc.habitat-e2e.dev {
+	tls /certs/cert.pem /certs/key.pem
+	reverse_proxy plc:2582
+}
+
 https://app.habitat-e2e.dev {
 	tls /certs/cert.pem /certs/key.pem
 	reverse_proxy frontend:80
