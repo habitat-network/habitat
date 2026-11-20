@@ -16,49 +16,29 @@ https://moonrepo.dev/docs
 
 ## Explore
 
-To see all available projects
-
 ```
-moon query projects
-```
-
-## Common tasks
-
-These are tasks that are mostly common to all projects. 
-You can run them on all projects at once or specifically on a project.
-
-```
-moon :build :test :lint :format :start
+moon projects # list projects
+moon tasks <project> # list all tasks for a project
+moon run <project>:<task> # run a specific task
 ```
 
 ## Cheatsheet
 
-### Run a task across all projects
-
-```
-moon :[task]
-moon run :[task]
-moon r :[task]
-```
-
 ### Run a task on a specific project
 
 ```
-moon [project]:[task]
 moon run [project]:[task]
-moon r [project]:[task]
 ```
 
 ### Run multiple tasks in parallel
 ```
-moon [project]:[task1] [project]:[task2]
+moon [project1]:[task1] [project2]:[task2]
 ```
 
 ### Get info about a project like available tasks
 
 ```
 moon project [project-name]
-moon p [project-name]
 ```
 
 ### Get info about a task like inputs, output, dependencies, and the actual command after inheritance resolution
