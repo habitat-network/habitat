@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/ecdh"
 	"crypto/hkdf"
+	"crypto/hpke"
 	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -15,17 +15,16 @@ import (
 )
 
 // The key encapsulation mechanism (KEM) establishes the shared secret a syncer
-// and repo host MAC a response with. It is ECDH on P-256, with the secret
-// derived as in DHKEM(P-256, HKDF-SHA256) from RFC 9180 §4.1, the syncer's
-// ephemeral public key being `enc`:
+// and repo host MAC a response with. It is the secret export feature of HPKE
+// (RFC 9180 section 6.2) with the ciphersuite DHKEM(P-256, HKDF-SHA256),
+// HKDF-SHA256 and the Export-only AEAD, so nothing is encrypted:
 //
-//	dh     = ECDH(syncer_private_key, author_public_key)   // syncer
-//	       = ECDH(author_private_key, syncer_public_key)   // repo host
-//	keys   = (0x04 || syncer_pub.x || syncer_pub.y) || (0x04 || author_pub.x || author_pub.y)
-//	prefix = "HPKE-v1" || "KEM" || uint16be(0x0010)
-//	input  = prefix || "eae_prk" || dh
-//	info   = uint16be(32) || prefix || "shared_secret" || keys
-//	shared_secret = HKDF-SHA256(input, salt="", info=info, length=32)
+//	enc, ctx = SetupBaseS(author_kem_public_key, info="atproto-mac")   // syncer
+//	ctx      = SetupBaseR(enc, author_kem_private_key, info="atproto-mac") // repo host
+//	shared_secret = ctx.Export(exporter_context="", L=32)
+//
+// The syncer's ephemeral public key `enc` is sent as the keyid of its
+// Accept-Signature request, as a did:key.
 //
 // Each account's KEM public key is published in its DID document as the
 // #atproto_kem verification method, and its private key is held by the repo
@@ -37,51 +36,46 @@ const KEMFragment = "atproto_kem"
 
 const sharedSecretLen = 32
 
-// kemPrefix is RFC 9180's suite ID for DHKEM(P-256, HKDF-SHA256).
-var kemPrefix = []byte("HPKE-v1KEM\x00\x10")
+// hpkeInfo is a fixed label tying the secret to this protocol.
+var hpkeInfo = []byte("atproto-mac")
 
 // Encapsulate is the syncer side: it generates a fresh ephemeral P-256
 // keypair, derives a shared secret against the author's KEM key, and returns
-// the ephemeral public key as a did:key to send as the request's key_share.
-// Call it for every request, including retries and each page of a paginated
-// response.
+// the ephemeral public key as a did:key to send as the request's keyid. Call it
+// for every request, including retries and each page of a paginated response.
 func Encapsulate(authorKEM atcrypto.PublicKey) (keyShare string, sharedSecret []byte, err error) {
 	authorPub, err := ecdhPublic(authorKEM)
 	if err != nil {
 		return "", nil, err
 	}
-	ephemeral, err := atcrypto.GeneratePrivateKeyP256()
+	pk, err := hpke.NewDHKEMPublicKey(authorPub)
 	if err != nil {
-		return "", nil, fmt.Errorf("generate ephemeral key: %w", err)
+		return "", nil, fmt.Errorf("%w: invalid KEM key: %w", ErrInvalidSpaceMAC, err)
 	}
-	ephemeralPriv, err := ecdh.P256().NewPrivateKey(ephemeral.Bytes())
+	enc, sender, err := hpke.NewSender(pk, hpke.HKDFSHA256(), hpke.ExportOnly(), hpkeInfo)
 	if err != nil {
-		return "", nil, fmt.Errorf("ephemeral key: %w", err)
+		return "", nil, fmt.Errorf("hpke setup: %w", err)
 	}
-	dh, err := ephemeralPriv.ECDH(authorPub)
+	// HPKE encodes the encapsulated key uncompressed; did:key uses the
+	// compressed form.
+	ephemeral, err := atcrypto.ParsePublicUncompressedBytesP256(enc)
 	if err != nil {
-		return "", nil, fmt.Errorf("%w: ecdh: %w", ErrBadSpaceMAC, err)
+		return "", nil, fmt.Errorf("encapsulated key: %w", err)
 	}
-	ephemeralPub, err := ephemeral.PublicKey()
+	sharedSecret, err = sender.Export("", sharedSecretLen)
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("hpke export: %w", err)
 	}
-	sharedSecret, err = deriveSharedSecret(
-		dh, ephemeralPriv.PublicKey().Bytes(), authorPub.Bytes(),
-	)
-	if err != nil {
-		return "", nil, err
-	}
-	return ephemeralPub.DIDKey(), sharedSecret, nil
+	return ephemeral.DIDKey(), sharedSecret, nil
 }
 
 // Decapsulate is the repo host side: it derives the shared secret from a
-// syncer's key_share using the author's KEM private key. An invalid key share
-// wraps [ErrBadSpaceMAC].
+// syncer's keyid using the author's KEM private key. An invalid key share
+// wraps [ErrInvalidSpaceMAC].
 func Decapsulate(kem *atcrypto.PrivateKeyP256, keyShare string) ([]byte, error) {
 	syncerKey, err := atcrypto.ParsePublicDIDKey(keyShare)
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid key_share: %w", ErrBadSpaceMAC, err)
+		return nil, fmt.Errorf("%w: invalid keyid: %w", ErrInvalidSpaceMAC, err)
 	}
 	syncerPub, err := ecdhPublic(syncerKey)
 	if err != nil {
@@ -91,46 +85,35 @@ func Decapsulate(kem *atcrypto.PrivateKeyP256, keyShare string) ([]byte, error) 
 	if err != nil {
 		return nil, fmt.Errorf("kem key: %w", err)
 	}
-	dh, err := priv.ECDH(syncerPub)
+	sk, err := hpke.NewDHKEMPrivateKey(priv)
 	if err != nil {
-		return nil, fmt.Errorf("%w: ecdh: %w", ErrBadSpaceMAC, err)
+		return nil, fmt.Errorf("kem key: %w", err)
 	}
-	return deriveSharedSecret(dh, syncerPub.Bytes(), priv.PublicKey().Bytes())
+	recipient, err := hpke.NewRecipient(
+		syncerPub.Bytes(), sk, hpke.HKDFSHA256(), hpke.ExportOnly(), hpkeInfo,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: hpke setup: %w", ErrInvalidSpaceMAC, err)
+	}
+	secret, err := recipient.Export("", sharedSecretLen)
+	if err != nil {
+		return nil, fmt.Errorf("hpke export: %w", err)
+	}
+	return secret, nil
 }
 
 // ecdhPublic converts a P-256 public key to its crypto/ecdh form. Any other
-// curve wraps [ErrBadSpaceMAC]: KEM keys are always P-256.
+// curve wraps [ErrInvalidSpaceMAC]: KEM keys are always P-256.
 func ecdhPublic(k atcrypto.PublicKey) (*ecdh.PublicKey, error) {
 	p256, ok := k.(*atcrypto.PublicKeyP256)
 	if !ok {
-		return nil, fmt.Errorf("%w: KEM key must be a P-256 key", ErrBadSpaceMAC)
+		return nil, fmt.Errorf("%w: KEM key must be a P-256 key", ErrInvalidSpaceMAC)
 	}
 	pub, err := ecdh.P256().NewPublicKey(p256.UncompressedBytes())
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid KEM key: %w", ErrBadSpaceMAC, err)
+		return nil, fmt.Errorf("%w: invalid KEM key: %w", ErrInvalidSpaceMAC, err)
 	}
 	return pub, nil
-}
-
-// deriveSharedSecret is RFC 9180's ExtractAndExpand over the ECDH output, with
-// both public keys in their uncompressed form, syncer's first.
-func deriveSharedSecret(dh, syncerPub, authorPub []byte) ([]byte, error) {
-	input := make([]byte, 0, len(kemPrefix)+len("eae_prk")+len(dh))
-	input = append(input, kemPrefix...)
-	input = append(input, "eae_prk"...)
-	input = append(input, dh...)
-
-	info := binary.BigEndian.AppendUint16(nil, sharedSecretLen)
-	info = append(info, kemPrefix...)
-	info = append(info, "shared_secret"...)
-	info = append(info, syncerPub...)
-	info = append(info, authorPub...)
-
-	secret, err := hkdf.Key(sha256.New, input, nil, string(info), sharedSecretLen)
-	if err != nil {
-		return nil, fmt.Errorf("derive shared secret: %w", err)
-	}
-	return secret, nil
 }
 
 // DeriveKEMKey deterministically derives a dedicated P-256 KEM keypair from
@@ -195,7 +178,7 @@ func (k *KEMKeys) Decapsulate(
 		return nil, fmt.Errorf("kem key for %s: %w", author, err)
 	}
 	if key == nil {
-		return nil, fmt.Errorf("%w: no kem key for %s", ErrBadSpaceMAC, author)
+		return nil, fmt.Errorf("%w: no kem key for %s", ErrInvalidSpaceMAC, author)
 	}
 	return Decapsulate(key, keyShare)
 }

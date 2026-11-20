@@ -1,11 +1,11 @@
 import { P256Keypair } from "@atproto/crypto";
+import { createSpaceSigHeaders } from "@atproto/space";
 import {
-  COMMIT_MAC_TYPE,
-  RECORD_MAC_TYPE,
-  WANT_MAC_HEADER,
-  createSpaceSigHeaders,
-  formatWantMacHeader,
-} from "@atproto/space";
+  ACCEPT_SIGNATURE_HEADER,
+  COMMIT_MAC_PROFILE,
+  RECORD_MAC_PROFILE,
+  formatMacRequest,
+} from "./spaceMac";
 
 // One ephemeral P-256 keypair per page load. Space credentials are bound to a
 // did:key confirmation key the caller controls — nothing depends on this key
@@ -45,26 +45,37 @@ export async function createSpaceSignatureHeaders(
   });
 }
 
-// wantCommitMacHeaders builds the Atproto-Space-Want-Mac header a repo host
+// acceptCommitMacHeaders builds the Accept-Signature header a repo host
 // requires on commit reads made with a space credential (getLatestCommit,
 // listRepoOps, getRepo). The key share is a fresh ephemeral P-256 public key
 // whose private half is discarded: this is for displaying a commit, not
 // syncing it, so the response's MAC is never checked. A syncer verifying the
 // commit encapsulates against the author's #atproto_kem key instead (see
 // spaceSync's SpaceClient).
-export async function wantCommitMacHeaders(): Promise<Record<string, string>> {
+export async function acceptCommitMacHeaders(): Promise<
+  Record<string, string>
+> {
   const ephemeral = await P256Keypair.create();
   return {
-    [WANT_MAC_HEADER]: formatWantMacHeader(COMMIT_MAC_TYPE, ephemeral.did()),
+    [ACCEPT_SIGNATURE_HEADER]: formatMacRequest(
+      COMMIT_MAC_PROFILE,
+      ephemeral.did(),
+    ),
   };
 }
 
-// wantRecordMacHeaders is wantCommitMacHeaders for single-record reads
+// acceptRecordMacHeaders is acceptCommitMacHeaders for single-record reads
 // (getRecord) made with a space credential: the host rejects them with
-// BadSpaceMac without the header. The response's MAC is likewise not checked.
-export async function wantRecordMacHeaders(): Promise<Record<string, string>> {
+// InvalidSpaceMac without the header. The response's MAC is likewise not
+// checked.
+export async function acceptRecordMacHeaders(): Promise<
+  Record<string, string>
+> {
   const ephemeral = await P256Keypair.create();
   return {
-    [WANT_MAC_HEADER]: formatWantMacHeader(RECORD_MAC_TYPE, ephemeral.did()),
+    [ACCEPT_SIGNATURE_HEADER]: formatMacRequest(
+      RECORD_MAC_PROFILE,
+      ephemeral.did(),
+    ),
   };
 }

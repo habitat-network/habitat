@@ -5,7 +5,7 @@ Git submodules of external repositories that are relevant to Habitat, kept here 
 | Path | Source | Why |
 | --- | --- | --- |
 | `opensocial-proposal/` | https://tangled.org/opensocial.group/proposal | The opensocial group proposal, partially implemented in `internal/opensocial`. |
-| `bluesky-proposals/` | https://github.com/bluesky-social/proposals | AT Protocol proposals, including 0016 permissioned data (spaces), implemented in `internal/spaces`. |
+| `atproto-proposals/` | https://github.com/bluesky-social/proposals | AT Protocol proposals, including 0016 permissioned data (spaces), implemented in `internal/spaces`. |
 | `effect/` | https://github.com/Effect-TS/effect | Effect source code, used as a reference for idiomatic Effect patterns. |
 | `jetstream/` | https://github.com/bluesky-social/jetstream | Full-network archive, replay, and streaming service for atproto, relevant to the firehose syncing done by `sap`. |
 | `atproto/` | https://github.com/bluesky-social/atproto (`permissioned-data` branch) | atproto source, used as a reference for the permissioned-data work. |

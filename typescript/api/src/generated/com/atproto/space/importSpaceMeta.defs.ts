@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'com.atproto.space.unregisterNotify'
+const $nsid = 'com.atproto.space.importSpaceMeta'
 
 type $nsid = typeof $nsid
 
@@ -14,10 +14,7 @@ export const $params = /*#__PURE__*/ l.params()
 
 export type $Params = l.InferOutput<typeof $params>
 
-export const $input = /*#__PURE__*/ l.jsonPayload({
-  space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
-  service: /*#__PURE__*/ l.string(),
-})
+export const $input = /*#__PURE__*/ l.payload('application/vnd.dasl.star')
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
@@ -30,9 +27,11 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Withdraw a write-notification registration made through registerNotify. Called on the space host. Idempotent: succeeds whether or not a matching registration existed. Registrations also lapse on their own at the expiry returned by registerNotify, so this is for explicit withdrawal rather than cleanup. Authenticated with a space credential. */
+/** Import a space's state from an archive produced by exportSpaceMeta, for account migration. Must be called before importing the authority's space repo with importRepo. Requires auth as the space authority, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
-  'SpaceNotFound',
+  'NotAuthorized',
+  'UnsupportedPolicy',
+  'InvalidSpaceMeta',
 ])
 
 export { main }

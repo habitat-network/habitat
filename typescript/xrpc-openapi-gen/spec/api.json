@@ -6935,7 +6935,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getLatestCommit",
-        "description": "Get the current commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the commit's MAC is returned in the Atproto-Space-Mac response header.",
+        "description": "Get the current commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-commit), and the response carries it in Signature-Input and Signature headers covering an Atproto-Space-Commit header.",
         "operationId": "network.habitat.space.getLatestCommit",
         "security": [
           {
@@ -7021,7 +7021,7 @@
                           "const": "RepoDeactivated"
                         },
                         {
-                          "const": "BadSpaceMac"
+                          "const": "InvalidSpaceMac"
                         }
                       ]
                     },
@@ -7064,7 +7064,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRecord",
-        "description": "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the record's MAC is returned in the Atproto-Space-Mac response header.",
+        "description": "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-record), and the response carries it in Signature-Input and Signature headers covering an Atproto-Space-Record header.",
         "operationId": "network.habitat.space.getRecord",
         "security": [
           {
@@ -7183,7 +7183,7 @@
                           "const": "RepoDeactivated"
                         },
                         {
-                          "const": "BadSpaceMac"
+                          "const": "InvalidSpaceMac"
                         }
                       ]
                     },
@@ -7226,7 +7226,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRepo",
-        "description": "Download an account's permissioned repo within a space as a STAR file, for full-state recovery. The archive's metadata is the repo's commit; each key/value pair is a record path ('{collection}/{rkey}') and the record's DRISL encoding, in strict lexicographic order of the path. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the MAC of the archive's commit is returned in the Atproto-Space-Mac response header.",
+        "description": "Download an account's permissioned repo within a space as a STAR file, for full-state recovery. The archive's metadata is the repo's commit; each key/value pair is a record path ('{collection}/{rkey}') and the record's DRISL encoding, in strict lexicographic order of the path. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-commit), and the response carries the archive commit's MAC in Signature-Input and Signature headers covering an Atproto-Space-Commit header.",
         "operationId": "network.habitat.space.getRepo",
         "security": [
           {
@@ -7303,7 +7303,7 @@
                           "const": "RepoDeactivated"
                         },
                         {
-                          "const": "BadSpaceMac"
+                          "const": "InvalidSpaceMac"
                         }
                       ]
                     },
@@ -7674,7 +7674,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.listRepoOps",
-        "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and a response that includes the commit carries its MAC in the Atproto-Space-Mac response header.",
+        "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-commit), and a response that includes the commit carries its MAC in Signature-Input and Signature headers covering an Atproto-Space-Commit header.",
         "operationId": "network.habitat.space.listRepoOps",
         "security": [
           {
@@ -7812,7 +7812,7 @@
                           "const": "RepoDeactivated"
                         },
                         {
-                          "const": "BadSpaceMac"
+                          "const": "InvalidSpaceMac"
                         }
                       ]
                     },
@@ -10145,7 +10145,7 @@
       },
       "network.habitat.space.defs.commit": {
         "type": "object",
-        "description": "A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header.",
+        "description": "A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC over its Atproto-Space-Commit response header.",
         "required": [
           "ver",
           "repo",

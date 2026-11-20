@@ -183,6 +183,8 @@ type Store interface {
 	// IsSpaceDeleted reports whether the space was deleted and hasn't been
 	// recreated since. A space that never existed is not deleted.
 	IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
+	// SpaceRev returns the space's current revision, or ErrSpaceNotFound.
+	SpaceRev(ctx context.Context, uri habitat_syntax.SpaceURI) (syntax.TID, error)
 
 	// Member operations
 	ListRepos(
@@ -213,6 +215,20 @@ type Store interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
+	) error
+
+	// ImportWriters records the writers a space meta archive carries, for a
+	// space migrated here: each is tracked as a repo at the revision and
+	// commit data the archive reports, as for a repo registered by
+	// RegisterRemoteWrite, since its records are not held here until the
+	// repo's own account imports them. A repo this host already tracks is left
+	// as it is. The space's revision moves up to the newest of the writers', so
+	// revisions stay monotonic across the migration. Returns ErrSpaceNotFound
+	// if the space does not exist.
+	ImportWriters(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		writers []MetaWriter,
 	) error
 
 	// RegisterRemoteWrite records that repo advanced to rev/hash on its own
@@ -416,6 +432,15 @@ type Notifier interface {
 		spaceRev syntax.TID,
 		prevSpaceRev syntax.TID,
 	)
+	// NotifyWriterRemoved reports that a repo was removed from a space's writer
+	// set, at spaceRev (after prevSpaceRev).
+	NotifyWriterRemoved(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		spaceRev syntax.TID,
+		prevSpaceRev syntax.TID,
+	)
 	// NotifySpaceDeleted reports that a space was deleted.
 	NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI)
 }
@@ -436,6 +461,19 @@ func (n Notifiers) NotifyWrite(
 ) {
 	for _, notifier := range n {
 		notifier.NotifyWrite(ctx, space, repo, rev, hash, spaceRev, prevSpaceRev)
+	}
+}
+
+// NotifyWriterRemoved implements [Notifier].
+func (n Notifiers) NotifyWriterRemoved(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	spaceRev syntax.TID,
+	prevSpaceRev syntax.TID,
+) {
+	for _, notifier := range n {
+		notifier.NotifyWriterRemoved(ctx, space, repo, spaceRev, prevSpaceRev)
 	}
 }
 
@@ -574,6 +612,23 @@ func (s *store) CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceUR
 	}
 
 	return true, nil
+}
+
+// SpaceRev implements [Store].
+func (s *store) SpaceRev(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+) (syntax.TID, error) {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND type = ? AND skey = ?", uri.SpaceOwner(), uri.SpaceType(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", ErrSpaceNotFound
+	} else if err != nil {
+		return "", fmt.Errorf("get space rev: %w", err)
+	}
+	return sp.Rev, nil
 }
 
 // IsSpaceDeleted implements [Store].
@@ -765,7 +820,9 @@ func (s *store) RemoveWriter(
 	} else if !ok {
 		return ErrSpaceNotFound
 	}
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var prevSpaceRev, spaceRev syntax.TID
+	removed := false
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
 		}
@@ -776,14 +833,23 @@ func (s *store) RemoveWriter(
 		} else if err != nil {
 			return fmt.Errorf("load repo: %w", err)
 		}
-		_, spaceRev, err := s.advanceSpaceRev(tx, uri)
+		prevSpaceRev, spaceRev, err = s.advanceSpaceRev(tx, uri)
 		if err != nil {
 			return err
 		}
+		removed = true
 		return tx.Model(&spaceRepo{}).
 			Where("space = ? AND repo = ?", uri, repo).
 			Updates(map[string]any{"removed": true, "space_rev": spaceRev}).Error
 	})
+	if err != nil {
+		return err
+	}
+	if removed {
+		// Best-effort: tell registered syncers, as a write does.
+		s.notifier.NotifyWriterRemoved(ctx, uri, repo, spaceRev, prevSpaceRev)
+	}
+	return nil
 }
 
 // listRepos lists repos written after since, in ascending space revision.
@@ -893,6 +959,54 @@ func (s *store) RegisterRemoteWrite(
 	// Best-effort: forward to registered syncers, same as a local write.
 	s.notifier.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
 	return nil
+}
+
+// ImportWriters implements [Store].
+func (s *store) ImportWriters(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	writers []MetaWriter,
+) (err error) {
+	ctx, span := tracer.Start(ctx, "spaces.ImportWriters", trace.WithAttributes(
+		telemetry.Space(uri),
+		attribute.Int("habitat.writers", len(writers)),
+	))
+	defer func() { telemetry.End(span, err) }()
+	ok, err := s.CheckSpaceExists(ctx, uri)
+	if err != nil {
+		return fmt.Errorf("failed to get space: %w", err)
+	} else if !ok {
+		return ErrSpaceNotFound
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var newest syntax.TID
+		for _, w := range writers {
+			if err := lockRepo(tx, uri, w.DID); err != nil {
+				return err
+			}
+			var current spaceRepo
+			err := tx.Where("space = ? AND repo = ?", uri, w.DID).First(&current).Error
+			if err == nil {
+				continue
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("load repo: %w", err)
+			}
+			if err := saveRemoteRepoHash(
+				tx, uri, w.DID, w.Data, w.RepoRev, w.SpaceRev,
+			); err != nil {
+				return fmt.Errorf("save writer %s: %w", w.DID, err)
+			}
+			newest = max(newest, w.SpaceRev)
+		}
+		if newest == "" {
+			return nil
+		}
+		// Revisions are TIDs, which sort in time order: only ever move up.
+		return tx.Model(&space{}).
+			Where("owner = ? AND type = ? AND skey = ? AND rev < ?",
+				uri.SpaceOwner(), uri.SpaceType(), uri.Skey(), newest).
+			Update("rev", newest).Error
+	})
 }
 
 // ---- Record operations ----

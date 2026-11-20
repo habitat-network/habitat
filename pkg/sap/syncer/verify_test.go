@@ -90,7 +90,7 @@ func TestVerifierKEMKeySelectsAuthorOrHost(t *testing.T) {
 	require.ErrorContains(t, err, "parse host url")
 }
 
-// TestVerifierNilDegrades covers hash-only mode: no exchange, no Want-Mac
+// TestVerifierNilDegrades covers hash-only mode: no exchange, no Accept-Signature
 // header, and verification passes without a MAC.
 func TestVerifierNilDegrades(t *testing.T) {
 	t.Parallel()
@@ -111,29 +111,28 @@ type macHost struct {
 	kem      atomic.Pointer[atcrypto.PrivateKeyP256]
 	commit   spacecommit.Commit
 	requests atomic.Int32
-	// tamper flips the MAC so it never verifies.
+	// tamper keys the MAC wrongly so it never verifies.
 	tamper bool
 }
 
 func (h *macHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.requests.Add(1)
-	keyShare, ok, err := spacecommit.ParseWantMAC(r.Header, spacecommit.CommitMACType)
-	if err != nil || !ok {
+	req, err := spacecommit.ParseMACRequest(r.Header, spacecommit.CommitMACType)
+	if err != nil || req == nil {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "BadSpaceMac"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "InvalidSpaceMac"})
 		return
 	}
-	secret, err := spacecommit.Decapsulate(h.kem.Load(), keyShare)
+	secret, err := spacecommit.Decapsulate(h.kem.Load(), req.KeyShare)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "BadSpaceMac"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "InvalidSpaceMac"})
 		return
 	}
-	mac := h.commit.MAC(secret)
 	if h.tamper {
-		mac[0] ^= 0xff
+		secret[0] ^= 0xff
 	}
-	if err := spacecommit.SetMAC(w.Header(), spacecommit.CommitMACType, mac); err != nil {
+	if err := spacecommit.SetCommitMAC(w.Header(), h.commit, *req, secret); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

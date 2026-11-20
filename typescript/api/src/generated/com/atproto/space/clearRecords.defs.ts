@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'com.atproto.space.notifySpaceDeleted'
+const $nsid = 'com.atproto.space.clearRecords'
 
 type $nsid = typeof $nsid
 
@@ -16,12 +16,13 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
+  repo: /*#__PURE__*/ l.string({ format: 'did' }),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
-export const $output = /*#__PURE__*/ l.payload()
+export const $output = /*#__PURE__*/ l.jsonPayload({})
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
 export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
@@ -29,7 +30,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Notify a syncing service that a space has been deleted, and that it should drop every copy of the space's data it holds. Sent by the space authority to the services registered for the space, best-effort. Authenticated with service auth addressed to the receiving service. */
+/** Delete all records in the authenticated account's space repo. In the space authority's repo, records published from the space's configuration (such as its policy) are kept. Requires auth, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

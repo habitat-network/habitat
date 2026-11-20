@@ -23,7 +23,7 @@ import (
 )
 
 // macCall sends a GET to handler with params and, if wantMAC is set, an
-// Atproto-Space-Want-Mac header.
+// Accept-Signature header.
 func macCall(
 	t *testing.T,
 	handler http.HandlerFunc,
@@ -33,7 +33,7 @@ func macCall(
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/?"+params.Encode(), http.NoBody)
 	if wantMAC != "" {
-		req.Header.Set(spacecommit.WantMACHeader, wantMAC)
+		req.Header.Set(spacecommit.AcceptSignatureHeader, wantMAC)
 	}
 	w := httptest.NewRecorder()
 	handler(w, req)
@@ -41,17 +41,15 @@ func macCall(
 }
 
 // encapsulate negotiates a shared secret against kem's public key, returning
-// the Want-Mac header to send for typ and the secret the response's MAC must
-// be keyed by.
-func encapsulate(t *testing.T, kem *atcrypto.PrivateKeyP256, typ string) (string, []byte) {
+// the Accept-Signature header to send for typ, the key share it carries, and
+// the secret the response's MAC must be keyed by.
+func encapsulate(t *testing.T, kem *atcrypto.PrivateKeyP256, typ string) (string, string, []byte) {
 	t.Helper()
 	pub, err := kem.PublicKey()
 	require.NoError(t, err)
 	keyShare, secret, err := spacecommit.Encapsulate(pub)
 	require.NoError(t, err)
-	header, err := spacecommit.FormatWantMAC(typ, keyShare)
-	require.NoError(t, err)
-	return header, secret
+	return spacecommit.FormatMACRequest(typ, keyShare), keyShare, secret
 }
 
 func TestServer_SpaceMACs(t *testing.T) {
@@ -98,13 +96,19 @@ func TestServer_SpaceMACs(t *testing.T) {
 		return url.Values{"space": {uri.String()}, "repo": {repo.String()}}
 	}
 
-	verifyCommit := func(t *testing.T, w *httptest.ResponseRecorder, repo syntax.DID, secret []byte, commit *habitat.NetworkHabitatSpaceDefsCommit) {
+	verifyCommit := func(
+		t *testing.T,
+		w *httptest.ResponseRecorder,
+		repo syntax.DID,
+		keyShare string,
+		secret []byte,
+		commit *habitat.NetworkHabitatSpaceDefsCommit,
+	) {
 		t.Helper()
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-		require.Equal(t, spacecommit.WantMACHeader, w.Header().Get("Vary"))
-		mac, err := spacecommit.ParseMAC(w.Header(), spacecommit.CommitMACType)
-		require.NoError(t, err)
-		require.NoError(t, spacecommit.FromXRPC(*commit).Verify(uri, repo, secret, mac))
+		require.Equal(t, spacecommit.AcceptSignatureHeader, w.Header().Get("Vary"))
+		require.NoError(t,
+			spacecommit.FromXRPC(*commit).Verify(uri, repo, w.Header(), keyShare, secret))
 	}
 
 	for name, tc := range map[string]struct {
@@ -115,24 +119,24 @@ func TestServer_SpaceMACs(t *testing.T) {
 		"hive member, their own kem key": {member.DID, memberKEM},
 	} {
 		t.Run("getLatestCommit MACs the commit for "+name, func(t *testing.T) {
-			header, secret := encapsulate(t, tc.kem, spacecommit.CommitMACType)
+			header, keyShare, secret := encapsulate(t, tc.kem, spacecommit.CommitMACType)
 			w := macCall(t, credTS.Server.GetLatestCommit, repoParams(tc.repo), header)
 			var out habitat.NetworkHabitatSpaceGetLatestCommitOutput
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
-			verifyCommit(t, w, tc.repo, secret, out.Commit)
+			verifyCommit(t, w, tc.repo, keyShare, secret, out.Commit)
 		})
 	}
 
 	t.Run("listRepoOps MACs the head commit", func(t *testing.T) {
-		header, secret := encapsulate(t, ts.HostKEMKey, spacecommit.CommitMACType)
+		header, keyShare, secret := encapsulate(t, ts.HostKEMKey, spacecommit.CommitMACType)
 		w := macCall(t, credTS.Server.ListRepoOps, repoParams(owner), header)
 		var out habitat.NetworkHabitatSpaceListRepoOpsOutput
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
-		verifyCommit(t, w, owner, secret, out.Commit)
+		verifyCommit(t, w, owner, keyShare, secret, out.Commit)
 	})
 
 	t.Run("listRepoOps pages without a commit carry no MAC", func(t *testing.T) {
-		header, _ := encapsulate(t, ts.HostKEMKey, spacecommit.CommitMACType)
+		header, _, _ := encapsulate(t, ts.HostKEMKey, spacecommit.CommitMACType)
 		params := repoParams(owner)
 		params.Set("limit", "1")
 		w := macCall(t, credTS.Server.ListRepoOps, params, header)
@@ -140,22 +144,21 @@ func TestServer_SpaceMACs(t *testing.T) {
 		var out habitat.NetworkHabitatSpaceListRepoOpsOutput
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
 		require.Nil(t, out.Commit)
-		require.Empty(t, w.Header().Get(spacecommit.MACHeader))
+		require.Empty(t, w.Header().Get("Atproto-Space-Commit"))
 	})
 
 	t.Run("getRepo MACs the archive's commit", func(t *testing.T) {
-		header, secret := encapsulate(t, ts.HostKEMKey, spacecommit.CommitMACType)
+		header, keyShare, secret := encapsulate(t, ts.HostKEMKey, spacecommit.CommitMACType)
 		w := macCall(t, credTS.Server.GetRepo, repoParams(owner), header)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		rev, data, _, err := store.RepoHead(t.Context(), uri, owner)
 		require.NoError(t, err)
-		mac, err := spacecommit.ParseMAC(w.Header(), spacecommit.CommitMACType)
-		require.NoError(t, err)
-		require.NoError(t, spacecommit.New(uri, owner, rev, data).Verify(uri, owner, secret, mac))
+		require.NoError(t, spacecommit.New(uri, owner, rev, data).
+			Verify(uri, owner, w.Header(), keyShare, secret))
 	})
 
 	t.Run("getRecord MACs the record's URI and CID", func(t *testing.T) {
-		header, secret := encapsulate(t, ts.HostKEMKey, spacecommit.RecordMACType)
+		header, keyShare, secret := encapsulate(t, ts.HostKEMKey, spacecommit.RecordMACType)
 		params := repoParams(owner)
 		params.Set("collection", groupTp.String())
 		params.Set("rkey", "k1")
@@ -164,30 +167,30 @@ func TestServer_SpaceMACs(t *testing.T) {
 		var out habitat.NetworkHabitatSpaceGetRecordOutput
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
 		require.Equal(t, recordCID.String(), out.Cid)
-		mac, err := spacecommit.ParseMAC(w.Header(), spacecommit.RecordMACType)
-		require.NoError(t, err)
 		require.NoError(t, spacecommit.VerifyRecordMAC(
-			secret,
+			w.Header(),
 			habitat_syntax.ConstructSpaceRecordURI(uri, owner, groupTp, "k1").String(),
 			cid.MustParse(out.Cid),
-			mac,
+			keyShare,
+			secret,
 		))
 	})
 
 	t.Run("a space credential must request a MAC", func(t *testing.T) {
-		wrongType, _ := encapsulate(t, ts.HostKEMKey, spacecommit.RecordMACType)
+		wrongType, _, _ := encapsulate(t, ts.HostKEMKey, spacecommit.RecordMACType)
 		for name, header := range map[string]string{
 			"missing":    "",
 			"malformed":  "not a dictionary (",
 			"wrong type": wrongType,
-			"bad key":    `type="atproto-space-repo", ver=1, key_share="did:key:zbad"`,
+			"bad key": `mac=("atproto-space-commit";sf);keyid="did:key:zbad";` +
+				`tag="atproto-space-commit"`,
 		} {
 			t.Run(name, func(t *testing.T) {
 				w := macCall(t, credTS.Server.GetLatestCommit, repoParams(owner), header)
 				require.Equal(t, http.StatusBadRequest, w.Code)
 				var apiErr atclient.ErrorBody
 				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &apiErr))
-				require.Equal(t, "BadSpaceMac", apiErr.Name)
+				require.Equal(t, "InvalidSpaceMac", apiErr.Name)
 			})
 		}
 	})
@@ -195,12 +198,13 @@ func TestServer_SpaceMACs(t *testing.T) {
 	t.Run("an OAuth request may omit the MAC", func(t *testing.T) {
 		w := macCall(t, ts.Server.GetLatestCommit, repoParams(owner), "")
 		require.Equal(t, http.StatusOK, w.Code)
-		require.Empty(t, w.Header().Get(spacecommit.MACHeader))
+		require.Empty(t, w.Header().Get("Atproto-Space-Commit"))
+		require.Equal(t, spacecommit.AcceptSignatureHeader, w.Header().Get("Vary"))
 
-		header, secret := encapsulate(t, ts.HostKEMKey, spacecommit.CommitMACType)
+		header, keyShare, secret := encapsulate(t, ts.HostKEMKey, spacecommit.CommitMACType)
 		w = macCall(t, ts.Server.GetLatestCommit, repoParams(owner), header)
 		var out habitat.NetworkHabitatSpaceGetLatestCommitOutput
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
-		verifyCommit(t, w, owner, secret, out.Commit)
+		verifyCommit(t, w, owner, keyShare, secret, out.Commit)
 	})
 }

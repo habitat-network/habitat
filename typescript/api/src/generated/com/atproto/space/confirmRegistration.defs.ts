@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'com.atproto.space.registerNotify'
+const $nsid = 'com.atproto.space.confirmRegistration'
 
 type $nsid = typeof $nsid
 
@@ -16,14 +16,15 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
-  service: /*#__PURE__*/ l.string(),
+  token: /*#__PURE__*/ l.string({ maxLength: 512 }),
+  challenge: /*#__PURE__*/ l.string({ maxLength: 512 }),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  expiresAt: /*#__PURE__*/ l.string({ format: 'datetime' }),
+  challenge: /*#__PURE__*/ l.string({ maxLength: 512 }),
 })
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
@@ -32,11 +33,8 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Register a service to be notified of writes to any repo in a space. Called on the space host. The registering service is named by its service identifier rather than a bare URL, because notifyWrite is delivered with service auth addressed to that identifier; the delivery endpoint is resolved from the service's DID document. Authenticated with a space credential. Re-registering an existing service replaces its registration and extends the expiry. */
-const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
-  'SpaceNotFound',
-  'ServiceNotResolvable',
-])
+/** Confirm a new notification registration. Called by the space host on an endpoint passed to authorizeSpaceSync, before registering it. The syncing service checks that it issued the token for the space, and echoes back the challenge. */
+const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }
 

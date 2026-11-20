@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'com.atproto.space.notifyWrite'
+const $nsid = 'com.atproto.space.importRepo'
 
 type $nsid = typeof $nsid
 
@@ -14,16 +14,7 @@ export const $params = /*#__PURE__*/ l.params()
 
 export type $Params = l.InferOutput<typeof $params>
 
-export const $input = /*#__PURE__*/ l.jsonPayload({
-  space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
-  repo: /*#__PURE__*/ l.string({ format: 'did' }),
-  repoRev: /*#__PURE__*/ l.string({ format: 'tid' }),
-  data: /*#__PURE__*/ l.bytes(),
-  spaceRev: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'tid' })),
-  prevSpaceRev: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.string({ format: 'tid' }),
-  ),
-})
+export const $input = /*#__PURE__*/ l.payload('application/vnd.dasl.star')
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
@@ -36,10 +27,11 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Notify that a repo in a space has advanced. Repo hosts reliably deliver their latest state to the space host, which sequences updates and forwards them to registered syncers with reasonable-effort delivery. Authenticated with service auth. */
+/** Import the authenticated account's space repo from a STAR file, for account migration. If the account is the space's authority, the space must first be imported with importSpaceMeta. Requires auth, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
-  'FutureRev',
+  'InvalidRepoFile',
+  'RepoMismatch',
 ])
 
 export { main }
