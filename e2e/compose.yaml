@@ -144,6 +144,10 @@ services:
   # volume, which the harness removes with the rest of the test bed.
   pds:
     image: ${PDS_IMAGE:-ghcr.io/bluesky-social/atproto:pds-spaces-alpha}
+    # The published alpha image only carries an amd64 manifest. On arm64 hosts
+    # Docker must be told to pull and emulate that variant (on amd64 this is a
+    # no-op).
+    platform: linux/amd64
     # The image runs as `node` but has no /pds, so the volume mounted there is
     # root's.
     user: root

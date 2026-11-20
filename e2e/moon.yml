@@ -24,6 +24,23 @@ tasks:
     options:
       runInCI: false
       cache: false
+  # Interactive Playwright UI mode (opens a server at http://localhost:9323).
+  # Uses the same compose test bed as `test`. Pass filters after `--`, e.g.
+  #   moon run e2e:test-ui -- tests/health.spec.ts
+  test-ui:
+    command: pnpm
+    args:
+      - exec
+      - playwright
+      - test
+      - --ui
+    inputs:
+      - /pnpm-lock.yaml
+      - "**/*"
+    options:
+      runInCI: false
+      cache: false
+      persistent: true
   typecheck:
     command: pnpm
     args:
