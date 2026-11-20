@@ -1,0 +1,374 @@
+# Local development stack. Every service runs in Compose so each worktree gets
+# its own containers/volumes (Compose derives the project name from the worktree
+# directory). Only Caddy publishes a host port.
+#
+# Backing services have no profile and always start. App dev servers are
+# grouped into profiles so `moon run chalk:dev` only brings up what it needs.
+
+x-dev-env: &devEnv
+  HABITAT_DEBUG: 'true'
+  HABITAT_PRETTY_LOGS: 'true'
+  HABITAT_SERVICE_NAME: habitat_local
+  # Kept bare: indigo's did:web resolver rejects hosts containing a port, so
+  # HABITAT_DOMAIN (used for both https:// URLs and did:web:) must stay a
+  # hostname. The browser-facing port goes in VITE_BASE_URL below.
+  HABITAT_DOMAIN: pear.local.habitat.network
+  HABITAT_PORT: '8000'
+  HABITAT_UI_DEV_PROXY: http://pear-pages:6010
+  HABITAT_PDS_OAUTH_CLIENT_URI: ${NGROK_DOMAIN:-}
+  HABITAT_DB: postgres://habitat:habitat@postgres:5432/habitat?sslmode=disable
+  # Add the host Caddy CA to (not replace) Go's system roots, so fetching an
+  # app's client metadata over https://*.local.habitat.network works.
+  SSL_CERT_DIR: /etc/ssl/certs:/caddy-ca
+  HABITAT_MEILISEARCH_URL: http://meilisearch:7700
+  HABITAT_MCP_TEXT_OVERRIDES: 'true'
+  HABITAT_MCP_ALLOW_PRIVATE_NETWORKS: 'true'
+  # Throwaway dev keys (same values the old moon-based dev env used).
+  HABITAT_SPACE_SIGNING_KEY: z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd
+  HABITAT_PDS_CRED_ENCRYPT_KEY: WRlpsucNQl8AVO1qNN+T+hzbVtYjdoF21QfF+0uDJSM=
+  HABITAT_OAUTH_SERVER_SECRET: KFLA79A/GPPsxz+y5kk7dLX2Nxxe7RM9Ik96rD2tO4c=
+  HABITAT_OAUTH_CLIENT_SECRET: RL4fcDJiumyAEMJ5US0WWu/QKDallQAZ/2GJHz99d4Y=
+
+x-app-volumes: &appVolumes
+  - .:/workspace
+  # pnpm's virtual store, so Linux-native binaries (esbuild, workerd, ...)
+  # aren't picked up from a macOS host install.
+  - node_modules:/workspace/node_modules
+  # pnpm's content-addressed store, kept out of the worktree.
+  - pnpm_store:/pnpm
+  # The host's Caddy CA, already trusted by the host browser. workerd only
+  # trusts public CAs plus this bundle (NODE_EXTRA_CA_CERTS).
+  - ${HOME}/Library/Application Support/Caddy/pki/authorities/local:/caddy-ca:ro
+
+x-go-volumes: &goVolumes
+  - .:/workspace
+  - go_mod_cache:/go/pkg/mod
+  - go_build_cache:/root/.cache/go-build
+  # Go uses this to trust the Caddy-signed certs of the apps it fetches.
+  - ${HOME}/Library/Application Support/Caddy/pki/authorities/local:/caddy-ca:ro
+
+# Official air image, pinned to the digest that ships Go 1.27.0 (go.mod needs
+# >= 1.27.0). The v1.67.4 tag still ships Go 1.26.5, so it can't build here.
+x-air-image: &airImage cosmtrek/air@sha256:488f567197857101ee5929191408fe0c9b833dd7a79695715b56eff52cb196d6
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: habitat
+      POSTGRES_PASSWORD: habitat
+      POSTGRES_DB: habitat
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U habitat -d habitat']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.54.2
+    environment:
+      MEILI_ENV: development
+      MEILI_DB_PATH: /data.ms
+      # Permissive on purpose: dev embedders commonly run on the host via
+      # host.docker.internal, whose address isn't loopback from this container.
+      MEILI_EXPERIMENTAL_ALLOWED_IP_NETWORKS: 0.0.0.0/0
+    volumes:
+      - meilisearch_data:/data.ms
+
+  caddy:
+    image: caddy:2.11-alpine
+    # The single host-facing port. :443 keeps *.local.habitat.network working;
+    # any other value is reached at *.local.habitat.network:PORT.
+    ports:
+      - '${HABITAT_DEV_PORT:-443}:${HABITAT_DEV_PORT:-443}'
+    environment:
+      HABITAT_DEV_PORT: ${HABITAT_DEV_PORT:-443}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # /data/caddy is Caddy's data dir (XDG_DATA_HOME=/data in the image).
+      # Reuse the host's CA so the browser already trusts these certs, and so
+      # every worktree gets certs from the same CA.
+      - ${HOME}/Library/Application Support/Caddy:/data/caddy
+      - caddy_config:/config
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    # Apps publish their client_id at their public https://*.local.habitat.network
+    # URL. Resolve those names to Caddy inside the network so pear (and sap)
+    # can fetch client metadata / DID docs from the same URL the browser uses.
+    networks:
+      default:
+        aliases:
+          - frontend.local.habitat.network
+          - pear.local.habitat.network
+          - chalk.local.habitat.network
+          - drop.local.habitat.network
+          - brain.local.habitat.network
+          - app.local.habitat.network
+          - sap.local.habitat.network
+          - home.local.habitat.network
+    healthcheck:
+      test: ['CMD-SHELL', 'test -f /data/caddy/pki/authorities/local/root.crt']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  # One-shot: applies migrations before pear starts. Unprofiled so it always
+  # runs as part of any `up`.
+  pear-migrate:
+    image: *airImage
+    entrypoint: ['go']
+    command: ['run', './cmd/pear', 'migrate']
+    working_dir: /workspace
+    environment:
+      <<: *devEnv
+    volumes: *goVolumes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Migrations touch the search index, so meilisearch must be reachable
+      # even when this runs via `docker compose run` rather than `up`.
+      meilisearch:
+        condition: service_started
+
+  # One-shot backing `moon run pear:run -- <task> [args]`.
+  pear-task:
+    image: *airImage
+    profiles: [task]
+    entrypoint: ['go']
+    command: ['run', './cmd/pear', 'run']
+    working_dir: /workspace
+    environment:
+      <<: *devEnv
+    volumes: *goVolumes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+
+  pear:
+    image: *airImage
+    profiles: [pear, sap, frontend, chalk, brain, drop, app]
+    working_dir: /workspace
+    environment: *devEnv
+    volumes: *goVolumes
+    # Args go to the image's air entrypoint; everything after `--` is passed to
+    # pear. PDS OAuth client URI comes from HABITAT_PDS_OAUTH_CLIENT_URI (set
+    # from dev.env) rather than a flag, so it's simply unset without ngrok.
+    command:
+      - -c
+      - /workspace/.air.toml
+      - --root
+      - /workspace
+      - --build.cmd
+      - go build -o /workspace/bin/pear ./cmd/pear
+      - --build.entrypoint
+      - /workspace/bin/pear
+      - --build.include_dir
+      - cmd/pear,internal,api,pkg
+      - --build.poll
+      - 'true'
+      - --log.main_only
+      - 'true'
+      - --
+      - serve
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+      caddy:
+        condition: service_healthy
+      pear-migrate:
+        condition: service_completed_successfully
+      pear-pages:
+        condition: service_started
+
+  ngrok:
+    image: ngrok/ngrok:3-alpine
+    profiles: [pear, sap, frontend, chalk, brain, drop, app]
+    env_file:
+      - path: ./dev.env
+        required: false
+    command: ['http', '--url=${NGROK_DOMAIN:-}', 'pear:8000']
+    depends_on:
+      pear:
+        condition: service_started
+
+  sap:
+    image: *airImage
+    profiles: [sap]
+    working_dir: /workspace
+    environment:
+      SSL_CERT_DIR: /etc/ssl/certs:/caddy-ca
+      SAP_SECRET: z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX
+      SAP_IDENTITY_RESOLVER: https://pear.local.habitat.network
+      SAP_DOMAIN: sap.local.habitat.network
+      # Posts outbox events straight to the dev worker; no secret needed since
+      # nothing outside this Compose network can reach it.
+      SAP_WEBHOOK_URL: http://chalk:5173/webhook/sap
+    volumes: *goVolumes
+    command:
+      - -c
+      - /workspace/.air.toml
+      - --root
+      - /workspace
+      - --build.cmd
+      - go build -o /workspace/bin/sap ./cmd/sap
+      - --build.entrypoint
+      - /workspace/bin/sap
+      - --build.include_dir
+      - cmd/sap,internal,api,pkg
+      - --build.poll
+      - 'true'
+      - --log.main_only
+      - 'true'
+    depends_on:
+      pear:
+        condition: service_started
+      caddy:
+        condition: service_healthy
+
+  pear-pages:
+    build:
+      context: ./typescript
+      dockerfile: node-dev.Dockerfile
+    profiles: [pear, sap, frontend, chalk, brain, drop, app]
+    working_dir: /workspace/typescript/apps/pear-pages
+    env_file:
+      - path: ./dev.env
+        required: false
+    volumes: *appVolumes
+    command: ['pnpm', 'dev']
+
+  frontend:
+    build:
+      context: ./typescript
+      dockerfile: node-dev.Dockerfile
+    profiles: [frontend]
+    working_dir: /workspace/frontend
+    env_file:
+      - path: ./dev.env
+        required: false
+    environment:
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
+      # An explicit :443 is equivalent to no port, so this works for both the
+      # default and per-worktree ports without needing a derived suffix var.
+      VITE_BASE_URL: https://frontend.local.habitat.network:${HABITAT_DEV_PORT:-443}
+      HOME_SERVER_DID: did:web:home.local.habitat.network
+    volumes: *appVolumes
+    command: ['pnpm', 'dev']
+    depends_on:
+      pear:
+        condition: service_started
+      caddy:
+        condition: service_healthy
+
+  chalk:
+    build:
+      context: ./typescript
+      dockerfile: node-dev.Dockerfile
+    profiles: [chalk]
+    working_dir: /workspace/typescript/apps/chalk
+    env_file:
+      - path: ./dev.env
+        required: false
+    environment:
+      # Dev-only vars; the dev image writes these to the app's .dev.vars.
+      DEV_VAR_CHALK_SESSION_SECRET: chalk-dev-session-secret-0000000000000000
+      DEV_VAR_CHALK_CREDENTIALS_KEY: chalk-dev-credentials-key-000000000000000
+      DEV_VAR_CHALK_BASE_URL: https://chalk.local.habitat.network:${HABITAT_DEV_PORT:-443}
+      DEV_VAR_CHALK_HABITAT_URL: https://pear.local.habitat.network:${HABITAT_DEV_PORT:-443}
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
+      # workerd only trusts public CAs plus this bundle, not the keychain.
+      NODE_EXTRA_CA_CERTS: /caddy-ca/root.crt
+    volumes: *appVolumes
+    command: ['pnpm', 'dev']
+    depends_on:
+      pear:
+        condition: service_started
+      caddy:
+        condition: service_healthy
+
+  drop:
+    build:
+      context: ./typescript
+      dockerfile: node-dev.Dockerfile
+    profiles: [drop]
+    working_dir: /workspace/typescript/apps/drop
+    env_file:
+      - path: ./dev.env
+        required: false
+    environment:
+      DEV_VAR_DROP_SESSION_SECRET: drop-dev-session-secret-00000000000000000
+      DEV_VAR_DROP_CREDENTIALS_KEY: drop-dev-credentials-key-000000000000000
+      DEV_VAR_DROP_BASE_URL: https://drop.local.habitat.network:${HABITAT_DEV_PORT:-443}
+      DEV_VAR_DROP_HABITAT_URL: https://pear.local.habitat.network:${HABITAT_DEV_PORT:-443}
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
+      NODE_EXTRA_CA_CERTS: /caddy-ca/root.crt
+    volumes: *appVolumes
+    command: ['pnpm', 'dev']
+    depends_on:
+      pear:
+        condition: service_started
+      caddy:
+        condition: service_healthy
+
+  brain:
+    build:
+      context: ./typescript
+      dockerfile: node-dev.Dockerfile
+    profiles: [brain]
+    working_dir: /workspace/typescript/apps/brain
+    env_file:
+      - path: ./dev.env
+        required: false
+    environment:
+      DEV_VAR_BRAIN_SESSION_SECRET: brain-dev-session-secret-0000000000000000
+      DEV_VAR_BRAIN_CREDENTIALS_KEY: brain-dev-credentials-key-000000000000000
+      DEV_VAR_BRAIN_BASE_URL: https://brain.local.habitat.network:${HABITAT_DEV_PORT:-443}
+      DEV_VAR_BRAIN_HABITAT_URL: https://pear.local.habitat.network:${HABITAT_DEV_PORT:-443}
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
+      NODE_EXTRA_CA_CERTS: /caddy-ca/root.crt
+    volumes: *appVolumes
+    command: ['pnpm', 'dev']
+    depends_on:
+      pear:
+        condition: service_started
+      caddy:
+        condition: service_healthy
+
+  app:
+    build:
+      context: ./typescript
+      dockerfile: node-dev.Dockerfile
+    profiles: [app]
+    working_dir: /workspace/typescript/apps/app
+    env_file:
+      - path: ./dev.env
+        required: false
+    environment:
+      DEV_VAR_APP_SESSION_SECRET: app-dev-session-secret-000000000000000000
+      DEV_VAR_APP_CREDENTIALS_KEY: app-dev-credentials-key-0000000000000000
+      DEV_VAR_APP_BASE_URL: https://app.local.habitat.network:${HABITAT_DEV_PORT:-443}
+      DEV_VAR_APP_HABITAT_URL: https://pear.local.habitat.network:${HABITAT_DEV_PORT:-443}
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
+      NODE_EXTRA_CA_CERTS: /caddy-ca/root.crt
+    volumes: *appVolumes
+    command: ['pnpm', 'dev']
+    depends_on:
+      pear:
+        condition: service_started
+      caddy:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  meilisearch_data:
+  caddy_config:
+  node_modules:
+  pnpm_store:
+  go_mod_cache:
+  go_build_cache:
