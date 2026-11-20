@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Separator, SidebarTrigger } from "internal/components/ui";
+import { SidebarTrigger } from "internal/components/ui";
 
 // PageHeader is the bar along the top of every page: the sidebar toggle,
 // the page's title, and its actions on the right.
