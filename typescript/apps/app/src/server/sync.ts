@@ -11,6 +11,8 @@ import {
 } from "internal/spaceSync";
 import { DrizzleSyncStore } from "internal/spaceSync/drizzle";
 import { docAccessSubjects, docByUri, getDb, memberDidsOf } from "@/db";
+import { APP_SPACE_TYPE } from "./apps/apps.server";
+import { AppRecordSink } from "./apps/sink";
 import { docSpaceUriForComments } from "./docs/comments.server";
 import { DocSink } from "./docs/sink";
 import { FILE_SPACE_TYPE } from "./files/files.server";
@@ -89,13 +91,15 @@ export async function issueDelegation(
 }
 
 // AppSink sends each batch to the sink for its space's type: file spaces to
-// Drop's FileSink, groups' members spaces to the MembershipSink, everything
-// else (doc and comments spaces) to Chalk's DocSink.
+// Drop's FileSink, app spaces to the AppRecordSink, groups' members spaces
+// to the MembershipSink, everything else (doc and comments spaces) to
+// Chalk's DocSink.
 export class AppSink implements PromiseSyncSink {
   constructor(
     private docs: DocSink,
     private files: FileSink,
     private members: MembershipSink,
+    private apps: AppRecordSink,
   ) {}
 
   // for builds the sink the group streams index with. Crdt blobs are read
@@ -108,6 +112,7 @@ export class AppSink implements PromiseSyncSink {
       }),
       new FileSink({ db }),
       new MembershipSink({ db }),
+      new AppRecordSink({ db }),
     );
   }
 
@@ -115,6 +120,7 @@ export class AppSink implements PromiseSyncSink {
     const type = SpaceRef.parse(batch.space).spaceType;
     if (type === FILE_SPACE_TYPE) return this.files.apply(batch, signal);
     if (type === MEMBERS_SPACE_TYPE) return this.members.apply(batch, signal);
+    if (type === APP_SPACE_TYPE) return this.apps.apply(batch, signal);
     return this.docs.apply(batch, signal);
   }
 }

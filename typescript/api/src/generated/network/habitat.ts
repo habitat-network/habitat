@@ -3,6 +3,7 @@
  */
 
 export * as admin from './habitat/admin.js'
+export * as apps from './habitat/apps.js'
 export * as brain from './habitat/brain.js'
 export * as docs from './habitat/docs.js'
 export * as drop from './habitat/drop.js'

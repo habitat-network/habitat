@@ -10,3 +10,4 @@ export type Db = ReturnType<typeof getDb>;
 export * from "./docs";
 export * from "./files";
 export * from "./memberships";
+export * from "./apps";
