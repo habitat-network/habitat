@@ -38,6 +38,7 @@ import (
 	"github.com/habitat-network/habitat/internal/simplespace"
 
 	"github.com/habitat-network/habitat/internal/pdsoauth"
+	"github.com/habitat-network/habitat/internal/remotesync"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/spacestream"
@@ -403,6 +404,16 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, err
 	}
 
+	// External writers (members on their own PDSes) only notifyWrite; the
+	// remote syncer fetches their records from there so subscribe streams
+	// carry them, and wakes the streams as it stores them.
+	remoteSync, err := remotesync.New(
+		spacesStore, defaultDir, hive, hostKey, httpx.NewClient(), spaceEvents,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("setup remote sync: %w", err)
+	}
+
 	app := pearapp.New(
 		database,
 		domain,
@@ -440,6 +451,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		searchConfigStore,
 		fedSearch,
 		spaceEvents,
+		remoteSync,
 	)
 	if cmd.Bool(fInsecureWebhooks) {
 		// Webhook endpoints are reached like any other address, so a test bed's

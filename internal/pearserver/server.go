@@ -21,6 +21,7 @@ import (
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/remotesync"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -94,6 +95,8 @@ type PearServer struct {
 
 	// spaceStream serves network.habitat.space.subscribe.
 	spaceStream *spacestream.Server
+	// remoteSync fetches external writers' records; nil leaves them unfetched.
+	remoteSync *remotesync.Syncer
 }
 
 // New creates a PearServer with the given dependencies and prepares
@@ -126,6 +129,7 @@ func New(app *pearapp.App) *PearServer {
 		emailDomainStore:      app.EmailDomainStore,
 		searcher:              app.Searcher,
 		searchConfig:          app.SearchConfig,
+		remoteSync:            app.RemoteSync,
 	}
 	spaceEvents := app.SpaceEvents
 	if spaceEvents == nil {

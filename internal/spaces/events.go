@@ -1,8 +1,10 @@
 package spaces
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -140,6 +142,13 @@ func hasPendingEvents(db *gorm.DB) (bool, error) {
 	if len(revs) > 0 {
 		return true, nil
 	}
+	if err := db.Unscoped().Model(&spaceRemoteRecord{}).
+		Where("seq = 0").Limit(1).Pluck("rev", &revs).Error; err != nil {
+		return false, fmt.Errorf("check pending remote records: %w", err)
+	}
+	if len(revs) > 0 {
+		return true, nil
+	}
 	var owners []string
 	if err := db.Model(&deletedSpace{}).
 		Where("seq = 0").Limit(1).Pluck("owner", &owners).Error; err != nil {
@@ -149,8 +158,8 @@ func hasPendingEvents(db *gorm.DB) (bool, error) {
 }
 
 // sequenceBatch numbers up to sequenceBatchSize pending rows in one
-// transaction, records first in rev order, then space deletions, and returns
-// how many it numbered.
+// transaction, records first in rev order, then records fetched from external
+// repos in rev order, then space deletions, and returns how many it numbered.
 //
 // The counter row's lock, held until commit, is what orders seqs: a seq only
 // becomes visible once every lower one has committed. Pending rows are locked
@@ -189,8 +198,30 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 			}
 		}
 
-		var deletions []deletedSpace
+		// Records fetched from external repos' PDSes, also in rev order.
+		var remotes []spaceRemoteRecord
 		if room := sequenceBatchSize - len(records); room > 0 {
+			if err := tx.Unscoped().Clauses(skipLocked).
+				Select("space", "repo", "collection", "rkey", "rev").
+				Where("seq = 0").Order("rev ASC").Limit(room).
+				Find(&remotes).Error; err != nil {
+				return fmt.Errorf("list pending remote records: %w", err)
+			}
+		}
+		for _, r := range remotes {
+			head++
+			// Matching the rev leaves a row a later fetch has rewritten since,
+			// pending again, for the next batch.
+			if err := tx.Unscoped().Model(&spaceRemoteRecord{}).
+				Where("space = ? AND repo = ? AND collection = ? AND rkey = ? AND rev = ?",
+					r.Space, r.Repo, r.Collection, r.Rkey, r.Rev).
+				Update("seq", head).Error; err != nil {
+				return fmt.Errorf("sequence remote record: %w", err)
+			}
+		}
+
+		var deletions []deletedSpace
+		if room := sequenceBatchSize - len(records) - len(remotes); room > 0 {
 			if err := tx.Clauses(skipLocked).
 				Where("seq = 0").Order("deleted_at ASC").Limit(room).
 				Find(&deletions).Error; err != nil {
@@ -206,7 +237,7 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 			}
 		}
 
-		n = len(records) + len(deletions)
+		n = len(records) + len(remotes) + len(deletions)
 		if n == 0 {
 			return nil
 		}
@@ -253,6 +284,22 @@ func (s *store) ListEvents(
 		return nil, fmt.Errorf("list record events: %w", err)
 	}
 
+	// Records external repos hold on their own PDSes, as fetched from there.
+	remoteQuery := db.Unscoped().Model(&spaceRemoteRecord{}).Where("seq >= ?", cursor)
+	if len(filter.Spaces) > 0 {
+		remoteQuery = remoteQuery.Where("space IN ?", filter.Spaces)
+	}
+	if len(filter.Repos) > 0 {
+		remoteQuery = remoteQuery.Where("repo IN ?", filter.Repos)
+	}
+	if cond, args := collectionCondition(filter); cond != "" {
+		remoteQuery = remoteQuery.Where(cond, args...)
+	}
+	var remotes []spaceRemoteRecord
+	if err := remoteQuery.Order("seq ASC").Limit(limit).Find(&remotes).Error; err != nil {
+		return nil, fmt.Errorf("list remote record events: %w", err)
+	}
+
 	deletionQuery := db.Model(&deletedSpace{}).Where("seq >= ?", cursor)
 	if len(filter.Spaces) > 0 {
 		cond, args := spaceKeyCondition(filter.Spaces)
@@ -263,28 +310,35 @@ func (s *store) ListEvents(
 		return nil, fmt.Errorf("list space deletion events: %w", err)
 	}
 
-	// Merge the two seq-ordered lists, keeping the first limit events. Each
-	// list was capped at limit, so fewer than limit merged means both ran out.
-	events := make([]Event, 0, min(limit, len(records)+len(deletions)))
-	i, j := 0, 0
-	for len(events) < limit && (i < len(records) || j < len(deletions)) {
-		if j >= len(deletions) || (i < len(records) && records[i].Seq < deletions[j].Seq) {
-			event, err := commitEvent(records[i])
-			if err != nil {
-				return nil, err
-			}
-			events = append(events, event)
-			i++
-			continue
+	// Merge the seq-ordered lists, keeping the first limit events. Each list
+	// was capped at limit, so the first limit of their union are among them,
+	// and fewer than limit merged means every list ran out.
+	events := make([]Event, 0, len(records)+len(remotes)+len(deletions))
+	for _, r := range records {
+		event, err := commitEvent(r)
+		if err != nil {
+			return nil, err
 		}
-		d := deletions[j]
+		events = append(events, event)
+	}
+	for _, r := range remotes {
+		event, err := remoteCommitEvent(r)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	for _, d := range deletions {
 		events = append(events, SpaceDeletedEvent{
 			Seq:   d.Seq,
 			Space: habitat_syntax.ConstructSpaceURI(d.Owner, d.Type, d.Skey),
 			Time:  d.DeletedAt,
 		})
-		j++
 	}
+	slices.SortFunc(events, func(a, b Event) int {
+		return cmp.Compare(a.EventSeq(), b.EventSeq())
+	})
+	events = events[:min(limit, len(events))]
 	span.SetAttributes(attribute.Int("habitat.events", len(events)))
 	return events, nil
 }

@@ -81,4 +81,9 @@ func (p *PearServer) NotifyWrite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("register remote write: %w", err))
 		return
 	}
+	// Fetch the records the write added from the writer's PDS, so the
+	// space's event log carries them.
+	if p.remoteSync != nil {
+		p.remoteSync.Queue(spaceURI, repo)
+	}
 }

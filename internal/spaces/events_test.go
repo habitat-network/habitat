@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -273,4 +275,100 @@ func TestEventsFilter(t *testing.T) {
 			require.Equal(t, tt.want, commitKeys(t, listAll(t, s, tt.filter)))
 		})
 	}
+}
+
+// remoteNote is a fetched op putting a note, or deleting it when text is
+// empty.
+func remoteNote(t *testing.T, rev syntax.TID, rkey syntax.RecordKey, text string) spaces.RemoteOp {
+	t.Helper()
+	op := spaces.RemoteOp{Rev: rev, Collection: noteCollection, Rkey: rkey}
+	if text == "" {
+		return op
+	}
+	record := spaces_testutil.MustMarshalRecord(t, map[string]any{"text": text})
+	c, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(record)
+	require.NoError(t, err)
+	op.Value = record
+	op.Cid = c.String()
+	return op
+}
+
+func TestEventsIncludeExternalWritersRecords(t *testing.T) {
+	testExternalWritersRecords(t, spaces_testutil.NewTestStore(t))
+}
+
+// testExternalWritersRecords checks that records fetched from an external
+// writer's PDS are carried by s's event log.
+func testExternalWritersRecords(t *testing.T, s spaces.Store) {
+	ctx := t.Context()
+	space, err := s.CreateSpace(ctx, orgID, groupType, "external")
+	require.NoError(t, err)
+	external := syntax.DID("did:plc:external")
+	clock := syntax.NewTIDClock(0)
+	rev1, rev2, rev3 := clock.Next(), clock.Next(), clock.Next()
+
+	// A local writer isn't an external one.
+	putNote(t, s, space, alice, noteCollection, "a", "local")
+	_, err = s.GetRemoteRepo(ctx, space, alice)
+	require.ErrorIs(t, err, spaces.ErrRepoNotRemote)
+
+	require.NoError(t, s.RegisterRemoteWrite(ctx, space, external, rev2, []byte("digest")))
+	behind, err := s.ListRemoteReposBehind(ctx)
+	require.NoError(t, err)
+	require.Len(t, behind, 1)
+	require.Equal(t, external, behind[0].Repo)
+	require.Empty(t, behind[0].SyncedRev)
+	require.Equal(t, rev2, behind[0].ReportedRev)
+
+	require.NoError(t, s.ApplyRemoteSync(ctx, space, external, spaces.RemoteSync{
+		Ops: []spaces.RemoteOp{
+			remoteNote(t, rev1, "x", "one"),
+			remoteNote(t, rev2, "y", "two"),
+		},
+		Rev:     rev2,
+		Rebuild: true,
+	}))
+	behind, err = s.ListRemoteReposBehind(ctx)
+	require.NoError(t, err)
+	require.Empty(t, behind)
+	require.Equal(t, []string{
+		"did:plc:alice network.habitat.note/a create",
+		"did:plc:external network.habitat.note/x create",
+		"did:plc:external network.habitat.note/y create",
+	}, commitKeys(t, listAll(t, s, spaces.EventFilter{})))
+	events := listAll(t, s, spaces.EventFilter{Repos: []syntax.DID{external}})
+	first, ok := events[0].(spaces.CommitEvent)
+	require.True(t, ok)
+	require.Equal(t, "one", first.Value["text"])
+	require.True(t, first.Cid.Defined())
+	require.Equal(t, space, first.Space)
+
+	// Later ops replace the records they name, compacted like local ones,
+	// and the collection filter applies to them.
+	require.NoError(t, s.RegisterRemoteWrite(ctx, space, external, rev3, []byte("digest 2")))
+	update := remoteNote(t, rev3, "x", "one, edited")
+	update.Prev = first.Cid.String()
+	require.NoError(t, s.ApplyRemoteSync(ctx, space, external, spaces.RemoteSync{
+		Ops: []spaces.RemoteOp{update, remoteNote(t, rev3, "y", "")},
+		Rev: rev3,
+	}))
+	require.Equal(t, []string{
+		"did:plc:external network.habitat.note/x update",
+		"did:plc:external network.habitat.note/y delete",
+	}, commitKeys(t, listAll(t, s, spaces.EventFilter{Repos: []syntax.DID{external}})))
+	require.Empty(t, listAll(t, s, spaces.EventFilter{
+		Repos:       []syntax.DID{external},
+		Collections: []syntax.NSID{likeCollection},
+	}))
+	remote, err := s.GetRemoteRepo(ctx, space, external)
+	require.NoError(t, err)
+	require.Equal(t, rev3, remote.SyncedRev)
+	require.False(t, remote.Behind())
+
+	// Deleting the space drops the fetched records with it.
+	require.NoError(t, s.DeleteSpace(ctx, space))
+	require.Equal(t, []string{
+		"did:plc:alice network.habitat.note/a delete",
+		"deleted " + string(space),
+	}, commitKeys(t, listAll(t, s, spaces.EventFilter{})))
 }

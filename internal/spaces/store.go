@@ -249,6 +249,33 @@ type Store interface {
 		hash []byte,
 	) error
 
+	// External repos' records
+	//
+	// The space host fetches the records of its external writers (Remote
+	// repos, see RegisterRemoteWrite) from their own PDSes so its event log
+	// carries them; see package remotesync. They are kept apart from the
+	// records written through this host and served only by the event log.
+	//
+	// GetRemoteRepo returns how far an external writer has been fetched, or
+	// ErrRepoNotRemote if repo isn't one.
+	GetRemoteRepo(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+	) (RemoteRepo, error)
+	// ListRemoteReposBehind lists the external writers whose PDS reported a
+	// rev past what has been fetched.
+	ListRemoteReposBehind(ctx context.Context) ([]RemoteRepo, error)
+	// ApplyRemoteSync stores a batch of ops fetched from an external writer
+	// and the fetch position after it, in one transaction. Each op becomes
+	// its record's latest write in the event log.
+	ApplyRemoteSync(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		sync RemoteSync,
+	) error
+
 	// Record operations
 	//
 	// PutRecord takes the record value as a [MarshaledRecord] — callers must
@@ -373,7 +400,8 @@ type Store interface {
 	// seq themselves, so they never contend on the log; sequencing runs on its
 	// own and only ever sees committed rows, which is what keeps seqs
 	// becoming visible in order. Records are sequenced in rev order, then
-	// space deletions.
+	// records fetched from external writers in rev order, then space
+	// deletions.
 	SequenceEvents(ctx context.Context) (EventSeq, error)
 	// ListEvents returns the sequenced events at seq >= cursor that match
 	// filter, in seq order, at most limit of them. Fewer than limit means the
@@ -1375,6 +1403,19 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 			return err
 		}
 
+		// And the copies of external writers' records, with how far they were
+		// fetched: the space's deletion event supersedes them.
+		if err := tx.Unscoped().
+			Where("space = ?", uri).
+			Delete(&spaceRemoteRecord{}).Error; err != nil {
+			return err
+		}
+		if err := tx.
+			Where("space = ?", uri).
+			Delete(&spaceRemoteSync{}).Error; err != nil {
+			return err
+		}
+
 		// Drop the permissioned repos along with the records they cached a
 		// hash of. They are the writer set listSpaces reads, so leaving them
 		// behind would keep a deleted space on its writers' listings.
@@ -1882,5 +1923,6 @@ func (s *store) ApplyWrites(
 func Models() []any {
 	return []any{
 		&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}, &deletedSpace{}, &spaceEventSeq{},
+		&spaceRemoteRecord{}, &spaceRemoteSync{},
 	}
 }
