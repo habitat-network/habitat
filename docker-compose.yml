@@ -21,11 +21,10 @@ x-dev-env: &devEnv
   # app's client metadata over https://*.local.habitat.network works.
   SSL_CERT_DIR: /etc/ssl/certs:/caddy-ca
   HABITAT_MEILISEARCH_URL: http://meilisearch:7700
-  # Send pear's traces to the dev Jaeger. This is the full OTLP/HTTP traces URL:
-  # signal-specific endpoints are used as-is (no /v1/traces appended). Only the
-  # trace signal is set because Jaeger doesn't ingest OTLP metrics or logs; those
-  # providers stay no-op in internal/telemetry/otel.go.
-  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+  # Send all OTLP signals (traces, metrics, logs) to the dev LGTM stack. The Go
+  # SDK appends /v1/traces, /v1/metrics and /v1/logs to the generic endpoint
+  # (see internal/telemetry/otel.go), all of which the LGTM collector accepts.
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
   HABITAT_MCP_TEXT_OVERRIDES: 'true'
   HABITAT_MCP_ALLOW_PRIVATE_NETWORKS: 'true'
   # Throwaway dev keys (same values the old moon-based dev env used).
@@ -82,11 +81,15 @@ services:
     volumes:
       - meilisearch_data:/data.ms
 
-  # All-in-one Jaeger: OTLP/gRPC :4317, OTLP/HTTP :4318, UI/API :16686.
-  # Default config uses transient in-memory storage and exposes no host port;
-  # the UI is reachable through Caddy at jaeger.local.habitat.network.
-  jaeger:
-    image: jaegertracing/jaeger:2.23.0
+  # All-in-one OTel backend: OpenTelemetry Collector, Tempo (traces),
+  # Prometheus (metrics), Loki (logs), Pyroscope (profiles) and Grafana (UI on
+  # :3000). OTLP/HTTP is ingested on :4318 (gRPC :4317). No host port is
+  # published; Grafana is reachable via Caddy at grafana.local.habitat.network.
+  lgtm:
+    image: grafana/otel-lgtm:0.41.0
+    environment:
+      # Grafana builds absolute URLs, so tell it the browser-facing address.
+      GF_SERVER_ROOT_URL: https://grafana.local.habitat.network:${HABITAT_DEV_PORT:-443}
 
   caddy:
     image: caddy:2.11-alpine
@@ -119,7 +122,7 @@ services:
           - app.local.habitat.network
           - sap.local.habitat.network
           - home.local.habitat.network
-          - jaeger.local.habitat.network
+          - grafana.local.habitat.network
     healthcheck:
       test: ['CMD-SHELL', 'test -f /data/caddy/pki/authorities/local/root.crt']
       interval: 2s
@@ -197,7 +200,7 @@ services:
         condition: service_completed_successfully
       pear-pages:
         condition: service_started
-      jaeger:
+      lgtm:
         condition: service_started
 
   ngrok:

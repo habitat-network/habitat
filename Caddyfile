@@ -55,7 +55,7 @@ home.local.habitat.network:{$HABITAT_DEV_PORT} {
 	tls internal
 }
 
-jaeger.local.habitat.network:{$HABITAT_DEV_PORT} {
-	reverse_proxy jaeger:16686
+grafana.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy lgtm:3000
 	tls internal
 }
