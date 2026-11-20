@@ -31,7 +31,7 @@ func TestSignVerify(t *testing.T) {
 		require.NoError(t, httpsig.Sign(r, key, comps...))
 		require.Equal(
 			t,
-			`atproto-space-credential=("authorization" "atproto-space-audience");tag="atproto-space-credential"`,
+			`sig=("authorization" "atproto-space-audience");tag="atproto-space-credential"`,
 			r.Header.Get("Signature-Input"),
 		)
 		require.NoError(t, httpsig.VerifyBound(r, pub.DIDKey(), comps...))
@@ -128,7 +128,7 @@ func TestVerifyReferenceClient(t *testing.T) {
 			strings.TrimSuffix(refInput, `;tag="atproto-space-credential"`),
 		)
 		err := httpsig.VerifyBound(r, refKey, comps...)
-		require.ErrorContains(t, err, "tag")
+		require.ErrorIs(t, err, httpsig.ErrNoSignature)
 	})
 
 	t.Run("wrong tag", func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestVerifyReferenceClient(t *testing.T) {
 			strings.Replace(refInput, `tag="atproto-space-credential"`, `tag="other"`, 1),
 		)
 		err := httpsig.VerifyBound(r, refKey, comps...)
-		require.ErrorContains(t, err, "tag")
+		require.ErrorIs(t, err, httpsig.ErrNoSignature)
 	})
 
 	t.Run("wrong alg", func(t *testing.T) {
@@ -148,7 +148,24 @@ func TestVerifyReferenceClient(t *testing.T) {
 		require.ErrorContains(t, err, "algorithm")
 	})
 
-	t.Run("old label", func(t *testing.T) {
+	// The label isn't signed and carries no meaning: newer clients label it
+	// "sig", and the signature is found by its tag.
+	t.Run("any label", func(t *testing.T) {
+		r := use()
+		r.Header.Set("Signature-Input", strings.Replace(refInput, "atproto-space-credential=", "sig=", 1))
+		r.Header.Set("Signature", strings.Replace(refSig, "atproto-space-credential=", "sig=", 1))
+		require.NoError(t, httpsig.VerifyBound(r, refKey, comps...))
+	})
+
+	t.Run("two signatures with the tag", func(t *testing.T) {
+		r := use()
+		r.Header.Set("Signature-Input", refInput+", "+strings.Replace(refInput, "atproto-space-credential=", "sig=", 1))
+		r.Header.Set("Signature", refSig+", "+strings.Replace(refSig, "atproto-space-credential=", "sig=", 1))
+		err := httpsig.VerifyBound(r, refKey, comps...)
+		require.ErrorContains(t, err, "more than one")
+	})
+
+	t.Run("untagged", func(t *testing.T) {
 		r := use()
 		r.Header.Set("Signature-Input", `atproto-space=("authorization" "atproto-space-audience")`)
 		r.Header.Set(

@@ -36,6 +36,9 @@ services:
       SSL_CERT_FILE: /certs/cert.pem
       # Resolves the PDS accounts' did:plc DIDs against the local directory.
       HABITAT_PLC_URL: http://plc:2582
+      # The app's space syncer registers for notifications at its own origin,
+      # which is on this private network.
+      HABITAT_INSECURE_WEBHOOKS: "true"
     # The server does not migrate on startup, so migrate first.
     command: ["sh", "-c", "/app/pear migrate && exec /app/pear serve"]
     dns: [10.231.17.53]

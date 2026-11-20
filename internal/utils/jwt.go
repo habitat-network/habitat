@@ -6,9 +6,22 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	// Registers the ES256K and ES256 signing methods for atcrypto keys.
+	_ "github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// signingMethod is the JWT algorithm for key: ES256 for a P-256 key, ES256K
+// for a K-256 one. (indigo's signing methods sign with whatever key they are
+// given, so the header is all that differs, but verifiers such as the atproto
+// PDS check it against the issuer's published key.)
+func signingMethod(key atcrypto.PrivateKey) jwt.SigningMethod {
+	if _, ok := key.(*atcrypto.PrivateKeyP256); ok {
+		return jwt.GetSigningMethod("ES256")
+	}
+	return jwt.GetSigningMethod("ES256K")
+}
 
 func ServiceAuthToken(
 	privateKey atcrypto.PrivateKey,
@@ -25,7 +38,7 @@ func ServiceAuthToken(
 	} else {
 		ttl = new(60 * time.Second)
 	}
-	return jwt.NewWithClaims(jwt.GetSigningMethod("ES256K"), jwt.MapClaims{
+	return jwt.NewWithClaims(signingMethod(privateKey), jwt.MapClaims{
 		"exp": jwt.NewNumericDate(time.Now().Add(*ttl)),
 		"iat": jwt.NewNumericDate(time.Now()),
 		"iss": iss.String(),
@@ -75,12 +88,12 @@ func SpaceCredential(
 		opt(claims)
 	}
 	return new(jwt.Token{
-		Method: jwt.GetSigningMethod("ES256K"),
+		Method: signingMethod(privateKey),
 		Claims: claims,
 		Header: map[string]any{
 			"typ": "atproto-space-credential+jwt",
 			"kid": "#atproto",
-			"alg": "ES256K",
+			"alg": signingMethod(privateKey).Alg(),
 		},
 	}).SignedString(privateKey)
 }
@@ -92,7 +105,7 @@ func DelegationToken(
 	space habitat_syntax.SpaceURI,
 ) (string, error) {
 	return new(jwt.Token{
-		Method: jwt.GetSigningMethod("ES256K"),
+		Method: signingMethod(privateKey),
 		Claims: jwt.MapClaims{
 			"iss": iss,
 			"sub": space.String(),
@@ -104,7 +117,7 @@ func DelegationToken(
 		Header: map[string]any{
 			"typ": "atproto-space-delegation+jwt",
 			"kid": kid,
-			"alg": "ES256K",
+			"alg": signingMethod(privateKey).Alg(),
 		},
 	}).SignedString(privateKey)
 }

@@ -143,6 +143,7 @@ func writeTestStar(
 		require.NoError(t, err)
 		require.NoError(t, w.WritePair([]byte(rec.path), b))
 	}
+	require.NoError(t, w.Close())
 	return buf.Bytes()
 }
 

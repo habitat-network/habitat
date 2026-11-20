@@ -4,7 +4,7 @@ import {
   Secp256k1Keypair,
   formatDidKey,
 } from "@atproto/crypto";
-import type { Commit } from "@atproto/space";
+import type { SpaceCommit as Commit } from "@atproto/space";
 import { describe, expect, it } from "vitest";
 import {
   COMMIT_MAC_PROFILE,

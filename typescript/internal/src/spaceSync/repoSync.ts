@@ -1,7 +1,7 @@
 /// <reference lib="esnext.disposable" />
 import { type Cid, parseCid } from "@atproto/lex";
 import {
-  type Commit,
+  type SpaceCommit as Commit,
   RepoCommit,
   type VerifiedRecord,
   readRepoStar,

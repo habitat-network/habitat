@@ -52,7 +52,13 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	records, commit, err := p.spacesStore.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
+	// The cursor is the rev of the last op on the previous page, and takes
+	// precedence over since (the caller's sync position) as the lexicon says.
+	since := params.Since
+	if params.Cursor != "" {
+		since = params.Cursor
+	}
+	records, commit, err := p.spacesStore.ListRepoOps(ctx, spaceURI, repoDID, since, limit)
 	if errors.Is(err, spaces.ErrRevTooFar) {
 		httpx.WriteError(ctx, w, "RevNotFound",
 			"since revision is ahead of the repo head", http.StatusBadRequest)
@@ -76,8 +82,8 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 				Rev:        rec.Rev,
 				Collection: rec.Collection.String(),
 				Rkey:       rec.Rkey.String(),
-				Prev:       rec.Prev,
-				Cid:        rec.Cid.String(),
+				Prev:       opPrev(rec),
+				Cid:        opCid(rec),
 			}
 			if !params.ExcludeValues {
 				ops[i].Value = rec.Value
@@ -99,8 +105,8 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 			Rev:        rec.Rev,
 			Collection: rec.Collection.String(),
 			Rkey:       rec.Rkey.String(),
-			Prev:       rec.Prev,
-			Cid:        rec.Cid.String(),
+			Prev:       opPrev(rec),
+			Cid:        opCid(rec),
 		}
 		if !params.ExcludeValues {
 			ops[i].Value = rec.Value
@@ -116,4 +122,21 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		output.Commit = new(commit.ToXRPC())
 	}
 	httpx.WriteJSON(r.Context(), w, output)
+}
+
+// opPrev is an op's previous cid, or nil (encoded as null, as the lexicon
+// requires) for a create, which has none.
+func opPrev(rec spaces.Record) *string {
+	if rec.Prev == "" {
+		return nil
+	}
+	return &rec.Prev
+}
+
+// opCid is an op's cid, or nil (encoded as null) for a delete.
+func opCid(rec spaces.Record) *string {
+	if !rec.Cid.Defined() {
+		return nil
+	}
+	return new(rec.Cid.String())
 }

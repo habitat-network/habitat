@@ -2,7 +2,7 @@
 import { it } from "@effect/vitest";
 import { P256Keypair } from "@atproto/crypto";
 import { cidForRawBytes } from "@atproto/lex";
-import type { Commit } from "@atproto/space";
+import type { SpaceCommit as Commit } from "@atproto/space";
 import { Duration, Effect, Layer } from "effect";
 import { HttpResponse, delay, http } from "msw";
 import { describe, expect } from "vitest";

@@ -24,9 +24,9 @@ type NetworkHabitatSpaceListRepoOpsOutput struct {
 // NetworkHabitatSpaceListRepoOpsOpEntry represents a opEntry object
 type NetworkHabitatSpaceListRepoOpsOpEntry struct {
 	LexiconTypeID string      `json:"$type"`
-	Cid           string      `json:"cid"`
+	Cid           *string     `json:"cid"`
 	Collection    string      `json:"collection"`
-	Prev          string      `json:"prev"`
+	Prev          *string     `json:"prev"`
 	Rev           string      `json:"rev"`
 	Rkey          string      `json:"rkey"`
 	Value         interface{} `json:"value,omitempty"`
