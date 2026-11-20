@@ -3,14 +3,17 @@ import { defineConfig, type UserConfig } from "vite";
 import generateFile from "vite-plugin-generate-file";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
-import clientMetadata from "./internal/src/clientMetadata";
+import clientMetadata, {
+  MANAGE_SPACES_SCOPE,
+} from "./internal/src/clientMetadata";
 
 // Shared base Vite config for Habitat apps. Merge into an app's config with
 // `mergeConfig(habitatAppConfig({ name }), defineConfig({ ... }))`.
 export default function habitatAppConfig(options?: {
   name?: string;
 }): UserConfig {
-  process.env.VITE_BASE_URL = process.env.CF_PAGES_URL || process.env.VITE_BASE_URL;
+  process.env.VITE_BASE_URL =
+    process.env.CF_PAGES_URL || process.env.VITE_BASE_URL;
   return defineConfig({
     base: process.env.VITE_BASE_URL,
     server: {
@@ -44,6 +47,8 @@ export default function habitatAppConfig(options?: {
         data: clientMetadata(
           options?.name ?? "habitat",
           process.env.VITE_BASE_URL ?? "",
+          // The web client creates spaces and writes records in them.
+          MANAGE_SPACES_SCOPE,
         ),
         output: "client-metadata.json",
       }),

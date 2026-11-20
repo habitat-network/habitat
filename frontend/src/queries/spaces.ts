@@ -60,7 +60,7 @@ export function spacesListQueryOptions(
         {
           validateResponse: false,
           params: {
-            did: filter.did as DidString | undefined,
+            spaceDid: filter.did as DidString | undefined,
             spaceType: filter.spaceType as NsidString | undefined,
           },
         },

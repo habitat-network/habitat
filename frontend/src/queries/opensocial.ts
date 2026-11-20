@@ -52,8 +52,8 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
       const orgs: OrgSummary[] = [];
       for (const space of response.body.spaces) {
         orgs.push({
-          did: SpaceRef.parse(space.uri).spaceDid,
-          spaceUri: space.uri,
+          did: SpaceRef.parse(space.space).spaceDid,
+          spaceUri: space.space,
         });
       }
       return orgs;

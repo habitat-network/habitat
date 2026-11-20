@@ -53,6 +53,9 @@ export const PEAR_ORIGIN = `https://${PEAR_DOMAIN}`;
  */
 export const APP_ORIGIN = `https://app.${PEAR_DOMAIN}`;
 
+/** Where the alpha PDS (compose test bed only) is served, behind the same TLS proxy. */
+export const PDS_ORIGIN = `https://pds.${PEAR_DOMAIN}`;
+
 export interface PearInstance {
   /** host:port of pear's plain HTTP listener; used by Node-side API calls. */
   address: string;
@@ -60,6 +63,12 @@ export interface PearInstance {
   tlsAddress: string;
   /** Whether the web client is served at APP_ORIGIN. */
   app?: boolean;
+  /**
+   * host:port of the alpha PDS's plain HTTP listener (compose test bed only);
+   * used to seed its accounts (harness/pds.ts). Browsers and pear reach it at
+   * PDS_ORIGIN through the TLS proxy.
+   */
+  pdsAddress?: string;
   stop(): Promise<void>;
 }
 
@@ -92,22 +101,26 @@ ${site} {
  *
  *  - PEAR_ADDRESS + PEAR_TLS_ADDRESS  use an already-running pear and proxy
  *                                     whose domain is PEAR_DOMAIN (nothing is
- *                                     started or stopped)
+ *                                     started or stopped); add PDS_ADDRESS
+ *                                     for its PDS
+
  *  - PEAR_BINARY=<path>               run a locally built pear binary and the
  *                                     caddy on PATH (CADDY_BIN to override);
  *                                     no Docker needed
  *  - default                          docker compose (compose.yaml, started with
  *                                     testcontainers): pear on Postgres, the
- *                                     web client and caddy
+ *                                     web client, the alpha PDS with a local
+ *                                     PLC directory, and caddy
  *
- * Only the compose flavour serves the web client (APP_ORIGIN); tests that need
- * it check `E2E_APP`.
+ * Only the compose flavour serves the web client (APP_ORIGIN) and the PDS;
+ * tests that need them check `E2E_APP` and `E2E_PDS_ACCOUNTS`.
  */
 export async function startPear(): Promise<PearInstance> {
   if (process.env.PEAR_ADDRESS && process.env.PEAR_TLS_ADDRESS) {
     return {
       address: process.env.PEAR_ADDRESS,
       tlsAddress: process.env.PEAR_TLS_ADDRESS,
+      pdsAddress: process.env.PDS_ADDRESS,
       stop: async () => {},
     };
   }
@@ -135,8 +148,13 @@ async function startCompose(): Promise<PearInstance> {
       "pear-1",
       Wait.forHttp("/health", 8000).forStatusCode(200),
     )
+    .withWaitStrategy(
+      "pds-1",
+      Wait.forHttp("/xrpc/_health", 3000).forStatusCode(200),
+    )
     .withWaitStrategy("caddy-1", Wait.forListeningPorts())
-    .withStartupTimeout(120_000);
+    // The first run also builds the PLC directory and pulls the PDS image.
+    .withStartupTimeout(180_000);
   let started: StartedDockerComposeEnvironment;
   try {
     started = await environment.up(["pear", "caddy"]);
@@ -155,14 +173,30 @@ async function startCompose(): Promise<PearInstance> {
   }
   const pear = started.getContainer("pear-1");
   const caddy = started.getContainer("caddy-1");
+  const pds = started.getContainer("pds-1");
   return {
     address: `${pear.getHost()}:${pear.getMappedPort(8000)}`,
     tlsAddress: `${caddy.getHost()}:${caddy.getMappedPort(443)}`,
     app: true,
+    pdsAddress: `${pds.getHost()}:${pds.getMappedPort(3000)}`,
     stop: async () => {
-      if (process.env.E2E_PEAR_LOGS) {
-        const stream = await pear.logs();
-        for await (const chunk of stream) process.stderr.write(chunk);
+      // E2E_PEAR_LOGS=1 prints pear's logs; a comma-separated list of service
+      // names (e.g. "pear,pds,plc") prints those. (Container.logs() follows the
+      // log and never ends, so ask compose for what is there so far.)
+      const logs = process.env.E2E_PEAR_LOGS;
+      if (logs) {
+        const services = logs === "1" ? ["pear"] : logs.split(",");
+        try {
+          process.stderr.write(
+            execFileSync(
+              "docker",
+              ["compose", "-p", project, "logs", "--no-color", ...services],
+              { maxBuffer: 64 * 1024 * 1024 },
+            ),
+          );
+        } catch (err) {
+          process.stderr.write(`could not read test bed logs: ${err}\n`);
+        }
       }
       await started.down({ removeVolumes: true, timeout: 5_000 });
     },

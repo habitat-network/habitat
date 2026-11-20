@@ -6,6 +6,12 @@
 	auto_https off
 }
 
+# The PLC directory, for browsers (pear and the PDS reach it at plc:2582).
+https://plc.habitat-e2e.dev {
+	tls /certs/cert.pem /certs/key.pem
+	reverse_proxy plc:2582
+}
+
 https://app.habitat-e2e.dev {
 	tls /certs/cert.pem /certs/key.pem
 	reverse_proxy frontend:80
@@ -16,4 +22,11 @@ https://app.habitat-e2e.dev {
 https://habitat-e2e.dev, https://*.habitat-e2e.dev {
 	tls /certs/cert.pem /certs/key.pem
 	reverse_proxy pear:8000
+}
+
+# The alpha PDS (compose.yaml) and its accounts' handles: each handle is its own
+# host (alice.pds.habitat-e2e.dev), which the PDS answers /.well-known/atproto-did on.
+https://pds.habitat-e2e.dev, https://*.pds.habitat-e2e.dev {
+	tls /certs/cert.pem /certs/key.pem
+	reverse_proxy pds:3000
 }

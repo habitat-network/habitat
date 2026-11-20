@@ -29,10 +29,12 @@ export class AuthManager implements Agent {
     baseUrl: string,
     serverUrl: string,
     onUnauthenticated: (error?: string) => void,
+    // Must match the scope of the client metadata the app serves.
+    scope?: string,
   ) {
     this.onUnauthenticated = onUnauthenticated;
     this.client = new BrowserOAuthClient({
-      clientMetadata: clientMetadata(appName, baseUrl),
+      clientMetadata: clientMetadata(appName, baseUrl, scope),
       // Resolve handles/DIDs through the habitat instance's own identity
       // endpoint rather than the public network, since it also hosts
       // identities the public network doesn't know about.

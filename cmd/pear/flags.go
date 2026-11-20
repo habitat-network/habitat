@@ -23,6 +23,7 @@ var (
 	fGoogleClientSecret    = "google_client_secret"
 	fPdsOauthClientUri     = "pds_oauth_client_uri"
 	fUiDevProxy            = "ui_dev_proxy"
+	fPlcURL                = "plc_url"
 	fBuiltinApps           = "builtin_app"
 	fBlobBucket            = "blob_bucket"
 	fMeilisearchURL        = "meilisearch_url"
@@ -129,6 +130,11 @@ func getFlags() []cli.Flag {
 			Name:    fPdsOauthClientUri,
 			Usage:   "PDS OAuth client ID for PDS login method",
 			Sources: getSources(fPdsOauthClientUri),
+		},
+		&cli.StringFlag{
+			Name:    fPlcURL,
+			Usage:   "Base URL of the PLC directory used to resolve did:plc identities. Defaults to the public plc.directory; test beds point it at a local server",
+			Sources: getSources(fPlcURL),
 		},
 		&cli.StringFlag{
 			Name:    fUiDevProxy,

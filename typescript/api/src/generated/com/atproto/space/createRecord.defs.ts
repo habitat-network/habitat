@@ -19,7 +19,7 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
   repo: /*#__PURE__*/ l.string({ format: 'did' }),
   collection: /*#__PURE__*/ l.string({ format: 'nsid' }),
   rkey: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.string({ format: 'record-key', maxLength: 512 }),
+    /*#__PURE__*/ l.string({ format: 'record-key' }),
   ),
   validate: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
   record: /*#__PURE__*/ l.lexMap(),
@@ -42,7 +42,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Create a single new record in a permissioned space. Requires auth, implemented by PDS. */
+/** Create a single new record in a space repo. Requires auth, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
   'RecordAlreadyExists',

@@ -177,6 +177,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 
 	idServer, err := habitat_identity.NewServer(
 		app.Hive, app.Validator, app.PDSForwarding, app.Domain, app.HostKey,
+		habitat_identity.NewDirectory(cmd.String(fPlcURL)),
 		habitat_identity.WithClient(httpx.NewClient()),
 		habitat_identity.WithEmailResolver(app.EmailResolver),
 	)

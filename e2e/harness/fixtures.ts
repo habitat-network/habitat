@@ -3,6 +3,7 @@ import { PearApi, type CreateOrgInput, type Org } from "./api";
 import { PEAR_ORIGIN, hostResolverRule } from "./pear";
 import { registerMcpClient, type McpClient } from "./oauth";
 import type { SeedData } from "./seed";
+import type { PdsAccounts } from "./pds";
 import { MemberLoginPage } from "./pages/memberLogin";
 import { WebApp } from "./pages/webApp";
 
@@ -13,6 +14,11 @@ interface Fixtures {
   api: PearApi;
   /** Data created by harness/seed.ts. Treat as read-only. */
   seed: SeedData;
+  /**
+   * The alpha PDS's seeded accounts (harness/pds.ts), the identities to sign in
+   * with. Compose test bed only: tests check E2E_PDS_ACCOUNTS first.
+   */
+  pdsAccounts: PdsAccounts;
   /** Creates an org with a unique subdomain; use for tests that need their own state. */
   createOrg: (overrides?: Partial<CreateOrgInput>) => Promise<Org>;
   /** A freshly registered OAuth client for driving member sign-in. */
@@ -45,6 +51,12 @@ export const test = base.extend<Fixtures>({
   },
   seed: async ({}, use) => {
     await use(JSON.parse(process.env.E2E_SEED!) as SeedData);
+  },
+  pdsAccounts: async ({}, use) => {
+    const accounts = process.env.E2E_PDS_ACCOUNTS;
+    if (!accounts)
+      throw new Error("no PDS in this test bed (E2E_PDS_ACCOUNTS)");
+    await use(JSON.parse(accounts) as PdsAccounts);
   },
   createOrg: async ({ api }, use) => {
     // Subdomains must be unique across the run; worker index + counter + time keeps parallel tests apart.

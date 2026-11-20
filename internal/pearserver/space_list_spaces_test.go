@@ -1,13 +1,16 @@
 package pearserver_test
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
@@ -38,4 +41,22 @@ func TestServer_ListSpaces(t *testing.T) {
 	require.Equal(t, http.StatusOK, code)
 	require.Len(t, output.Spaces, 1)
 	require.Equal(t, uri.String(), output.Spaces[0].Uri)
+
+	// com.atproto.space.listSpaces filters by spaceDid and names each space
+	// `space`.
+	listAtproto := func(spaceDid string) comatproto.ComAtprotoSpaceListSpacesOutput {
+		t.Helper()
+		client := httpx_testutil.NewTestXRPCClient(t)
+		w := client.Do(ts.Server.ListSpaces, httptest.NewRequest(http.MethodGet,
+			"/xrpc/com.atproto.space.listSpaces?"+url.Values{"spaceDid": {spaceDid}}.Encode(),
+			http.NoBody))
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		var out comatproto.ComAtprotoSpaceListSpacesOutput
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+		return out
+	}
+	atproto := listAtproto(org.String())
+	require.Len(t, atproto.Spaces, 1)
+	require.Equal(t, uri.String(), atproto.Spaces[0].Space)
+	require.Empty(t, listAtproto("did:plc:someoneelse").Spaces)
 }

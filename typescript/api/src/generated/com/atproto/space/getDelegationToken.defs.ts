@@ -26,7 +26,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Mint a delegation token for a space, proving the requesting app is acting on the user's behalf. Exchanged with the space authority for a space credential. Served by the requesting user's PDS. Requires OAuth auth. */
+/** Get a delegation token for a space, to exchange with the space host for a space credential. Requires auth, implemented by PDS. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output)
 
 export { main }

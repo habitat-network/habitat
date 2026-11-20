@@ -11,7 +11,6 @@ type ComAtprotoSpaceListRecordsParams struct {
 	ExcludeValues bool   `json:"excludeValues,omitempty"`
 	Limit         int64  `json:"limit,omitempty"`
 	Repo          string `json:"repo"`
-	Reverse       bool   `json:"reverse,omitempty"`
 	Space         string `json:"space"`
 }
 

@@ -4,14 +4,8 @@
   "defs": {
     "commit": {
       "type": "object",
-      "description": "A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC over its Atproto-Space-Commit response header.",
-      "required": [
-        "ver",
-        "repo",
-        "space",
-        "rev",
-        "data"
-      ],
+      "description": "Commit to the current state of a space repo. Not signed; authenticated by the repo host with a MAC instead.",
+      "required": ["ver", "repo", "space", "rev", "data"],
       "properties": {
         "ver": {
           "type": "integer",
@@ -19,34 +13,26 @@
         },
         "repo": {
           "type": "string",
-          "format": "did",
-          "description": "The author DID of the repo."
+          "format": "did"
         },
         "space": {
           "type": "string",
-          "format": "space-ref",
-          "description": "Reference to the space."
+          "format": "space-ref"
         },
         "rev": {
           "type": "string",
-          "format": "tid",
-          "description": "Commit revision (TID)."
+          "format": "tid"
         },
         "data": {
           "type": "bytes",
-          "description": "sha256 digest of the LtHash state (32 bytes)."
+          "description": "SHA-256 digest of the repo's LtHash state."
         }
       }
     },
     "repoWrite": {
       "type": "object",
       "description": "A repo in the space advanced to a new revision.",
-      "required": [
-        "repo",
-        "repoRev",
-        "data",
-        "spaceRev"
-      ],
+      "required": ["repo", "repoRev", "data", "spaceRev"],
       "properties": {
         "repo": {
           "type": "string",
@@ -74,10 +60,7 @@
     "repoRemoved": {
       "type": "object",
       "description": "A repo was removed from the writer set.",
-      "required": [
-        "repo",
-        "spaceRev"
-      ],
+      "required": ["repo", "spaceRev"],
       "properties": {
         "repo": {
           "type": "string",
