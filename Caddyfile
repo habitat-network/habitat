@@ -54,3 +54,8 @@ home.local.habitat.network:{$HABITAT_DEV_PORT} {
 	reverse_proxy host.docker.internal:2600
 	tls internal
 }
+
+grafana.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy lgtm:3000
+	tls internal
+}
