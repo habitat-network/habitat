@@ -212,4 +212,29 @@ export class HabitatClient {
     }
     return (await res.json()) as { blob: unknown; cid: string };
   }
+
+  // getBlob reads a blob from a space repo the DID owns, as that DID (pear
+  // serves the repo's own account without a space credential).
+  async getBlob(space: string, repo: string, cid: string): Promise<Uint8Array> {
+    const nsid = "network.habitat.space.getBlob";
+    const session = await this.agent();
+    const headers: Record<string, string> = {};
+    const proxy = instanceProxy(session, this.env, nsid);
+    if (proxy) headers["atproto-proxy"] = proxy;
+    const qs = new URLSearchParams({ space, repo, cid });
+    const res = await session.fetchHandler(`/xrpc/${nsid}?${qs}`, {
+      method: "GET",
+      headers,
+    });
+    if (res.status === 401) {
+      throw new UnauthorizedError(
+        this.did,
+        `getBlob failed (401): ${await res.text()}`,
+      );
+    }
+    if (!res.ok) {
+      throw new Error(`getBlob failed (${res.status}): ${await res.text()}`);
+    }
+    return new Uint8Array(await res.arrayBuffer());
+  }
 }

@@ -14,14 +14,15 @@ test("a member deploys the example app and loads it", async ({
   chalk,
   pdsAccounts,
 }) => {
-  // bob, not alice: the web client's tests expect alice to belong to no group.
-  const bob = pdsAccounts.bob;
+  // carol, not alice or bob: the web client's tests sign in as them and
+  // expect them to belong to no group.
+  const carol = pdsAccounts.carol;
   const name = `Hello ${Date.now().toString(36)}`;
 
   await test.step("sign in, create a group and link it", async () => {
-    await chalk.signIn(bob);
+    await chalk.signIn(carol);
     await chalk.createGroup("E2E Apps");
-    await chalk.connectGroup(bob);
+    await chalk.connectGroup(carol);
     await expect(
       page.getByRole("button", { name: "Connect group" }),
     ).toHaveCount(0);

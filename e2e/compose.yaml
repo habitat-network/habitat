@@ -109,6 +109,7 @@ services:
           - pds.habitat-e2e.dev
           - alice.pds.habitat-e2e.dev
           - bob.pds.habitat-e2e.dev
+          - carol.pds.habitat-e2e.dev
     depends_on:
       pear: { condition: service_started }
       frontend: { condition: service_started }

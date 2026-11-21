@@ -107,10 +107,14 @@ export async function runApp(
       "There's no app at this address. It may have been deleted.",
     );
   }
+  // The bundle is read as the group itself: an app's record and code are
+  // always in the group's own repo (the sink skips any other writer), and
+  // the group's session reads its own repo with no space credential.
   const resolved: RunnerDeps =
     deps ??
-    (await import("../sync").then((sync): RunnerDeps => ({
-      getBlob: (space, repo, cid) => sync.getSpaceBlob(env, space, repo, cid),
+    (await import("../habitatClient").then(({ HabitatClient }): RunnerDeps => ({
+      getBlob: (space, repo, cid) =>
+        new HabitatClient(env, repo).getBlob(space, repo, cid),
     })));
   const worker = env.LOADER.get(workerName(app), () =>
     workerCode(env, app, resolved),

@@ -166,6 +166,28 @@ describe("HabitatClient", () => {
     expect((err as UnauthorizedError).did).toBe("did:plc:member1");
   });
 
+  it("getBlob reads a blob from the DID's own space repo as the DID", async () => {
+    server.use(
+      http.get(
+        "http://pds.test/xrpc/network.habitat.space.getBlob",
+        ({ request }) => {
+          const params = new URL(request.url).searchParams;
+          expect(params.get("space")).toBe("at://did:web:org/space/t/k");
+          expect(params.get("repo")).toBe("did:web:org");
+          expect(params.get("cid")).toBe("bafkcode");
+          return new HttpResponse(new Uint8Array([7, 8]));
+        },
+      ),
+    );
+    await expect(
+      new HabitatClient(testEnv, "did:web:org").getBlob(
+        "at://did:web:org/space/t/k",
+        "did:web:org",
+        "bafkcode",
+      ),
+    ).resolves.toEqual(new Uint8Array([7, 8]));
+  });
+
   it("uploadBlob throws UnauthorizedError on a 401", async () => {
     server.use(
       http.post(
