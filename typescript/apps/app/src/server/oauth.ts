@@ -12,7 +12,7 @@ import { getDb } from "@/db";
 // behalf gets its credentials.
 
 // Space scopes per proposal 0016: members read every space (they list their
-// groups and read their records; the syncer reads doc and file spaces), and
+// groups and read their records; the stream and blob reads cover doc and file spaces), and
 // the app creates and writes the spaces it manages: docs, their comments, and
 // uploaded files. The write grant is for any space type rather than just those
 // three, the same grant as the web client's MANAGE_SPACES_SCOPE: the spaces

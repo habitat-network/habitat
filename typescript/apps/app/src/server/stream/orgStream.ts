@@ -115,7 +115,7 @@ export class OrgStream extends DurableObject<Env> {
     const org = this.org;
     if (!org) throw new Error("OrgStream has no group yet");
     const [{ AppSink }, fetch] = await Promise.all([
-      import("../sync"),
+      import("./appSink"),
       sessionFetch(this.env, org),
     ]);
     const storage = this.ctx.storage;

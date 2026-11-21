@@ -53,7 +53,10 @@ The app is a public atproto OAuth client of a Habitat instance (pear).
   per group. Writes that must show at once (uploads, file deletes, removing
   a member) go through it and return once their event is indexed. The
   once-a-minute cron makes sure every connected group's stream is running.
-  Blobs are still read with a space credential (`src/server/sync.ts`).
+  Blobs (a doc's crdt state, uploaded files, an app's code) are read with
+  `network.habitat.space.getBlob` as the group (`src/server/blobs.ts`). The app
+  talks to pear only through the stream, `createSpace`, record writes and
+  `getBlob`.
 
 ## Apps
 

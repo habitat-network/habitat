@@ -1,14 +1,13 @@
-import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   getBlobCidString,
   getBlobMime,
   getBlobSize,
   type LexMap,
 } from "@atproto/lex";
-import type { DidString, SpaceRefString } from "@atproto/syntax";
 import { AtUri, SpaceRef } from "@atproto/syntax";
 import { network } from "api";
-import type { PromiseRepoBatch, PromiseSyncSink } from "internal/spaceSync";
+import type { RepoBatch, SyncSink } from "../stream/batch";
 import type { Db } from "@/db";
 import { files } from "@/db/schema";
 
@@ -53,27 +52,17 @@ export function toFileRow(
   };
 }
 
-function recordUri(
-  space: SpaceRefString,
-  did: DidString,
-  collection: string,
-  rkey: string,
-): string {
-  return `${space}/${did}/${collection}/${rkey}`;
-}
-
-// FileSink is internal/spaceSync's SyncSink for Drop: it keeps the files
+// FileSink is the SyncSink for Drop: it keeps the files
 // table equal to the set of network.habitat.drop.file records across every
-// synced space. Blobs aren't copied: downloads read them from the org's
-// space host (see src/routes/api.download.ts).
+// streamed space. Blobs aren't copied: downloads read them from pear (see src/routes/api.download.ts).
 //
 // Each batch is applied as one D1 batch (a single transaction), so an
 // aborted or failed apply leaves the table as it was. Delivery is
 // at-least-once; upserting by uri makes a replay a no-op.
-export class FileSink implements PromiseSyncSink {
+export class FileSink implements SyncSink {
   constructor(private opts: FileSinkOptions) {}
 
-  async apply(batch: PromiseRepoBatch, signal: AbortSignal): Promise<void> {
+  async apply(batch: RepoBatch, signal: AbortSignal): Promise<void> {
     const { db } = this.opts;
     switch (batch._tag) {
       case "Ops": {
@@ -94,39 +83,6 @@ export class FileSink implements PromiseSyncSink {
         }
         signal.throwIfAborted();
         await this.write(upserts, deletes);
-        break;
-      }
-      case "Reset": {
-        // Drain every record first: draining is what verifies them, and a
-        // verification failure must fail the apply before anything changes.
-        const upserts: FileRow[] = [];
-        for await (const record of batch.records) {
-          if (record.collection !== FILE_COLLECTION) continue;
-          const uri = recordUri(
-            batch.space,
-            batch.did,
-            record.collection,
-            record.rkey,
-          );
-          const row = toFileRow(uri, record.cid.toString(), record.record);
-          if (row) upserts.push(row);
-        }
-        signal.throwIfAborted();
-        // Everything this repo had in the space that the reset didn't list
-        // is gone.
-        const keep = upserts.map((r) => r.uri);
-        await db.batch([
-          db
-            .delete(files)
-            .where(
-              and(
-                eq(files.space, batch.space),
-                eq(files.repo, batch.did),
-                ...(keep.length > 0 ? [notInArray(files.uri, keep)] : []),
-              ),
-            ),
-          ...upserts.map((row) => this.upsert(row)),
-        ]);
         break;
       }
       case "RepoRemoved":

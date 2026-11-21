@@ -218,12 +218,6 @@ export const apps = sqliteTable(
 // it's a bearer credential for that DID.
 export { oauthSessions, oauthStates } from "internal/oauthClient/schema";
 
-// --- Space sync (internal/spaceSync/drizzle's SyncStore) ----------------------
-
-// The tables live with DrizzleSyncStore, shared with the other apps; they are
-// re-exported here so drizzle-kit migrates them with this schema.
-export { syncRepos, syncSpaces } from "internal/spaceSync/drizzle";
-
 // --- Group membership (the syncer's MembershipSink, src/server/members/sink.ts)
 
 // memberships mirrors each group's community.opensocial.membership records,

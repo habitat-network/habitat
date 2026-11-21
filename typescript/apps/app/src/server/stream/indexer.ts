@@ -5,7 +5,7 @@ import {
   type CommitEvent,
   type SpaceDeletedEvent,
 } from "@habitat-network/jetstream";
-import type { PromiseRepoBatch, PromiseSyncSink } from "internal/spaceSync";
+import type { RepoBatch, SyncSink } from "./batch";
 
 // The collections the app indexes from its groups' streams: docs (crdt
 // state, rendered markdown, comments and replies, sharing grants), uploaded
@@ -25,11 +25,8 @@ export const INDEXED_COLLECTIONS = [
 ] as const;
 
 // batchOf turns one stream event into the one-change batch the app's sinks
-// apply. The sinks were written for internal/spaceSync's per-repo batches;
-// a stream event is the same change, one record at a time.
-export function batchOf(
-  event: CommitEvent | SpaceDeletedEvent,
-): PromiseRepoBatch {
+// apply. A stream event is one record change.
+export function batchOf(event: CommitEvent | SpaceDeletedEvent): RepoBatch {
   if (event.kind === "spaceDeleted") {
     return { _tag: "SpaceDeleted", space: event.space as SpaceRefString };
   }
@@ -51,7 +48,7 @@ export function batchOf(
 }
 
 // appIndexer routes every indexed collection, and space deletions, to sink.
-export function appIndexer(sink: PromiseSyncSink): LexIndexer {
+export function appIndexer(sink: SyncSink): LexIndexer {
   const apply = (event: CommitEvent | SpaceDeletedEvent) =>
     sink.apply(batchOf(event), new AbortController().signal);
   const indexer = new LexIndexer({ mode: "spaces" });

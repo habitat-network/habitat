@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { jsonToLex, parseCid, type LexMap } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import type { PromiseRepoBatch } from "internal/spaceSync";
+import type { RepoBatch } from "../src/server/stream/batch";
 import { beforeEach, describe, expect, it } from "vitest";
 import { filesForOrg, getDb } from "@/db";
 import { files } from "@/db/schema";
@@ -30,19 +30,6 @@ const fileRecord = (name: string) =>
     createdAt: "2026-10-08T12:00:00.000Z",
   }) as LexMap;
 
-async function* records(
-  ...items: { rkey: string; record: LexMap; collection?: string }[]
-) {
-  for (const { rkey, record, collection } of items) {
-    yield {
-      collection: (collection ?? FILE_COLLECTION) as typeof FILE_COLLECTION,
-      rkey,
-      cid: parseCid(RECORD_CID),
-      record,
-    };
-  }
-}
-
 describe("FileSink", () => {
   const db = getDb(env);
   const signal = new AbortController().signal;
@@ -53,8 +40,8 @@ describe("FileSink", () => {
   });
 
   const ops = (
-    changes: Extract<PromiseRepoBatch, { _tag: "Ops" }>["changes"],
-  ): PromiseRepoBatch => ({
+    changes: Extract<RepoBatch, { _tag: "Ops" }>["changes"],
+  ): RepoBatch => ({
     _tag: "Ops",
     space: SPACE,
     did: ORG,
@@ -152,54 +139,6 @@ describe("FileSink", () => {
       signal,
     );
     expect(await filesForOrg(db, ORG)).toEqual([]);
-  });
-
-  it("Reset replaces the repo's files with exactly the listed records", async () => {
-    // A stale row in this repo, and one in another space that must survive.
-    await sink.apply(
-      ops([
-        {
-          uri: `${SPACE}/${ORG}/${FILE_COLLECTION}/stale`,
-          collection: FILE_COLLECTION,
-          rkey: "stale",
-          cid: parseCid(RECORD_CID),
-          value: fileRecord("stale.txt"),
-        },
-      ]),
-      signal,
-    );
-    await sink.apply(
-      {
-        _tag: "Ops",
-        space: OTHER_SPACE,
-        did: ORG,
-        rev: "r1",
-        changes: [
-          {
-            uri: `${OTHER_SPACE}/${ORG}/${FILE_COLLECTION}/self`,
-            collection: FILE_COLLECTION,
-            rkey: "self",
-            cid: parseCid(RECORD_CID),
-            value: fileRecord("other.txt"),
-          },
-        ],
-      },
-      signal,
-    );
-
-    await sink.apply(
-      {
-        _tag: "Reset",
-        space: SPACE,
-        did: ORG,
-        rev: "r2",
-        records: records({ rkey: "self", record: fileRecord("fresh.txt") }),
-      },
-      signal,
-    );
-
-    const names = (await filesForOrg(db, ORG)).map((f) => f.name).sort();
-    expect(names).toEqual(["fresh.txt", "other.txt"]);
   });
 
   it("drops a space's files when the space is deleted", async () => {

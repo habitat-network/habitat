@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PromiseRepoBatch, PromiseSyncSink } from "internal/spaceSync";
+import type { RepoBatch, SyncSink } from "../src/server/stream/batch";
 import { appIndexer, INDEXED_COLLECTIONS } from "@/server/stream/indexer";
 import { Effect } from "effect";
 
@@ -7,14 +7,14 @@ const SPACE = "at://did:web:org.example/space/network.habitat.docs/d1";
 
 describe("appIndexer", () => {
   it("asks the stream for exactly the collections the sinks index", () => {
-    const sink: PromiseSyncSink = { apply: async () => {} };
+    const sink: SyncSink = { apply: async () => {} };
     expect(appIndexer(sink).collections()).toEqual([...INDEXED_COLLECTIONS]);
   });
 
   it("hands each event to the sink as a one-change batch", async () => {
-    const batches: PromiseRepoBatch[] = [];
-    const sink: PromiseSyncSink = {
-      apply: vi.fn(async (b: PromiseRepoBatch) => {
+    const batches: RepoBatch[] = [];
+    const sink: SyncSink = {
+      apply: vi.fn(async (b: RepoBatch) => {
         batches.push(b);
       }),
     };
@@ -50,7 +50,7 @@ describe("appIndexer", () => {
       }),
     );
     expect(batches.map((b) => b._tag)).toEqual(["Ops", "Ops", "SpaceDeleted"]);
-    const [put, del] = batches as Extract<PromiseRepoBatch, { _tag: "Ops" }>[];
+    const [put, del] = batches as Extract<RepoBatch, { _tag: "Ops" }>[];
     expect(put.did).toBe("did:plc:bob");
     expect(put.changes[0].cid?.toString()).toBe(
       "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm",
@@ -60,7 +60,7 @@ describe("appIndexer", () => {
   });
 
   it("ignores collections it doesn't index", async () => {
-    const sink: PromiseSyncSink = { apply: vi.fn(async () => {}) };
+    const sink: SyncSink = { apply: vi.fn(async () => {}) };
     await Effect.runPromise(
       appIndexer(sink).handle({
         kind: "del",

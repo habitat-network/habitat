@@ -1,9 +1,9 @@
-import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getBlobCidString, getBlobSize, type LexMap } from "@atproto/lex";
-import type { DidString, SpaceRefString } from "@atproto/syntax";
+
 import { AtUri, SpaceRef } from "@atproto/syntax";
 import { network } from "api";
-import type { PromiseRepoBatch, PromiseSyncSink } from "internal/spaceSync";
+import type { RepoBatch, SyncSink } from "../stream/batch";
 import type { Db } from "@/db";
 import { apps } from "@/db/schema";
 import { hostLabel } from "@/lib/apps";
@@ -61,24 +61,15 @@ export function toAppRow(
   };
 }
 
-function recordUri(
-  space: SpaceRefString,
-  did: DidString,
-  collection: string,
-  rkey: string,
-): string {
-  return `${space}/${did}/${collection}/${rkey}`;
-}
-
 // AppRecordSink keeps the apps table equal to the set of
 // network.habitat.apps.app records across every synced app space. The code
 // isn't copied: the runner reads it from the group's space host when an
 // app's isolate starts (see runner.ts). Applied the same way as FileSink:
 // one D1 batch per apply, upserts by uri so a replay is a no-op.
-export class AppRecordSink implements PromiseSyncSink {
+export class AppRecordSink implements SyncSink {
   constructor(private opts: { db: Db }) {}
 
-  async apply(batch: PromiseRepoBatch, signal: AbortSignal): Promise<void> {
+  async apply(batch: RepoBatch, signal: AbortSignal): Promise<void> {
     const { db } = this.opts;
     switch (batch._tag) {
       case "Ops": {
@@ -102,35 +93,6 @@ export class AppRecordSink implements PromiseSyncSink {
         }
         signal.throwIfAborted();
         await this.write(upserts, deletes);
-        break;
-      }
-      case "Reset": {
-        const upserts: AppRow[] = [];
-        for await (const record of batch.records) {
-          if (record.collection !== APP_COLLECTION) continue;
-          const uri = recordUri(
-            batch.space,
-            batch.did,
-            record.collection,
-            record.rkey,
-          );
-          const row = toAppRow(uri, record.cid.toString(), record.record);
-          if (row) upserts.push(row);
-        }
-        signal.throwIfAborted();
-        const keep = upserts.map((r) => r.uri);
-        await db.batch([
-          db
-            .delete(apps)
-            .where(
-              and(
-                eq(apps.space, batch.space),
-                eq(apps.repo, batch.did),
-                ...(keep.length > 0 ? [notInArray(apps.uri, keep)] : []),
-              ),
-            ),
-          ...upserts.map((row) => this.upsert(row)),
-        ]);
         break;
       }
       case "RepoRemoved":

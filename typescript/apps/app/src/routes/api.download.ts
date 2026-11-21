@@ -6,7 +6,7 @@ import { BadRequest, HabitatError, NotFound } from "@/server/effect/errors";
 import { requireOrg } from "@/server/effect/member";
 import { runHandler } from "@/server/effect/run";
 import { AppEnv, Database, messageOf } from "@/server/effect/services";
-import { getSpaceBlob } from "@/server/sync";
+import { getSpaceBlob } from "@/server/blobs";
 
 // GET /api/download?org=<group DID>&uri=<file record uri> serves a file's
 // bytes, read from the group's space host on each request (the app keeps no

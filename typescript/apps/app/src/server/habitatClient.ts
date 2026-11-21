@@ -213,8 +213,8 @@ export class HabitatClient {
     return (await res.json()) as { blob: unknown; cid: string };
   }
 
-  // getBlob reads a blob from a space repo the DID owns, as that DID (pear
-  // serves the repo's own account without a space credential).
+  // getBlob reads a blob from a space repo the DID owns, as that DID
+  // (pear authorizes it by its read access to the space).
   async getBlob(space: string, repo: string, cid: string): Promise<Uint8Array> {
     const nsid = "network.habitat.space.getBlob";
     const session = await this.agent();

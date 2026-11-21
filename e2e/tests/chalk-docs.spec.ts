@@ -66,6 +66,14 @@ test("a member links a group, creates a doc and edits it", async ({
       timeout: 5_000,
     });
     await chalk.expectClean();
+
+    // Downloading reads the blob back out of pear (getBlob, as the group):
+    // the bytes and the file's name come back as uploaded.
+    const href = await page.getByRole("link", { name }).getAttribute("href");
+    const download = await page.request.get(href!);
+    expect(download.status()).toBe(200);
+    expect(await download.text()).toBe("uploaded by the e2e suite");
+    expect(download.headers()["content-disposition"]).toContain(name);
   });
 
   await test.step("create a doc", async () => {
