@@ -192,7 +192,7 @@ importers:
         version: 2.1.1
       docusaurus-plugin-llms:
         specifier: ^0.6.0
-        version: 0.6.1(@docusaurus/core@3.10.2(@docusaurus/faster@3.10.2(@docusaurus/types@3.10.2(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2))(@swc/helpers@0.5.24)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(postcss@8.5.26))(@mdx-js/react@3.1.1(@types/react@19.2.18)(react@19.2.8))(@rspack/core@1.7.12(@swc/helpers@0.5.24))(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(debug@4.4.3(supports-color@10.2.2))(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2))
+        version: 0.6.2(@docusaurus/core@3.10.2(@docusaurus/faster@3.10.2(@docusaurus/types@3.10.2(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2))(@swc/helpers@0.5.24)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(postcss@8.5.26))(@mdx-js/react@3.1.1(@types/react@19.2.18)(react@19.2.8))(@rspack/core@1.7.12(@swc/helpers@0.5.24))(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(debug@4.4.3(supports-color@10.2.2))(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2))
       docusaurus-plugin-openapi-docs:
         specifier: 5.2.0
         version: 5.2.0(8a3351ce90d3567d06b60ed0b6e91b4d)
@@ -454,8 +454,8 @@ importers:
         specifier: ^0.45.1
         version: 0.45.4(@cloudflare/workers-types@5.20261118.1)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.4
+        version: 4.1.4
       internal:
         specifier: workspace:*
         version: link:../../internal
@@ -464,7 +464,7 @@ importers:
         version: 9.1.0
       lib0:
         specifier: ^0.2.117
-        version: 0.2.119
+        version: 0.2.120
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
@@ -603,7 +603,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261118.1)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       effect:
         specifier: ^4.0.2
-        version: 4.1.3
+        version: 4.1.4
       internal:
         specifier: workspace:*
         version: link:../../internal
@@ -751,7 +751,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261118.1)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       effect:
         specifier: ^4.0.2
-        version: 4.1.3
+        version: 4.1.4
       internal:
         specifier: workspace:*
         version: link:../../internal
@@ -760,7 +760,7 @@ importers:
         version: 9.1.0
       lib0:
         specifier: ^0.2.117
-        version: 0.2.119
+        version: 0.2.120
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
@@ -881,7 +881,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261118.1)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       effect:
         specifier: ^4.0.2
-        version: 4.1.3
+        version: 4.1.4
       internal:
         specifier: workspace:*
         version: link:../../internal
@@ -1015,7 +1015,7 @@ importers:
     devDependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.11
+        version: 0.4.13
       msw:
         specifier: ^2.15.0
         version: 2.15.0(@types/node@22.20.5)(typescript@7.0.2)
@@ -1030,7 +1030,7 @@ importers:
     dependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.11
+        version: 0.4.13
       '@atproto/api':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261029171913
@@ -1105,7 +1105,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261118.1)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       effect:
         specifier: ^4.0.2
-        version: 4.1.3
+        version: 4.1.4
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
@@ -1139,7 +1139,7 @@ importers:
     devDependencies:
       '@effect/vitest':
         specifier: ^4.0.2
-        version: 4.1.4(effect@4.1.3)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
+        version: 4.1.4(effect@4.1.4)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
       '@tailwindcss/typography':
         specifier: 'catalog:'
         version: 0.5.20(tailwindcss@4.3.5)
@@ -1186,8 +1186,8 @@ importers:
         specifier: 0.0.0-spaces-alpha-20261029171913
         version: 0.0.0-spaces-alpha-20261029171913
       effect:
-        specifier: 4.1.3
-        version: 4.1.3
+        specifier: 4.1.4
+        version: 4.1.4
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -1323,16 +1323,16 @@ packages:
     resolution: {integrity: sha512-Nf4r3hH33f7nXU62tjf42lOFC2tlIwsfQVaOr+NFVWGGKSQEqEe23PFO0C7mXzFDWzq50q645ZEhtBrzM2QMEw==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/did-resolver@0.3.11':
-    resolution: {integrity: sha512-CeAC6VY3xaXQ8CaOXLz4EOopSvfcQBcuJvX3J5ew2nbf+BM0nes45ZvxUieP5ZlLPXbJborwJh5zDeJcYpwCFQ==}
+  '@atproto-labs/did-resolver@0.3.13':
+    resolution: {integrity: sha512-peNomkIMFcvsrq+1CHXiWv/sAakcYFenIWCB+EI94TPdDezNgRs39R6c8XaU3+UxSbzkfky7R3ywSOiKVVIY1g==}
     engines: {node: '>=22'}
 
   '@atproto-labs/fetch@0.3.6':
     resolution: {integrity: sha512-ro/J/cnqIp4bnSzDl8N3SkruvQcE3Pze+1H70mKdFfyFcdhPr+7O4lggl4VCbhI84Yqgz47c0xC6F/Yl39SxDA==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/fetch@0.4.0':
-    resolution: {integrity: sha512-9HEcZuCU4nWAzV3XZ7nwbDPdV8tbhICzyYeyE5SPHTPuuKS6C3i5WOdwGP1diCCUaYF3Vadw5ArVlQPtXnn73w==}
+  '@atproto-labs/fetch@0.4.2':
+    resolution: {integrity: sha512-9mgISMM2eY/w373HUNrtWq4onPzES1K6DaeAv9BDcEgovcKTkcI60H9Jjp38thU2i/dQaGpKrxmxR9qc0FZocg==}
     engines: {node: '>=22'}
 
   '@atproto-labs/handle-resolver@0.0.0-spaces-alpha-20261029171913':
@@ -1347,12 +1347,16 @@ packages:
     resolution: {integrity: sha512-WsN0dP8Rs4a7lThqpdjf5tE16Mw3rC8Q0h2M1DIY79URVHFc63Ip7LxCpTPjLjNy5b/mY+SUbkKfFVgioQA/1g==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/identity-resolver@0.4.11':
-    resolution: {integrity: sha512-6k5hZ05D5HmFu6MDy2/z8z42UxZy6xw3JbvbKxDp5ChSZ/9L2Hv1MeTruruGKK2ATP6sYxx7xcsGaiTmTIHYFw==}
+  '@atproto-labs/identity-resolver@0.4.13':
+    resolution: {integrity: sha512-zh7DfDemd5xOeVcuPKkrvObP9SUNrFt/gzkbywc0Obsx5LQMcP5q+ADAInFPpEuYJ5I4AOc4A7G6s6fKbL52KQ==}
     engines: {node: '>=22'}
 
   '@atproto-labs/pipe@0.2.4':
     resolution: {integrity: sha512-n67jCcrC+ouAeO10cWkpPzzLMlDi/lDCU30Us+LGqhOPhT6c4t5ASdBLQi9W3jUQtRzQBt3G9zipF+xKWNvVbw==}
+    engines: {node: '>=22'}
+
+  '@atproto-labs/pipe@0.2.5':
+    resolution: {integrity: sha512-1R1nYs/nHmBcYa4yzTjk5H/46MF5nZm342Ha9kKQTOMp/fr2Yn67qD1pTXUS7L2Mx8AEf3m7Z/TTxRfnERLc8w==}
     engines: {node: '>=22'}
 
   '@atproto-labs/simple-store-memory@0.2.6':
@@ -7602,8 +7606,8 @@ packages:
     resolution: {integrity: sha512-/bCZd6KlGcjZO8Buqmi/vXuqEGVEZ0PNjx/biBNqJD3MhK9DmdiAuKxqfNhflgDESDIiBz3qF+0e55+CpnrUcw==}
     engines: {node: '>= 8.0'}
 
-  docusaurus-plugin-llms@0.6.1:
-    resolution: {integrity: sha512-elqTn7httrRG20g1mfzTtWZjLVpXMNKO2IS9R84dxiIp7QjAcDuubLp6/bvpe3umHdPnEXHJKhNOpTY+wnQa1Q==}
+  docusaurus-plugin-llms@0.6.2:
+    resolution: {integrity: sha512-Qf0Hq96chaOQ+vq8w115xrRb2bfqPQO0j3YJGpvXFNeqjvd1nDAT8lZAsSEpOXfDUhi4UFqaQ1oCkb9e6p0Law==}
     engines: {node: '>=18.0'}
     peerDependencies:
       '@docusaurus/core': ^3.0.0
@@ -7790,6 +7794,9 @@ packages:
 
   effect@4.1.3:
     resolution: {integrity: sha512-QWNEu35groH/78Ejq01lZGt8U0sF1P4nrhbcAZz5WffcS27bUUK9C/db+xWWUwNYUvFD5SrSLE0mFGtwyP0PCQ==}
+
+  effect@4.1.4:
+    resolution: {integrity: sha512-Tgrv/9FN+TZYyOn8XSli+fVqAfwDrDAkiX5Uu9vztINb675VTQdhD0gWI5Kzvhlh9QqzjZvw72iugqw5pwoghQ==}
 
   ejs@3.1.10:
     resolution: {integrity: sha512-UeJmFfOrAQS8OJWPZ4qtgHyWExa088/MtK5UEyoJGFH67cDEXkZSviOiKRCZ4Xij0zxI3JECgYs3oKx+AizQBA==}
@@ -8952,8 +8959,8 @@ packages:
     resolution: {integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==}
     engines: {node: '>=6'}
 
-  lib0@0.2.119:
-    resolution: {integrity: sha512-vh+TiejVy8Xm+hCdnRfn9BthGNvNUZdEXltNjVZL3TzRIKP3s1lnQh8pWd/Q0wCgY0FPAGVVjFF4ZiHUV3LFgA==}
+  lib0@0.2.120:
+    resolution: {integrity: sha512-/a2eRImR8sZbmMVKe2we1/KukDQkuPyPf8yol6epvCu2PH6hurjcRI3mdGFFAi0uGoRJGyns99JquZgxwW1tQg==}
     engines: {node: '>=16'}
     hasBin: true
 
@@ -12692,10 +12699,10 @@ snapshots:
       '@atproto/did': 0.0.0-spaces-alpha-20261029171913
       zod: 3.25.76
 
-  '@atproto-labs/did-resolver@0.3.11':
+  '@atproto-labs/did-resolver@0.3.13':
     dependencies:
-      '@atproto-labs/fetch': 0.4.0
-      '@atproto-labs/pipe': 0.2.4
+      '@atproto-labs/fetch': 0.4.2
+      '@atproto-labs/pipe': 0.2.5
       '@atproto-labs/simple-store': 0.5.1
       '@atproto-labs/simple-store-memory': 0.2.6
       '@atproto/did': 0.5.6
@@ -12705,9 +12712,9 @@ snapshots:
     dependencies:
       '@atproto-labs/pipe': 0.2.4
 
-  '@atproto-labs/fetch@0.4.0':
+  '@atproto-labs/fetch@0.4.2':
     dependencies:
-      '@atproto-labs/pipe': 0.2.4
+      '@atproto-labs/pipe': 0.2.5
 
   '@atproto-labs/handle-resolver@0.0.0-spaces-alpha-20261029171913':
     dependencies:
@@ -12728,12 +12735,14 @@ snapshots:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20261029171913
       '@atproto-labs/handle-resolver': 0.0.0-spaces-alpha-20261029171913
 
-  '@atproto-labs/identity-resolver@0.4.11':
+  '@atproto-labs/identity-resolver@0.4.13':
     dependencies:
-      '@atproto-labs/did-resolver': 0.3.11
+      '@atproto-labs/did-resolver': 0.3.13
       '@atproto-labs/handle-resolver': 0.4.10
 
   '@atproto-labs/pipe@0.2.4': {}
+
+  '@atproto-labs/pipe@0.2.5': {}
 
   '@atproto-labs/simple-store-memory@0.2.6':
     dependencies:
@@ -15255,9 +15264,9 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@effect/vitest@4.1.4(effect@4.1.3)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
+  '@effect/vitest@4.1.4(effect@4.1.4)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
     dependencies:
-      effect: 4.1.3
+      effect: 4.1.4
       vitest: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
 
   '@emnapi/core@1.11.2':
@@ -18141,7 +18150,7 @@ snapshots:
 
   '@tiptap/y-tiptap@3.0.9(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33)':
     dependencies:
-      lib0: 0.2.119
+      lib0: 0.2.120
       prosemirror-model: 1.25.11
       prosemirror-state: 1.4.4
       prosemirror-view: 1.42.2
@@ -19781,7 +19790,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  docusaurus-plugin-llms@0.6.1(@docusaurus/core@3.10.2(@docusaurus/faster@3.10.2(@docusaurus/types@3.10.2(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2))(@swc/helpers@0.5.24)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(postcss@8.5.26))(@mdx-js/react@3.1.1(@types/react@19.2.18)(react@19.2.8))(@rspack/core@1.7.12(@swc/helpers@0.5.24))(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(debug@4.4.3(supports-color@10.2.2))(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2)):
+  docusaurus-plugin-llms@0.6.2(@docusaurus/core@3.10.2(@docusaurus/faster@3.10.2(@docusaurus/types@3.10.2(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2))(@swc/helpers@0.5.24)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(postcss@8.5.26))(@mdx-js/react@3.1.1(@types/react@19.2.18)(react@19.2.8))(@rspack/core@1.7.12(@swc/helpers@0.5.24))(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(debug@4.4.3(supports-color@10.2.2))(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2)):
     dependencies:
       '@docusaurus/core': 3.10.2(@docusaurus/faster@3.10.2(@docusaurus/types@3.10.2(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2))(@swc/helpers@0.5.24)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(postcss@8.5.26))(@mdx-js/react@3.1.1(@types/react@19.2.18)(react@19.2.8))(@rspack/core@1.7.12(@swc/helpers@0.5.24))(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(debug@4.4.3(supports-color@10.2.2))(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2)
       gray-matter: 4.0.3
@@ -19949,6 +19958,8 @@ snapshots:
   ee-first@1.1.1: {}
 
   effect@4.1.3: {}
+
+  effect@4.1.4: {}
 
   ejs@3.1.10:
     dependencies:
@@ -21286,7 +21297,7 @@ snapshots:
 
   leven@3.1.0: {}
 
-  lib0@0.2.119:
+  lib0@0.2.120:
     dependencies:
       isomorphic.js: 0.2.5
 
@@ -25632,12 +25643,12 @@ snapshots:
 
   y-protocols@1.0.7(yjs@13.6.33):
     dependencies:
-      lib0: 0.2.119
+      lib0: 0.2.120
       yjs: 13.6.33
 
   y-websocket@3.1.0(yjs@13.6.33):
     dependencies:
-      lib0: 0.2.119
+      lib0: 0.2.120
       y-protocols: 1.0.7(yjs@13.6.33)
       yjs: 13.6.33
 
@@ -25680,7 +25691,7 @@ snapshots:
 
   yjs@13.6.33:
     dependencies:
-      lib0: 0.2.119
+      lib0: 0.2.120
 
   yocto-queue@1.2.2: {}
 

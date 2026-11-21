@@ -139,3 +139,12 @@ func TestEventsPostgresSpaceDeleted(t *testing.T) {
 		Spaces: []habitat_syntax.SpaceURI{space},
 	})))
 }
+
+func TestEventsPostgresExternalWritersRecords(t *testing.T) {
+	if testing.Short() {
+		t.Skip("starts Postgres")
+	}
+	d := keyvaltest.NewDB(t)
+	require.NoError(t, db.Migrate(t.Context(), d, nil, spaces.Models()))
+	testExternalWritersRecords(t, spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(d)))
+}

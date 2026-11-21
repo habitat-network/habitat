@@ -293,6 +293,10 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		return app.Notifier.Run(egCtx, app.SpacesStore)
 	})
+	// Fetches external writers' records for the space event log.
+	eg.Go(func() error {
+		return app.RemoteSync.Run(egCtx)
+	})
 	if app.SearchIndexer != nil {
 		eg.Go(func() error {
 			return app.SearchIndexer.Run(egCtx, app.SpacesStore, app.PermStore)
