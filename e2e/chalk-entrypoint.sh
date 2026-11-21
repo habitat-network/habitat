@@ -9,6 +9,7 @@ APP_SESSION_SECRET=$APP_SESSION_SECRET
 APP_CREDENTIALS_KEY=$APP_CREDENTIALS_KEY
 APP_BASE_URL=$APP_BASE_URL
 APP_HABITAT_URL=$APP_HABITAT_URL
+APP_RUN_DOMAIN=$APP_RUN_DOMAIN
 VARS
 # `vite preview` reads the bindings next to the built worker, not the project root.
 cp .dev.vars dist/server/.dev.vars
