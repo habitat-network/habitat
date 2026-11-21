@@ -276,8 +276,8 @@ importers:
         specifier: 'catalog:'
         version: 1.168.48(@rspack/core@1.7.12(@swc/helpers@0.5.24))(@tanstack/react-router@1.170.46(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(esbuild@0.28.2)(rolldown@1.2.18)(rollup@4.62.2)(supports-color@10.2.2)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))(webpack@5.108.4(@swc/core@1.15.47(@swc/helpers@0.5.24))(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26))
       '@uiw/react-json-view':
-        specifier: 2.0.0-alpha.43
-        version: 2.0.0-alpha.43(@babel/runtime@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: 2.0.0-alpha.46
+        version: 2.0.0-alpha.46(@babel/runtime@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       api:
         specifier: workspace:*
         version: link:../typescript/api
@@ -6417,8 +6417,8 @@ packages:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
-  '@uiw/react-json-view@2.0.0-alpha.43':
-    resolution: {integrity: sha512-PMj+6xRDCPbVGccfLUDhx7yGrmVBSeFx3py6bqDds4QIYScXo9GEgtTbWXn3gXpoehsmOu//6dveYTf872wu3Q==}
+  '@uiw/react-json-view@2.0.0-alpha.46':
+    resolution: {integrity: sha512-fCgbqA3iVo8IwK2M3OeOok3cepGtt60SaBSeqLzLYdgQu+TB62FBoGcJbOihNZzRNHor1WiYZDDezdoFPuKiDg==}
     peerDependencies:
       '@babel/runtime': '>=7.10.0'
       react: '>=18.0.0'
@@ -7791,9 +7791,6 @@ packages:
 
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
-
-  effect@4.1.3:
-    resolution: {integrity: sha512-QWNEu35groH/78Ejq01lZGt8U0sF1P4nrhbcAZz5WffcS27bUUK9C/db+xWWUwNYUvFD5SrSLE0mFGtwyP0PCQ==}
 
   effect@4.1.4:
     resolution: {integrity: sha512-Tgrv/9FN+TZYyOn8XSli+fVqAfwDrDAkiX5Uu9vztINb675VTQdhD0gWI5Kzvhlh9QqzjZvw72iugqw5pwoghQ==}
@@ -18483,7 +18480,7 @@ snapshots:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
 
-  '@uiw/react-json-view@2.0.0-alpha.43(@babel/runtime@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@uiw/react-json-view@2.0.0-alpha.46(@babel/runtime@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@babel/runtime': 7.29.7
       react: 19.2.8
@@ -19956,8 +19953,6 @@ snapshots:
   eastasianwidth@0.2.0: {}
 
   ee-first@1.1.1: {}
-
-  effect@4.1.3: {}
 
   effect@4.1.4: {}
 
