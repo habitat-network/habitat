@@ -24,6 +24,7 @@ import {
   SidebarRail,
 } from "internal/components/ui";
 import {
+  AppWindow,
   Cable,
   ChevronsUpDown,
   FolderOpen,
@@ -82,6 +83,7 @@ export function AppSidebar({
     ? [
         { to: "/g/$org/files", label: "Files", icon: FolderOpen },
         { to: "/g/$org/search", label: "Search", icon: Search },
+        { to: "/g/$org/apps", label: "Apps", icon: AppWindow },
       ]
     : [];
   const manageItems: NavItem[] = currentOrg
@@ -191,6 +193,7 @@ export function AppSidebar({
 type GroupPath =
   | "/g/$org/files"
   | "/g/$org/search"
+  | "/g/$org/apps"
   | "/g/$org/members"
   | "/g/$org/roles"
   | "/g/$org/mcp"

@@ -36,6 +36,14 @@ app.local.habitat.network:{$HABITAT_DEV_PORT} {
 	tls internal
 }
 
+# Apps deployed in the Habitat app, each on its own subdomain.
+*.apps.local.habitat.network:{$HABITAT_DEV_PORT} {
+	reverse_proxy app:5173
+	tls internal {
+		on_demand
+	}
+}
+
 *.*.pear.local.habitat.network:{$HABITAT_DEV_PORT},
 *.pear.local.habitat.network:{$HABITAT_DEV_PORT},
 pear.local.habitat.network:{$HABITAT_DEV_PORT} {

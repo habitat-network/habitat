@@ -18,6 +18,7 @@ Everything is scoped to a group, under `/g/$org/...`.
 | Workspace       | Files (docs and uploads, list or grid, details panel)      | `/g/$org/files`       |
 |                 | Doc editor                                                 | `/g/$org/docs/$docId` |
 |                 | Search (group records plus connected MCP servers)          | `/g/$org/search`      |
+|                 | Apps (deploy code, run it at its own URL)                  | `/g/$org/apps`        |
 | Manage          | Members (roster, invites)                                  | `/g/$org/members`     |
 |                 | Roles & access                                             | `/g/$org/roles`       |
 |                 | MCP servers                                                | `/g/$org/mcp`         |
@@ -54,6 +55,32 @@ The app is a public atproto OAuth client of a Habitat instance (pear).
   once-a-minute cron makes sure every connected group's stream is running.
   Blobs are still read with a space credential (`src/server/sync.ts`).
 
+## Apps
+
+Members deploy code to their group from the Apps page, and it runs at
+`https://<slug>-<key>.<APP_RUN_DOMAIN>/` in a
+[Dynamic Worker](https://developers.cloudflare.com/dynamic-workers/)
+(the `LOADER` binding; Workers Paid plan only).
+
+- **Records**: each app is its own group space (type
+  `network.habitat.apps`, readable by members) holding one
+  `network.habitat.apps.app` record written by the group: name, slug,
+  entrypoint, version, compatibility date, who deployed it, and the code
+  bundle as a blob (`{"modules": {<path>: <source>}}`). Deploying a new
+  version uploads a new blob and rewrites the record, through the group's
+  stream, so it's live when the call returns. The `apps` table is the
+  stream's mirror of those records (`src/server/apps/sink.ts`).
+- **Running** (`src/server/apps/runner.ts`): `entry.ts` sends every
+  request for the run domain to the runner, never to the Habitat app. The
+  runner looks the app up by its host label, and starts its isolate with
+  `LOADER.get(<record uri>@<record cid>, ...)`, reading the bundle from
+  pear only on a cold start.
+- **Sandbox**: no network (`globalOutbound: null`), no bindings except
+  `env.HABITAT` (the app's name, version, group and URL), and a CPU limit
+  per request. Each app has its own origin. Uploads are plain JS modules
+  plus JSON and text files; TypeScript and npm dependencies must be bundled
+  first.
+
 ## Server code and Effect
 
 Server functions live in `src/server/fns/` (`auth`, `groups`, `manage`,
@@ -87,6 +114,7 @@ APP_SESSION_SECRET=<32+ characters>
 APP_CREDENTIALS_KEY=<openssl rand -base64 32>
 APP_BASE_URL=https://app.local.habitat.network
 APP_HABITAT_URL=https://pear.local.habitat.network
+APP_RUN_DOMAIN=apps.local.habitat.network
 ```
 
 then `moon run app:dev` (port 5181; it applies D1 migrations locally
@@ -97,5 +125,7 @@ first). After changing `src/db/schema.ts`, run `pnpm db:generate`.
 Create the D1 database (`wrangler d1 create app`, paste its id into
 `wrangler.jsonc`), `wrangler secret put` the two secrets, apply migrations
 (`wrangler d1 migrations apply app --remote`), then `pnpm deploy`.
-`APP_BASE_URL` and `APP_HABITAT_URL` are `vars` in `wrangler.jsonc`.
+`APP_BASE_URL`, `APP_HABITAT_URL` and `APP_RUN_DOMAIN` are `vars` in
+`wrangler.jsonc`. Apps need a wildcard DNS record and a Workers route for
+`*.<APP_RUN_DOMAIN>/*` pointing at this Worker.
 Optional: `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` for analytics.

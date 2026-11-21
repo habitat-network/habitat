@@ -22,6 +22,13 @@ export const PDS_ACCOUNTS = {
     password: "alice-e2e-password",
   },
   bob: { handle: `bob.${PDS_HANDLE_DOMAIN}`, password: "bob-e2e-password" },
+  // The Habitat app's tests (chalk-docs, apps-deploy) sign in as carol and
+  // put her in groups; the web client's tests expect alice and bob in none,
+  // since their sign-in lands on the first group they belong to.
+  carol: {
+    handle: `carol.${PDS_HANDLE_DOMAIN}`,
+    password: "carol-e2e-password",
+  },
 } as const;
 
 export type PdsAccountName = keyof typeof PDS_ACCOUNTS;

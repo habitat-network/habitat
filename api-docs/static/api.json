@@ -9181,6 +9181,71 @@
           }
         }
       },
+      "network.habitat.apps.app": {
+        "type": "object",
+        "required": [
+          "name",
+          "slug",
+          "entrypoint",
+          "code",
+          "version",
+          "compatibilityDate",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The app's display name.",
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string",
+            "description": "A DNS-safe name for the app (lowercase letters, digits and hyphens), set when the app is created. Part of the app's run URL, so it doesn't change when the app is renamed.",
+            "maxLength": 40
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "entrypoint": {
+            "type": "string",
+            "description": "The path of the main module within the bundle: an ES module whose default export has a fetch handler.",
+            "maxLength": 512
+          },
+          "code": {
+            "type": "string",
+            "format": "binary"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "compatibilityDate": {
+            "type": "string",
+            "description": "The Workers compatibility date the code runs with (YYYY-MM-DD).",
+            "maxLength": 10
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "The member who created the app. The record itself is written by the org.",
+            "format": "did"
+          },
+          "updatedBy": {
+            "type": "string",
+            "description": "The member who deployed the current version.",
+            "format": "did"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.brain.message": {
         "type": "object",
         "required": [
@@ -10499,6 +10564,9 @@
     },
     {
       "name": "network.habitat.admin"
+    },
+    {
+      "name": "network.habitat.apps"
     },
     {
       "name": "network.habitat.brain"
