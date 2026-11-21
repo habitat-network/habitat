@@ -1,7 +1,8 @@
-import { type Cause, Effect, Queue, Stream } from "effect";
+import { type Cause, Effect, Queue, Sink, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 import { ConnectionError } from "./errors";
 import { Jetstream } from "./Jetstream";
+import type { SpaceEvent } from "./events";
 import { LexIndexer } from "./LexIndexer";
 import type { FetchHandler, Transport } from "./transport";
 
@@ -358,6 +359,109 @@ describe("Runner", () => {
     await Effect.runPromise(
       runner.deleteRecord(target, { timeout: "20 millis" }),
     );
+    await runner.stop();
+  });
+
+  it("runs an Effect Sink over the events, one at a time by default", async () => {
+    const server = new FakeServer();
+    const js = new Jetstream({
+      service: "https://pear.test",
+      mode: "spaces",
+      transport: server.transport,
+    });
+    const groups: string[][] = [];
+    const runner = js.runner(
+      Sink.forEachArray((events: ReadonlyArray<SpaceEvent>) =>
+        Effect.sync(() => {
+          groups.push(events.map((e) => (e.kind === "put" ? e.rkey : "?")));
+        }),
+      ),
+      { collections: [NOTE] },
+    );
+    server.push(1, commit(1, "a", "cid-a"));
+    server.push(2, commit(2, "b", "cid-b"));
+    void runner.replay();
+    await until(() => groups.flat().length === 2);
+    expect(groups.flat()).toEqual(["a", "b"]);
+    expect(await Effect.runPromise(runner.cursor())).toBe(3);
+    await runner.stop();
+  });
+
+  it("hands a Sink a batch of events at once and advances the cursor past it", async () => {
+    const server = new FakeServer();
+    const js = new Jetstream({
+      service: "https://pear.test",
+      mode: "spaces",
+      transport: server.transport,
+    });
+    const groups: string[][] = [];
+    const runner = js.runner(
+      Sink.forEachArray((events: ReadonlyArray<SpaceEvent>) =>
+        Effect.sync(() => {
+          groups.push(events.map((e) => (e.kind === "put" ? e.rkey : "?")));
+        }),
+      ),
+      { batch: { size: 3, window: "1 second" } },
+    );
+    for (const [seq, key] of [
+      [1, "a"],
+      [2, "b"],
+      [3, "c"],
+    ] as const) {
+      server.push(seq, commit(seq, key, `cid-${key}`));
+    }
+    void runner.replay();
+    await until(() => groups.length === 1);
+    expect(groups).toEqual([["a", "b", "c"]]);
+    expect(await Effect.runPromise(runner.cursor())).toBe(4);
+    await runner.stop();
+  });
+
+  it("retries a failing Sink without advancing the cursor", async () => {
+    const server = new FakeServer();
+    const js = new Jetstream({
+      service: "https://pear.test",
+      mode: "spaces",
+      transport: server.transport,
+    });
+    let attempts = 0;
+    const seen: string[] = [];
+    const runner = js.runner(
+      Sink.forEach((e: SpaceEvent) =>
+        Effect.suspend(() => {
+          attempts++;
+          if (attempts < 3) return Effect.fail("db down");
+          seen.push(e.kind === "put" ? e.rkey : "?");
+          return Effect.void;
+        }),
+      ),
+    );
+    server.push(1, commit(1, "a", "cid-a"));
+    void runner.replay();
+    await until(() => seen.length === 1);
+    expect(attempts).toBe(3);
+    expect(await Effect.runPromise(runner.cursor())).toBe(2);
+    await runner.stop();
+  });
+
+  it("putRecord settles on an event a Sink indexed", async () => {
+    const { server, js } = setup(async () =>
+      Response.json({ uri: uriOf("w"), cid: "cid-w" }),
+    );
+    const runner = js.runner(Sink.drain, { writeTimeout: "500 millis" });
+    void runner.replay();
+    await until(() => server.connects.length === 1);
+    const write = Effect.runPromise(
+      runner.putRecord({
+        space: SPACE,
+        repo: "did:web:org.test",
+        collection: NOTE,
+        rkey: "w",
+        record: { $type: NOTE, text: "hi" },
+      }),
+    );
+    server.push(1, commit(1, "w", "cid-w"));
+    expect(await write).toEqual({ uri: uriOf("w"), cid: "cid-w" });
     await runner.stop();
   });
 });

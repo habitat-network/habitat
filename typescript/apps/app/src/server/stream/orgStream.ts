@@ -6,7 +6,7 @@ import {
   type Runner,
 } from "@habitat-network/jetstream";
 import { Cause, Effect, Exit } from "effect";
-import { appIndexer } from "./indexer";
+import { appEventSink, INDEXED_COLLECTIONS } from "./indexer";
 
 // OrgStream follows one group's spaces through pear's
 // network.habitat.space.subscribe, with the group's own OAuth session, and
@@ -124,7 +124,10 @@ export class OrgStream extends DurableObject<Env> {
       mode: "spaces",
       fetch,
     });
-    this.runner = jetstream.runner(appIndexer(AppSink.for(this.env)), {
+    this.runner = jetstream.runner(appEventSink(AppSink.for(this.env)), {
+      collections: INDEXED_COLLECTIONS,
+      // A replay is a burst of events: write them a group at a time.
+      batch: { size: 50, window: "20 millis" },
       cursor: {
         get: () => storage.get<number>(CURSOR_KEY),
         set: (cursor) => storage.put(CURSOR_KEY, cursor),

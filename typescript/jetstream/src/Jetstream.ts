@@ -2,7 +2,7 @@ import { Duration, Effect, Stream } from "effect";
 import { ConnectionError, FrameDecodeError, StreamError } from "./errors";
 import { decodeFrame, type SpaceEvent } from "./events";
 import type { LexIndexer } from "./LexIndexer";
-import { Runner, type RunnerOptions } from "./Runner";
+import { type EventSink, Runner, type RunnerOptions } from "./Runner";
 import { type FetchHandler, fetchTransport, type Transport } from "./transport";
 
 const SUBSCRIBE = "network.habitat.space.subscribe";
@@ -187,8 +187,11 @@ export class Jetstream {
     return withReconnect();
   }
 
-  /** runner runs indexer's handlers over this stream; see [Runner]. */
-  runner<E>(indexer: LexIndexer<E>, options?: RunnerOptions): Runner<E> {
-    return new Runner(this, indexer, options);
+  /** runner runs an indexer's handlers, or a Sink, over this stream; see [Runner]. */
+  runner<E>(
+    target: LexIndexer<E> | EventSink<E>,
+    options?: RunnerOptions,
+  ): Runner<E> {
+    return new Runner(this, target, options);
   }
 }
