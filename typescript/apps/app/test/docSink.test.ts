@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { jsonToLex, parseCid, type LexMap } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import type { PromiseRepoBatch } from "internal/spaceSync";
+import type { RepoBatch } from "../src/server/stream/batch";
 import { DocSink } from "../src/server/docs/sink";
 import {
   commentsForDoc,
@@ -434,7 +434,7 @@ it("ignores a commentReply record that fails lexicon validation", async () => {
   expect(await repliesForDoc(getDb(env), URI)).toEqual([]);
 });
 
-// Whole batches, as the syncer hands them to SyncSink.apply.
+// Whole batches, as the stream indexer hands them to SyncSink.apply.
 describe("DocSink.apply", () => {
   const BOB_DID = "did:web:bob.example" as DidString;
   const SPACE = URI as SpaceRefString;
@@ -445,25 +445,19 @@ describe("DocSink.apply", () => {
     jsonToLex({ subject, relation: "reader" }) as LexMap;
   const sink = () => new DocSink(env, { getBlob });
 
-  async function* records(...items: { rkey: string; record: LexMap }[]) {
-    for (const { rkey, record } of items) {
-      yield {
-        collection: "network.habitat.relationship.userRelation" as const,
-        rkey,
-        cid: parseCid(RECORD_CID),
-        record,
-      };
-    }
-  }
-
-  const reset = (
-    ...items: { rkey: string; record: LexMap }[]
-  ): PromiseRepoBatch => ({
-    _tag: "Reset",
+  // ops is a one-write batch from Bob's repo.
+  const ops = (...items: { rkey: string; record: LexMap }[]): RepoBatch => ({
+    _tag: "Ops",
     space: SPACE,
     did: BOB_DID,
     rev: "rev2",
-    records: records(...items) as never,
+    changes: items.map(({ rkey, record }) => ({
+      uri: userRelation(rkey),
+      collection: "network.habitat.relationship.userRelation",
+      rkey,
+      cid: parseCid(RECORD_CID),
+      value: record,
+    })),
   });
 
   it("applies an Ops batch's writes and deletes", async () => {
@@ -506,25 +500,9 @@ describe("DocSink.apply", () => {
     expect(await docsFor(getDb(env), "did:web:carol.example")).toEqual([]);
   });
 
-  it("a Reset replaces what the repo had in the space", async () => {
-    await sink().apply(
-      reset(
-        { rkey: "r1", record: grant("did:web:carol.example") },
-        { rkey: "r2", record: grant("did:web:dave.example") },
-      ),
-      signal,
-    );
-    await sink().apply(
-      reset({ rkey: "r2", record: grant("did:web:dave.example") }),
-      signal,
-    );
-    expect(await docsFor(getDb(env), "did:web:carol.example")).toEqual([]);
-    expect(await docsFor(getDb(env), "did:web:dave.example")).toHaveLength(1);
-  });
-
   it("RepoRemoved and SpaceDeleted clear the mirrored records", async () => {
     await sink().apply(
-      reset({ rkey: "r1", record: grant("did:web:carol.example") }),
+      ops({ rkey: "r1", record: grant("did:web:carol.example") }),
       signal,
     );
     await sink().apply(
@@ -534,7 +512,7 @@ describe("DocSink.apply", () => {
     expect(await docsFor(getDb(env), "did:web:carol.example")).toEqual([]);
 
     await sink().apply(
-      reset({ rkey: "r1", record: grant("did:web:carol.example") }),
+      ops({ rkey: "r1", record: grant("did:web:carol.example") }),
       signal,
     );
     await sink().apply({ _tag: "SpaceDeleted", space: SPACE }, signal);

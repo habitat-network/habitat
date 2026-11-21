@@ -1,6 +1,7 @@
 import type { DidString } from "@atproto/syntax";
 import { appByHost, type AppRow, getDb } from "@/db";
 import { appHostOf, runUrl } from "@/lib/apps";
+import { getSpaceBlob } from "../blobs";
 import { decodeBundle } from "./apps.server";
 
 // The runner serves Apps: each request to <label>.<APP_RUN_DOMAIN> is
@@ -108,14 +109,10 @@ export async function runApp(
     );
   }
   // The bundle is read as the group itself: an app's record and code are
-  // always in the group's own repo (the sink skips any other writer), and
-  // the group's session reads its own repo with no space credential.
-  const resolved: RunnerDeps =
-    deps ??
-    (await import("../habitatClient").then(({ HabitatClient }): RunnerDeps => ({
-      getBlob: (space, repo, cid) =>
-        new HabitatClient(env, repo).getBlob(space, repo, cid),
-    })));
+  // always in the group's own repo (the sink skips any other writer).
+  const resolved: RunnerDeps = deps ?? {
+    getBlob: (space, repo, cid) => getSpaceBlob(env, space, repo, cid),
+  };
   const worker = env.LOADER.get(workerName(app), () =>
     workerCode(env, app, resolved),
   );

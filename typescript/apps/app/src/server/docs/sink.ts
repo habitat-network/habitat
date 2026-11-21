@@ -6,7 +6,7 @@ import {
   type LexValue,
 } from "@atproto/lex";
 import { network } from "api";
-import type { PromiseRepoBatch, PromiseSyncSink } from "internal/spaceSync";
+import type { RepoBatch, SyncSink } from "../stream/batch";
 import {
   deleteComment,
   deleteCommentReply,
@@ -46,15 +46,15 @@ export interface SinkDeps {
   getBlob(space: string, did: DidString, cid: string): Promise<Uint8Array>;
 }
 
-// RecordChange is one record write or delete, however the syncer delivered
-// it (an Ops change or one record of a Reset). value is null for a delete.
+// RecordChange is one record write or delete, however the stream delivered
+// it (an Ops change). value is null for a delete.
 export interface RecordChange {
   uri: string;
   cid: string;
   value: LexMap | null;
 }
 
-// DocSink is internal/spaceSync's SyncSink for chalk: it keeps chalk's D1
+// DocSink is the SyncSink for chalk: it keeps chalk's D1
 // mirror (docs, doc_access, doc_org_access, comments, comment_replies) and
 // each doc's DocRoom in step with the records synced from doc spaces and
 // their comments spaces. It replaces sap's outbox webhook.
@@ -64,13 +64,13 @@ export interface RecordChange {
 // this isn't one D1 transaction per batch — records also land in DocRoom,
 // which no D1 batch can cover — so an aborted apply can leave a prefix of
 // the batch applied; the replay that follows converges on the same state.
-export class DocSink implements PromiseSyncSink {
+export class DocSink implements SyncSink {
   constructor(
     private env: Env,
     private deps: SinkDeps,
   ) {}
 
-  async apply(batch: PromiseRepoBatch, signal: AbortSignal): Promise<void> {
+  async apply(batch: RepoBatch, signal: AbortSignal): Promise<void> {
     const db = getDb(this.env);
     switch (batch._tag) {
       case "Ops": {
@@ -85,30 +85,6 @@ export class DocSink implements PromiseSyncSink {
               value: change.value,
             });
           }
-        }
-        break;
-      }
-      case "Reset": {
-        // Drain every record first: draining is what verifies them, and a
-        // verification failure must fail the apply before anything changes.
-        const records: RecordChange[] = [];
-        for await (const record of batch.records) {
-          records.push({
-            uri: `${batch.space}/${batch.did}/${record.collection}/${record.rkey}`,
-            cid: record.cid.toString(),
-            value: record.record,
-          });
-        }
-        for (const record of records) {
-          signal.throwIfAborted();
-          await this.applyChange(record);
-        }
-        // Everything this repo had in the space that the reset didn't list
-        // is gone.
-        const keep = new Set(records.map((r) => r.uri));
-        const prefix = `${batch.space}/${batch.did}/`;
-        for (const uri of await mirroredRecordUris(db, prefix)) {
-          if (!keep.has(uri)) await deleteMirroredRecord(db, uri);
         }
         break;
       }

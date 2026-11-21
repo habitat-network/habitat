@@ -49,6 +49,27 @@ await Effect.runPromise(
 );
 ```
 
+## Running an Effect Sink
+
+`js.runner()` also takes any Effect `Sink` over the stream's events, in place
+of a `LexIndexer`. The sink is run over each group of events (one event unless
+`batch` says otherwise), so it can write a group in one transaction. Name the
+collections to ask for with `collections`.
+
+```ts
+const runner = js.runner(
+  Sink.forEachArray((events: ReadonlyArray<SpaceEvent>) => writeAll(events)),
+  {
+    collections: ["network.habitat.drop.file"],
+    batch: { size: 50, window: "20 millis" },
+  },
+);
+```
+
+A failing sink is run again over the same events, with backoff, before the
+cursor moves, so it must be idempotent. `LexIndexer#sink()` is an indexer as a
+Sink.
+
 ## Semantics
 
 - **Handlers** may return an Effect, a promise or nothing. They run one event

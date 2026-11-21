@@ -197,10 +197,8 @@ export class DocRoom extends DurableObject<Env> {
 
   // applyRemote merges a synced network.habitat.docs.crdt record's state
   // into the room. The record only carries a blob *reference*, so the sink
-  // (src/server/sink.ts) reads the bytes out of the space with the syncer's
-  // own space credential before calling this — not with the owner's
-  // session, which chalk may not hold (e.g. an org that was never
-  // connected).
+  // (src/server/docs/sink.ts) reads the bytes out of the space as the group
+  // before calling this — not with the owner's session.
   async applyRemote(id: DocIdentity, update: Uint8Array): Promise<void> {
     await this.rememberIdentity(id);
     const ownerDid = this.id?.ownerDid;

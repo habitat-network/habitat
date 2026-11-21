@@ -66,6 +66,23 @@ test("a member links a group, creates a doc and edits it", async ({
       timeout: 5_000,
     });
     await chalk.expectClean();
+
+    // Downloading reads the blob back out of pear (getBlob, as the group):
+    // the bytes and the file's name come back as uploaded.
+    const href = await page.getByRole("link", { name }).getAttribute("href");
+    // Fetched from inside the page: the browser resolves the test domains,
+    // Playwright's request context doesn't.
+    const download = await page.evaluate(async (url) => {
+      const res = await fetch(url);
+      return {
+        status: res.status,
+        body: await res.text(),
+        disposition: res.headers.get("content-disposition"),
+      };
+    }, href!);
+    expect(download.status).toBe(200);
+    expect(download.body).toBe("uploaded by the e2e suite");
+    expect(download.disposition).toContain(encodeURIComponent(name));
   });
 
   await test.step("create a doc", async () => {

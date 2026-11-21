@@ -7,6 +7,7 @@ import {
   Fiber,
   Option,
   Schedule,
+  Sink,
   Stream,
 } from "effect";
 import {
@@ -45,7 +46,28 @@ export interface RunnerOptions {
   readonly writeTimeout?: Duration.Input;
   /** How many recently indexed records are remembered for late waiters. */
   readonly recentLimit?: number;
+  /**
+   * The collections to ask the server for when the runner runs a Sink
+   * (an indexer knows its own). Default: all of them.
+   */
+  readonly collections?: ReadonlyArray<string>;
+  /**
+   * Hands the sink events in groups: up to `size` of them, or whatever has
+   * arrived `window` after the first. A sink can then write a group at once
+   * (one transaction); the cursor advances once per group. Default: one
+   * event at a time.
+   */
+  readonly batch?: { readonly size: number; readonly window?: Duration.Input };
 }
+
+/**
+ * What a Runner feeds events to: a LexIndexer, or any Effect Sink over the
+ * stream's events. Each run of the sink gets one group of events as its
+ * whole input (see RunnerOptions.batch), so it ends when they're consumed.
+ * It may be run again over the same events after a failure, so it must be
+ * idempotent.
+ */
+export type EventSink<E = unknown> = Sink.Sink<void, SpaceEvent, never, E>;
 
 export interface ReplayOptions {
   /**
@@ -104,8 +126,8 @@ const HANDLER_RETRY = Schedule.exponential("200 millis").pipe(
 );
 
 /**
- * Runner runs a LexIndexer's handlers over a Jetstream, one event at a
- * time, and advances the cursor only after an event's handlers all succeed:
+ * Runner runs a LexIndexer's handlers, or an Effect Sink, over a Jetstream,
+ * one event (or group of events, see RunnerOptions.batch) at a time, and advances the cursor only after an event's handlers all succeed:
  * a failing handler is retried with backoff rather than skipped, so the
  * index never silently misses a write.
  *
@@ -127,11 +149,22 @@ export class Runner<E = unknown> {
   private memoryCursor: number | undefined;
   private fiber: Fiber.Fiber<void, unknown> | undefined;
 
+  private readonly sink: EventSink<E>;
+  private readonly collections: ReadonlyArray<string> | undefined;
+
   constructor(
     readonly jetstream: Jetstream,
-    readonly indexer: LexIndexer<E>,
+    target: LexIndexer<E> | EventSink<E>,
     readonly options: RunnerOptions = {},
   ) {
+    if (Sink.isSink(target)) {
+      this.sink = target as EventSink<E>;
+      this.collections = options.collections;
+    } else {
+      const indexer = target as LexIndexer<E>;
+      this.sink = indexer.sink() as EventSink<E>;
+      this.collections = options.collections ?? indexer.collections();
+    }
     this.recentLimit = options.recentLimit ?? 10_000;
     this.writeTimeout = Duration.fromInputUnsafe(
       options.writeTimeout ?? "15 seconds",
@@ -178,21 +211,48 @@ export class Runner<E = unknown> {
     const self = this;
     return Effect.gen(function* () {
       const cursor = options.cursor ?? (yield* self.cursor()) ?? 0;
-      yield* self.jetstream
-        .subscribe({ cursor, collections: self.indexer.collections() })
-        .pipe(Stream.runForEach((event) => self.apply(event)));
+      const batch = self.options.batch;
+      const events = self.jetstream.subscribe({
+        cursor,
+        collections: self.collections ? [...self.collections] : undefined,
+      });
+      if (batch && batch.size > 1) {
+        yield* events.pipe(
+          Stream.groupedWithin(batch.size, batch.window ?? "10 millis"),
+          Stream.runForEach((group) => self.applyAll(group)),
+        );
+      } else {
+        yield* events.pipe(
+          Stream.runForEach((event) => self.applyAll([event])),
+        );
+      }
     });
   }
 
   /** apply indexes one event and settles the writes waiting on it. */
   apply(event: SpaceEvent): Effect.Effect<void, CursorError> {
+    return this.applyAll([event]);
+  }
+
+  /**
+   * applyAll runs the sink over events (a group, in stream order), retrying
+   * with backoff until it succeeds, then advances the cursor past them and
+   * settles the writes waiting on them.
+   */
+  applyAll(
+    events: ReadonlyArray<SpaceEvent>,
+  ): Effect.Effect<void, CursorError> {
     const self = this;
+    const last = events[events.length - 1];
+    if (!last) return Effect.void;
+    const first = events[0]!;
     return Effect.gen(function* () {
-      yield* self.indexer.handle(event).pipe(
+      yield* Stream.fromArray(events).pipe(
+        Stream.run(self.sink),
         Effect.mapError(
           (cause) =>
             new HandlerError({
-              uri: event.kind === "spaceDeleted" ? event.space : event.uri,
+              uri: first.kind === "spaceDeleted" ? first.space : first.uri,
               message: errorMessage(cause),
               cause,
             }),
@@ -207,8 +267,10 @@ export class Runner<E = unknown> {
         Effect.retry(HANDLER_RETRY),
         Effect.orDie,
       );
-      yield* self.saveCursor(event.seq + 1);
-      if (event.kind !== "spaceDeleted") self.indexed(event);
+      yield* self.saveCursor(last.seq + 1);
+      for (const event of events) {
+        if (event.kind !== "spaceDeleted") self.indexed(event);
+      }
     });
   }
 

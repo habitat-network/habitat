@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { jsonToLex, parseCid, type LexMap } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import type { PromiseRepoBatch } from "internal/spaceSync";
+import type { RepoBatch } from "../src/server/stream/batch";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   getDb,
@@ -29,17 +29,6 @@ const membership = (...roles: string[]) =>
     updatedAt: "2026-11-18T12:00:00.000Z",
   }) as LexMap;
 
-async function* records(...items: { rkey: string; record: LexMap }[]) {
-  for (const { rkey, record } of items) {
-    yield {
-      collection: MEMBERSHIP_COLLECTION as typeof MEMBERSHIP_COLLECTION,
-      rkey,
-      cid: parseCid(RECORD_CID),
-      record,
-    };
-  }
-}
-
 describe("MembershipSink", () => {
   const db = getDb(env);
   const signal = new AbortController().signal;
@@ -50,9 +39,9 @@ describe("MembershipSink", () => {
   });
 
   const ops = (
-    changes: Extract<PromiseRepoBatch, { _tag: "Ops" }>["changes"],
+    changes: Extract<RepoBatch, { _tag: "Ops" }>["changes"],
     did: DidString = ORG,
-  ): PromiseRepoBatch => ({
+  ): RepoBatch => ({
     _tag: "Ops",
     space: SPACE,
     did,
@@ -106,21 +95,6 @@ describe("MembershipSink", () => {
     );
     await sink.apply(ops([created(BOB)], ALICE as DidString), signal);
     expect(await memberDidsOf(db, ORG)).toEqual([]);
-  });
-
-  it("replaces the roster on a reset", async () => {
-    await sink.apply(ops([created(ALICE), created(BOB)]), signal);
-    await sink.apply(
-      {
-        _tag: "Reset",
-        space: SPACE,
-        did: ORG,
-        rev: "r2",
-        records: records({ rkey: ALICE, record: membership("admin") }),
-      } as PromiseRepoBatch,
-      signal,
-    );
-    expect(await memberDidsOf(db, ORG)).toEqual([ALICE]);
   });
 
   it("clears the roster when the space is deleted", async () => {

@@ -11,6 +11,7 @@ export {
 } from "./LexIndexer";
 export {
   Runner,
+  type EventSink,
   type CreateRecordInput,
   type CursorStore,
   type PutRecordInput,

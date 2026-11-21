@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { jsonToLex, parseCid, type LexMap } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import type { PromiseRepoBatch } from "internal/spaceSync";
+import type { RepoBatch } from "../src/server/stream/batch";
 import { beforeEach, describe, expect, it } from "vitest";
 import { appByHost, appsForOrg, getDb } from "@/db";
 import { apps } from "@/db/schema";
@@ -73,7 +73,7 @@ describe("AppRecordSink", () => {
     await db.delete(apps);
   });
 
-  const put = (value: LexMap): PromiseRepoBatch => ({
+  const put = (value: LexMap): RepoBatch => ({
     _tag: "Ops",
     space: SPACE,
     did: ORG,
@@ -125,15 +125,7 @@ describe("AppRecordSink", () => {
     expect(await appsForOrg(db, ORG)).toEqual([]);
   });
 
-  it("follows resets and space deletions", async () => {
-    await sink.apply(put(appRecord()), signal);
-    async function* none() {}
-    await sink.apply(
-      { _tag: "Reset", space: SPACE, did: ORG, rev: "r3", records: none() },
-      signal,
-    );
-    expect(await appsForOrg(db, ORG)).toEqual([]);
-
+  it("follows space deletions", async () => {
     await sink.apply(put(appRecord()), signal);
     await sink.apply({ _tag: "SpaceDeleted", space: SPACE }, signal);
     expect(await appsForOrg(db, ORG)).toEqual([]);
