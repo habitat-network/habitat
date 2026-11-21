@@ -46,3 +46,14 @@ func (c Commit) ToComAtprotoXRPC() comatproto.ComAtprotoSpaceDefsCommit {
 		Data:  atdata.Bytes(c.Data),
 	}
 }
+
+// FromComAtprotoXRPC is FromXRPC for the com.atproto.space.defs#commit type.
+func FromComAtprotoXRPC(c comatproto.ComAtprotoSpaceDefsCommit) Commit {
+	return Commit{
+		Ver:   int(c.Ver),
+		Repo:  syntax.DID(c.Repo),
+		Space: habitat_syntax.SpaceURI(c.Space),
+		Rev:   c.Rev,
+		Data:  c.Data,
+	}
+}

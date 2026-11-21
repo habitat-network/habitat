@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@atproto/lex-json": "0.0.0-spaces-alpha-20261029171913",
-    "effect": "4.1.3"
+    "effect": "4.1.4"
   },
   "devDependencies": {
     "typescript": "catalog:",
