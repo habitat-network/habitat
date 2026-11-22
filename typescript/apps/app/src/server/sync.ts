@@ -1,7 +1,6 @@
 import { SpaceRef, type DidString, type SpaceRefString } from "@atproto/syntax";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { Duration } from "effect";
-import { trimTrailingSlashes } from "internal/oauthClient";
 import {
   createSpaceSyncer,
   type CreateSpaceSyncerOptions,
@@ -134,8 +133,10 @@ function newSyncer(
   options: Partial<CreateSpaceSyncerOptions> = {},
 ): PromiseSpaceSyncer {
   return createSpaceSyncer({
-    notifyEndpoint: trimTrailingSlashes(env.APP_BASE_URL),
-    notifySecret: process.env.APP_SESSION_SECRET,
+    // No notifyEndpoint: the app serves no confirmRegistration route (it
+    // follows spaces through the stream), so a registration would fail pear's
+    // confirmation and refuse every credential, wedging the stream on its
+    // first blob read.
     // Resolve space authorities (group DIDs) through pear too.
     identityResolver: new HabitatIdentityResolver(env.APP_HABITAT_URL),
     backoffCap: BACKOFF_CAP,
