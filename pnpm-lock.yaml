@@ -579,7 +579,7 @@ importers:
         version: 1.0.2(@opentelemetry/api@1.10.0)(@tanstack/ai@1.5.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)
       '@tanstack/markdown':
         specifier: ^1.2.0
-        version: 1.2.0(react@19.2.8)
+        version: 1.2.1(react@19.2.8)
       '@tanstack/react-ai-devtools':
         specifier: ^1.0.1
         version: 1.0.1(@opentelemetry/api@1.10.0)(@types/react@19.2.18)(csstype@3.2.3)(preact@10.29.8)(react@19.2.8)(solid-js@1.9.14)(zod@4.6.7)
@@ -5541,8 +5541,8 @@ packages:
       react:
         optional: true
 
-  '@tanstack/markdown@1.2.0':
-    resolution: {integrity: sha512-8ZaMDLvp7iUuo7R5Ot+yvX/h1ZN8Cq2p38iL+X9uOkIKVFw3IjgP62dXT6+dp/Nk522qsuSDCJNdt2F4fZvVXQ==}
+  '@tanstack/markdown@1.2.1':
+    resolution: {integrity: sha512-D/W8VHZe39mTGh74E5ZdmUPz9f/Gqso7ogKab3TRt3Mcto/IUGP94FTeI53hcNz1djwmo/s4hwU1og0rCPinOQ==}
     peerDependencies:
       octane: '>=0.1.12'
       react: '>=18'
@@ -17347,7 +17347,7 @@ snapshots:
     optionalDependencies:
       react: 19.2.8
 
-  '@tanstack/markdown@1.2.0(react@19.2.8)':
+  '@tanstack/markdown@1.2.1(react@19.2.8)':
     optionalDependencies:
       react: 19.2.8
 
