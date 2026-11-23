@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Sink } from "effect";
 import type {
   DelEvent,
   PutEvent,
@@ -87,6 +87,14 @@ export class LexIndexer<E = unknown> {
   collections(): string[] | undefined {
     if (this.registrations.length === 0) return undefined;
     return [...new Set(this.registrations.map((r) => r.collection))];
+  }
+
+  /**
+   * sink is this indexer as a Sink over the stream's events: each event goes
+   * through [handle], in order. It's how a Runner runs an indexer.
+   */
+  sink(): Sink.Sink<void, SpaceEvent, never, unknown> {
+    return Sink.forEach((event: SpaceEvent) => this.handle(event));
   }
 
   /** handle runs every handler registered for event, in order. */
