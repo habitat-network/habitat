@@ -43,11 +43,11 @@ import { useEffect } from "react";
 import type { Member } from "@/server/fns/auth";
 import { signOut } from "@/server/fns/auth";
 import type { GroupSummary } from "@/server/fns/groups";
-import { groupLabel, groupQuery, myInvitesQuery } from "@/lib/queries";
+import { groupLabel, groupQuery } from "@/lib/queries";
 
 // AppSidebar is the app's navigation: the group switcher, search, and the
-// three sections of the design (Workspace and Manage are about the current
-// group; You is about the member).
+// two sections of the design (Workspace and Manage are about the current
+// group).
 export function AppSidebar({
   member,
   groups,
@@ -64,7 +64,6 @@ export function AppSidebar({
     ...groupQuery(currentOrg ?? ""),
     enabled: currentOrg !== null,
   });
-  const { data: invites = [] } = useQuery(myInvitesQuery);
 
   // ⌘K / Ctrl+K opens search in the current group.
   useEffect(() => {
@@ -138,43 +137,6 @@ export function AppSidebar({
             />
           </>
         )}
-        <SidebarGroup>
-          <SidebarGroupLabel>You</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname === "/connections"}
-                  render={<Link to="/connections" />}
-                >
-                  <Cable />
-                  <span>Connections</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname === "/join"}
-                  render={<Link to="/join" />}
-                >
-                  <LogIn />
-                  <span>Join a group</span>
-                </SidebarMenuButton>
-                {invites.length > 0 && (
-                  <SidebarMenuBadge>{invites.length}</SidebarMenuBadge>
-                )}
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname === "/groups/new"}
-                  render={<Link to="/groups/new" />}
-                >
-                  <Plus />
-                  <span>Create a group</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <MemberCard
