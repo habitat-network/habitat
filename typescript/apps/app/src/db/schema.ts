@@ -144,6 +144,9 @@ export const connectedOrgs = sqliteTable("connected_orgs", {
   name: text("name").notNull(),
   connectedBy: text("connected_by").notNull(),
   connectedAt: integer("connected_at").notNull(),
+  // The seq the org's event stream resumes from (see src/server/stream):
+  // one past the last event applied. Null until the first catch-up.
+  streamCursor: integer("stream_cursor"),
 });
 
 // --- File index (the syncer's SyncSink, src/server/sink.ts) -----------------

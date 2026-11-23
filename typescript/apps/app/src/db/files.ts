@@ -1,5 +1,5 @@
 // Queries over the synced files table and connected orgs, ported from Drop.
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { connectedOrgs, files } from "./schema";
 import type { Db } from ".";
 
@@ -68,6 +68,35 @@ export async function deleteConnectedOrg(db: Db, orgDid: string) {
   await db.delete(connectedOrgs).where(eq(connectedOrgs.orgDid, orgDid));
 }
 
+// orgStreamCursor reads the seq org's event stream resumes from.
+export async function orgStreamCursor(
+  db: Db,
+  orgDid: string,
+): Promise<number | undefined> {
+  const [row] = await db
+    .select({ cursor: connectedOrgs.streamCursor })
+    .from(connectedOrgs)
+    .where(eq(connectedOrgs.orgDid, orgDid))
+    .limit(1);
+  return row?.cursor ?? undefined;
+}
+
+// setOrgStreamCursor saves org's stream cursor. It only moves forward: more
+// than one isolate may be following the same org, and a slower one must not
+// move the cursor back.
+export async function setOrgStreamCursor(
+  db: Db,
+  orgDid: string,
+  cursor: number,
+): Promise<void> {
+  await db
+    .update(connectedOrgs)
+    .set({
+      streamCursor: sql`max(coalesce(${connectedOrgs.streamCursor}, 0), ${cursor})`,
+    })
+    .where(eq(connectedOrgs.orgDid, orgDid));
+}
+
 // connectedOrgNames maps each of orgIds this deployment holds a session for
 // to its cached name.
 export async function connectedOrgNames(
@@ -89,13 +118,4 @@ export async function isConnectedOrg(db: Db, orgDid: string) {
     .where(eq(connectedOrgs.orgDid, orgDid))
     .limit(1);
   return row !== undefined;
-}
-
-// connectedOrgDids lists every org this deployment holds a session for:
-// the groups whose streams it follows.
-export async function connectedOrgDids(db: Db): Promise<string[]> {
-  const rows = await db
-    .select({ orgDid: connectedOrgs.orgDid })
-    .from(connectedOrgs);
-  return rows.map((r) => r.orgDid);
 }

@@ -1,34 +1,15 @@
 import type { PutRecordInput, RecordTarget } from "@habitat-network/jetstream";
-import { connectedOrgDids, getDb } from "@/db";
-import type { WriteOutcome } from "./orgStream";
+import {
+  awaitRecord,
+  deleteRecord,
+  putRecord,
+  type WriteOutcome,
+} from "./orgStream";
 
-// The request side of the group streams (see orgStream.ts). Each group's
-// stream lives in its own OrgStream Durable Object; these helpers reach it.
+// The request side of the org streams (see orgStream.ts): each org's stream
+// runs in the isolate that serves requests against it.
 
-function stub(env: Env, org: string) {
-  return env.ORG_STREAM.get(env.ORG_STREAM.idFromName(org));
-}
-
-// followOrg starts following org's spaces, if nothing is yet. Called when a
-// group is connected, and on every cron run for every connected group.
-export async function followOrg(env: Env, org: string): Promise<void> {
-  await stub(env, org).ensure(org);
-}
-
-// followConnectedOrgs is the cron trigger's job: make sure every connected
-// group's stream is running (a Durable Object that was evicted restarts
-// from its saved cursor).
-export async function followConnectedOrgs(env: Env): Promise<void> {
-  const orgs = await connectedOrgDids(getDb(env));
-  const results = await Promise.allSettled(
-    orgs.map((org) => followOrg(env, org)),
-  );
-  results.forEach((r, i) => {
-    if (r.status === "rejected") {
-      console.warn("[stream] following group failed", orgs[i], r.reason);
-    }
-  });
-}
+export { followOrg } from "./orgStream";
 
 /** The write was refused: nothing was written. */
 export class StreamWriteError extends Error {
@@ -66,7 +47,7 @@ export async function putRecordIndexed(
   writer: string,
   input: PutRecordInput,
 ): Promise<IndexedWrite> {
-  return settle(await stub(env, org).putRecord(writer, input));
+  return settle(await putRecord(env, org, writer, input));
 }
 
 // deleteRecordIndexed deletes a record as writer through org's stream, and
@@ -77,7 +58,7 @@ export async function deleteRecordIndexed(
   writer: string,
   target: RecordTarget,
 ): Promise<IndexedWrite> {
-  return settle(await stub(env, org).deleteRecord(writer, target));
+  return settle(await deleteRecord(env, org, writer, target));
 }
 
 // awaitIndexed waits for a write pear made itself (a procedure such as
@@ -88,5 +69,5 @@ export async function awaitIndexed(
   uri: string,
   cid: string | null,
 ): Promise<IndexedWrite> {
-  return settle(await stub(env, org).awaitRecord(uri, cid));
+  return settle(await awaitRecord(env, org, uri, cid));
 }

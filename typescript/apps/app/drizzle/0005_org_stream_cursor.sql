@@ -1,0 +1,1 @@
+ALTER TABLE `connected_orgs` ADD `stream_cursor` integer;

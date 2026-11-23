@@ -81,6 +81,7 @@ table rather than sealed segment files, so pages carry the events inline.
 
 ```ts
 void runner.replay({ snapshot: true }); // HTTP pages to the tip, then the socket from tip + 1
+// `onCaughtUp` fires after the last page, as the socket opens.
 // or by hand:
 js.snapshot({ after: 0 }).pipe(Stream.runForEach((page) => ...));
 ```

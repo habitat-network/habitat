@@ -125,15 +125,24 @@ export const myOrgs = Effect.fn("myOrgs")(function* () {
 // group-scoped server function starts with. The synced memberships table
 // answers it; a group missing from it (joined since the last sync) is
 // checked with pear once, which also starts syncing its roster.
+//
+// It's also the request made "against" org that starts the org's event
+// stream in this isolate if it isn't running (see ../stream/orgStream.ts).
 export const requireOrg = Effect.fn("requireOrg")(function* (org: string) {
   const did = yield* currentMember;
   const db = yield* Database;
-  if (yield* Effect.promise(() => isMemberOf(db, org, did))) {
-    return { did, org: org as DidString };
+  const env = yield* AppEnv;
+  if (!(yield* Effect.promise(() => isMemberOf(db, org, did)))) {
+    const orgs = yield* refreshMemberships();
+    if (!orgs.includes(org as DidString)) {
+      return yield* new NotAMember({ org });
+    }
   }
-  const orgs = yield* refreshMemberships();
-  if (!orgs.includes(org as DidString)) {
-    return yield* new NotAMember({ org });
-  }
+  // Catch D1 up and keep the live socket open. Imported lazily: the stream
+  // pulls in the sinks, which reach back into the modules that import this.
+  yield* Effect.tryPromise(async () => {
+    const { followOrg } = await import("@/server/stream");
+    await followOrg(env, org);
+  }).pipe(Effect.catch((e) => Effect.logWarning("following group failed", e)));
   return { did, org: org as DidString };
 });

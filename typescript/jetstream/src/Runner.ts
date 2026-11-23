@@ -83,6 +83,13 @@ export interface ReplayOptions {
    * near the head may as well subscribe directly. Default: false.
    */
   readonly snapshot?: boolean | { readonly limit?: number };
+  /**
+   * Called once the snapshot pages (if any) are applied, as the live socket
+   * is about to open from the saved position: everything up to the
+   * snapshot's tip is indexed. Without `snapshot` there are no pages, so it
+   * is called at once and the socket does the catch-up.
+   */
+  readonly onCaughtUp?: () => void;
 }
 
 /** Selects the record a write goes to. */
@@ -242,6 +249,7 @@ export class Runner<E = unknown> {
             ),
           );
       }
+      options.onCaughtUp?.();
       const events = self.jetstream.subscribe({
         cursor,
         collections,

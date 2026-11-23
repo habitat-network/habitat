@@ -173,8 +173,19 @@ describe("Runner", () => {
     for (const [i, k] of ["a", "b", "c", "d", "e"].entries()) {
       server.push(i + 1, commit(i + 1, k, `cid-${k}`));
     }
-    void made.runner.replay({ snapshot: true });
+    let caughtUpAt: { indexed: number; connects: number } | undefined;
+    void made.runner.replay({
+      snapshot: true,
+      onCaughtUp: () => {
+        caughtUpAt = {
+          indexed: made.db.size,
+          connects: server.connects.length,
+        };
+      },
+    });
     await until(() => made.db.size === 5);
+    // Called after the last page is applied, before the socket opens.
+    expect(caughtUpAt).toEqual({ indexed: 5, connects: 0 });
     await until(() => server.connects.length === 1);
     expect(urls.map((u) => u.searchParams.get("afterSeq"))).toEqual([
       "-1",
