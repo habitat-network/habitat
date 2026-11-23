@@ -9,7 +9,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Kbd,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -39,7 +38,6 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect } from "react";
 import type { Member } from "@/server/fns/auth";
 import { signOut } from "@/server/fns/auth";
 import type { GroupSummary } from "@/server/fns/groups";
@@ -57,7 +55,6 @@ export function AppSidebar({
   groups: GroupSummary[];
   currentOrg: string | null;
 }) {
-  const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const current = groups.find((g) => g.did === currentOrg) ?? null;
   const { data: group } = useQuery({
@@ -65,24 +62,14 @@ export function AppSidebar({
     enabled: currentOrg !== null,
   });
 
-  // ⌘K / Ctrl+K opens search in the current group.
-  useEffect(() => {
-    if (!currentOrg) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        void navigate({ to: "/g/$org/search", params: { org: currentOrg } });
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [currentOrg, navigate]);
-
   const groupItems: NavItem[] = currentOrg
     ? [
         { to: "/g/$org/files", label: "Files", icon: FolderOpen },
         { to: "/g/$org/search", label: "Search", icon: Search },
-        { to: "/g/$org/apps", label: "Apps", icon: AppWindow },
+        // Apps is a dev-only section while it's being built.
+        ...(import.meta.env.DEV
+          ? [{ to: "/g/$org/apps" as const, label: "Apps", icon: AppWindow }]
+          : []),
       ]
     : [];
   const manageItems: NavItem[] = currentOrg
@@ -103,22 +90,6 @@ export function AppSidebar({
     <Sidebar variant="inset">
       <SidebarHeader>
         <GroupSwitcher groups={groups} current={current} />
-        {currentOrg && (
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                className="text-muted-foreground"
-                render={
-                  <Link to="/g/$org/search" params={{ org: currentOrg }} />
-                }
-              >
-                <Search />
-                <span className="flex-1">Search everything</span>
-                <Kbd>⌘K</Kbd>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        )}
       </SidebarHeader>
       <SidebarContent>
         {currentOrg && (
