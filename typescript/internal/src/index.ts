@@ -25,12 +25,13 @@ export {
   resolveDidToHandle,
   resolveSpaceHost,
   resolveDidService,
+  setPlcDirectory,
 } from "./atprotoDirectory";
 export {
   createSpaceSignatureHeaders,
   spaceCredentialKid,
-  wantCommitMacHeaders,
-  wantRecordMacHeaders,
+  acceptCommitMacHeaders,
+  acceptRecordMacHeaders,
 } from "./spaceSignature";
 export {
   SidebarGroup,
@@ -66,7 +67,11 @@ export {
 export type { RememberedLogin } from "./rememberedLogin";
 
 // Utilities
-export { default as clientMetadata } from "./clientMetadata";
+export {
+  default as clientMetadata,
+  MANAGE_SPACES_SCOPE,
+  READ_SPACES_SCOPE,
+} from "./clientMetadata";
 export { default as reportWebVitals } from "./reportWebVitals";
 export {
   searchActorsTypeahead,

@@ -41,6 +41,35 @@ type registration struct {
 	UpdatedAt time.Time
 }
 
+// webhook is the GORM model for a notification endpoint registered through
+// com.atproto.space.authorizeSpaceSync. Unlike a [registration] it is delivered
+// to without service auth: the endpoint and token together identify it, and the
+// token travels in each request body. It stays active while the credential it
+// was registered with is valid (ExpiresAt).
+type webhook struct {
+	Space    habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Endpoint string                  `gorm:"primaryKey"`
+	Token    string                  `gorm:"primaryKey"`
+	// ExpiresAt is when the credential the registration was made with expires.
+	ExpiresAt time.Time
+	// ExpiryNotified is set once the endpoint was sent registrationExpired, so
+	// that is sent in place of the first update after expiry and not again.
+	ExpiryNotified bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+func (webhook) TableName() string { return "space_webhooks" }
+
+// Webhook is the public view of a registered notification endpoint.
+type Webhook struct {
+	Space          habitat_syntax.SpaceURI
+	Endpoint       string
+	Token          string
+	ExpiresAt      time.Time
+	ExpiryNotified bool
+}
+
 // Namespace is the lexicon namespace a registration was made through. It
 // decides which methods the registration's notifications are delivered as, and
 // how their service-auth JWT is addressed (see Registration.audience).
@@ -102,6 +131,22 @@ type Store interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 	) ([]Registration, error)
+
+	// RegisterWebhook upserts a notification endpoint for space, refreshing its
+	// expiry to expiresAt and re-arming its registrationExpired notice. The
+	// endpoint and token together identify the registration.
+	RegisterWebhook(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		endpoint string,
+		token string,
+		expiresAt time.Time,
+	) error
+	// ListWebhooks returns every registered endpoint for space, including those
+	// whose registration has lapsed, which still receive deletion notices.
+	ListWebhooks(ctx context.Context, space habitat_syntax.SpaceURI) ([]Webhook, error)
+	// MarkWebhookExpiryNotified records that w was sent registrationExpired.
+	MarkWebhookExpiryNotified(ctx context.Context, w Webhook) error
 
 	// QueueSpaceDeleted persists a pending notifySpaceDeleted delivery to each
 	// of regs, one per audience, due at retryAt (unix milliseconds). A
@@ -335,6 +380,56 @@ func (s *store) RescheduleSpaceDeleted(
 	return res.RowsAffected == 1, nil
 }
 
+func (s *store) RegisterWebhook(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	endpoint string,
+	token string,
+	expiresAt time.Time,
+) error {
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "space"}, {Name: "endpoint"}, {Name: "token"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"expires_at":      expiresAt,
+			"expiry_notified": false,
+			"updated_at":      time.Now(),
+		}),
+	}).Create(&webhook{
+		Space:     space,
+		Endpoint:  strings.TrimRight(endpoint, "/"),
+		Token:     token,
+		ExpiresAt: expiresAt,
+	}).Error
+}
+
+func (s *store) ListWebhooks(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) ([]Webhook, error) {
+	var rows []webhook
+	if err := s.db.WithContext(ctx).Where("space = ?", space).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list webhooks: %w", err)
+	}
+	out := make([]Webhook, len(rows))
+	for i, r := range rows {
+		out[i] = Webhook{
+			Space: r.Space, Endpoint: r.Endpoint, Token: r.Token,
+			ExpiresAt: r.ExpiresAt, ExpiryNotified: r.ExpiryNotified,
+		}
+	}
+	return out, nil
+}
+
+func (s *store) MarkWebhookExpiryNotified(ctx context.Context, w Webhook) error {
+	err := s.db.WithContext(ctx).Model(&webhook{}).
+		Where("space = ? AND endpoint = ? AND token = ?", w.Space, w.Endpoint, w.Token).
+		Update("expiry_notified", true).Error
+	if err != nil {
+		return fmt.Errorf("mark webhook expiry notified: %w", err)
+	}
+	return nil
+}
+
 func (s *store) ClearSpaceDeleted(ctx context.Context, p PendingDeletion) error {
 	if err := s.pendingDeletion(ctx, p).Delete(&spaceDeletedDelivery{}).Error; err != nil {
 		return fmt.Errorf("clear space deleted delivery: %w", err)
@@ -354,5 +449,5 @@ func (s *store) pendingDeletion(ctx context.Context, p PendingDeletion) *gorm.DB
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&registration{}, &spaceDeletedDelivery{}}
+	return []any{&registration{}, &spaceDeletedDelivery{}, &webhook{}}
 }

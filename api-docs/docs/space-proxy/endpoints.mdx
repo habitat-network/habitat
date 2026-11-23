@@ -15,17 +15,17 @@ Every endpoint is served at `https://pear.habitat.network/xrpc/{nsid}`, and each
 
 ## Space management
 
-Proposal `com.atproto.space.{createSpace,updateSpace,getSpace,deleteSpace}` and `com.atproto.memberspace.*`, served alongside the `network.habitat.simplespace.*` equivalents below. A space's policy is stored and returned by `getSpace`. Habitat supports `com.atproto.memberspace.policy` (the default; `publicRead` and `allowedApps` are enforced when issuing credentials, `publicWrite`, `publishPolicy` and `publishMembers` are stored but not yet enforced) and `com.atproto.personalspace.policy`; `com.atproto.managedspace.policy` fails with `UnsupportedPolicy`. All of these take OAuth; Habitat does not implement the proposal's `manage` scope operations, so authorization is the space's owner relation instead.
+Proposal `com.atproto.space.{createSpace,updateSpace,getSpace,deleteSpace}` and `com.atproto.memberspace.*`, the policy-agnostic lifecycle methods and the memberspace member methods. The authority is assigned by Habitat rather than taken from the caller. A space's policy is stored and returned by `getSpace`. Habitat supports `network.habitat.relationspace.policy` (access decided by the space's userRelation and spaceRelation records, no configuration), `com.atproto.memberspace.policy` (the default; `publicRead` and `allowedApps` are enforced when issuing credentials, `publicWrite`, `publishPolicy` and `publishMembers` are stored but not yet enforced) and `com.atproto.personalspace.policy`; `com.atproto.managedspace.policy` fails with `UnsupportedPolicy`. All of these take OAuth; Habitat does not implement the proposal's `manage` scope operations, so authorization is the space's owner relation instead.
 
-| Endpoint                                                                                          | Status | Notes                                                                                                                       |
-| ------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------- |
-| [`network.habitat.simplespace.createSpace`](/docs/api/network-habitat-simplespace-create-space)   | 🟡     | The authority is assigned by Habitat rather than taken from the caller; `did` may only name the caller or the caller's org. |
-| [`network.habitat.simplespace.addMember`](/docs/api/network-habitat-simplespace-add-member)       | 🟢     | Owner only. Will include the added user's repos in the space.                                                               |
-| [`network.habitat.simplespace.removeMember`](/docs/api/network-habitat-simplespace-remove-member) | 🟢     | Owner only.                                                                                                                 |
-| [`network.habitat.simplespace.listMembers`](/docs/api/network-habitat-simplespace-list-members)   | 🟡     | `cursor` is accepted but ignored — one unpaginated page.                                                                    |
-| [`network.habitat.simplespace.deleteSpace`](/docs/api/network-habitat-simplespace-delete-space)   | 🟢     | Owner only; fans out `notifySpaceDeleted`.                                                                                  |
-| `network.habitat.simplespace.getSpace`                                                            | 🔴     | Spaces carry no host-specific `config` to describe.                                                                         |
-| `network.habitat.simplespace.updateSpace`                                                         | 🔴     | Spaces carry no host-specific `config` to describe.                                                                         |
+| Endpoint                                | Status | Notes                                                                     |
+| --------------------------------------- | ------ | ------------------------------------------------------------------------- |
+| `com.atproto.space.createSpace`         | 🟢     |                                                                           |
+| `com.atproto.space.updateSpace`         | 🟢     |                                                                           |
+| `com.atproto.space.getSpace`            | 🟢     |                                                                           |
+| `com.atproto.space.deleteSpace`         | 🟢     | Owner only; fans out `notifySpaceUpdate`.                                 |
+| `com.atproto.memberspace.putMembers`    | 🟡     | Members must have both `read` and `write`; at most 100 per call. Owner only. |
+| `com.atproto.memberspace.removeMembers` | 🟢     | Owner only. The space's own org cannot be removed.                        |
+| `com.atproto.memberspace.listMembers`   | 🟡     | `cursor` is accepted but ignored — one unpaginated page.                  |
 
 ## Records and blobs
 

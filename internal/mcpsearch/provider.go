@@ -10,7 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ProviderID identifies a Provider, e.g. "github-issues". It's reported with
+// ProviderID identifies a Provider, e.g. "slack-messages". It's reported with
 // every item and source so callers can tell which tool produced them.
 type ProviderID string
 
@@ -33,7 +33,7 @@ type Provider interface {
 	// Arguments builds the tool call's arguments for q.
 	Arguments(q Query) map[string]any
 	// Normalize converts a successful tool result into items, in the order
-	// the tool ranked them. Their Source is filled in by the caller.
+	// the tool ranked them.
 	Normalize(result *mcp.CallToolResult) ([]Item, error)
 }
 

@@ -51,6 +51,9 @@ type deletedSpace struct {
 	Type      syntax.NSID             `gorm:"primaryKey"`
 	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
 	DeletedAt time.Time
+	// Seq is the deletion's position in the event log; 0 until
+	// [Store.SequenceEvents] gives it one.
+	Seq EventSeq `gorm:"not null;default:0;index"`
 }
 
 type spaceRecord struct {
@@ -62,9 +65,13 @@ type spaceRecord struct {
 	Rev        syntax.TID `gorm:"uniqueIndex"`
 	Cid        string
 	PrevCid    string // cid of the record's prior version, for the oplog
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	DeletedAt  gorm.DeletedAt
+	// Seq is the record's latest write's position in the event log. Every
+	// write resets it to 0, pending, and [Store.SequenceEvents] gives it the
+	// next seq once the write has committed.
+	Seq       EventSeq `gorm:"not null;default:0;index"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt
 }
 
 // blobRef tracks which record within a space references a blob CID.
@@ -100,8 +107,12 @@ type spaceRepo struct {
 	Rev   syntax.TID
 	// SpaceRev is the space revision at this repo's latest write, so listRepos
 	// can return only the repos that changed since a given space revision.
-	SpaceRev  syntax.TID
-	Remote    bool
+	SpaceRev syntax.TID
+	Remote   bool
+	// Removed marks a repo the space authority took out of the writer set
+	// with removeWriter. The row is kept as a tombstone so listWriters can
+	// report the removal to syncers; any later write clears it.
+	Removed   bool
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
 }
@@ -113,6 +124,9 @@ type RepoInfo struct {
 	Hash []byte
 	// SpaceRev is the space revision at the repo's latest write.
 	SpaceRev syntax.TID
+	// Removed reports the repo was removed from the writer set. Only
+	// [Store.ListWritersSince] returns removed repos.
+	Removed bool
 }
 
 // RepoHead is a repo's latest oplog revision within a space. See
@@ -169,6 +183,8 @@ type Store interface {
 	// IsSpaceDeleted reports whether the space was deleted and hasn't been
 	// recreated since. A space that never existed is not deleted.
 	IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
+	// SpaceRev returns the space's current revision, or ErrSpaceNotFound.
+	SpaceRev(ctx context.Context, uri habitat_syntax.SpaceURI) (syntax.TID, error)
 
 	// Member operations
 	ListRepos(
@@ -184,6 +200,36 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		since syntax.TID,
 	) (syntax.TID, []RepoInfo, error)
+
+	// ListWritersSince is like ListReposSince but also returns repos removed
+	// from the writer set (with Removed set), so a syncer learns of removals.
+	ListWritersSince(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		since syntax.TID,
+	) (syntax.TID, []RepoInfo, error)
+	// RemoveWriter takes repo out of the space's writer set at a fresh space
+	// revision. It does nothing if repo is not a writer. The repo is added
+	// back by its next write. Records the repo holds are untouched.
+	RemoveWriter(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+	) error
+
+	// ImportWriters records the writers a space meta archive carries, for a
+	// space migrated here: each is tracked as a repo at the revision and
+	// commit data the archive reports, as for a repo registered by
+	// RegisterRemoteWrite, since its records are not held here until the
+	// repo's own account imports them. A repo this host already tracks is left
+	// as it is. The space's revision moves up to the newest of the writers', so
+	// revisions stay monotonic across the migration. Returns ErrSpaceNotFound
+	// if the space does not exist.
+	ImportWriters(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		writers []MetaWriter,
+	) error
 
 	// RegisterRemoteWrite records that repo advanced to rev/hash on its own
 	// PDS, without this space host holding the record data locally. It is the
@@ -201,6 +247,33 @@ type Store interface {
 		repo syntax.DID,
 		rev syntax.TID,
 		hash []byte,
+	) error
+
+	// External repos' records
+	//
+	// The space host fetches the records of its external writers (Remote
+	// repos, see RegisterRemoteWrite) from their own PDSes so its event log
+	// carries them; see package remotesync. They are kept apart from the
+	// records written through this host and served only by the event log.
+	//
+	// GetRemoteRepo returns how far an external writer has been fetched, or
+	// ErrRepoNotRemote if repo isn't one.
+	GetRemoteRepo(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+	) (RemoteRepo, error)
+	// ListRemoteReposBehind lists the external writers whose PDS reported a
+	// rev past what has been fetched.
+	ListRemoteReposBehind(ctx context.Context) ([]RemoteRepo, error)
+	// ApplyRemoteSync stores a batch of ops fetched from an external writer
+	// and the fetch position after it, in one transaction. Each op becomes
+	// its record's latest write in the event log.
+	ApplyRemoteSync(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		sync RemoteSync,
 	) error
 
 	// Record operations
@@ -319,6 +392,27 @@ type Store interface {
 		repo syntax.DID,
 	) (commit *spacecommit.Commit, err error)
 
+	// Event log
+	//
+	// SequenceEvents gives every committed write that has no seq yet the next
+	// seqs of the event log, and returns the log's head: its latest seq, or 0
+	// when it is empty. Writes leave their row pending rather than taking a
+	// seq themselves, so they never contend on the log; sequencing runs on its
+	// own and only ever sees committed rows, which is what keeps seqs
+	// becoming visible in order. Records are sequenced in rev order, then
+	// records fetched from external writers in rev order, then space
+	// deletions.
+	SequenceEvents(ctx context.Context) (EventSeq, error)
+	// ListEvents returns the sequenced events at seq >= cursor that match
+	// filter, in seq order, at most limit of them. Fewer than limit means the
+	// caller has reached the head.
+	ListEvents(
+		ctx context.Context,
+		filter EventFilter,
+		cursor EventSeq,
+		limit int,
+	) ([]Event, error)
+
 	// WithTx returns a copy of the store scoped to the given transaction, so its
 	// DB writes participate in a caller-managed transaction. FGA writes are not
 	// transactional with the DB, but callers run them inside the same closure so
@@ -366,6 +460,15 @@ type Notifier interface {
 		spaceRev syntax.TID,
 		prevSpaceRev syntax.TID,
 	)
+	// NotifyWriterRemoved reports that a repo was removed from a space's writer
+	// set, at spaceRev (after prevSpaceRev).
+	NotifyWriterRemoved(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		spaceRev syntax.TID,
+		prevSpaceRev syntax.TID,
+	)
 	// NotifySpaceDeleted reports that a space was deleted.
 	NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI)
 }
@@ -386,6 +489,19 @@ func (n Notifiers) NotifyWrite(
 ) {
 	for _, notifier := range n {
 		notifier.NotifyWrite(ctx, space, repo, rev, hash, spaceRev, prevSpaceRev)
+	}
+}
+
+// NotifyWriterRemoved implements [Notifier].
+func (n Notifiers) NotifyWriterRemoved(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	spaceRev syntax.TID,
+	prevSpaceRev syntax.TID,
+) {
+	for _, notifier := range n {
+		notifier.NotifyWriterRemoved(ctx, space, repo, spaceRev, prevSpaceRev)
 	}
 }
 
@@ -524,6 +640,23 @@ func (s *store) CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceUR
 	}
 
 	return true, nil
+}
+
+// SpaceRev implements [Store].
+func (s *store) SpaceRev(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+) (syntax.TID, error) {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND type = ? AND skey = ?", uri.SpaceOwner(), uri.SpaceType(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", ErrSpaceNotFound
+	} else if err != nil {
+		return "", fmt.Errorf("get space rev: %w", err)
+	}
+	return sp.Rev, nil
 }
 
 // IsSpaceDeleted implements [Store].
@@ -686,6 +819,75 @@ func (s *store) ListReposSince(
 	uri habitat_syntax.SpaceURI,
 	since syntax.TID,
 ) (syntax.TID, []RepoInfo, error) {
+	return s.listRepos(ctx, uri, since, false)
+}
+
+// ListWritersSince implements [Store].
+func (s *store) ListWritersSince(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	since syntax.TID,
+) (syntax.TID, []RepoInfo, error) {
+	return s.listRepos(ctx, uri, since, true)
+}
+
+// RemoveWriter implements [Store].
+func (s *store) RemoveWriter(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (err error) {
+	ctx, span := tracer.Start(ctx, "spaces.RemoveWriter", trace.WithAttributes(
+		telemetry.Space(uri),
+		telemetry.Repo(repo),
+	))
+	defer func() { telemetry.End(span, err) }()
+	ok, err := s.CheckSpaceExists(ctx, uri)
+	if err != nil {
+		return fmt.Errorf("failed to get space: %w", err)
+	} else if !ok {
+		return ErrSpaceNotFound
+	}
+	var prevSpaceRev, spaceRev syntax.TID
+	removed := false
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockRepo(tx, uri, repo); err != nil {
+			return err
+		}
+		var current spaceRepo
+		err := tx.Where("space = ? AND repo = ?", uri, repo).First(&current).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && current.Removed) {
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("load repo: %w", err)
+		}
+		prevSpaceRev, spaceRev, err = s.advanceSpaceRev(tx, uri)
+		if err != nil {
+			return err
+		}
+		removed = true
+		return tx.Model(&spaceRepo{}).
+			Where("space = ? AND repo = ?", uri, repo).
+			Updates(map[string]any{"removed": true, "space_rev": spaceRev}).Error
+	})
+	if err != nil {
+		return err
+	}
+	if removed {
+		// Best-effort: tell registered syncers, as a write does.
+		s.notifier.NotifyWriterRemoved(ctx, uri, repo, spaceRev, prevSpaceRev)
+	}
+	return nil
+}
+
+// listRepos lists repos written after since, in ascending space revision.
+// Removed repos are included only when includeRemoved is set.
+func (s *store) listRepos(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	since syntax.TID,
+	includeRemoved bool,
+) (syntax.TID, []RepoInfo, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND type = ? AND skey = ?",
@@ -702,6 +904,9 @@ func (s *store) ListReposSince(
 	query := s.db.WithContext(ctx).Where("space = ?", uri)
 	if since != "" {
 		query = query.Where("space_rev > ?", since)
+	}
+	if !includeRemoved {
+		query = query.Where("removed IS NULL OR removed = ?", false)
 	}
 	var rows []spaceRepo
 	// The lexicon guarantees ascending spaceRev order; clients validate it.
@@ -722,6 +927,7 @@ func (s *store) ListReposSince(
 			Rev:      string(row.Rev),
 			Hash:     digest,
 			SpaceRev: row.SpaceRev,
+			Removed:  row.Removed,
 		}
 	}
 	return sp.Rev, repos, nil
@@ -781,6 +987,54 @@ func (s *store) RegisterRemoteWrite(
 	// Best-effort: forward to registered syncers, same as a local write.
 	s.notifier.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
 	return nil
+}
+
+// ImportWriters implements [Store].
+func (s *store) ImportWriters(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	writers []MetaWriter,
+) (err error) {
+	ctx, span := tracer.Start(ctx, "spaces.ImportWriters", trace.WithAttributes(
+		telemetry.Space(uri),
+		attribute.Int("habitat.writers", len(writers)),
+	))
+	defer func() { telemetry.End(span, err) }()
+	ok, err := s.CheckSpaceExists(ctx, uri)
+	if err != nil {
+		return fmt.Errorf("failed to get space: %w", err)
+	} else if !ok {
+		return ErrSpaceNotFound
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var newest syntax.TID
+		for _, w := range writers {
+			if err := lockRepo(tx, uri, w.DID); err != nil {
+				return err
+			}
+			var current spaceRepo
+			err := tx.Where("space = ? AND repo = ?", uri, w.DID).First(&current).Error
+			if err == nil {
+				continue
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("load repo: %w", err)
+			}
+			if err := saveRemoteRepoHash(
+				tx, uri, w.DID, w.Data, w.RepoRev, w.SpaceRev,
+			); err != nil {
+				return fmt.Errorf("save writer %s: %w", w.DID, err)
+			}
+			newest = max(newest, w.SpaceRev)
+		}
+		if newest == "" {
+			return nil
+		}
+		// Revisions are TIDs, which sort in time order: only ever move up.
+		return tx.Model(&space{}).
+			Where("owner = ? AND type = ? AND skey = ? AND rev < ?",
+				uri.SpaceOwner(), uri.SpaceType(), uri.Skey(), newest).
+			Update("rev", newest).Error
+	})
 }
 
 // ---- Record operations ----
@@ -1149,6 +1403,19 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 			return err
 		}
 
+		// And the copies of external writers' records, with how far they were
+		// fetched: the space's deletion event supersedes them.
+		if err := tx.Unscoped().
+			Where("space = ?", uri).
+			Delete(&spaceRemoteRecord{}).Error; err != nil {
+			return err
+		}
+		if err := tx.
+			Where("space = ?", uri).
+			Delete(&spaceRemoteSync{}).Error; err != nil {
+			return err
+		}
+
 		// Drop the permissioned repos along with the records they cached a
 		// hash of. They are the writer set listSpaces reads, so leaving them
 		// behind would keep a deleted space on its writers' listings.
@@ -1174,7 +1441,8 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 			Columns: []clause.Column{
 				{Name: "owner"}, {Name: "type"}, {Name: "skey"},
 			},
-			DoUpdates: clause.AssignmentColumns([]string{"deleted_at"}),
+			// A redeleted space is a new deletion, so it is sequenced again.
+			DoUpdates: clause.AssignmentColumns([]string{"deleted_at", "seq"}),
 		}).Create(&deletedSpace{
 			Owner:     uri.SpaceOwner(),
 			Type:      uri.SpaceType(),
@@ -1359,6 +1627,7 @@ func (s *store) DeleteRecord(
 				"deleted_at": time.Now(),
 				"rev":        rev,
 				"prev_cid":   rows[0].Cid,
+				"seq":        0,
 			}).Error; err != nil {
 			return fmt.Errorf("delete record: %w", err)
 		}
@@ -1592,6 +1861,7 @@ func (s *store) ApplyWrites(
 						"deleted_at": time.Now(),
 						"rev":        rev,
 						"prev_cid":   existing.Cid,
+						"seq":        0,
 					}).Error; err != nil {
 					return fmt.Errorf("delete record: %w", err)
 				}
@@ -1651,5 +1921,8 @@ func (s *store) ApplyWrites(
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}, &deletedSpace{}}
+	return []any{
+		&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}, &deletedSpace{}, &spaceEventSeq{},
+		&spaceRemoteRecord{}, &spaceRemoteSync{},
+	}
 }

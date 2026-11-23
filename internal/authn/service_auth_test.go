@@ -66,6 +66,26 @@ func TestServiceAuth(t *testing.T) {
 				wantOK: false,
 			},
 			{
+				// What a PDS mints when it proxies a call with Atproto-Proxy:
+				// the target's bare DID, e.g. an org this instance hosts.
+				name:            "bare DID audience whose #habitat endpoint is this instance",
+				aud:             serviceDID.String(),
+				serviceEndpoint: testHabitatEndpoint,
+				wantOK:          true,
+			},
+			{
+				name:            "bare DID audience whose #habitat endpoint is elsewhere",
+				aud:             serviceDID.String(),
+				serviceEndpoint: "https://not-the-habitat.com",
+				wantOK:          false,
+			},
+			{
+				name:            "bare DID audience that does not resolve",
+				aud:             "did:web:unknown.example.com",
+				serviceEndpoint: testHabitatEndpoint,
+				wantOK:          false,
+			},
+			{
 				name:            "aud with service fragment resolves via serviceEndpoint lookup",
 				aud:             serviceDID.String() + "#habitat",
 				serviceEndpoint: testHabitatEndpoint,

@@ -50,12 +50,15 @@ func NewServer(
 	pdsForwarding *forwarding.PDSForwarding,
 	domain string,
 	hostKey atcrypto.PrivateKeyExportable,
+	base identity.Directory,
 	opts ...utils.Opt[SpaceProxyDirectory],
 ) (*Server, error) {
 	directory := NewSpaceProxyDirectory(
 		// .test handles resolve locally so the frontend can sign in with them
 		// (see login.NewPassthroughProvider).
-		NewTestDirectory(NewWrappedDirectory(hive, identity.DefaultDirectory()), hostKey),
+		NewTestDirectory(
+			NewWrappedDirectory(hive, base), hostKey, domain,
+		),
 		domain,
 		opts...,
 	)

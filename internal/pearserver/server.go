@@ -11,20 +11,23 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/emaildomain"
+	"github.com/habitat-network/habitat/internal/fedsearch"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"github.com/habitat-network/habitat/internal/mcpsearch"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/remotesync"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacestream"
 )
 
 // PearServer is the consolidated HTTP server for habitat.
@@ -41,7 +44,7 @@ type PearServer struct {
 	// its request body.
 	delegations *authn.DelegationTokenVerifier
 	// credentialRevocations stores the credential jtis space authorities
-	// revoke through notifyCredentialRevoked.
+	// revoke through notifyCredentialsRevoked.
 	credentialRevocations *authn.CredentialRevocations
 
 	// dir resolves identities named by the service identifiers
@@ -60,9 +63,16 @@ type PearServer struct {
 	permStore       perms.Store
 	simpleStore     *simplespace.Store
 	notifyStore     notify.Store
-	mcpGatewayStore mcpgateway.Store
-	// mcpSearcher answers mcp.search over members' connected MCP servers.
-	mcpSearcher *mcpsearch.Searcher
+	// webhookClient makes the confirmRegistration calls authorizeSpaceSync
+	// triggers. Endpoints are caller-supplied, so by default it only connects
+	// to public addresses; insecureWebhooks additionally allows http, and is set
+	// only when the client was overridden (tests).
+	webhookClient    *http.Client
+	insecureWebhooks bool
+	mcpGatewayStore  mcpgateway.Store
+	// fedSearch answers mcp.search over Habitat records and members'
+	// connected MCP servers.
+	fedSearch *fedsearch.Service
 
 	// llmStore holds each org's LLM model connections.
 	llmStore *llmgateway.Store
@@ -82,6 +92,11 @@ type PearServer struct {
 
 	// searchConfig stores the collections each org surfaces in search.
 	searchConfig *searchconfig.Store
+
+	// spaceStream serves network.habitat.space.subscribe.
+	spaceStream *spacestream.Server
+	// remoteSync fetches external writers' records; nil leaves them unfetched.
+	remoteSync *remotesync.Syncer
 }
 
 // New creates a PearServer with the given dependencies and prepares
@@ -108,15 +123,25 @@ func New(app *pearapp.App) *PearServer {
 		notifyStore:           app.NotifyStore,
 		clientMeta:            app.ClientMetadata,
 		mcpGatewayStore:       app.MCPGatewayStore,
-		mcpSearcher: mcpsearch.NewSearcher(
-			app.MCPGatewayStore, mcpsearch.NewRegistry(mcpsearch.DefaultProviders()...),
-		),
-		llmStore:         app.LLMStore,
-		pdsForwarding:    app.PDSForwarding,
-		emailDomainStore: app.EmailDomainStore,
-		searcher:         app.Searcher,
-		searchConfig:     app.SearchConfig,
+		fedSearch:             app.FedSearch,
+		llmStore:              app.LLMStore,
+		pdsForwarding:         app.PDSForwarding,
+		emailDomainStore:      app.EmailDomainStore,
+		searcher:              app.Searcher,
+		searchConfig:          app.SearchConfig,
+		remoteSync:            app.RemoteSync,
 	}
+	spaceEvents := app.SpaceEvents
+	if spaceEvents == nil {
+		// Nothing notifies this one, so streams fall back to polling.
+		spaceEvents = spacestream.NewBroadcaster()
+	}
+	if app.WebhookClient != nil {
+		ps.webhookClient, ps.insecureWebhooks = app.WebhookClient, true
+	} else {
+		ps.webhookClient = httpx.NewPublicClient()
+	}
+	ps.spaceStream = spacestream.NewServer(app.SpacesStore, app.PermStore, spaceEvents)
 	ps.registerRoutes()
 	return ps
 }

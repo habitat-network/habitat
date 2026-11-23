@@ -1,0 +1,51 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "app",
+  "main": "src/server/entry.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // One DocRoom per document: it owns the doc's Yjs state and its editors'
+  // WebSockets (see src/server/docs/rooms/docRoom.ts). One OrgStream per
+  // connected group: it follows the group's spaces over pear's subscribe
+  // stream and indexes them into D1 (see src/server/stream/orgStream.ts).
+  "durable_objects": {
+    "bindings": [
+      { "name": "DOC", "class_name": "DocRoom" },
+      { "name": "ORG_STREAM", "class_name": "OrgStream" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["DocRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["OrgStream"] },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "app",
+      "database_id": "4e6dd98d-9e14-48f6-b92a-4f4f97022deb",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  // Runs the code members deploy as Apps, each in its own sandboxed
+  // isolate (Dynamic Workers; see src/server/apps/runner.ts).
+  "worker_loaders": [{ "binding": "LOADER" }],
+  // Deployment values, not local dev's: override locally via `.dev.vars`.
+  // APP_SESSION_SECRET and APP_CREDENTIALS_KEY are wrangler secrets (see
+  // README.md).
+  "vars": {
+    "APP_BASE_URL": "https://app.habitat.network",
+    "APP_HABITAT_URL": "https://pear.habitat.network",
+    // Apps run at https://<app>.<APP_RUN_DOMAIN>/. Needs a wildcard DNS
+    // record and Workers route for *.APP_RUN_DOMAIN pointing at this
+    // Worker. Best on its own registrable domain, so apps aren't same-site
+    // with the Habitat app (see src/server/apps/runner.ts).
+    "APP_RUN_DOMAIN": "apps.habitat.network",
+  },
+  "dev": { "port": 5181 },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+    },
+  },
+}

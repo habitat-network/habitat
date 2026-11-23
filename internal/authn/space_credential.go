@@ -26,7 +26,7 @@ const spaceCredentialKid = "#atproto"
 const CredentialRevocationTTL = 60 * time.Minute
 
 // CredentialRevocations records the space credentials a space authority has
-// revoked through notifyCredentialRevoked, by (space, jti), so repo reads
+// revoked through notifyCredentialsRevoked, by (space, jti), so repo reads
 // presenting them are refused until they would have expired anyway.
 type CredentialRevocations struct {
 	kv keyval.KV
@@ -178,10 +178,13 @@ func (s *SpaceCredentialAuthMethod) Validate(
 		return nil, false
 	}
 
+	// exp is required by the parse above.
+	exp, _ := token.Claims.GetExpirationTime()
 	return &CredentialInfo{
-		Space:    space,
-		Audience: audience,
-		Method:   ValidatorMethodSpaceCredential,
+		Space:     space,
+		Audience:  audience,
+		Method:    ValidatorMethodSpaceCredential,
+		ExpiresAt: exp.Time,
 	}, true
 }
 

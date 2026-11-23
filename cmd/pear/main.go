@@ -110,6 +110,9 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 			"Signature-Input",
 			"atproto-space-audience",
 			"atproto-space-want-mac",
+			// Browser readers ask for a commit or record MAC with this (see
+			// acceptCommitMacHeaders in typescript/internal).
+			"Accept-Signature",
 		}),
 		handlers.MaxAge(86400),
 		// Browser syncers can only verify a commit or record MAC they can read.
@@ -132,7 +135,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(app.Validator, app.Hive, app.HiveDir, app.PDSClientFactory))
 
-	// Consolidated server owning the opensocial, simplespace, relationship,
+	// Consolidated server owning the opensocial, memberspace, relationship,
 	// spaces, and registerNotify handler routes.
 	pearApp := pearserver.New(app)
 
@@ -143,12 +146,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	// route falls through to the rest of this mux.
 	mux.MatcherFunc(pearApp.Handles).Handler(pearApp)
 
-	// A nil *search.Searcher in an interface would be non-nil, so only set it
-	// when search is configured.
-	var mcpSearcher mcpserver.RecordSearcher
-	if app.Searcher != nil {
-		mcpSearcher = app.Searcher
-	}
 	var mcpOpts []mcpserver.Option
 	if cmd.Bool(fMCPTextOverrides) {
 		mcpOpts = append(mcpOpts, mcpserver.WithTextOverrides())
@@ -165,7 +162,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		app.OAuthServer,
 		app.SpacesStore,
 		app.PermStore,
-		mcpSearcher,
 		app.MCPGatewayStore,
 		app.BlobStore,
 		app.HiveDir,
@@ -181,6 +177,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 
 	idServer, err := habitat_identity.NewServer(
 		app.Hive, app.Validator, app.PDSForwarding, app.Domain, app.HostKey,
+		habitat_identity.NewDirectory(cmd.String(fPlcURL)),
 		habitat_identity.WithClient(httpx.NewClient()),
 		habitat_identity.WithEmailResolver(app.EmailResolver),
 	)
@@ -295,6 +292,10 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	// Retries the notifySpaceDeleted deliveries that haven't succeeded yet.
 	eg.Go(func() error {
 		return app.Notifier.Run(egCtx, app.SpacesStore)
+	})
+	// Fetches external writers' records for the space event log.
+	eg.Go(func() error {
+		return app.RemoteSync.Run(egCtx)
 	})
 	if app.SearchIndexer != nil {
 		eg.Go(func() error {

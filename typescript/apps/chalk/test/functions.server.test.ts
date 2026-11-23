@@ -80,16 +80,16 @@ describe("createDocSpace", () => {
     server.close();
   });
 
-  it("creates a personal space via network.habitat.simplespace.createSpace", async () => {
+  it("creates a personal space via com.atproto.space.createSpace with the relationspace policy", async () => {
     let body: unknown;
     let proxyHeader: string | null = null;
     server.use(
       http.post(
-        "http://pds.test/xrpc/network.habitat.simplespace.createSpace",
+        "http://pds.test/xrpc/com.atproto.space.createSpace",
         async ({ request }) => {
           body = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");
-          return HttpResponse.json({ uri: "at://did:plc:member1/space/x" });
+          return HttpResponse.json({ space: "at://did:plc:member1/space/x" });
         },
       ),
     );
@@ -98,8 +98,8 @@ describe("createDocSpace", () => {
     const client = new HabitatClient(testEnv, "did:plc:member1");
     const result = await createDocSpace(client, "did:plc:member1", undefined);
     expect(body).toEqual({
-      did: "did:plc:member1",
-      type: "network.habitat.docs",
+      spaceType: "network.habitat.docs",
+      policy: { $type: "network.habitat.relationspace.policy" },
     });
     expect(proxyHeader).toBeNull();
     expect(result).toEqual({
@@ -132,6 +132,7 @@ describe("createDocSpace", () => {
     expect(body).toEqual({
       org: "did:web:org.example",
       type: "network.habitat.docs",
+      policy: { $type: "network.habitat.relationspace.policy" },
       roles: [],
     });
     expect(proxyHeader).toBe("did:web:org.example#habitat");

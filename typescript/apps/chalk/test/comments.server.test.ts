@@ -123,10 +123,10 @@ describe("ensureCommentsSpace", () => {
     let createBody: unknown;
     server.use(
       http.post(
-        "http://pds.test/xrpc/network.habitat.simplespace.createSpace",
+        "http://pds.test/xrpc/com.atproto.space.createSpace",
         async ({ request }) => {
           createBody = await request.json();
-          return HttpResponse.json({ uri: COMMENTS_SPACE });
+          return HttpResponse.json({ space: COMMENTS_SPACE });
         },
       ),
       http.post(
@@ -144,9 +144,9 @@ describe("ensureCommentsSpace", () => {
     });
     expect(result).toBe(COMMENTS_SPACE);
     expect(createBody).toEqual({
-      did: ALICE,
-      type: "network.habitat.docs.comments",
+      spaceType: "network.habitat.docs.comments",
       skey: "abc",
+      policy: { $type: "network.habitat.relationspace.policy" },
     });
     expect(setRelationBodies).toEqual([
       // The doc's readers and writers can read and write its comments...
@@ -219,6 +219,7 @@ describe("ensureCommentsSpace", () => {
       org: "did:web:org.example",
       type: "network.habitat.docs.comments",
       skey: "abc",
+      policy: { $type: "network.habitat.relationspace.policy" },
       roles: [],
     });
     expect(proxyHeader).toBe("did:web:org.example#habitat");
@@ -229,10 +230,8 @@ describe("ensureCommentsSpace", () => {
 
   it("is safe to call again once the space and relations already exist", async () => {
     server.use(
-      http.post(
-        "http://pds.test/xrpc/network.habitat.simplespace.createSpace",
-        () =>
-          HttpResponse.json({ error: "SpaceAlreadyExists" }, { status: 400 }),
+      http.post("http://pds.test/xrpc/com.atproto.space.createSpace", () =>
+        HttpResponse.json({ error: "SpaceAlreadyExists" }, { status: 400 }),
       ),
       http.post(
         "http://pds.test/xrpc/network.habitat.relationship.setSpaceRelation",
@@ -281,9 +280,8 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
 
   it("writeComment creates the comments space, writes the record with its CRDT anchor, and mirrors it (with cid) into D1", async () => {
     server.use(
-      http.post(
-        "http://pds.test/xrpc/network.habitat.simplespace.createSpace",
-        () => HttpResponse.json({ uri: COMMENTS_SPACE }),
+      http.post("http://pds.test/xrpc/com.atproto.space.createSpace", () =>
+        HttpResponse.json({ space: COMMENTS_SPACE }),
       ),
       http.post(
         "http://pds.test/xrpc/network.habitat.relationship.setSpaceRelation",

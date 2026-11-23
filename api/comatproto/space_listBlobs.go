@@ -7,7 +7,6 @@ type ComAtprotoSpaceListBlobsParams struct {
 	Cursor string `json:"cursor,omitempty"`
 	Limit  int64  `json:"limit,omitempty"`
 	Repo   string `json:"repo"`
-	Since  string `json:"since,omitempty"`
 	Space  string `json:"space"`
 }
 

@@ -6,8 +6,9 @@ import { describe, expect } from "vitest";
 import { server } from "../test/msw";
 import { Credentials } from "./Credentials";
 import { Identity } from "./Identity";
+import { NotifyToken } from "./NotifyToken";
 import { FakeNetwork } from "./test/fakeNetwork";
-import { fakeDelegation, testConfig } from "./test/harness";
+import { NOTIFY_ENDPOINT, fakeDelegation, testConfig } from "./test/harness";
 
 const setup = Effect.promise(async () => {
   const net = new FakeNetwork();
@@ -15,6 +16,7 @@ const setup = Effect.promise(async () => {
   const alice = await net.createAccount("alice");
   const space = net.createSpace(alice);
   const layer = Credentials.layer.pipe(
+    Layer.provide(NotifyToken.layer),
     Layer.provide(Identity.layer),
     Layer.provide(fakeDelegation(net)),
     Layer.provide(testConfig()),
@@ -67,7 +69,28 @@ describe("Credentials", () => {
     }),
   );
 
-  it.effect("maps SpaceDeleted and UserNotAuthorized to typed reasons", () =>
+  it.effect("registers the notification endpoint with each credential", () =>
+    Effect.gen(function* () {
+      const { space, layer } = yield* setup;
+      yield* Effect.gen(function* () {
+        const credentials = yield* Credentials;
+        const notifyToken = yield* NotifyToken;
+        yield* credentials.get(space.ref);
+        expect(space.registrations).toEqual([
+          {
+            endpoint: NOTIFY_ENDPOINT,
+            token: yield* notifyToken.issue(space.id),
+          },
+        ]);
+      }).pipe(
+        Effect.provide(layer),
+        Effect.provide(NotifyToken.layer),
+        Effect.provide(testConfig()),
+      );
+    }),
+  );
+
+  it.effect("maps SpaceDeleted and AccountNotAuthorized to typed reasons", () =>
     Effect.gen(function* () {
       const { alice, space, layer } = yield* setup;
       yield* Effect.gen(function* () {

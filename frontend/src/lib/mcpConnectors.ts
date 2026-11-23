@@ -38,6 +38,35 @@ export const MCP_CONNECTORS: McpConnector[] = [
       "https://developers.google.com/workspace/drive/api/guides/configure-mcp-server",
   },
   {
+    id: "google-cloud",
+    preset: "google-cloud",
+    memberAuth: "oauth",
+    name: "Google Cloud",
+    description:
+      "Run gcloud commands against each member's Google Cloud projects.",
+    defaultName: "google-cloud",
+    docsUrl: "https://docs.cloud.google.com/sdk/use-gcloud-mcp",
+  },
+  {
+    id: "google-calendar",
+    preset: "google-calendar",
+    memberAuth: "oauth",
+    name: "Google Calendar",
+    description: "Search and read events in each member's Google Calendar.",
+    defaultName: "google-calendar",
+    docsUrl:
+      "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+  },
+  {
+    id: "gmail",
+    preset: "gmail",
+    memberAuth: "oauth",
+    name: "Gmail",
+    description: "Search and read email in each member's Gmail.",
+    defaultName: "gmail",
+    docsUrl: "https://developers.google.com/workspace/gmail/api/reference/mcp",
+  },
+  {
     id: "slack",
     preset: "slack",
     memberAuth: "oauth",

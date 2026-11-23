@@ -49,6 +49,8 @@ func TestNewHoldsItsDependencies(t *testing.T) {
 		nil, // searcher
 		nil, // search config store
 		nil, // federated search
+		nil, // space events
+		nil, // remote sync
 	)
 
 	require.Equal(t, "pear.example.com", app.Domain)

@@ -6,7 +6,7 @@ import type { SpaceRef, SpaceRefString } from "@atproto/syntax";
 import { SpacePass } from "./spacePass";
 import { SyncStore } from "./SyncStore";
 import { type FakeSpace } from "./test/fakeNetwork";
-import { SERVICE_DID, runWithHarness } from "./test/harness";
+import { NOTIFY_ENDPOINT, runWithHarness } from "./test/harness";
 
 const track = (space: FakeSpace) =>
   Effect.flatMap(SyncStore, (s) =>
@@ -46,8 +46,8 @@ describe("SpacePass.run", () => {
           yield* track(space);
           const events = yield* runSpacePass(space.ref, true);
           expect(events.map((e) => e._tag)).toEqual(["Reset", "Reset"]);
-          expect(space.registrations).toEqual([
-            `${SERVICE_DID}#atproto_space_syncer`,
+          expect(space.registrations.map((r) => r.endpoint)).toEqual([
+            NOTIFY_ENDPOINT,
           ]);
           const state = yield* stateOf(space);
           expect(state.spaceRev).toBe(space.spaceRevOf(bob.did));
@@ -218,23 +218,6 @@ describe("SpacePass.run", () => {
           expect((yield* stateOf(space)).spaceRev).toBeUndefined();
         }),
       ),
-  );
-
-  it.live("renews the registration when it is inside the renewal lead", () =>
-    runWithHarness(({ net }) =>
-      Effect.gen(function* () {
-        const alice = yield* Effect.promise(() => net.createAccount("alice"));
-        const space = net.createSpace(alice);
-        space.registrationLifetimeMs = 30 * 60 * 1000; // inside the default 1h lead
-        yield* Effect.promise(() =>
-          space.write(alice, "com.example.post", "1", { text: "a" }),
-        );
-        yield* track(space);
-        yield* runSpacePass(space.ref, true);
-        yield* runSpacePass(space.ref, false);
-        expect(space.registrations).toHaveLength(2);
-      }),
-    ),
   );
 
   it.live("recordPassFailure backs off exponentially up to the cap", () =>

@@ -87,9 +87,9 @@ func TestEngineSyncRepoVerifiesAndSettles(t *testing.T) {
 	rev1, rev2 := clock.Next().String(), clock.Next().String()
 
 	ops := []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
-		{Rev: rev1, Collection: "network.habitat.test", Rkey: "k1", Cid: "bafyaaa",
+		{Rev: rev1, Collection: "network.habitat.test", Rkey: "k1", Cid: new("bafyaaa"),
 			Value: map[string]any{"n": 1}},
-		{Rev: rev2, Collection: "network.habitat.test", Rkey: "k2", Cid: "bafybbb",
+		{Rev: rev2, Collection: "network.habitat.test", Rkey: "k2", Cid: new("bafybbb"),
 			Value: map[string]any{"n": 2}},
 	}
 	var lt spacecommit.LtHash
@@ -1045,9 +1045,9 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 	rev1, rev2 := clock.Next().String(), clock.Next().String()
 
 	ops := []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
-		{Rev: rev1, Collection: "network.habitat.test", Rkey: "k1", Cid: "bafyaaa",
+		{Rev: rev1, Collection: "network.habitat.test", Rkey: "k1", Cid: new("bafyaaa"),
 			Value: map[string]any{"n": 1}},
-		{Rev: rev2, Collection: "network.habitat.test", Rkey: "k1", Prev: "bafyaaa"},
+		{Rev: rev2, Collection: "network.habitat.test", Rkey: "k1", Prev: new("bafyaaa")},
 	}
 	var lt spacecommit.LtHash
 	commit := habitat.NetworkHabitatSpaceDefsCommit{

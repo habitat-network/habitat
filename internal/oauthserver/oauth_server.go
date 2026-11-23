@@ -839,8 +839,10 @@ func (o *OAuthServer) ValidateRaw(
 	}
 
 	credInfo := &authn.CredentialInfo{
-		Subject: syntax.DID(did),
-		Method:  authn.ValidatorMethodOAuth,
+		Subject:   syntax.DID(did),
+		Method:    authn.ValidatorMethodOAuth,
+		ExpiresAt: session.GetExpiresAt(fosite.AccessToken),
+		Scopes:    []string(ar.GetGrantedScopes()),
 	}
 
 	return credInfo, true, nil

@@ -46,38 +46,38 @@ locals {
   cloudsql_instance = "virtual-charger-477003-g0:us-west1:pear-db-usw1"
 
   secret_env = {
-    HABITAT_DB                             = "habitat-pgurl"
-    HABITAT_PDS_CRED_ENCRYPT_KEY           = "habitat-pds-cred-encrypt-key"
-    HABITAT_OAUTH_CLIENT_SECRET            = "habitat-oauth-client-secret"
-    HABITAT_OAUTH_SERVER_SECRET            = "habitat-oauth-server-secret"
-    HABITAT_GOOGLE_CLIENT_SECRET           = "habitat-google-client-secret"
-    HABITAT_SPACE_SIGNING_KEY              = "habitat-space-signing-key"
-    HABITAT_NANGO_SECRET_KEY               = "habitat-nango-secret-key"
-    OTEL_EXPORTER_OTLP_HEADERS             = "habitat-otlp-headers"
-    HABITAT_MEILISEARCH_API_KEY            = "habitat-meilisearch-key"
-    HABITAT_EMBEDDER_API_KEY               = "azure-embedder-api-key"
-    HABITAT_MCP_GOOGLE_DRIVE_CLIENT_SECRET = "habitat-mcp-google-drive-client-secret"
-    HABITAT_MCP_SLACK_CLIENT_SECRET        = "habitat-mcp-slack-client-secret"
-    HABITAT_DECISIONS_API_KEY              = "azure-decisions-api-key"
-    HABITAT_RERANK_API_KEY                 = "azure-rerank-api-key"
+    HABITAT_DB                       = "habitat-pgurl"
+    HABITAT_PDS_CRED_ENCRYPT_KEY     = "habitat-pds-cred-encrypt-key"
+    HABITAT_OAUTH_CLIENT_SECRET      = "habitat-oauth-client-secret"
+    HABITAT_OAUTH_SERVER_SECRET      = "habitat-oauth-server-secret"
+    HABITAT_GOOGLE_CLIENT_SECRET     = "habitat-google-client-secret"
+    HABITAT_SPACE_SIGNING_KEY        = "habitat-space-signing-key"
+    HABITAT_NANGO_SECRET_KEY         = "habitat-nango-secret-key"
+    OTEL_EXPORTER_OTLP_HEADERS       = "habitat-otlp-headers"
+    HABITAT_MEILISEARCH_API_KEY      = "habitat-meilisearch-key"
+    HABITAT_EMBEDDER_API_KEY         = "azure-embedder-api-key"
+    HABITAT_MCP_GOOGLE_CLIENT_SECRET = "habitat-mcp-google-drive-client-secret"
+    HABITAT_MCP_SLACK_CLIENT_SECRET  = "habitat-mcp-slack-client-secret"
+    HABITAT_DECISIONS_API_KEY        = "azure-decisions-api-key"
+    HABITAT_RERANK_API_KEY           = "azure-rerank-api-key"
   }
 
   plain_env = {
-    HABITAT_DOMAIN                     = "pear.habitat.network"
-    HABITAT_HIVE_DOMAIN                = "id.habitat.network"
-    HABITAT_BLOB_BUCKET                = "gs://pear-blobs"
-    HABITAT_GOOGLE_CLIENT_ID           = "953995456319-667186r9ng84t5m4ibdne3380idub1ha.apps.googleusercontent.com"
-    HABITAT_MCP_GOOGLE_DRIVE_CLIENT_ID = "953995456319-64eika35n8v6ve30fi5p2jq3t1qp12k0.apps.googleusercontent.com"
-    HABITAT_MCP_SLACK_CLIENT_ID        = "12439309385335.12527812000899"
-    OTEL_EXPORTER_OTLP_ENDPOINT        = "https://otlp-gateway-prod-us-west-0.grafana.net/otlp"
-    HABITAT_MEILISEARCH_URL            = data.terraform_remote_state.meilisearch.outputs.meilisearch_url
-    HABITAT_EMBEDDER_URL               = "https://habitat-network-dev.openai.azure.com/openai/v1/embeddings"
-    HABITAT_EMBEDDER_MODEL             = "text-embedding-3-small"
-    HABITAT_EMBEDDER_DIMENSIONS        = "1536"
-    HABITAT_DECISIONS_URL              = "https://habitat-network-dev.services.ai.azure.com/providers/microsoft/v1/systemone"
-    HABITAT_DECISIONS_MODEL            = "Microsoft-Decision-1"
-    HABITAT_RERANK_URL                 = "https://habitat-network-dev.services.ai.azure.com/providers/cohere"
-    HABITAT_RERANK_MODEL               = "Cohere-rerank-v5-pro"
+    HABITAT_DOMAIN               = "pear.habitat.network"
+    HABITAT_HIVE_DOMAIN          = "id.habitat.network"
+    HABITAT_BLOB_BUCKET          = "gs://pear-blobs"
+    HABITAT_GOOGLE_CLIENT_ID     = "953995456319-667186r9ng84t5m4ibdne3380idub1ha.apps.googleusercontent.com"
+    HABITAT_MCP_GOOGLE_CLIENT_ID = "953995456319-64eika35n8v6ve30fi5p2jq3t1qp12k0.apps.googleusercontent.com"
+    HABITAT_MCP_SLACK_CLIENT_ID  = "12439309385335.12527812000899"
+    OTEL_EXPORTER_OTLP_ENDPOINT  = "https://otlp-gateway-prod-us-west-0.grafana.net/otlp"
+    HABITAT_MEILISEARCH_URL      = data.terraform_remote_state.meilisearch.outputs.meilisearch_url
+    HABITAT_EMBEDDER_URL         = "https://habitat-network-dev.openai.azure.com/openai/v1/embeddings"
+    HABITAT_EMBEDDER_MODEL       = "text-embedding-3-small"
+    HABITAT_EMBEDDER_DIMENSIONS  = "1536"
+    HABITAT_DECISIONS_URL        = "https://habitat-network-dev.services.ai.azure.com/providers/microsoft/v1/systemone"
+    HABITAT_DECISIONS_MODEL      = "Microsoft-Decision-1"
+    HABITAT_RERANK_URL           = "https://habitat-network-dev.services.ai.azure.com/providers/cohere"
+    HABITAT_RERANK_MODEL         = "Cohere-rerank-v5-pro"
   }
 }
 
@@ -94,10 +94,24 @@ resource "google_cloud_run_v2_service" "pear" {
   deletion_protection  = true
 
   template {
-    service_account                  = "953995456319-compute@developer.gserviceaccount.com"
-    timeout                          = "300s"
-    max_instance_request_concurrency = 80
-    session_affinity                 = false
+    service_account = "953995456319-compute@developer.gserviceaccount.com"
+    // Websocket streams (network.habitat.space.subscribe, internal/spacestream)
+    // are long-lived HTTP requests, so they sit on the request timeout: the
+    // Cloud Run websockets doc (https://cloud.google.com/run/docs/triggering/websockets)
+    // says streams are subject to it, defaults to 5 minutes, and allows up to
+    // 60 minutes. Clients (typescript/apps/app's OrgStream/Jetstream) handle
+    // reconnects when a stream ends anyway.
+    timeout = "3600s"
+    // Websocket streams occupy a concurrency slot for their whole lifetime, so
+    // this is the cap that governs them. pear's streams are cheap (a goroutine
+    // waiting on the space log, woken by writes), so 500 is roomy for an
+    // instance with 1 CPU and 512Mi.
+    max_instance_request_concurrency = 500
+    // Best effort per the websockets doc: reconnecting websocket clients land
+    // on the same instance where possible. pear is built to work across
+    // instances anyway (spacestream streams share the host's event log, polled
+    // every 2s), so this is belt-and-suspenders.
+    session_affinity = true
 
     // Direct VPC egress so pear can reach the internal-only Meilisearch VM. Only private
     // ranges go through the VPC; public traffic (PDSes, OTLP, Google) egresses directly.
@@ -125,6 +139,9 @@ resource "google_cloud_run_v2_service" "pear" {
       image = "us-west1-docker.pkg.dev/virtual-charger-477003-g0/cloud-run-source-deploy/habitat/habitat:57dee7c3de2fda41676ff9c8606c045b0f39caeb"
 
       ports {
+        // Cloud Run serves WebSockets over HTTP/1.1 only; the doc says not to
+        // enable HTTP/2 end-to-end. pear's port is therefore named "http1" and
+        // stays there.
         name           = "http1"
         container_port = 8000
       }

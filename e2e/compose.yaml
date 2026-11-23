@@ -1,0 +1,195 @@
+# Test bed for the Playwright suite: pear on Postgres, the web client, and a TLS
+# front. The harness (harness/pear.ts) brings it up with a project name of its
+# own and reads the published ports back. Pear's secrets arrive from the
+# harness' environment so they are defined in one place.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: habitat
+      POSTGRES_USER: habitat
+      POSTGRES_PASSWORD: habitat
+    volumes:
+      # Creates the database the PLC directory uses.
+      - ./pds/init-plc-db.sql:/docker-entrypoint-initdb.d/init-plc-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U habitat -d habitat"]
+      interval: 1s
+      retries: 60
+
+  pear:
+    image: ${PEAR_IMAGE:-pear:e2e}
+    build:
+      context: ..
+      dockerfile: cmd/pear/Dockerfile
+    environment:
+      HABITAT_DOMAIN: ${HABITAT_DOMAIN:?}
+      HABITAT_PORT: "8000"
+      HABITAT_DB: postgres://habitat:habitat@postgres:5432/habitat?sslmode=disable
+      HABITAT_SPACE_SIGNING_KEY: ${HABITAT_SPACE_SIGNING_KEY:?}
+      HABITAT_PDS_CRED_ENCRYPT_KEY: ${HABITAT_PDS_CRED_ENCRYPT_KEY:?}
+      HABITAT_OAUTH_SERVER_SECRET: ${HABITAT_OAUTH_SERVER_SECRET:?}
+      HABITAT_OAUTH_CLIENT_SECRET: ${HABITAT_OAUTH_CLIENT_SECRET:?}
+      HABITAT_GOOGLE_CLIENT_ID: ${HABITAT_GOOGLE_CLIENT_ID:?}
+      HABITAT_GOOGLE_CLIENT_SECRET: ${HABITAT_GOOGLE_CLIENT_SECRET:?}
+      # Pear fetches the web client's OAuth metadata from https://app.habitat-e2e.dev.
+      SSL_CERT_FILE: /certs/cert.pem
+      # Resolves the PDS accounts' did:plc DIDs against the local directory.
+      HABITAT_PLC_URL: http://plc:2582
+      # The app's space syncer registers for notifications at its own origin,
+      # which is on this private network.
+      HABITAT_INSECURE_WEBHOOKS: "true"
+    # The server does not migrate on startup, so migrate first.
+    command: ["sh", "-c", "/app/pear migrate && exec /app/pear serve"]
+    dns: [10.231.17.53]
+    ports: ["8000"]
+    volumes:
+      - ./certs:/certs:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      dns: { condition: service_started }
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: e2e/frontend.Dockerfile
+      args:
+        APP_ORIGIN: https://app.habitat-e2e.dev
+        HABITAT_DOMAIN: habitat-e2e.dev
+        PLC_URL: https://plc.habitat-e2e.dev
+
+  # The Habitat app (typescript/apps/app), which combines chalk (docs), drop
+  # (files) and the group management plane. A Cloudflare Worker, run by
+  # `vite preview` with local D1 and Durable Objects.
+  chalk:
+    build:
+      context: ..
+      dockerfile: e2e/chalk.Dockerfile
+      args:
+        HABITAT_DOMAIN: habitat-e2e.dev
+    environment:
+      APP_SESSION_SECRET: e2e-session-secret-0123456789abcdef0123456789abcdef
+      APP_CREDENTIALS_KEY: WRlpsucNQl8AVO1qNN+T+hzbVtYjdoF21QfF+0uDJSM=
+      APP_BASE_URL: https://chalk.habitat-e2e.dev
+      APP_HABITAT_URL: https://habitat-e2e.dev
+      # Apps deployed in the app run at https://<app>.apps.habitat-e2e.dev
+      # (caddy routes them back here).
+      APP_RUN_DOMAIN: apps.habitat-e2e.dev
+      # The worker (workerd) and node trust the test bed's self-signed certificate,
+      # which serves pear, the PDS and the PLC directory.
+      SSL_CERT_FILE: /certs/cert.pem
+      NODE_EXTRA_CA_CERTS: /certs/cert.pem
+    ports: ["5181"]
+    dns: [10.231.17.53]
+    volumes:
+      - ./certs:/certs:ro
+    depends_on:
+      pear: { condition: service_started }
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ["443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
+    networks:
+      default:
+        # Where the wildcard DNS (`dns` below) points every name under the
+        # domain.
+        ipv4_address: 10.231.17.10
+        # Lets pear reach the web client's origin (for its OAuth metadata) and its
+        # own (to resolve did:web:habitat-e2e.dev).
+        # Docker DNS has no wildcards, so the handles of the PDS accounts (see
+        # harness/pds.ts, PDS_ACCOUNTS) are listed one by one: an atproto handle
+        # resolves over HTTPS at its own host, and pear does that from here.
+        aliases:
+          - habitat-e2e.dev
+          - app.habitat-e2e.dev
+          - chalk.habitat-e2e.dev
+          - pds.habitat-e2e.dev
+          - alice.pds.habitat-e2e.dev
+          - bob.pds.habitat-e2e.dev
+          - carol.pds.habitat-e2e.dev
+    depends_on:
+      pear: { condition: service_started }
+      frontend: { condition: service_started }
+      chalk: { condition: service_started }
+      pds: { condition: service_started }
+
+  # Wildcard DNS for the services that resolve did:webs (pear, the app, the
+  # PDS): every name under habitat-e2e.dev is caddy. Docker's DNS answers the
+  # compose service names and the aliases above first, and asks this for the
+  # rest, such as an org's did:web:<random>.habitat-e2e.dev.
+  dns:
+    image: coredns/coredns:1.15.0
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes:
+      - ./dns/Corefile:/etc/coredns/Corefile:ro
+    networks:
+      default:
+        ipv4_address: 10.231.17.53
+
+  # Local PLC directory, so the PDS's accounts get did:plc identities without
+  # the public plc.directory. Built from the upstream server at a pinned commit.
+  plc:
+    build:
+      context: https://github.com/did-method-plc/did-method-plc.git#29f1a70ee9f6f80a25946cac103b2f745e371334
+      dockerfile: packages/server/Dockerfile
+    environment:
+      PORT: "2582"
+      ENABLE_MIGRATIONS: "true"
+      DB_CREDS_JSON: '{"username":"habitat","password":"habitat","host":"postgres","port":5432,"database":"plc"}'
+      DB_MIGRATE_CREDS_JSON: '{"username":"habitat","password":"habitat","host":"postgres","port":5432,"database":"plc"}'
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  # The alpha PDS with spaces support
+  # (https://atproto.com/blog/atproto-spaces-alpha). Its data lives in a named
+  # volume, which the harness removes with the rest of the test bed.
+  pds:
+    image: ${PDS_IMAGE:-ghcr.io/bluesky-social/atproto:pds-spaces-alpha}
+    # The published alpha image only carries an amd64 manifest. On arm64 hosts
+    # Docker must be told to pull and emulate that variant (on amd64 this is a
+    # no-op).
+    platform: linux/amd64
+    # The image runs as `node` but has no /pds, so the volume mounted there is
+    # root's.
+    user: root
+    environment:
+      PDS_HOSTNAME: pds.habitat-e2e.dev
+      PDS_PORT: "3000"
+      PDS_DATA_DIRECTORY: /pds
+      PDS_BLOBSTORE_DISK_LOCATION: /pds/blocks
+      PDS_DID_PLC_URL: http://plc:2582
+      PDS_SERVICE_HANDLE_DOMAINS: .pds.habitat-e2e.dev
+      PDS_INVITE_REQUIRED: "false"
+      PDS_RATE_LIMITS_ENABLED: "false"
+      PDS_CRAWLERS: ""
+      # Throwaway secrets, for the test instance only.
+      PDS_JWT_SECRET: e2e-jwt-secret-0123456789abcdef
+      PDS_ADMIN_PASSWORD: e2e-admin-password
+      PDS_DPOP_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: 7ed17afd1a9ae5c1c9a2f6b0d3e5b4c8a1f2e3d4c5b6a79881726354453627a1
+      # The PDS fetches OAuth client metadata from pear and the web client, which
+      # are on the compose network behind the self-signed certificate.
+      PDS_DEV_MODE: "true"
+      PDS_DISABLE_SSRF_PROTECTION: "true"
+      NODE_EXTRA_CA_CERTS: /certs/cert.pem
+      LOG_ENABLED: "true"
+    ports: ["3000"]
+    dns: [10.231.17.53]
+    volumes:
+      - pds-data:/pds
+      - ./certs:/certs:ro
+    depends_on:
+      plc: { condition: service_started }
+
+volumes:
+  pds-data:
+
+networks:
+  default:
+    # Fixed addresses for caddy and the wildcard DNS (see `dns`).
+    ipam:
+      config:
+        - subnet: 10.231.17.0/24

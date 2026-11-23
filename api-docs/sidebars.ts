@@ -21,7 +21,7 @@ const hiddenGroups = new Set([
 ]);
 
 // Individual endpoints kept out of the public HTTP reference: deprecated
-// aliases of the network.habitat.simplespace.* methods.
+// aliases of the com.atproto.space methods.
 const hiddenEndpoints = new Set([
   "network.habitat.space.createSpace",
   "network.habitat.space.addMember",

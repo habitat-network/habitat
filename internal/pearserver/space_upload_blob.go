@@ -16,8 +16,10 @@ import (
 
 func (p *PearServer) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// Service auth too: a member whose account is on another PDS uploads
+	// through it (Atproto-Proxy), as they do their record writes.
 	_, ok := p.validator.Request(
-		authn.WithMethods(authn.ValidatorMethodOAuth),
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 	).Validate(w, r)
 	if !ok {
 		return

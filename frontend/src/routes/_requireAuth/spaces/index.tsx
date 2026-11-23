@@ -6,8 +6,8 @@ import {
 } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { xrpc, type DidString, type NsidString } from "@atproto/lex";
-import { network } from "api";
+import { xrpc, type NsidString } from "@atproto/lex";
+import { com } from "api";
 import { SpaceRef } from "@atproto/syntax";
 import {
   Button,
@@ -41,7 +41,7 @@ interface SpaceTypeSummary {
 function summarizeByType(spaces: SpaceView[]): SpaceTypeSummary[] {
   const byType = new Map<string, SpaceTypeSummary>();
   for (const space of spaces) {
-    const ref = SpaceRef.parse(space.uri);
+    const ref = SpaceRef.parse(space.space);
     const summary = byType.get(ref.spaceType) ?? {
       spaceType: ref.spaceType,
       spaceCount: 0,
@@ -110,20 +110,21 @@ function CreateSpaceForm() {
 
   const { mutate: createSpace, isPending } = useMutation({
     async mutationFn(type: string) {
+      // createSpace is a PDS method (proposal 0016): the space is created on
+      // the user's own PDS, with the user as its authority. memberspace is one
+      // of the baseline policies every PDS supports; the authority itself is
+      // always authorized under it.
       const response = await xrpc(
         authManager,
-        network.habitat.simplespace.createSpace.main,
+        com.atproto.space.createSpace.main,
         {
           body: {
-            did: authManager.getAuthInfo()!.did as DidString,
-            type: type as NsidString,
-          },
-          headers: {
-            "atproto-proxy": `did:web:${import.meta.env.VITE_HABITAT_DOMAIN}#habitat`,
+            spaceType: type as NsidString,
+            policy: { $type: "com.atproto.memberspace.policy" },
           },
         },
       );
-      return response.body.uri;
+      return response.body.space;
     },
     async onSuccess(uri) {
       setSpaceType("");

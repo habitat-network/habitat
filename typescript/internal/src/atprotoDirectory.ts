@@ -1,11 +1,17 @@
 import { HandleResolver, DidResolver } from "@atproto/identity";
 import { getServiceEndpoint } from "@atproto/common-web";
 
-// Resolvers over the public AT Protocol identity system (the PLC directory for
+// Resolvers over the AT Protocol identity system (the PLC directory for
 // did:plc and .well-known for did:web). Instantiated once and reused so repeated
 // lookups share any internal caching.
 const handleResolver = new HandleResolver();
-const didResolver = new DidResolver({});
+let didResolver = new DidResolver({});
+
+// setPlcDirectory points did:plc resolution at another PLC directory than the
+// public plc.directory, e.g. a test bed's own. Call it once at startup.
+export function setPlcDirectory(plcUrl: string) {
+  didResolver = new DidResolver({ plcUrl });
+}
 
 // resolveHandleToDid looks a handle up in the atproto directory and returns its
 // DID, throwing if the handle does not resolve.

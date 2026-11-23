@@ -1,27 +1,15 @@
 import { TID } from "@atproto/common-web";
 import { P256Keypair, Secp256k1Keypair } from "@atproto/crypto";
+import { type Cid, type LexMap, type LexValue, lexToJson } from "@atproto/lex";
 import {
-  type Cid,
-  type LexMap,
-  type LexValue,
-  lexToJson,
-  toBase64,
-} from "@atproto/lex";
-import {
-  COMMIT_MAC_TYPE,
-  type Commit,
-  MAC_HEADER,
+  type SpaceCommit as Commit,
   RepoCommit,
   type SerializedRecord,
-  WANT_MAC_HEADER,
-  computeCommitMac,
-  createSpaceToken,
-  decapsulate,
-  formatMacHeader,
-  parseWantMacHeader,
+  createDelegationToken,
+  createSpaceCredential,
   parseSpaceToken,
   serializeRecord,
-  serializeRepo,
+  writeRepoStar,
   spaceHostAud,
   isP256DidKey,
   verifyCredentialSig,
@@ -35,6 +23,14 @@ import {
   type SpaceRefString,
 } from "@atproto/syntax";
 import { type HttpHandler, HttpResponse, http } from "msw";
+import {
+  ACCEPT_SIGNATURE_HEADER,
+  COMMIT_MAC_PROFILE,
+  INVALID_SPACE_MAC,
+  createCommitMacHeaders,
+  decapsulate,
+  parseMacRequest,
+} from "../../spaceMac";
 
 // In-memory stand-in for a PLC directory, a space host and repo hosts. Every
 // signature, credential and STAR uses the real @atproto/space code, so tests
@@ -119,7 +115,8 @@ export class FakeSpace {
   /** Repos whose host MACs a different rev than the listRepoOps commit reports. */
   readonly corruptOpsCommits = new Set<string>();
   readonly deniedUsers = new Set<string>();
-  readonly registrations: string[] = [];
+  /** Notification registrations made through authorizeSpaceSync, oldest first. */
+  readonly registrations: { endpoint: string; token: string }[] = [];
   readonly credentialJtis: string[] = [];
   readonly revokedJtis = new Set<string>();
   deleted = false;
@@ -128,7 +125,6 @@ export class FakeSpace {
   listReposPageSize = 1000;
   /** Runs after each listRepos page is computed, before it is returned (simulates writes mid-walk). */
   onListRepos: (() => Promise<void>) | undefined = undefined;
-  registrationLifetimeMs = 6 * 60 * 60 * 1000;
   credentialLifetimeSec = 600;
   listReposCalls = 0;
   listRepoOpsCalls = 0;
@@ -215,16 +211,20 @@ export class FakeSpace {
     );
   }
 
-  /** JSON body of the notifyWrite a space host would forward for this repo's latest write. */
-  notifyWriteBody(did: string, prevSpaceRev?: string): unknown {
+  /** JSON body of the notifySpaceUpdate a space host would send for this repo's latest write. */
+  notifySpaceUpdateBody(did: string, token: string): unknown {
     const repo = this.repos.get(did)!;
     return lexToJson({
       space: this.id,
-      repo: did,
-      repoRev: repo.rev,
-      data: repo.commit.setHash.digest(),
-      spaceRev: repo.spaceRev,
-      ...(prevSpaceRev ? { prevSpaceRev } : {}),
+      token,
+      update: {
+        $type: "com.atproto.space.defs#repoWrite",
+        repo: did,
+        repoRev: repo.rev,
+        data: repo.commit.setHash.digest(),
+        spaceRev: repo.spaceRev,
+        prevSpaceRev: repo.spaceRev,
+      },
     } as LexValue);
   }
 }
@@ -258,11 +258,12 @@ export class FakeNetwork {
   /** What getDelegationToken on `user`'s PDS would return. */
   delegationToken(user: FakeAccount, space: string): Promise<string> {
     const authority = space.split("/")[2];
-    return createSpaceToken(
-      "delegation",
-      { iss: user.did, sub: space, aud: spaceHostAud(authority) },
-      user.keypair,
-    );
+    return createDelegationToken({
+      iss: user.did as DidString,
+      sub: space as SpaceRefString,
+      aud: spaceHostAud(authority as DidString),
+      keypair: user.keypair,
+    });
   }
 
   /** Delegation from the space authority's own session. */
@@ -271,33 +272,6 @@ export class FakeNetwork {
     if (!fake)
       return Promise.reject(new Error(`no session can reach ${space}`));
     return this.delegationToken(fake.authority, space);
-  }
-
-  /** A service-auth JWT as a space authority would send with notifyWrite. */
-  async serviceAuth(
-    issuer: FakeAccount,
-    opts: {
-      aud: string;
-      lxm: string;
-      expSec?: number;
-      signer?: Secp256k1Keypair;
-    },
-  ): Promise<string> {
-    const enc = (v: unknown) =>
-      toBase64(new TextEncoder().encode(JSON.stringify(v)), "base64url");
-    const now = Math.floor(Date.now() / 1000);
-    const signer = opts.signer ?? issuer.keypair;
-    const head = enc({ alg: signer.jwtAlg, typ: "JWT" });
-    const body = enc({
-      iss: issuer.did,
-      aud: opts.aud,
-      lxm: opts.lxm,
-      iat: now,
-      exp: now + (opts.expSec ?? 60),
-      jti: TID.nextStr(),
-    });
-    const sig = await signer.sign(new TextEncoder().encode(`${head}.${body}`));
-    return `${head}.${body}.${toBase64(sig, "base64url")}`;
   }
 
   private didDoc(account: FakeAccount) {
@@ -333,26 +307,28 @@ export class FakeNetwork {
 
   /**
    * The repo's current commit, MACed under the shared secret the request's
-   * Atproto-Space-Want-Mac negotiates with the author's KEM key. Returns an
-   * error response for a missing or malformed key share.
+   * Accept-Signature negotiates with the author's KEM key. Returns an error
+   * response for a missing or malformed request.
    */
   private macCommit(
     request: Request,
     space: FakeSpace,
     did: string,
     opts: { corrupt: boolean },
-  ): { commit: Commit; macHeader: string } | Response {
+  ): { commit: Commit; macHeaders: Record<string, string> } | Response {
     const repo = space.repos.get(did)!;
     const author = this.accounts.get(did)!;
+    let macRequest;
     let sharedSecret: Uint8Array;
     try {
-      const keyShare = parseWantMacHeader(
-        request.headers.get(WANT_MAC_HEADER) ?? undefined,
-        COMMIT_MAC_TYPE,
+      macRequest = parseMacRequest(
+        request.headers.get(ACCEPT_SIGNATURE_HEADER),
+        COMMIT_MAC_PROFILE,
       );
-      sharedSecret = decapsulate(author.kem, keyShare);
+      if (!macRequest) return xrpcError(400, INVALID_SPACE_MAC);
+      sharedSecret = decapsulate(author.kem, macRequest.keyShare);
     } catch {
-      return xrpcError(400, "BadSpaceMac");
+      return xrpcError(400, INVALID_SPACE_MAC);
     }
     const commit = repo.commit.toCommit({
       space: space.id,
@@ -363,11 +339,11 @@ export class FakeNetwork {
     const maced = opts.corrupt
       ? { ...commit, rev: TID.nextStr(repo.rev) }
       : commit;
-    const macHeader = formatMacHeader(
-      COMMIT_MAC_TYPE,
-      computeCommitMac(sharedSecret, maced),
-    );
-    return { commit, macHeader };
+    const macHeaders = createCommitMacHeaders(maced, {
+      ...macRequest,
+      sharedSecret,
+    });
+    return { commit, macHeaders };
   }
 
   /** Verifies `Atproto-Space-Credential` credential + HTTP signature. Returns an error response, or undefined if authorized. */
@@ -427,18 +403,19 @@ export class FakeNetwork {
       }),
 
       http.post(
-        "*/xrpc/com.atproto.space.getSpaceCredential",
+        "*/xrpc/com.atproto.space.authorizeSpaceSync",
         async ({ request }) => {
           const body = (await request.json()) as {
             space?: string;
-            credentialKid?: string;
+            credentialKey?: string;
             delegationToken?: string;
+            notify?: { endpoint: string; token: string };
           };
           const space = this.spaceFor(body.space ?? null);
           if (space instanceof Response) return space;
           if (new URL(request.url).origin !== space.authority.pds)
             return xrpcError(400, "WrongHost");
-          const keyId = body.credentialKid;
+          const keyId = body.credentialKey;
           if (!keyId || !isP256DidKey(keyId))
             return xrpcError(400, "InvalidRequest");
           // No fake space is public: without a delegation token, answer as
@@ -452,28 +429,28 @@ export class FakeNetwork {
               sub: space.id,
             });
             if (space.deniedUsers.has(token.payload.iss))
-              return xrpcError(403, "UserNotAuthorized");
+              return xrpcError(403, "AccountNotAuthorized");
           } catch {
             return xrpcError(400, "InvalidDelegationToken");
           }
-          const credential = await createSpaceToken(
-            "credential",
-            {
-              iss: space.authority.did,
-              sub: space.id,
-              keyId,
-              expiresInSec: space.credentialLifetimeSec,
-            },
-            space.authority.keypair,
-          );
+          const credential = await createSpaceCredential({
+            iss: space.authority.did as DidString,
+            sub: space.id as SpaceRefString,
+            keyId: keyId as DidString,
+            expiresInSec: space.credentialLifetimeSec,
+            keypair: space.authority.keypair,
+          });
           space.credentialJtis.push(
             parseSpaceToken("credential", credential).payload.jti,
           );
+          // The registration lives as long as the credential. A real host
+          // confirms the endpoint first; tests drive that step themselves.
+          if (body.notify) space.registrations.push(body.notify);
           return HttpResponse.json({ credential });
         },
       ),
 
-      http.get("*/xrpc/com.atproto.space.listRepos", async ({ request }) => {
+      http.get("*/xrpc/com.atproto.space.listWriters", async ({ request }) => {
         const url = new URL(request.url);
         const space = this.spaceFor(url.searchParams.get("space"));
         if (space instanceof Response) return space;
@@ -499,7 +476,8 @@ export class FakeNetwork {
         if (rows.length === 0) return HttpResponse.json({ repos: [] });
         const response = {
           repos: rows.map(([did, repo]) => ({
-            did,
+            $type: "com.atproto.space.defs#repoWrite",
+            repo: did,
             repoRev: repo.rev,
             spaceRev: repo.spaceRev,
             data: repo.commit.setHash.digest(),
@@ -509,30 +487,6 @@ export class FakeNetwork {
         await space.onListRepos?.();
         return json(response);
       }),
-
-      http.post(
-        "*/xrpc/com.atproto.space.registerNotify",
-        async ({ request }) => {
-          const body = (await request.json()) as {
-            space?: string;
-            service?: string;
-          };
-          const space = this.spaceFor(body.space ?? null);
-          if (space instanceof Response) return space;
-          const denied = await this.authorize(
-            request,
-            space,
-            space.authority.did,
-          );
-          if (denied) return denied;
-          space.registrations.push(body.service ?? "");
-          return HttpResponse.json({
-            expiresAt: new Date(
-              Date.now() + space.registrationLifetimeMs,
-            ).toISOString(),
-          });
-        },
-      ),
 
       http.get("*/xrpc/com.atproto.space.listRepoOps", async ({ request }) => {
         const url = new URL(request.url);
@@ -591,7 +545,8 @@ export class FakeNetwork {
           ...(commit ? { commit } : {}),
           ...(last ? {} : { cursor: String(start + limit) }),
         });
-        if (maced) response.headers.set(MAC_HEADER, maced.macHeader);
+        for (const [name, value] of Object.entries(maced?.macHeaders ?? {}))
+          response.headers.set(name, value);
         return response;
       }),
 
@@ -617,11 +572,11 @@ export class FakeNetwork {
         const records = [...repo.records.entries()]
           .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
           .map(([, record]) => record);
-        const star = serializeRepo(maced.commit, records);
+        const star = writeRepoStar(maced.commit, records);
         return new HttpResponse(streamFrom(star), {
           headers: {
             "content-type": "application/octet-stream",
-            [MAC_HEADER]: maced.macHeader,
+            ...maced.macHeaders,
           },
         });
       }),

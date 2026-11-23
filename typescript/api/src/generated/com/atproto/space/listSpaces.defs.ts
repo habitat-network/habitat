@@ -11,10 +11,10 @@ type $nsid = typeof $nsid
 export { $nsid }
 
 export const $params = /*#__PURE__*/ l.params({
+  spaceDid: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'did' })),
   spaceType: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string({ format: 'nsid' }),
   ),
-  did: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'did' })),
   limit: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.withDefault(
       /*#__PURE__*/ l.integer({ minimum: 1, maximum: 100 }),
@@ -39,8 +39,8 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** List the spaces the authenticated user holds a repo in (i.e. spaces the user has written data to), optionally filtered by type and/or authority DID. Note this is not 'spaces I'm a member of' — a member's PDS only tracks spaces its user has written to. Requires auth, implemented by PDS. */
-const main = /*#__PURE__*/ l.query($nsid, $params, $output)
+/** List spaces that the authenticated account has written to or is the authority for. Requires auth, implemented by PDS. */
+const main = /*#__PURE__*/ l.query($nsid, $params, $output, ['InvalidCursor'])
 
 export { main }
 
@@ -52,11 +52,22 @@ export { $lxm }
 
 type SpaceView = {
   $type?: 'com.atproto.space.listSpaces#spaceView'
+  space: l.SpaceRefString
 
   /**
-   * URI of the space.
+   * The current revision of the account's repo in the space, if it has one.
    */
-  uri: l.SpaceRefString
+  repoRev?: l.TidString
+
+  /**
+   * The current commit data of the account's repo in the space, if it has one.
+   */
+  data?: Uint8Array
+
+  /**
+   * The current revision of the space. Only included if the account is the space's authority.
+   */
+  spaceRev?: l.TidString
 }
 
 export type { SpaceView }
@@ -65,7 +76,14 @@ const spaceView = /*#__PURE__*/ l.typedObject<SpaceView>(
   $nsid,
   'spaceView',
   /*#__PURE__*/ l.object({
-    uri: /*#__PURE__*/ l.string({ format: 'space-ref' }),
+    space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
+    repoRev: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string({ format: 'tid' }),
+    ),
+    data: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.bytes()),
+    spaceRev: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string({ format: 'tid' }),
+    ),
   }),
 )
 

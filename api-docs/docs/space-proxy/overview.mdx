@@ -31,9 +31,9 @@ Habitat makes some deviations to the proposal to get things working in the proxy
 
 Once the proposal is finalized, the spaces endpoints are expected to live under the `com.atproto.*` namespace like other PDS endpoints. However, since Habitat is using the WIP spec and also because our semantics are slightly different (as seen below), we're namespacing the new spaces endpoints under the `network.habitat.*` namespace. This will also make migrating to the finalized APIs more clear in your app.
 
-### Simple Spaces
+### Memberspaces
 
-The proposal calls for a `simplespace` protocol implemented by all PDSs. Habitat plans on offering our own space management protocol that will be compatible with simple spaces. For now we offer a limited version of the protocol that just implements the member list. We'll bring client attestation, managing app, and public spaces support in upcoming releases. Another key difference is that all spaces created using the Habitat's `simplespace` APIs will be owned by Habitat so that we can manage the ACL ourselves. The creating user still has "owner" level permissions over the space but the space authority will be `did:web:pear.habitat.network`. This shouldn't impact applications except that syncing the space will point to Habitat instead of the space owner.
+The proposal defines a `memberspace` policy that checks access against a member list. Habitat implements it alongside its own relationspace policy. We'll bring client attestation, managing app, and public spaces support in upcoming releases. Another key difference is that all spaces created using Habitat's `com.atproto.space` APIs will be owned by Habitat so that we can manage the ACL ourselves. The creating user still has "owner" level permissions over the space but the space authority will be `did:web:pear.habitat.network`. This shouldn't impact applications except that syncing the space will point to Habitat instead of the space owner.
 
 ### Signing
 

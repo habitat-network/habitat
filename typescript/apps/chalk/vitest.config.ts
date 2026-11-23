@@ -52,7 +52,7 @@ export default defineConfig({
         bindings: {
           TEST_MIGRATIONS: migrations,
           // Test-only stand-in for the wrangler secret deployed
-          // environments configure (see src/server/seal.ts).
+          // environments configure (see internal/oauthClient/seal.ts).
           CHALK_CREDENTIALS_KEY: "dGVzdC1vbmx5LWNyZWRlbnRpYWxzLWtleS0zMmJ5dGU=",
         },
       },

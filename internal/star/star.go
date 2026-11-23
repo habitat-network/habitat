@@ -1,13 +1,14 @@
-// Package star reads and writes STAR-lite v1 archives: a metadata header
-// followed by key/value pairs until EOF.
+// Package star reads and writes STAR archives: a metadata header, then
+// key/value pairs each preceded by a 0x01 control byte, then a 0x00 control
+// byte to end the archive.
 //
-//	[ magic | len | meta ] [ len | key | len | val ] [ len | key | len | val ] ...
+//	[ magic | len | meta ] [ 1 | len | key | len | val ] [ 1 | len | key | len | val ] ... [ 0 ]
 //
 // Each len is an unsigned varint in its shortest form, and meta is a DRISL
 // (canonical DAG-CBOR) map whose "$type" names the archive's profile, which
-// defines what the keys and values mean. This mirrors @atproto/space's star.ts.
+// defines what the keys and values mean. This mirrors @atproto/star.
 //
-// See https://tangled.org/microcosm.blue/star/tree/main/v1-star
+// See https://dasl.ing/star.html
 package star
 
 import (
@@ -21,12 +22,15 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atdata"
 )
 
-// Magic is the four-byte prefix of every STAR-lite v1 archive.
+// Magic is the four-byte prefix of every STAR archive.
 var Magic = []byte{0x2a, 0x6c, 0x01, 0x00}
 
 const (
+	// controlPair precedes each key/value pair; controlEnd ends the archive.
+	controlPair = 0x01
+	controlEnd  = 0x00
 	// maxVarintBytes bounds a length prefix, as in the reference implementation.
-	maxVarintBytes = 6
+	maxVarintBytes = 9
 	// MaxMetaLength is the largest metadata frame a reader accepts.
 	MaxMetaLength = 64 * 1024 * 1024
 	// MaxKeyLength is the largest key frame a reader accepts.
@@ -43,7 +47,8 @@ func parseErr(format string, args ...any) error {
 }
 
 // Writer writes a STAR archive. The metadata is written by NewWriter; pairs
-// follow with WritePair, in whatever order the profile requires.
+// follow with WritePair, in whatever order the profile requires, and Close
+// ends the archive.
 type Writer struct {
 	w io.Writer
 }
@@ -70,11 +75,23 @@ func NewWriter(w io.Writer, meta map[string]any) (*Writer, error) {
 
 // WritePair writes one key/value pair.
 func (sw *Writer) WritePair(key, value []byte) error {
+	if _, err := sw.w.Write([]byte{controlPair}); err != nil {
+		return fmt.Errorf("write star control byte: %w", err)
+	}
 	if err := sw.frame(key); err != nil {
 		return fmt.Errorf("write star key: %w", err)
 	}
 	if err := sw.frame(value); err != nil {
 		return fmt.Errorf("write star value: %w", err)
+	}
+	return nil
+}
+
+// Close writes the end of the archive. It does not close the underlying
+// writer; an archive without it is truncated.
+func (sw *Writer) Close() error {
+	if _, err := sw.w.Write([]byte{controlEnd}); err != nil {
+		return fmt.Errorf("write star end: %w", err)
 	}
 	return nil
 }
@@ -115,9 +132,6 @@ func NewReader(r io.Reader, maxValueLength uint64) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	if metaBytes == nil {
-		return nil, parseErr("missing metadata")
-	}
 	meta, err := atdata.UnmarshalCBOR(metaBytes)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid metadata: %w", ErrParse, err)
@@ -137,31 +151,39 @@ func NewReader(r io.Reader, maxValueLength uint64) (*Reader, error) {
 	return sr, nil
 }
 
-// Next returns the next key/value pair, or io.EOF once the archive ends at a
-// pair boundary.
+// Next returns the next key/value pair, or io.EOF once it reaches the end of
+// the archive. An archive that stops without its end control byte, or that
+// has bytes after it, is malformed.
 func (sr *Reader) Next() (key, value []byte, err error) {
+	control, err := sr.r.ReadByte()
+	if err != nil {
+		return nil, nil, parseErr("unexpected end of archive")
+	}
+	switch control {
+	case controlEnd:
+		if _, err := sr.r.ReadByte(); !errors.Is(err, io.EOF) {
+			return nil, nil, parseErr("unexpected bytes after end of archive")
+		}
+		return nil, nil, io.EOF
+	case controlPair:
+	default:
+		return nil, nil, parseErr("invalid control byte: %d", control)
+	}
 	key, err = sr.readFrame(MaxKeyLength)
 	if err != nil {
 		return nil, nil, err
-	}
-	if key == nil {
-		return nil, nil, io.EOF
 	}
 	value, err = sr.readFrame(sr.maxValueLength)
 	if err != nil {
 		return nil, nil, err
 	}
-	if value == nil {
-		return nil, nil, parseErr("missing value for key")
-	}
 	return key, value, nil
 }
 
-// readFrame reads one length-prefixed frame. It returns nil, nil at EOF before
-// a frame starts, which is only allowed at a pair boundary.
+// readFrame reads one length-prefixed frame.
 func (sr *Reader) readFrame(maxLength uint64) ([]byte, error) {
-	length, ok, err := sr.readVarint()
-	if err != nil || !ok {
+	length, err := sr.readVarint()
+	if err != nil {
 		return nil, err
 	}
 	if length > maxLength {
@@ -176,24 +198,22 @@ func (sr *Reader) readFrame(maxLength uint64) ([]byte, error) {
 
 // readVarint reads an unsigned varint in its shortest form: 7 bits per byte,
 // least significant group first, with the high bit set on every byte but the
-// last. ok is false at a clean EOF before the first byte.
-func (sr *Reader) readVarint() (value uint64, ok bool, err error) {
+// last.
+func (sr *Reader) readVarint() (uint64, error) {
+	var value uint64
 	for i := range maxVarintBytes {
 		b, err := sr.r.ReadByte()
 		if err != nil {
-			if i == 0 && errors.Is(err, io.EOF) {
-				return 0, false, nil
-			}
-			return 0, false, parseErr("unexpected end of archive")
+			return 0, parseErr("unexpected end of archive")
 		}
 		value |= uint64(b&0x7f) << (7 * i)
 		if b < 0x80 {
 			// A final zero byte only pads the encoding, which STAR forbids.
 			if b == 0 && i > 0 {
-				return 0, false, parseErr("non-canonical varint")
+				return 0, parseErr("non-canonical varint")
 			}
-			return value, true, nil
+			return value, nil
 		}
 	}
-	return 0, false, parseErr("varint too long")
+	return 0, parseErr("varint too long")
 }

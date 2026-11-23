@@ -1,10 +1,11 @@
 // Package httpsig implements the small RFC 9421 (HTTP Message Signatures)
 // profile used by atproto permissioned data (spaces) to bind a space
 // credential to a key held by its syncer, replacing DPoP: a single signature
-// labeled "atproto-space-credential", tagged "atproto-space-credential", made
-// with a P-256 key (algorithm ecdsa-p256-sha256, RFC 9421 section 3.3.4) over
-// a fixed list of request headers. The signing key is the credential's
-// cnf.kid, so the signature need not name it.
+// tagged "atproto-space-credential" (under any label, which carries no meaning
+// per RFC 9421 section 7.2.5), made with a P-256 key (algorithm
+// ecdsa-p256-sha256, RFC 9421 section 3.3.4) over a fixed list of request
+// headers. The signing key is the credential's cnf.kid, so the signature need
+// not name it.
 package httpsig
 
 import (
@@ -18,9 +19,12 @@ import (
 )
 
 const (
-	// Label names the signature in the Signature and Signature-Input headers.
-	Label = "atproto-space-credential"
-	// Tag is the required value of the signature's tag parameter.
+	// Label names the signature Sign writes in the Signature and
+	// Signature-Input headers, as @atproto/space does. Verifiers find the
+	// signature by its tag instead.
+	Label = "sig"
+	// Tag is the required value of the signature's tag parameter; it is what
+	// identifies the signature.
 	Tag = "atproto-space-credential"
 	// Alg is the only algorithm a signature may name in its optional alg
 	// parameter.
@@ -38,8 +42,8 @@ const (
 )
 
 var (
-	// ErrNoSignature means the request carries no atproto-space-credential
-	// signature.
+	// ErrNoSignature means the request carries no signature tagged
+	// atproto-space-credential.
 	ErrNoSignature = errors.New("no atproto-space-credential signature")
 	// ErrInvalidSignature means a signature is present but malformed or wrong.
 	ErrInvalidSignature = errors.New("invalid http message signature")
@@ -81,20 +85,27 @@ func Sign(r *http.Request, key atcrypto.PrivateKey, components ...string) error 
 	return nil
 }
 
-// VerifyBound checks r's atproto-space-credential signature, which must cover
-// exactly the given components in order and carry the atproto-space-credential
-// tag, against boundKey: the P-256 did:key a space credential is bound to (its
-// cnf.kid). The signature's keyid parameter may be omitted, as @atproto/space's
-// client does, but must match boundKey if present. Other signatures in the
-// same headers, under other labels, are ignored.
+// VerifyBound checks r's signature tagged atproto-space-credential, which must
+// cover exactly the given components in order, against boundKey: the P-256
+// did:key a space credential is bound to (its cnf.kid). The signature's keyid
+// parameter may be omitted, as @atproto/space's client does, but must match
+// boundKey if present. Other signatures in the same headers, with other tags,
+// are ignored; more than one with this tag is an error.
 func VerifyBound(r *http.Request, boundKey string, components ...string) error {
-	input, ok := dictMember(r.Header.Values("Signature-Input"), Label)
-	if !ok {
-		return ErrNoSignature
+	var label, input, covered string
+	var params map[string]string
+	for _, m := range dictMembers(r.Header.Values("Signature-Input")) {
+		c, p, err := parseInput(m.value)
+		if err != nil || p["tag"] != Tag {
+			continue
+		}
+		if input != "" {
+			return fmt.Errorf("%w: more than one signature tagged %q", ErrInvalidSignature, Tag)
+		}
+		label, input, covered, params = m.label, m.value, c, p
 	}
-	covered, params, err := parseInput(input)
-	if err != nil {
-		return err
+	if input == "" {
+		return ErrNoSignature
 	}
 	if covered != componentList(components) {
 		return fmt.Errorf(
@@ -102,9 +113,6 @@ func VerifyBound(r *http.Request, boundKey string, components ...string) error {
 			ErrInvalidSignature,
 			components,
 		)
-	}
-	if params["tag"] != Tag {
-		return fmt.Errorf("%w: signature tag must be %q", ErrInvalidSignature, Tag)
 	}
 	if alg, ok := params["alg"]; ok && alg != Alg {
 		return fmt.Errorf("%w: signature algorithm must be %s", ErrInvalidSignature, Alg)
@@ -119,7 +127,7 @@ func VerifyBound(r *http.Request, boundKey string, components ...string) error {
 	if err != nil {
 		return fmt.Errorf("%w: parse bound key: %w", ErrInvalidSignature, err)
 	}
-	sigItem, ok := dictMember(r.Header.Values("Signature"), Label)
+	sigItem, ok := dictMember(r.Header.Values("Signature"), label)
 	if !ok {
 		return fmt.Errorf("%w: missing Signature", ErrInvalidSignature)
 	}
@@ -224,9 +232,24 @@ func parseParam(s string) (name, value, rest string, err error) {
 }
 
 // dictMember finds label's value in a Structured Field Dictionary spread over
-// one or more header lines, e.g. `sig1=(...), atproto-space-credential=(...)`.
-// Members are split on commas outside quoted strings and inner lists.
+// one or more header lines.
 func dictMember(lines []string, label string) (string, bool) {
+	for _, m := range dictMembers(lines) {
+		if m.label == label {
+			return m.value, true
+		}
+	}
+	return "", false
+}
+
+type member struct{ label, value string }
+
+// dictMembers splits a Structured Field Dictionary spread over one or more
+// header lines, e.g. `sig1=(...), sig=(...)`, into its members. Members are
+// split on commas outside quoted strings and inner lists; one without a value
+// is skipped.
+func dictMembers(lines []string) []member {
+	var members []member
 	for _, line := range lines {
 		depth, quoted, start := 0, false, 0
 		for i := 0; i <= len(line); i++ {
@@ -250,14 +273,14 @@ func dictMember(lines []string, label string) (string, bool) {
 					continue
 				}
 			}
-			member := strings.TrimSpace(line[start:i])
+			m := strings.TrimSpace(line[start:i])
 			start = i + 1
-			if v, ok := strings.CutPrefix(member, label+"="); ok {
-				return v, true
+			if label, value, ok := strings.Cut(m, "="); ok {
+				members = append(members, member{label: label, value: value})
 			}
 		}
 	}
-	return "", false
+	return members
 }
 
 // signatureBase builds the RFC 9421 section 2.5 signature base.

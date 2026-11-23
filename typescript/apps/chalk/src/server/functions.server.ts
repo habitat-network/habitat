@@ -18,6 +18,11 @@ import { commentsSpaceUri } from "./comments.server";
 // never directly by a route's client component.
 
 export const DOCS_SPACE_TYPE = "network.habitat.docs";
+// Space policy for every space chalk creates: access is decided by the
+// space's userRelation/spaceRelation records (network.habitat.relationspace).
+export const RELATION_SPACE_POLICY = {
+  $type: "network.habitat.relationspace.policy",
+} as const;
 export const CRDT_COLLECTION = "network.habitat.docs.crdt";
 
 // createDocSpace creates the underlying space for a new doc, branching on
@@ -40,17 +45,22 @@ export async function createDocSpace(
     const created = await client.call<{ uri: string }>(
       "community.opensocial.createSpace",
       "POST",
-      { org: currentOrg, type: DOCS_SPACE_TYPE, roles: [] },
+      {
+        org: currentOrg,
+        type: DOCS_SPACE_TYPE,
+        policy: RELATION_SPACE_POLICY,
+        roles: [],
+      },
       { atprotoProxy: `${currentOrg}#habitat` },
     );
     return { uri: created.uri, ownerDid: currentOrg };
   }
-  const created = await client.call<{ uri: string }>(
-    "network.habitat.simplespace.createSpace",
+  const created = await client.call<{ space: string }>(
+    "com.atproto.space.createSpace",
     "POST",
-    { did, type: DOCS_SPACE_TYPE },
+    { spaceType: DOCS_SPACE_TYPE, policy: RELATION_SPACE_POLICY },
   );
-  return { uri: created.uri, ownerDid: did };
+  return { uri: created.space, ownerDid: did };
 }
 
 // fetchOrgName reads an org's display name off its

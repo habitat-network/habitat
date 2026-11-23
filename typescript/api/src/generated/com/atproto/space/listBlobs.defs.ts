@@ -13,7 +13,6 @@ export { $nsid }
 export const $params = /*#__PURE__*/ l.params({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
   repo: /*#__PURE__*/ l.string({ format: 'did' }),
-  since: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'tid' })),
   limit: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.withDefault(
       /*#__PURE__*/ l.integer({ minimum: 1, maximum: 1000 }),
@@ -36,7 +35,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** List the CIDs of blobs referenced by an account's records within a permissioned space, optionally since some revision of that repo. Lets a syncer discover which blobs to fetch via getBlob, and lets an account enumerate the blobs it must carry when migrating a permissioned repo. Scoped to one space: blobs behind permissioned records are never enumerated by com.atproto.sync.listBlobs, which is unauthenticated. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). */
+/** List blob CIDs referenced by records in a space repo. Requires auth as the repo's account or with a space credential; implemented by PDS. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output, [
   'SpaceNotFound',
   'RepoNotFound',

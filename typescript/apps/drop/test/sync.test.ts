@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "@/db";
 import { syncRepos, syncSpaces } from "@/db/schema";
 import { DrizzleSyncStore } from "internal/spaceSync/drizzle";
-import { notifyWrite, runDueSpaces } from "@/server/sync";
+import { notificationErrorStatus } from "internal/spaceSync";
+import { notifySpaceUpdate, runDueSpaces } from "@/server/sync";
 
 // The authority doesn't exist, so every pass here fails; what these check
 // is that the syncer is started, claims, and records its outcome in D1.
@@ -51,17 +52,22 @@ describe("sync", () => {
     expect((await store.getSpace(SPACE))?.nextDueAt).toBe(later);
   });
 
-  it("ignores notifications for spaces Drop doesn't sync", async () => {
-    await notifyWrite(
-      env,
-      {
-        space: SPACE,
+  it("rejects notifications that don't carry the space's token", async () => {
+    const rejected = await notifySpaceUpdate(env, {
+      space: SPACE,
+      token: "forged",
+      update: {
+        $type: "com.atproto.space.defs#repoWrite",
         repo: ORG,
         repoRev: "3kabcdefghi22",
         data: { $bytes: "AAAA" },
+        spaceRev: "3kabcdefghi23",
       },
-      undefined,
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
     );
+    expect(notificationErrorStatus(rejected)).toBe(401);
     expect(await store.getSpace(SPACE)).toBeUndefined();
   });
 });

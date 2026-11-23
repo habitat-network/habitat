@@ -10,30 +10,32 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** A space policy: access is delegated to an external managing app via checkUserAccess. */
+/** Space policy that delegates access decisions to an external app through checkAccess. */
 type Main = {
   $type?: 'com.atproto.managedspace.policy'
 
   /**
-   * Service identifier of the managing app: a DID with an optional service fragment (e.g. 'did:web:example.com#forum').
+   * The `did#serviceId` reference of the managing app.
    */
   managingApp: string
 
   /**
-   * Publish the policy to readers as a record in the authority's repo.
+   * Publish the policy as a com.atproto.space.policy record in the space.
    */
   publishPolicy?: boolean
 }
 
 export type { Main }
 
-/** A space policy: access is delegated to an external managing app via checkUserAccess. */
+/** Space policy that delegates access decisions to an external app through checkAccess. */
 const main = /*#__PURE__*/ l.typedObject<Main>(
   $nsid,
   'main',
   /*#__PURE__*/ l.object({
     managingApp: /*#__PURE__*/ l.string(),
-    publishPolicy: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
+    publishPolicy: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.withDefault(/*#__PURE__*/ l.boolean(), false),
+    ),
   }),
 )
 

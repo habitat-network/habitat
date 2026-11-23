@@ -23,6 +23,8 @@ var (
 	fGoogleClientSecret    = "google_client_secret"
 	fPdsOauthClientUri     = "pds_oauth_client_uri"
 	fUiDevProxy            = "ui_dev_proxy"
+	fPlcURL                = "plc_url"
+	fInsecureWebhooks      = "insecure_webhooks"
 	fBuiltinApps           = "builtin_app"
 	fBlobBucket            = "blob_bucket"
 	fMeilisearchURL        = "meilisearch_url"
@@ -36,8 +38,8 @@ var (
 	fMCPTextOverrides      = "mcp_text_overrides"
 	fLoginHintCookieDomain = "login_hint_cookie_domain"
 	fMCPAllowPrivateNets   = "mcp_allow_private_networks"
-	fMCPGoogleDriveID      = "mcp_google_drive_client_id"
-	fMCPGoogleDriveSecret  = "mcp_google_drive_client_secret"
+	fMCPGoogleID           = "mcp_google_client_id"
+	fMCPGoogleSecret       = "mcp_google_client_secret"
 	fMCPSlackID            = "mcp_slack_client_id"
 	fMCPSlackSecret        = "mcp_slack_client_secret"
 	fDecisionsURL          = "decisions_url"
@@ -131,6 +133,16 @@ func getFlags() []cli.Flag {
 			Sources: getSources(fPdsOauthClientUri),
 		},
 		&cli.StringFlag{
+			Name:    fPlcURL,
+			Usage:   "Base URL of the PLC directory used to resolve did:plc identities. Defaults to the public plc.directory; test beds point it at a local server",
+			Sources: getSources(fPlcURL),
+		},
+		&cli.BoolFlag{
+			Name:    fInsecureWebhooks,
+			Usage:   "Let syncers register notification endpoints (authorizeSpaceSync) at private addresses and over http, and deliver to them. For test beds and local development only: the endpoints come from callers",
+			Sources: getSources(fInsecureWebhooks),
+		},
+		&cli.StringFlag{
 			Name:    fUiDevProxy,
 			Usage:   "If set, reverse-proxy the embedded /ui/ pages to this URL (the pear-pages dev server) instead of serving the embedded build. Used in development.",
 			Sources: getSources(fUiDevProxy),
@@ -210,14 +222,14 @@ func getFlags() []cli.Flag {
 			Sources: getSources(fMCPAllowPrivateNets),
 		},
 		&cli.StringFlag{
-			Name:    fMCPGoogleDriveID,
-			Usage:   "OAuth client ID pear uses for the Google Drive MCP preset, shared by all orgs. Register it with pear's /mcp-oauth/callback as a redirect URI. Unset disables the preset",
-			Sources: getSources(fMCPGoogleDriveID),
+			Name:    fMCPGoogleID,
+			Usage:   "OAuth client ID pear uses for the Google Workspace and Google Cloud MCP presets, shared by all orgs. Register it with pear's /mcp-oauth/callback as a redirect URI. Unset disables the preset",
+			Sources: getSources(fMCPGoogleID),
 		},
 		&cli.StringFlag{
-			Name:    fMCPGoogleDriveSecret,
-			Usage:   "OAuth client secret for the Google Drive MCP preset",
-			Sources: getSources(fMCPGoogleDriveSecret),
+			Name:    fMCPGoogleSecret,
+			Usage:   "OAuth client secret for the Google Workspace and Google Cloud MCP presets",
+			Sources: getSources(fMCPGoogleSecret),
 		},
 		&cli.StringFlag{
 			Name:    fMCPSlackID,

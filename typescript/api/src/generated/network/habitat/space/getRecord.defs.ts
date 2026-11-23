@@ -31,14 +31,14 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the record's MAC is returned in the Atproto-Space-Mac response header. */
+/** Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must request a MAC with an Accept-Signature header (tag atproto-space-record), and the response carries it in Signature-Input and Signature headers covering an Atproto-Space-Record header. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output, [
   'RecordNotFound',
   'SpaceNotFound',
   'RepoTakendown',
   'RepoSuspended',
   'RepoDeactivated',
-  'BadSpaceMac',
+  'InvalidSpaceMac',
 ])
 
 export { main }

@@ -1,0 +1,48 @@
+package pearserver
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/habitat-network/habitat/api/comatproto"
+	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/httpx"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+)
+
+// ListMembers implements com.atproto.memberspace.listMembers.
+func (p *PearServer) ListMembers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var params comatproto.ComAtprotoMemberspaceListMembersParams
+	if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	_, ok = p.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	if !p.requireMemberspace(ctx, w, spaceURI) {
+		return
+	}
+	dids, err := p.simpleStore.ListMembers(ctx, spaceURI)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list members: %w", err))
+		return
+	}
+	// Membership in a memberspace grants both read and write.
+	members := make([]comatproto.ComAtprotoMemberspaceDefsMember, len(dids))
+	for i, did := range dids {
+		members[i] = comatproto.ComAtprotoMemberspaceDefsMember{
+			Did: did.String(), Read: true, Write: true,
+		}
+	}
+	httpx.WriteJSON(ctx, w, comatproto.ComAtprotoMemberspaceListMembersOutput{Members: members})
+}

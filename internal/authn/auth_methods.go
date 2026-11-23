@@ -3,6 +3,7 @@ package authn
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -20,6 +21,15 @@ type CredentialInfo struct {
 	// directly — which RawMethod callers necessarily do, having no request to
 	// route through the validator.
 	Method ValidatorMethod
+	// ExpiresAt is when a long-lived request opened with this credential, such
+	// as a subscribe stream, must end; zero when it needn't. Service auth
+	// leaves it zero: its tokens are minted per request and expire within a
+	// minute or so, so, as with relays' subscriptions, one authorizes a stream
+	// when it opens.
+	ExpiresAt time.Time
+	// Scopes are the OAuth scopes granted to the token, for OAuth
+	// credentials; nil for every other method.
+	Scopes []string
 }
 
 type Validator interface {

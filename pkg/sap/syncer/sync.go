@@ -144,21 +144,21 @@ func (e *Engine) applyOps(
 		// both and the repo reads as diverged from a commit it agrees with.
 		// The lexicon requires prev on every entry (null only for a create), so
 		// the host is the sole authority here — no local fallback needed.
-		if op.Prev != "" {
-			lt.Remove(spacecommit.RecordElement(collection, rkey, op.Prev))
+		if op.Prev != nil {
+			lt.Remove(spacecommit.RecordElement(collection, rkey, *op.Prev))
 		}
-		if op.Cid != "" {
-			lt.Add(spacecommit.RecordElement(collection, rkey, op.Cid))
+		if op.Cid != nil {
+			lt.Add(spacecommit.RecordElement(collection, rkey, *op.Cid))
 		}
 
 		// Keep the path index in step with the hash, in the same transaction,
 		// so recovery can tell which records it already holds.
-		if op.Cid == "" {
+		if op.Cid == nil {
 			if err := forgetRecord(ctx, tx, space, repoDID, collection, rkey); err != nil {
 				return fmt.Errorf("forget record %s/%s: %w", collection, rkey, err)
 			}
 		} else if err := indexRecord(
-			ctx, tx, space, repoDID, collection, rkey, op.Cid); err != nil {
+			ctx, tx, space, repoDID, collection, rkey, *op.Cid); err != nil {
 			return fmt.Errorf("index record %s/%s: %w", collection, rkey, err)
 		}
 

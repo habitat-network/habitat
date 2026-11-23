@@ -3,6 +3,7 @@ package pearserver
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/api/bsky"
@@ -93,9 +94,13 @@ func (p *PearServer) buildProfileViews(
 			noProfile = append(noProfile, did)
 		}
 	}
+	// The Bluesky fallback only enriches the view, so a failed lookup (Bluesky
+	// down or unreachable, an identity it rejects) leaves those members with
+	// just their handle instead of failing the whole request.
 	bskyProfiles, err := utils.FetchProfiles(ctx, noProfile)
 	if err != nil {
-		return nil, fmt.Errorf("fetch bluesky profiles: %w", err)
+		slog.WarnContext(ctx, "fetch bluesky profiles", "err", err)
+		bskyProfiles = nil
 	}
 	bskyByDID := make(map[syntax.DID]*bsky.ActorDefs_ProfileViewDetailed, len(bskyProfiles))
 	for _, profile := range bskyProfiles {

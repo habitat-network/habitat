@@ -4,16 +4,16 @@ slug: /rebac
 sidebar_label: Overview
 sidebar_position: 0
 title: ReBAC
-description: "Relationship-based access control for spaces: fine-grained permissions beyond simplespaces, without trapping ACLs inside a single application."
+description: "Relationship-based access control for spaces: fine-grained permissions beyond memberspaces, without trapping ACLs inside a single application."
 ---
 
 # ReBAC
 
-[simplespaces](https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md#required-pds-space-management-simplespace) defines a space management implementation that supports basic access control that all PDSs will support.
+[memberspace](https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md#memberspace) is a space policy that supports basic access control that PDSs can support.
 However, some applications will need more fine grained control over space permissions.
 While the spaces protocol leaves room for custom space management implementations that applications can specify, the ACLs will be trapped in that application hurting cross-app interoperability and space host migrations.
 
-Habitat's relationship lexicons provides a space management implementation based on [ReBAC](https://auth0.com/blog/relationship-based-access-control-rebac/) that is compatible with simplespaces.
+Habitat's relationship lexicons provides a space management implementation based on [ReBAC](https://auth0.com/blog/relationship-based-access-control-rebac/) that is compatible with memberspace.
 It represents the ACL as edges (relations) in a graph where nodes are users and other spaces.
 This lets spaces inherit members from other spaces, enabling a much more powerful permission model.  
 Importantly, it writes the relationships of the ACL into the space itself so other applications and space hosts can parse them.

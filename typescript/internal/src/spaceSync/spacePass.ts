@@ -1,4 +1,5 @@
 import type { DidString, SpaceRef, SpaceRefString } from "@atproto/syntax";
+import { com } from "api";
 import {
   Clock,
   Context,
@@ -8,11 +9,7 @@ import {
   Option,
   Stream,
 } from "effect";
-import {
-  type SpaceSyncOptions,
-  SpaceSyncConfig,
-  syncerServiceRef,
-} from "./config";
+import { type SpaceSyncOptions, SpaceSyncConfig } from "./config";
 import {
   type SinkError,
   type StoreError,
@@ -90,16 +87,29 @@ export class RepoBackoff extends Context.Service<
   );
 }
 
-const LIST_REPOS = "com.atproto.space.listRepos";
+const LIST_WRITERS = "com.atproto.space.listWriters";
 
 const invalidListing = (message: string) =>
   new XrpcError({
-    method: LIST_REPOS,
+    method: LIST_WRITERS,
     status: 200,
     error: "InvalidResponse",
     message,
     transient: false,
   });
+
+type WriterEntry = com.atproto.space.listWriters.$OutputBody["repos"][number];
+type KnownWriter = Extract<
+  WriterEntry,
+  {
+    $type:
+      "com.atproto.space.defs#repoWrite" | "com.atproto.space.defs#repoRemoved";
+  }
+>;
+
+const isKnownWriter = (w: WriterEntry): w is KnownWriter =>
+  w.$type === "com.atproto.space.defs#repoWrite" ||
+  w.$type === "com.atproto.space.defs#repoRemoved";
 
 type RepoOutcome =
   | { readonly kind: "ok"; readonly event: Option.Option<SyncEvent> }
@@ -144,7 +154,6 @@ export class SpacePass extends Context.Service<
       const sink = yield* SyncSink;
       const backoff = yield* RepoBackoff;
       const repoSync = yield* RepoSync;
-      const renewLeadMs = Duration.toMillis(config.registrationRenewLead);
       const fullIntervalMs = Duration.toMillis(config.fullPassInterval);
 
       /**
@@ -152,16 +161,22 @@ export class SpacePass extends Context.Service<
        * strictly ascending by spaceRev and each non-empty page's cursor must equal
        * its last entry.
        */
-      const listWriters = (ref: SpaceRef, from: string | undefined) =>
+      const walkWriters = (ref: SpaceRef, from: string | undefined) =>
         Stream.paginate(from, (cursor) =>
-          client.listRepos(ref, cursor).pipe(
-            Effect.flatMap((page) => {
+          client.listWriters(ref, cursor).pipe(
+            Effect.flatMap((raw) => {
+              // The writer union is open: skip entries of a type this
+              // version doesn't know rather than guess at their shape.
+              const page = {
+                cursor: raw.cursor,
+                repos: raw.repos.filter(isKnownWriter),
+              };
               let last = cursor;
               for (const repo of page.repos) {
                 if (last !== undefined && repo.spaceRev <= last)
                   return Effect.fail(
                     invalidListing(
-                      "listRepos entries are not in ascending spaceRev order",
+                      "listWriters entries are not in ascending spaceRev order",
                     ),
                   );
                 last = repo.spaceRev;
@@ -169,7 +184,7 @@ export class SpacePass extends Context.Service<
               if (page.repos.length > 0 && page.cursor !== last)
                 return Effect.fail(
                   invalidListing(
-                    "listRepos cursor does not match its last entry",
+                    "listWriters cursor does not match its last entry",
                   ),
                 );
               return Effect.succeed([
@@ -237,41 +252,6 @@ export class SpacePass extends Context.Service<
         let state = current.value;
         const now = yield* Clock.currentTimeMillis;
 
-        // Best effort: a failed registration only delays notifications, so it must
-        // not stop the pass. SpaceDeleted still propagates.
-        let registrationFailed = false;
-        if (
-          config.serviceDid &&
-          (state.registrationExpiresAt === undefined ||
-            state.registrationExpiresAt - now <= renewLeadMs)
-        ) {
-          const registered = yield* client
-            .registerNotify(ref, syncerServiceRef(config.serviceDid))
-            .pipe(
-              Effect.map(Option.some),
-              Effect.catchIf(
-                (error) =>
-                  !(
-                    error._tag === "CredentialError" &&
-                    error.reason === "SpaceDeleted"
-                  ),
-                (error) =>
-                  Effect.logWarning("registerNotify failed", error).pipe(
-                    Effect.as(Option.none<{ readonly expiresAt: number }>()),
-                  ),
-              ),
-            );
-          if (Option.isSome(registered)) {
-            state = {
-              ...state,
-              registrationExpiresAt: registered.value.expiresAt,
-            };
-            yield* store.putSpace(state);
-          } else {
-            registrationFailed = true;
-          }
-        }
-
         const full =
           requestFull ||
           state.spaceRev === undefined ||
@@ -279,15 +259,26 @@ export class SpacePass extends Context.Service<
 
         // A writer that reappears in the walk keeps only its newest listing.
         const from = full ? undefined : state.spaceRev;
+        // A removal supersedes the writer's earlier listing and, since it is
+        // the newest state of that repo, so does a later write.
+        const removed = new Set<DidString>();
         const listed = yield* Stream.runFold(
-          listWriters(ref, from),
+          walkWriters(ref, from),
           () => new Map<DidString, ListedRepo>(),
-          (acc, repo) =>
-            acc.set(repo.did, {
-              did: repo.did,
-              repoRev: repo.repoRev,
-              spaceRev: repo.spaceRev,
-            }),
+          (acc, writer) => {
+            const did = writer.repo as DidString;
+            if (writer.$type === "com.atproto.space.defs#repoRemoved") {
+              removed.add(did);
+              acc.delete(did);
+              return acc;
+            }
+            removed.delete(did);
+            return acc.set(did, {
+              did,
+              repoRev: writer.repoRev,
+              spaceRev: writer.spaceRev,
+            });
+          },
         );
 
         const pending = [...listed.values()].sort((a, b) =>
@@ -303,9 +294,11 @@ export class SpacePass extends Context.Service<
           o.kind === "ok" && Option.isSome(o.event) ? [o.event.value] : [],
         );
 
-        if (full) {
+        // A full pass prunes every repo missing from the writer set; an
+        // incremental one prunes only the repos it saw removed.
+        {
           for (const did of yield* store.listRepoDids(space)) {
-            if (listed.has(did)) continue;
+            if (full ? listed.has(did) : !removed.has(did)) continue;
             yield* Effect.uninterruptible(
               sink
                 .apply({ _tag: "RepoRemoved", space, did })
@@ -338,9 +331,6 @@ export class SpacePass extends Context.Service<
               : state.failures;
         const lastFullPassAt = full ? now : state.lastFullPassAt;
         const candidates = [(lastFullPassAt ?? now) + fullIntervalMs];
-        if (state.registrationExpiresAt !== undefined)
-          candidates.push(state.registrationExpiresAt - renewLeadMs);
-        if (registrationFailed) candidates.push(now + backoffMillis(config, 1));
         for (const o of outcomes)
           if (o.kind === "failed" || o.kind === "deferred")
             candidates.push(o.retryAt);

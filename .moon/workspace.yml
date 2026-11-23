@@ -3,7 +3,6 @@ projects:
   sources:
     frontend: frontend
     root: .
-    infra: infra
     typescript/internal: typescript/internal
     integration: integration
     ragbench-scorer: integration/mcp-evals/ragbench/scorer

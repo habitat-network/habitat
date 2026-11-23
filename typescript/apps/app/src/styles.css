@@ -1,0 +1,69 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@source "./**/*.{ts,tsx}";
+@source "../../../internal/src/**/*.{ts,tsx}";
+
+@import "internal/styles.css";
+
+/* Doc editor: headings and code in the prose body. */
+@layer utilities {
+  .prose h1 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .prose h2 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .prose p {
+    line-height: 1.75;
+  }
+  .prose code {
+    font-weight: 500;
+    border-radius: 0.25rem;
+    padding: 0.125rem 0.25rem;
+    background: var(--muted);
+  }
+  .prose code::before,
+  .prose code::after {
+    content: none;
+  }
+  .prose pre code {
+    background: none;
+    padding: 0;
+  }
+}
+
+/* A comment thread's anchored range (extensions/commentAnchor.ts). */
+.comment-mark {
+  background-color: rgba(250, 204, 21, 0.35);
+  border-bottom: 2px solid rgba(202, 138, 4, 0.6);
+  cursor: pointer;
+}
+
+/* Remote collaborators' cursors (@tiptap/extension-collaboration-caret). */
+.collaboration-carets__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 1px solid currentColor;
+  border-right: 1px solid currentColor;
+  word-break: normal;
+  pointer-events: none;
+}
+
+.collaboration-carets__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px 3px 3px 0;
+  color: #fff;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: normal;
+  white-space: nowrap;
+  user-select: none;
+}

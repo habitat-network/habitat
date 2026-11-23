@@ -1,6 +1,7 @@
 package mcpsearch
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -112,8 +113,12 @@ func TestDefaultProvidersCoverPresets(t *testing.T) {
 		ids(mcpgateway.PresetURL(mcpgateway.PresetGoogleDrive)))
 	require.Equal(t, []ProviderID{"slack-messages"},
 		ids(mcpgateway.PresetURL(mcpgateway.PresetSlack)))
-	require.Equal(t, []ProviderID{"github-issues", "github-pull-requests", "github-code"},
-		ids(mcpgateway.PresetURL(mcpgateway.PresetGitHub)))
+	require.Equal(t, []ProviderID{"google-calendar-events"},
+		ids(mcpgateway.PresetURL(mcpgateway.PresetGoogleCalendar)))
+	require.Equal(t, []ProviderID{"gmail-threads"},
+		ids(mcpgateway.PresetURL(mcpgateway.PresetGmail)))
+	require.Empty(t, ids(mcpgateway.PresetURL(mcpgateway.PresetGitHub)),
+		"GitHub is a regular tool source, not a federated search source")
 }
 
 // providerByID returns the default provider id.
@@ -147,31 +152,6 @@ func TestGoogleDriveProvider(t *testing.T) {
 	}, items)
 }
 
-func TestGitHubProviders(t *testing.T) {
-	issues := providerByID(t, "github-issues")
-	require.Equal(t, "search_issues", issues.ToolName())
-	require.Equal(t, map[string]any{"query": "login bug", "perPage": 3},
-		issues.Arguments(Query{Text: "login bug", Limit: 3}))
-	items, err := issues.Normalize(textResult(`{"total_count":1,"incomplete_results":false,
-		"items":[{"number":7,"title":"Login fails","html_url":"https://github.com/o/r/issues/7",
-		"body":"Steps to reproduce"}]}`))
-	require.NoError(t, err)
-	require.Equal(t, []Item{{
-		Title: "Login fails", URL: "https://github.com/o/r/issues/7", Snippet: "Steps to reproduce",
-	}}, items)
-
-	code := providerByID(t, "github-code")
-	require.Equal(t, "search_code", code.ToolName())
-	items, err = code.Normalize(textResult(`{"total_count":1,"items":[{"name":"auth.go",
-		"path":"internal/auth.go","html_url":"https://github.com/o/r/blob/main/internal/auth.go",
-		"repository":{"full_name":"o/r"}}]}`))
-	require.NoError(t, err)
-	require.Equal(t, []Item{{
-		Title: "internal/auth.go", URL: "https://github.com/o/r/blob/main/internal/auth.go",
-		Snippet: "o/r",
-	}}, items)
-}
-
 func TestSlackProvider(t *testing.T) {
 	p := providerByID(t, "slack-messages")
 	require.Equal(t, "slack_search_public_and_private", p.ToolName())
@@ -180,7 +160,50 @@ func TestSlackProvider(t *testing.T) {
 		map[string]any{"query": "launch"},
 		p.Arguments(Query{Text: "launch", Limit: 5}),
 	)
-	items, err := p.Normalize(textResult("# Results\n- #general: launch is Tuesday"))
+
+	// Slack answers with a JSON object holding a markdown report.
+	report := "# Search Results for: launch\n\n## Messages (2 results)\n" +
+		"### Result 1 of 2\n" +
+		"Channel: DM (ID: D0CEABW53K4)\n" +
+		"From: Ada <ada@example.com> (ID: U0CEE8E6WS0) \n" +
+		"Time: 2026-11-02 17:43:36 PST\n" +
+		"Permalink: [link](https://example.slack.com/archives/D0CEABW53K4/p1)\n" +
+		"Text: \nlaunch is Tuesday\n- see the doc\n" +
+		"Context after: \n- From: Bo (ID: U2)\n  later message\n\n---\n\n" +
+		"### Result 2 of 2\n" +
+		"Channel: #eng (ID: C0CG6UEKZS4)\n" +
+		"From: Bo <bo@example.com> (ID: U2) \n" +
+		"Permalink: [link](https://example.slack.com/archives/C0CG6UEKZS4/p2?thread_ts=2&cid=C)\n" +
+		"Text: \nlaunch slipped\n"
+	body, err := json.Marshal(map[string]string{"results": report})
 	require.NoError(t, err)
-	require.Equal(t, []Item{{Snippet: "# Results\n- #general: launch is Tuesday"}}, items)
+	items, err := p.Normalize(textResult(string(body)))
+	require.NoError(t, err)
+	require.Equal(t, []Item{
+		{
+			Title:   "DM · Ada",
+			URL:     "https://example.slack.com/archives/D0CEABW53K4/p1",
+			Snippet: "launch is Tuesday\n- see the doc",
+		},
+		{
+			Title:   "#eng · Bo",
+			URL:     "https://example.slack.com/archives/C0CG6UEKZS4/p2?thread_ts=2&cid=C",
+			Snippet: "launch slipped",
+		},
+	}, items)
+
+	// A report with no messages is no matches, not an error.
+	for _, empty := range []string{
+		`{"results":""}`,
+		`{"results":"# Search Results for: zzq\n\nNo results found."}`,
+	} {
+		items, err = p.Normalize(textResult(empty))
+		require.NoError(t, err)
+		require.Empty(t, items, empty)
+	}
+
+	// A report in an unknown shape is kept whole rather than dropped.
+	items, err = p.Normalize(textResult(`{"results":"something new"}`))
+	require.NoError(t, err)
+	require.Equal(t, []Item{{Snippet: "something new"}}, items)
 }

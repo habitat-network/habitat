@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
@@ -39,8 +38,10 @@ import (
 	"github.com/habitat-network/habitat/internal/simplespace"
 
 	"github.com/habitat-network/habitat/internal/pdsoauth"
+	"github.com/habitat-network/habitat/internal/remotesync"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spacestream"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 )
@@ -139,7 +140,9 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	hive = habitat_identity.NewTestHive(hive, hostKey)
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
-	defaultDir := habitat_identity.NewTestDirectory(identity.DefaultDirectory(), hostKey)
+	defaultDir := habitat_identity.NewTestDirectory(
+		habitat_identity.NewDirectory(cmd.String(fPlcURL)), hostKey, domain,
+	)
 	// hive is the base directory (tried first) since it resolves DIDs under our
 	// own domain locally; falling back to defaultDir's network resolution first
 	// would make this server make an outbound HTTP request back to itself for
@@ -147,7 +150,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	// The hive's handle lookups don't fall through to defaultDir for every
 	// miss, so .test handles are resolved before reaching it.
 	hiveDir := habitat_identity.NewTestDirectory(
-		habitat_identity.NewWrappedDirectory(hive, defaultDir), hostKey,
+		habitat_identity.NewWrappedDirectory(hive, defaultDir), hostKey, domain,
 	)
 
 	oauthClient, err := pdsoauth.NewApp(
@@ -218,7 +221,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	// With Meilisearch configured, the search indexer follows space writes
 	// like any other syncer, so the spaces store notifies it alongside the
 	// registered ones.
-	notifiers := spaces.Notifiers{notifier}
+	// Subscribe streams (network.habitat.space.subscribe) are woken by every
+	// write too.
+	spaceEvents := spacestream.NewBroadcaster()
+	notifiers := spaces.Notifiers{notifier, spaceEvents}
 	blobBucket, err := blob.OpenBucket(ctx, cmd.String(fBlobBucket))
 	if err != nil {
 		return nil, fmt.Errorf("open blob bucket: %w", err)
@@ -296,8 +302,12 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("setup oauth server: %w", err)
 	}
 
+	// hiveDir, not defaultDir: the audience can be an org this instance hosts,
+	// whose did:web must resolve locally. Over the network it points back at
+	// ourselves, which fails wherever the org's host isn't reachable from the
+	// container (local dev).
 	serviceAuth := authn.NewServiceAuthMethod(
-		defaultDir,
+		hiveDir,
 		syntax.DID("did:web:"+domain),
 		"https://"+domain,
 	)
@@ -306,7 +316,10 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	credentialRevocations := authn.NewCredentialRevocations(
 		kv.Namespace("space_credential_revoked"),
 	)
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, credentialRevocations)
+	// Credentials are signed by the space's authority, which for an org is a hive
+	// identity under this server's own domain: hiveDir resolves it locally
+	// instead of this server fetching its own DID document over the network.
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(hiveDir, credentialRevocations)
 	validator := authn.NewValidator(
 		oauthServer,
 		serviceAuth,
@@ -337,8 +350,20 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		"https://"+domain+pearserver.MCPOAuthCallbackPath,
 		mcpgateway.WithPresetClients(map[mcpgateway.Preset]mcpgateway.PresetClient{
 			mcpgateway.PresetGoogleDrive: {
-				ID:     cmd.String(fMCPGoogleDriveID),
-				Secret: cmd.String(fMCPGoogleDriveSecret),
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGoogleCloud: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGoogleCalendar: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
+			},
+			mcpgateway.PresetGmail: {
+				ID:     cmd.String(fMCPGoogleID),
+				Secret: cmd.String(fMCPGoogleSecret),
 			},
 			mcpgateway.PresetSlack: {
 				ID:     cmd.String(fMCPSlackID),
@@ -379,7 +404,17 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, err
 	}
 
-	return pearapp.New(
+	// External writers (members on their own PDSes) only notifyWrite; the
+	// remote syncer fetches their records from there so subscribe streams
+	// carry them, and wakes the streams as it stores them.
+	remoteSync, err := remotesync.New(
+		spacesStore, defaultDir, hive, hostKey, httpx.NewClient(), spaceEvents,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("setup remote sync: %w", err)
+	}
+
+	app := pearapp.New(
 		database,
 		domain,
 		hiveDomain,
@@ -415,7 +450,17 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		searcher,
 		searchConfigStore,
 		fedSearch,
-	), nil
+		spaceEvents,
+		remoteSync,
+	)
+	if cmd.Bool(fInsecureWebhooks) {
+		// Webhook endpoints are reached like any other address, so a test bed's
+		// syncers on its private network can register and be notified.
+		webhookClient := httpx.NewClient()
+		app.WebhookClient = webhookClient
+		notifier.WithWebhookClient(webhookClient)
+	}
+	return app, nil
 }
 
 // fedSearchSnippetLength is about how many words of context each record

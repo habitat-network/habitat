@@ -1,12 +1,11 @@
 /// <reference lib="esnext.disposable" />
 import { type Cid, parseCid } from "@atproto/lex";
 import {
-  type Commit,
+  type SpaceCommit as Commit,
   RepoCommit,
   type VerifiedRecord,
+  readRepoStar,
   serializeRecord,
-  verifyCommit,
-  verifyRepoStar,
 } from "@atproto/space";
 import type {
   DidString,
@@ -17,6 +16,7 @@ import type {
 } from "@atproto/syntax";
 import type { com } from "api";
 import { Context, Effect, Layer, Option, Stream } from "effect";
+import { verifyCommit } from "../spaceMac";
 import { SpaceSyncConfig } from "./config";
 import {
   type CredentialError,
@@ -215,13 +215,8 @@ export class RepoSync extends Context.Service<
         // The commit is authenticated by its page's MAC, under the secret
         // negotiated for that one request.
         const valid =
-          commitMac?.mac !== undefined &&
-          verifyCommit(finalCommit, {
-            space,
-            repo: did,
-            sharedSecret: commitMac.sharedSecret,
-            mac: commitMac.mac,
-          });
+          commitMac !== undefined &&
+          verifyCommit(finalCommit, { ...commitMac, space, repo: did });
         if (!valid) {
           // The KEM key may have rotated: re-resolve it so the getRepo this
           // falls back to negotiates against the current one.
@@ -297,25 +292,19 @@ export class RepoSync extends Context.Service<
                 Effect.fail(repoCallFailed(space, did, e)),
               ),
             );
-          if (!mac.mac)
-            return yield* new RepoVerificationError({
-              space,
-              did,
-              message: "repo STAR response carried no MAC",
-            });
-          const responseMac = mac.mac;
           // Authenticates the commit by the response's MAC; records are folded
           // into a set hash as they stream and checked against the commit's
           // data once the archive ends.
           const verified = yield* Effect.acquireRelease(
             Effect.tryPromise({
-              try: () =>
-                verifyRepoStar(star, {
-                  space,
-                  repo: did,
-                  sharedSecret: mac.sharedSecret,
-                  mac: responseMac,
-                }),
+              try: async () => {
+                const repo = await readRepoStar(star);
+                if (!verifyCommit(repo.commit, { ...mac, space, repo: did })) {
+                  await repo[Symbol.asyncDispose]();
+                  throw new Error("commit failed verification");
+                }
+                return repo;
+              },
               catch: (error) =>
                 new RepoVerificationError({
                   space,

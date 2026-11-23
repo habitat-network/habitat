@@ -109,6 +109,32 @@ func TestServer_ListRepoOps(t *testing.T) {
 		require.Len(t, second.Ops, 0)
 	})
 
+	t.Run("cursor continues a paginated response", func(t *testing.T) {
+		uri := newSpace(t, "cursor")
+		coll := syntax.NSID("network.habitat.note")
+		putRecord(t, uri, coll, "k1", map[string]any{"x": 1})
+		putRecord(t, uri, coll, "k2", map[string]any{"x": 2})
+
+		client := httpx_testutil.NewTestXRPCClient(t)
+		query := func(cursor string) habitat.NetworkHabitatSpaceListRepoOpsOutput {
+			var out habitat.NetworkHabitatSpaceListRepoOpsOutput
+			params := url.Values{"space": {uri.String()}, "repo": {owner.String()}, "limit": {"1"}}
+			if cursor != "" {
+				params.Set("cursor", cursor)
+			}
+			require.Equal(t, http.StatusOK, client.Query(ts.Server.ListRepoOps, params, &out))
+			return out
+		}
+
+		first := query("")
+		require.Len(t, first.Ops, 1)
+		require.Equal(t, "k1", first.Ops[0].Rkey)
+		second := query(first.Cursor)
+		require.Len(t, second.Ops, 1)
+		require.Equal(t, "k2", second.Ops[0].Rkey)
+		require.Empty(t, query(second.Cursor).Ops)
+	})
+
 	t.Run("includes record values by default", func(t *testing.T) {
 		uri := newSpace(t, "values")
 		coll := syntax.NSID("network.habitat.note")
@@ -144,6 +170,34 @@ func TestServer_ListRepoOps(t *testing.T) {
 		require.Len(t, output.Ops, 1)
 		require.Equal(t, "k1", output.Ops[0].Rkey)
 		require.Nil(t, output.Ops[0].Value)
+	})
+
+	// A create has no previous cid, which the lexicon says is null: a client
+	// that validates the response (the app's space syncer) rejects "" as an
+	// invalid CID.
+	t.Run("encodes a missing prev as null", func(t *testing.T) {
+		uri := newSpace(t, "null-prev")
+		coll := syntax.NSID("network.habitat.note")
+		putRecord(t, uri, coll, "k1", map[string]any{"v": 1})
+		putRecord(t, uri, coll, "k2", map[string]any{"v": 1})
+		putRecord(t, uri, coll, "k2", map[string]any{"v": 2})
+
+		var output struct {
+			Ops []map[string]any `json:"ops"`
+		}
+		code := httpx_testutil.NewTestXRPCClient(t).Query(
+			ts.Server.ListRepoOps,
+			url.Values{"space": {uri.String()}, "repo": {owner.String()}},
+			&output,
+		)
+		require.Equal(t, http.StatusOK, code)
+
+		require.Len(t, output.Ops, 2)
+		require.Contains(t, output.Ops[0], "prev")
+		require.Nil(t, output.Ops[0]["prev"])
+		require.NotEmpty(t, output.Ops[0]["cid"])
+		// The update of k2 does carry its prev.
+		require.NotEmpty(t, output.Ops[1]["prev"])
 	})
 
 	// TestServer_ListRepoOpsSinceAheadRejects pins that a since beyond the repo

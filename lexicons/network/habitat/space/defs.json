@@ -4,7 +4,7 @@
   "defs": {
     "commit": {
       "type": "object",
-      "description": "A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC in the Atproto-Space-Mac response header.",
+      "description": "A commit over the current state of a permissioned repo. Carries no signature: the repo host authenticates it to a syncer with a MAC over its Atproto-Space-Commit response header.",
       "required": ["ver", "repo", "space", "rev", "data"],
       "properties": {
         "ver": {
