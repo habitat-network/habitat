@@ -399,7 +399,7 @@ func TestServer_SpacePolicy(t *testing.T) {
 	get := func(t *testing.T, h http.HandlerFunc, nsid, space string) (int, []byte) {
 		t.Helper()
 		req := httptest.NewRequest(
-			http.MethodGet, "/xrpc/"+nsid+"?space="+url.QueryEscape(space), nil,
+			http.MethodGet, "/xrpc/"+nsid+"?space="+url.QueryEscape(space), http.NoBody,
 		)
 		w := httptest.NewRecorder()
 		h(w, req)
