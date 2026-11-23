@@ -84,6 +84,32 @@ Members deploy code to their group from the Apps page, and it runs at
   plus JSON and text files; TypeScript and npm dependencies must be bundled
   first.
 
+## Apps
+
+Members deploy code to their group from the Apps page, and it runs at
+`https://<slug>-<key>.<APP_RUN_DOMAIN>/` in a
+[Dynamic Worker](https://developers.cloudflare.com/dynamic-workers/)
+(the `LOADER` binding; Workers Paid plan only).
+
+- **Records**: each app is its own group space (type
+  `network.habitat.apps`, readable by members) holding one
+  `network.habitat.apps.app` record written by the group: name, slug,
+  entrypoint, version, compatibility date, who deployed it, and the code
+  bundle as a blob (`{"modules": {<path>: <source>}}`). Deploying a new
+  version uploads a new blob and rewrites the record, through the group's
+  stream, so it's live when the call returns. The `apps` table is the
+  stream's mirror of those records (`src/server/apps/sink.ts`).
+- **Running** (`src/server/apps/runner.ts`): `entry.ts` sends every
+  request for the run domain to the runner, never to the Habitat app. The
+  runner looks the app up by its host label, and starts its isolate with
+  `LOADER.get(<record uri>@<record cid>, ...)`, reading the bundle from
+  pear only on a cold start.
+- **Sandbox**: no network (`globalOutbound: null`), no bindings except
+  `env.HABITAT` (the app's name, version, group and URL), and a CPU limit
+  per request. Each app has its own origin. Uploads are plain JS modules
+  plus JSON and text files; TypeScript and npm dependencies must be bundled
+  first.
+
 ## Server code and Effect
 
 Server functions live in `src/server/fns/` (`auth`, `groups`, `manage`,

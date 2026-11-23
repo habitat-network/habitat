@@ -90,6 +90,20 @@ it("routes a crdt record to its doc room, reading the blob through the syncer", 
   expect(getBlob).toHaveBeenCalledWith(URI, "did:web:bob.example", BLOB_CID);
 });
 
+it("skips a crdt record whose blob the host no longer has", async () => {
+  getBlob.mockRejectedValueOnce(
+    Object.assign(new Error("Upstream server responded with a 404 error"), {
+      status: 404,
+    }),
+  );
+  await expect(apply(RECORD, crdt(BLOB_CID))).resolves.toBeUndefined();
+});
+
+it("still fails a crdt record whose blob read fails for another reason", async () => {
+  getBlob.mockRejectedValueOnce(new Error("boom"));
+  await expect(apply(RECORD, crdt(BLOB_CID))).rejects.toThrow("boom");
+});
+
 it("ignores a record in a different collection", async () => {
   const other = `${URI}/did:web:bob.example/network.habitat.docs.comment/c1`;
   await apply(other, crdt(BLOB_CID));
