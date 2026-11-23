@@ -121,7 +121,7 @@ services:
   # compose service names and the aliases above first, and asks this for the
   # rest, such as an org's did:web:<random>.habitat-e2e.dev.
   dns:
-    image: coredns/coredns:1.12.1
+    image: coredns/coredns:1.15.0
     command: ["-conf", "/etc/coredns/Corefile"]
     volumes:
       - ./dns/Corefile:/etc/coredns/Corefile:ro
