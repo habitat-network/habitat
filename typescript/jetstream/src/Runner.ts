@@ -83,6 +83,13 @@ export interface ReplayOptions {
    * near the head may as well subscribe directly. Default: false.
    */
   readonly snapshot?: boolean | { readonly limit?: number };
+  /**
+   * Called once the snapshot pages (if any) are applied, as the live socket
+   * is about to open from the saved position: everything up to the
+   * snapshot's tip is indexed. Without `snapshot` there are no pages, so it
+   * is called at once and the socket does the catch-up.
+   */
+  readonly onCaughtUp?: () => void;
 }
 
 /** Selects the record a write goes to. */
@@ -226,7 +233,9 @@ export class Runner<E = unknown> {
             ? options.snapshot.limit
             : undefined;
         yield* self.jetstream
-          .snapshot({ after: cursor - 1, collections, limit })
+          // afterSeq is exclusive and never negative: seqs start at 1, so a
+          // fresh runner (cursor 0) asks for everything after 0.
+          .snapshot({ after: Math.max(cursor - 1, 0), collections, limit })
           .pipe(
             Stream.runForEach((page) =>
               Effect.gen(function* () {
@@ -242,6 +251,7 @@ export class Runner<E = unknown> {
             ),
           );
       }
+      options.onCaughtUp?.();
       const events = self.jetstream.subscribe({
         cursor,
         collections,

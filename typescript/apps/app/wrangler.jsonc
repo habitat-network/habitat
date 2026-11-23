@@ -29,9 +29,6 @@
   // Runs the code members deploy as Apps, each in its own sandboxed
   // isolate (Dynamic Workers; see src/server/apps/runner.ts).
   "worker_loaders": [{ "binding": "LOADER" }],
-  // Makes sure every connected group's stream is running
-  // (src/server/stream/index.ts).
-  "triggers": { "crons": ["* * * * *"] },
   // Deployment values, not local dev's: override locally via `.dev.vars`.
   // APP_SESSION_SECRET and APP_CREDENTIALS_KEY are wrangler secrets (see
   // README.md).

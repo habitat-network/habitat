@@ -48,11 +48,17 @@ The app is a public atproto OAuth client of a Habitat instance (pear).
   member may do. Pages only hide controls the member's roles don't grant.
 - **Sync**: docs, comments, files and rosters are indexed into D1 from each
   connected group's `network.habitat.space.subscribe` stream, opened with
-  the group's own session by an `OrgStream` Durable Object
-  (`src/server/stream/`, using `@habitat-network/jetstream`), with one cursor
-  per group. Writes that must show at once (uploads, file deletes, removing
-  a member) go through it and return once their event is indexed. The
-  once-a-minute cron makes sure every connected group's stream is running.
+  the group's own session (`src/server/stream/`, using
+  `@habitat-network/jetstream`), with one cursor per group. Each group has
+  one `OrgStream` Durable Object, so there is exactly one connection per
+  group however many isolates serve requests. It has no alarm or cron: a
+  request made against a group (`requireOrg`) calls `follow()`, which
+  catches D1 up over `getSnapshot` from the saved cursor, then keeps the
+  live WebSocket open. Concurrent calls share one catch-up. After five
+  minutes without a request the object closes the stream, and the next
+  request catches up again.
+  Writes that must show at once (uploads, file deletes, removing a member)
+  go through it and return once their event is indexed.
   Blobs (a doc's crdt state, uploaded files, an app's code) are read with
   `network.habitat.space.getBlob` as the group (`src/server/blobs.ts`). The app
   talks to pear only through the stream, `createSpace`, record writes and
@@ -132,7 +138,7 @@ Server functions live in `src/server/fns/` (`auth`, `groups`, `manage`,
 
 Server routes (`/api/upload`, `/api/download`, `/ws/$docId`) use
 `runHandler`, which answers with a JSON error and status instead of
-throwing; the cron uses `runBackground`.
+throwing; background work uses `runBackground`.
 
 ## Local setup
 

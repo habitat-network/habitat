@@ -6,13 +6,21 @@ import {
   type Runner,
 } from "@habitat-network/jetstream";
 import { Cause, Effect, Exit } from "effect";
+import { getDb, isConnectedOrg } from "@/db";
 import { appEventSink, INDEXED_COLLECTIONS } from "./indexer";
 
-// OrgStream follows one group's spaces through pear's
-// network.habitat.space.subscribe, with the group's own OAuth session, and
+// OrgStream follows one org's spaces through pear's
+// network.habitat.space.subscribe, with the org's own OAuth session, and
 // keeps the app's D1 mirror and doc rooms in step with it. One Durable
-// Object per group, so each group's events are applied by exactly one
-// runner, in order, with one cursor for the whole group.
+// Object per org, so there is exactly one runner, one socket and one cursor
+// per org across every isolate.
+//
+// It has no alarm. A request made against the org calls follow(), which
+// catches D1 up over getSnapshot from the saved cursor and then keeps the
+// live WebSocket open; concurrent calls share one catch-up. Each call (and
+// each write) marks the object as used; after IDLE_MS without one the runner
+// is stopped and the socket closed, and the next request catches up again.
+// The open outbound socket is what keeps the object resident meanwhile.
 //
 // Writes that must be visible in D1 before a request returns go through
 // putRecord/deleteRecord/awaitRecord here: the write is made with the
@@ -22,13 +30,21 @@ import { appEventSink, INDEXED_COLLECTIONS } from "./indexer";
 const ORG_KEY = "org";
 const CURSOR_KEY = "cursor";
 
-// While following, the object sets itself an alarm this often. It restarts
-// a runner that stopped (for instance because the group's session was
-// refused) and keeps the object, and so its outbound stream, alive.
-const KEEPALIVE_MS = 30_000;
+// How long without a request before the stream is closed.
+const IDLE_MS = 5 * 60_000;
 
-// What a write returns across the RPC boundary: Effect's tagged errors
-// don't survive serialization, so failures come back as data.
+// How long a request waits for the first catch-up before carrying on with
+// whatever D1 already has. The catch-up itself isn't cut short.
+const CATCH_UP_WAIT_MS = 10_000;
+
+// What follow() found: "live" once D1 is caught up to the stream's tip,
+// "behind" if the catch-up failed or is still running after
+// CATCH_UP_WAIT_MS (D1 may be stale), "unconnected" for an org this
+// deployment holds no session for (there is no stream to follow).
+export type FollowState = "live" | "behind" | "unconnected";
+
+// What a write returns: failures come back as data, so callers don't have to
+// know the SDK's tagged errors.
 export type WriteOutcome =
   | { ok: true; uri: string; cid: string }
   | {
@@ -80,11 +96,16 @@ async function sessionFetch(env: Env, did: string) {
 }
 
 export class OrgStream extends DurableObject<Env> {
-  private runner: Runner | undefined;
   private org: string | undefined;
+  private runner: Promise<Runner> | undefined;
+  // Settles once the first catch-up is applied; rejects if the stream
+  // stopped before that. Set while a stream is running.
+  private caughtUp: Promise<void> | undefined;
+  private idleTimer: ReturnType<typeof setTimeout> | undefined;
 
-  // ensure starts following org's spaces, if this object isn't already.
-  async ensure(org: string): Promise<void> {
+  // follow makes sure org's stream is running, and waits (up to
+  // CATCH_UP_WAIT_MS) for the catch-up. Idempotent: callers share one run.
+  async follow(org: string): Promise<FollowState> {
     if (this.org && this.org !== org) {
       throw new Error(`OrgStream for ${this.org} asked to follow ${org}`);
     }
@@ -92,28 +113,95 @@ export class OrgStream extends DurableObject<Env> {
       this.org = org;
       await this.ctx.storage.put(ORG_KEY, org);
     }
-    await this.start();
-    if ((await this.ctx.storage.getAlarm()) === null) {
-      await this.ctx.storage.setAlarm(Date.now() + KEEPALIVE_MS);
+    this.touch();
+    if (!this.caughtUp) {
+      if (!(await isConnectedOrg(getDb(this.env), org))) return "unconnected";
+      // Another call may have started it while D1 was read.
+      this.caughtUp ??= this.begin(org);
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<FollowState>((resolve) => {
+      timer = setTimeout(() => {
+        console.warn("[orgStream] catch-up still running", org);
+        resolve("behind");
+      }, CATCH_UP_WAIT_MS);
+    });
+    try {
+      return await Promise.race([
+        this.caughtUp.then(
+          (): FollowState => "live",
+          (): FollowState => "behind",
+        ),
+        timedOut,
+      ]);
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  async alarm(): Promise<void> {
-    this.org ??= await this.ctx.storage.get<string>(ORG_KEY);
-    if (!this.org) return;
-    await this.start();
-    await this.ctx.storage.setAlarm(Date.now() + KEEPALIVE_MS);
-  }
+  // alarm only clears the keepalive alarm an older version of this object
+  // scheduled: it is never set again, so this runs at most once per object.
+  async alarm(): Promise<void> {}
 
   // cursor is the seq the stream resumes from, for diagnostics and tests.
   async cursor(): Promise<number | undefined> {
     return this.ctx.storage.get<number>(CURSOR_KEY);
   }
 
-  private async getRunner(): Promise<Runner> {
-    if (this.runner) return this.runner;
-    const org = this.org;
-    if (!org) throw new Error("OrgStream has no group yet");
+  // running reports whether a stream is open, for tests.
+  isRunning(): boolean {
+    return this.caughtUp !== undefined;
+  }
+
+  private touch(): void {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      void this.stopStream();
+    }, IDLE_MS);
+  }
+
+  // stopStream closes the stream now, as the idle timer does. The next
+  // follow() catches up again.
+  async stopStream(): Promise<void> {
+    const runner = this.runner;
+    this.runner = undefined;
+    this.caughtUp = undefined;
+    clearTimeout(this.idleTimer);
+    if (runner) await (await runner).stop();
+  }
+
+  private begin(org: string): Promise<void> {
+    let markCaughtUp!: () => void;
+    let failCaughtUp!: (err: unknown) => void;
+    const caughtUp = new Promise<void>((resolve, reject) => {
+      markCaughtUp = resolve;
+      failCaughtUp = reject;
+    });
+    caughtUp.catch(() => {}); // callers that don't wait mustn't leak a rejection
+    const runner = this.buildRunner(org);
+    this.runner = runner;
+    runner
+      .then((r) => r.replay({ snapshot: true, onCaughtUp: markCaughtUp }))
+      .then(
+        () => failCaughtUp(new Error("stream stopped")),
+        (err: unknown) => {
+          console.warn("[orgStream] stream stopped", org, err);
+          failCaughtUp(err);
+        },
+      )
+      .finally(() => {
+        // Forget it (unless a newer run replaced it), so the next call
+        // rebuilds the runner with a fresh session: the org may have been
+        // reconnected.
+        if (this.runner === runner) {
+          this.runner = undefined;
+          this.caughtUp = undefined;
+        }
+      });
+    return caughtUp;
+  }
+
+  private async buildRunner(org: string): Promise<Runner> {
     const [{ AppSink }, fetch] = await Promise.all([
       import("./appSink"),
       sessionFetch(this.env, org),
@@ -124,7 +212,7 @@ export class OrgStream extends DurableObject<Env> {
       mode: "spaces",
       fetch,
     });
-    this.runner = jetstream.runner(appEventSink(AppSink.for(this.env)), {
+    return jetstream.runner(appEventSink(AppSink.for(this.env)), {
       collections: INDEXED_COLLECTIONS,
       // A replay is a burst of events: write them a group at a time.
       batch: { size: 50, window: "20 millis" },
@@ -133,28 +221,18 @@ export class OrgStream extends DurableObject<Env> {
         set: (cursor) => storage.put(CURSOR_KEY, cursor),
       },
     });
-    return this.runner;
-  }
-
-  private async start(): Promise<void> {
-    const runner = await this.getRunner();
-    if (runner.running()) return;
-    // A fresh group starts at 0: the compacted log replays every record
-    // the group can read, then the stream follows it live.
-    runner.replay().catch((err: unknown) => {
-      console.warn("[orgStream] stream stopped", this.org, err);
-      // Forget the runner, so the next alarm rebuilds it with a fresh
-      // session (the group may have been reconnected).
-      this.runner = undefined;
-    });
   }
 
   private async write<A>(
     effect: (runner: Runner) => Effect.Effect<A, unknown>,
   ): Promise<Exit.Exit<A, unknown>> {
-    if (!this.org) this.org = await this.ctx.storage.get<string>(ORG_KEY);
-    await this.start();
-    const runner = await this.getRunner();
+    this.org ??= await this.ctx.storage.get<string>(ORG_KEY);
+    if (!this.org) throw new Error("OrgStream has no group yet");
+    if ((await this.follow(this.org)) === "unconnected") {
+      throw new Error(`${this.org} has no stream: is it connected?`);
+    }
+    const runner = await this.runner;
+    if (!runner) throw new Error(`${this.org} has no stream: is it connected?`);
     return Effect.runPromiseExit(effect(runner));
   }
 

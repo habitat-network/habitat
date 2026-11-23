@@ -100,7 +100,19 @@ export async function runApp(
   if (!label) {
     return page(404, "No app here", "This address doesn't name an app.");
   }
-  const app = await appByHost(getDb(env), label);
+  const db = getDb(env);
+  let app = await appByHost(db, label);
+  if (app) {
+    // Catch the owning group's stream up first (the app may have been
+    // redeployed or deleted through another client while it was idle),
+    // then read the row again.
+    const { followOrg } = await import("../stream");
+    const state = await followOrg(env, app.orgDid).catch((err: unknown) => {
+      console.warn("[apps] following group failed", app?.orgDid, err);
+      return "behind" as const;
+    });
+    if (state === "live") app = await appByHost(db, label);
+  }
   if (!app) {
     return page(
       404,

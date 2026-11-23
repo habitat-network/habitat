@@ -1,18 +1,25 @@
-import { env, runInDurableObject } from "cloudflare:test";
-import { beforeEach, expect, it, vi } from "vitest";
-import { fileByUri, getDb } from "@/db";
-import { files } from "@/db/schema";
+import {
+  env,
+  runDurableObjectAlarm,
+  runInDurableObject,
+} from "cloudflare:test";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { fileByUri, getDb, upsertConnectedOrg } from "@/db";
+import { connectedOrgs, files } from "@/db/schema";
 import { putFileRecord, deleteFileRecord } from "@/server/files/files.server";
+import { followOrg } from "@/server/stream";
 import type { OrgStream } from "@/server/stream/orgStream";
 import { TEST_DID_HEADER } from "./fakeOAuth";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
-// The group's stream end to end inside workerd: the OrgStream Durable
-// Object opens pear's subscribe stream through the group's session (a
-// WebSocket upgrade through fetch, as in production), indexes what it
-// carries into D1, and a write made through it returns only once its event
-// has been indexed.
+// The group's stream end to end inside workerd: a request against the org
+// (followOrg, on the org's Durable Object) catches D1 up over getSnapshot, then opens pear's subscribe
+// stream through the group's session (a WebSocket upgrade through fetch, as
+// in production) and indexes what it carries into D1. A write made through
+// it returns only once its event has been indexed. The org's Durable Object
+// has no alarm: concurrent requests share one catch-up and one socket, and
+// nothing runs until a request asks.
 
 const ORG = "did:web:org.example";
 const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile`;
@@ -75,21 +82,48 @@ function fileDelete(seq: number) {
 // down the stream) as pear would.
 let socket: WebSocket | undefined;
 let subscribeUrls: URL[] = [];
+let snapshotUrls: URL[] = [];
+let snapshotStatus = 200;
 let recordExists = false;
 const writes: { nsid: string; did: string | null; body: unknown }[] = [];
 
 beforeEach(async () => {
   socket = undefined;
   subscribeUrls = [];
+  snapshotUrls = [];
+  snapshotStatus = 200;
   recordExists = false;
   writes.length = 0;
   await getDb(env).delete(files);
+  await getDb(env).delete(connectedOrgs);
+  await upsertConnectedOrg(getDb(env), {
+    orgDid: ORG,
+    name: "Org",
+    connectedBy: "did:plc:alice",
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const req = new Request(input, init);
       const url = new URL(req.url);
       const nsid = url.pathname.replace("/xrpc/", "");
+      if (nsid === "network.habitat.space.getSnapshot") {
+        expect(req.headers.get(TEST_DID_HEADER)).toBe(ORG);
+        snapshotUrls.push(url);
+        if (snapshotStatus !== 200) {
+          return Response.json({ error: "Down" }, { status: snapshotStatus });
+        }
+        // As pear does: afterSeq must be a non-negative integer.
+        if (!(Number(url.searchParams.get("afterSeq")) >= 0)) {
+          return Response.json({ error: "InvalidRequest" }, { status: 400 });
+        }
+        // One event at seq 1, which is also the tip.
+        return Response.json({
+          events: [JSON.parse(fileCommit(1, CID1, "notes.txt")).payload],
+          plannedThroughSeq: 1,
+          tipSeq: 1,
+        });
+      }
       if (nsid === "network.habitat.space.subscribe") {
         expect(req.headers.get("Upgrade")).toBe("websocket");
         expect(req.headers.get(TEST_DID_HEADER)).toBe(ORG);
@@ -121,6 +155,10 @@ beforeEach(async () => {
   );
 });
 
+const stub = () => env.ORG_STREAM.get(env.ORG_STREAM.idFromName(ORG));
+
+afterEach(() => stub().stopStream());
+
 async function until(cond: () => Promise<boolean>) {
   for (let i = 0; i < 200; i++) {
     if (await cond()) return;
@@ -129,24 +167,23 @@ async function until(cond: () => Promise<boolean>) {
   expect(await cond()).toBe(true);
 }
 
-it("indexes the group's stream, and writes return once indexed", async () => {
-  const stub = env.ORG_STREAM.get(env.ORG_STREAM.idFromName(ORG));
-  await stub.ensure(ORG);
-  await until(async () => socket !== undefined);
-  // A fresh group replays from the start, asking only for what it indexes.
-  expect(subscribeUrls[0].searchParams.get("cursor")).toBe("0");
-  expect(subscribeUrls[0].searchParams.getAll("collections")).toContain(
+it("catches up on a request, follows live, and writes return once indexed", async () => {
+  const db = getDb(env);
+  expect(await followOrg(env, ORG)).toBe("live");
+
+  // Caught up over getSnapshot from the start (afterSeq is exclusive and
+  // pear refuses a negative one, so a fresh stream asks after 0),
+  // asking only for what the app indexes, before the socket opened.
+  expect(snapshotUrls).toHaveLength(1);
+  expect(snapshotUrls[0].searchParams.get("afterSeq")).toBe("0");
+  expect(snapshotUrls[0].searchParams.getAll("collections")).toContain(
     "network.habitat.drop.file",
   );
-
-  // The socket belongs to the object's I/O context, so it's written from
-  // inside it.
-  await runInDurableObject(stub, () =>
-    socket!.send(fileCommit(1, CID1, "notes.txt")),
-  );
-  const db = getDb(env);
-  await until(async () => (await fileByUri(db, URI)) !== undefined);
   expect((await fileByUri(db, URI))?.name).toBe("notes.txt");
+
+  // Then live, from the seq after the snapshot's tip.
+  await until(async () => socket !== undefined);
+  expect(subscribeUrls[0].searchParams.get("cursor")).toBe("2");
 
   // A write made through the stream is in D1 by the time it returns.
   const written = await putFileRecord(env, ORG, SPACE, {
@@ -166,10 +203,69 @@ it("indexes the group's stream, and writes return once indexed", async () => {
   await deleteFileRecord(env, ORG, SPACE);
   expect(await fileByUri(db, URI)).toBeUndefined();
 
-  await runInDurableObject(stub, async (_: OrgStream, state) => {
+  // The cursor is kept past the delete's seq, and nothing is scheduled to
+  // wake the object.
+  await runInDurableObject(stub(), async (_: OrgStream, state) => {
     expect(await state.storage.get("cursor")).toBe(4);
-    expect(await state.storage.getAlarm()).not.toBeNull();
+    expect(await state.storage.getAlarm()).toBeNull();
   });
-  // The first run loads the sinks and the SDK into a cold Durable Object,
-  // which takes a few seconds on CI runners.
+  // Nothing re-opened the stream along the way.
+  expect(snapshotUrls).toHaveLength(1);
+  expect(subscribeUrls).toHaveLength(1);
+  // The first run loads the sinks and the SDK, which takes a few seconds on
+  // CI runners.
 }, 30_000);
+
+it("shares one catch-up and one socket between concurrent requests", async () => {
+  // Through separate stubs, as separate requests (isolates) would.
+  await Promise.all(Array.from({ length: 5 }, () => followOrg(env, ORG)));
+  await followOrg(env, ORG);
+  await until(async () => socket !== undefined);
+  expect(snapshotUrls).toHaveLength(1);
+  expect(subscribeUrls).toHaveLength(1);
+}, 30_000);
+
+it("starts again from the saved cursor once the stream has stopped", async () => {
+  await followOrg(env, ORG);
+  await until(async () => socket !== undefined);
+  expect(await stub().cursor()).toBe(2);
+  // What an evicted isolate looks like to the next request.
+  await stub().stopStream();
+  expect(await stub().isRunning()).toBe(false);
+  await until(async () => {
+    await followOrg(env, ORG);
+    return subscribeUrls.length === 2;
+  });
+  // Resumed after the saved cursor: the snapshot asks only for what's newer.
+  expect(snapshotUrls[1].searchParams.get("afterSeq")).toBe("1");
+}, 30_000);
+
+it("says when D1 may be behind: the catch-up failed", async () => {
+  snapshotStatus = 400;
+  expect(await followOrg(env, ORG)).toBe("behind");
+  expect(socket).toBeUndefined();
+  // The failed run is dropped, so the next request tries again.
+  snapshotStatus = 200;
+  expect(await followOrg(env, ORG)).toBe("live");
+}, 30_000);
+
+it("clears a keepalive alarm left by the previous version", async () => {
+  await runInDurableObject(stub(), (_: OrgStream, state) =>
+    state.storage.setAlarm(Date.now() + 30_000),
+  );
+  expect(await runDurableObjectAlarm(stub())).toBe(true);
+  await runInDurableObject(stub(), async (_: OrgStream, state) => {
+    expect(await state.storage.getAlarm()).toBeNull();
+  });
+  expect(snapshotUrls).toHaveLength(0);
+});
+
+it("does nothing for an org that isn't connected", async () => {
+  expect(await followOrg(env, "did:web:other.example")).toBe("unconnected");
+  const other = env.ORG_STREAM.get(
+    env.ORG_STREAM.idFromName("did:web:other.example"),
+  );
+  expect(await other.isRunning()).toBe(false);
+  expect(snapshotUrls).toHaveLength(0);
+  expect(subscribeUrls).toHaveLength(0);
+});

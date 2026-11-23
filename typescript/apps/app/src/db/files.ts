@@ -90,12 +90,3 @@ export async function isConnectedOrg(db: Db, orgDid: string) {
     .limit(1);
   return row !== undefined;
 }
-
-// connectedOrgDids lists every org this deployment holds a session for:
-// the groups whose streams it follows.
-export async function connectedOrgDids(db: Db): Promise<string[]> {
-  const rows = await db
-    .select({ orgDid: connectedOrgs.orgDid })
-    .from(connectedOrgs);
-  return rows.map((r) => r.orgDid);
-}

@@ -1,33 +1,20 @@
 import type { PutRecordInput, RecordTarget } from "@habitat-network/jetstream";
-import { connectedOrgDids, getDb } from "@/db";
-import type { WriteOutcome } from "./orgStream";
+import type { FollowState, WriteOutcome } from "./orgStream";
 
-// The request side of the group streams (see orgStream.ts). Each group's
-// stream lives in its own OrgStream Durable Object; these helpers reach it.
+export type { FollowState };
+
+// The request side of the org streams (see orgStream.ts). Each org's stream
+// lives in its own OrgStream Durable Object; these helpers reach it.
 
 function stub(env: Env, org: string) {
   return env.ORG_STREAM.get(env.ORG_STREAM.idFromName(org));
 }
 
-// followOrg starts following org's spaces, if nothing is yet. Called when a
-// group is connected, and on every cron run for every connected group.
-export async function followOrg(env: Env, org: string): Promise<void> {
-  await stub(env, org).ensure(org);
-}
-
-// followConnectedOrgs is the cron trigger's job: make sure every connected
-// group's stream is running (a Durable Object that was evicted restarts
-// from its saved cursor).
-export async function followConnectedOrgs(env: Env): Promise<void> {
-  const orgs = await connectedOrgDids(getDb(env));
-  const results = await Promise.allSettled(
-    orgs.map((org) => followOrg(env, org)),
-  );
-  results.forEach((r, i) => {
-    if (r.status === "rejected") {
-      console.warn("[stream] following group failed", orgs[i], r.reason);
-    }
-  });
+// followOrg is called on a request made against org: it makes sure the
+// org's stream is running (catching D1 up first if it wasn't). Calls share
+// the org's single Durable Object, so there is one connection per org.
+export async function followOrg(env: Env, org: string): Promise<FollowState> {
+  return stub(env, org).follow(org);
 }
 
 /** The write was refused: nothing was written. */
