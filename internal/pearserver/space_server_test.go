@@ -82,7 +82,7 @@ func TestServer_Space(t *testing.T) {
 			code := client.Procedure(
 				ts.Server.PutMembers,
 				comatproto.ComAtprotoMemberspacePutMembersInput{
-					Space:   uri.String(),
+					Space: uri.String(),
 					Members: []comatproto.ComAtprotoMemberspaceDefsMember{
 						{Did: "did:plc:alice", Read: true, Write: true},
 					},
@@ -102,7 +102,7 @@ func TestServer_Space(t *testing.T) {
 			code := client.Procedure(
 				ts.Server.PutMembers,
 				comatproto.ComAtprotoMemberspacePutMembersInput{
-					Space:   uri.String(),
+					Space: uri.String(),
 					Members: []comatproto.ComAtprotoMemberspaceDefsMember{
 						{Did: "did:plc:alice", Read: true, Write: true},
 					},
@@ -216,7 +216,7 @@ func TestServer_Space(t *testing.T) {
 		addCode := client.Procedure(
 			ts.Server.PutMembers,
 			comatproto.ComAtprotoMemberspacePutMembersInput{
-				Space:   uri.String(),
+				Space: uri.String(),
 				Members: []comatproto.ComAtprotoMemberspaceDefsMember{
 					{Did: alice.String(), Read: true, Write: true},
 				},
