@@ -1,11 +1,11 @@
-import { Duration, Effect, Option, Stream } from "effect";
+import { Duration, Effect, Option, Sink, Stream } from "effect";
 import {
   ConnectionError,
   errorMessage,
   FrameDecodeError,
   StreamError,
 } from "./errors";
-import { decodeEvent, decodeFrame, type SpaceEvent } from "./events";
+import { decodeFrame, decodeSnapshotPage, type SpaceEvent } from "./events";
 import type { LexIndexer } from "./LexIndexer";
 import { type EventSink, Runner, type RunnerOptions } from "./Runner";
 import { type FetchHandler, fetchTransport, type Transport } from "./transport";
@@ -188,36 +188,7 @@ export class Jetstream {
               message: `invalid getSnapshot response: ${errorMessage(cause)}`,
             }),
         });
-        return yield* Effect.try({
-          try: (): SnapshotPage => {
-            const o = body as {
-              events?: unknown;
-              plannedThroughSeq?: unknown;
-              tipSeq?: unknown;
-            };
-            if (
-              !Array.isArray(o.events) ||
-              typeof o.plannedThroughSeq !== "number" ||
-              typeof o.tipSeq !== "number"
-            ) {
-              throw new Error("missing events, plannedThroughSeq or tipSeq");
-            }
-            const events: SpaceEvent[] = [];
-            for (const raw of o.events) {
-              const event = decodeEvent(raw);
-              if (event) events.push(event);
-            }
-            return {
-              events,
-              plannedThroughSeq: o.plannedThroughSeq,
-              tipSeq: o.tipSeq,
-            };
-          },
-          catch: (cause) =>
-            new FrameDecodeError({
-              message: `invalid getSnapshot response: ${errorMessage(cause)}`,
-            }),
-        });
+        return yield* decodeSnapshotPage(body);
       });
     return Stream.paginate(
       { after: options.after ?? 0, tip: undefined as number | undefined },
@@ -332,6 +303,10 @@ export class Jetstream {
     target: LexIndexer<E> | EventSink<E>,
     options?: RunnerOptions,
   ): Runner<E> {
-    return new Runner(this, target, options);
+    const sink = Sink.isSink(target) ? target : target.sink();
+    const collections =
+      options?.collections ??
+      (Sink.isSink(target) ? undefined : target.collections());
+    return new Runner(this, sink as EventSink<E>, { ...options, collections });
   }
 }

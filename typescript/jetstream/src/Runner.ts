@@ -1,11 +1,11 @@
 import { lexStringify } from "@atproto/lex-json";
 import {
   Cause,
-  Deferred,
   Duration,
   Effect,
   Fiber,
   Option,
+  PubSub,
   Schedule,
   Sink,
   Stream,
@@ -22,7 +22,6 @@ import {
 import type { CommitEvent, SpaceEvent } from "./events";
 import { toEffect } from "./handler";
 import type { Jetstream } from "./Jetstream";
-import type { LexIndexer } from "./LexIndexer";
 import type { FetchHandler } from "./transport";
 
 /**
@@ -44,11 +43,11 @@ export interface RunnerOptions {
   readonly cursor?: CursorStore;
   /** How long a write waits for its event to be indexed. Default 15s. */
   readonly writeTimeout?: Duration.Input;
-  /** How many recently indexed records are remembered for late waiters. */
+  /** How many recently indexed events are replayed to a late `awaitIndexed`. */
   readonly recentLimit?: number;
   /**
-   * The collections to ask the server for when the runner runs a Sink
-   * (an indexer knows its own). Default: all of them.
+   * The collections to ask the server for. Default: all of them. (`js.runner`
+   * fills it in from a LexIndexer.)
    */
   readonly collections?: ReadonlyArray<string>;
   /**
@@ -126,13 +125,6 @@ export interface WriteResult {
   readonly cid: string;
 }
 
-type Indexed = { readonly cid: string | undefined };
-
-interface Waiter {
-  readonly cid: string | undefined;
-  readonly done: Deferred.Deferred<void>;
-}
-
 const HANDLER_RETRY = Schedule.exponential("200 millis").pipe(
   Schedule.modifyDelay((m) =>
     Effect.succeed(Duration.min(m.duration, Duration.minutes(1))),
@@ -153,33 +145,22 @@ const HANDLER_RETRY = Schedule.exponential("200 millis").pipe(
  * apart); a delete on its URI.
  */
 export class Runner<E = unknown> {
-  private readonly waiters = new Map<string, Waiter[]>();
-  // The latest event indexed per record URI (insertion-ordered, oldest
-  // evicted first), for a write whose event is indexed before its own
-  // response arrives.
-  private readonly recent = new Map<string, Indexed>();
-  private readonly recentLimit: number;
+  // Every event the sink has finished, for awaitIndexed. It replays the last
+  // `recentLimit` to a late subscriber, so a write whose event was indexed
+  // before its response arrived still finds it.
+  private readonly indexedEvents: PubSub.PubSub<CommitEvent>;
   private readonly writeTimeout: Duration.Duration;
   private memoryCursor: number | undefined;
   private fiber: Fiber.Fiber<void, unknown> | undefined;
 
-  private readonly sink: EventSink<E>;
-  private readonly collections: ReadonlyArray<string> | undefined;
-
   constructor(
     readonly jetstream: Jetstream,
-    target: LexIndexer<E> | EventSink<E>,
+    private readonly sink: EventSink<E>,
     readonly options: RunnerOptions = {},
   ) {
-    if (Sink.isSink(target)) {
-      this.sink = target as EventSink<E>;
-      this.collections = options.collections;
-    } else {
-      const indexer = target as LexIndexer<E>;
-      this.sink = indexer.sink() as EventSink<E>;
-      this.collections = options.collections ?? indexer.collections();
-    }
-    this.recentLimit = options.recentLimit ?? 10_000;
+    this.indexedEvents = Effect.runSync(
+      PubSub.unbounded<CommitEvent>({ replay: options.recentLimit ?? 1_000 }),
+    );
     this.writeTimeout = Duration.fromInputUnsafe(
       options.writeTimeout ?? "15 seconds",
     );
@@ -226,7 +207,9 @@ export class Runner<E = unknown> {
     return Effect.gen(function* () {
       let cursor = options.cursor ?? (yield* self.cursor()) ?? 0;
       const batch = self.options.batch;
-      const collections = self.collections ? [...self.collections] : undefined;
+      const collections = self.options.collections
+        ? [...self.options.collections]
+        : undefined;
       if (options.snapshot) {
         const limit =
           typeof options.snapshot === "object"
@@ -307,31 +290,11 @@ export class Runner<E = unknown> {
       );
       yield* self.saveCursor(last.seq + 1);
       for (const event of events) {
-        if (event.kind !== "spaceDeleted") self.indexed(event);
+        if (event.kind !== "spaceDeleted") {
+          yield* PubSub.publish(self.indexedEvents, event);
+        }
       }
     });
-  }
-
-  // indexed records event as the latest indexed for its record, and wakes
-  // the writes it settles. Synchronous, so a write registering in between
-  // can't miss it.
-  private indexed(event: CommitEvent) {
-    const cid = event.kind === "put" ? event.cid : undefined;
-    this.recent.delete(event.uri);
-    this.recent.set(event.uri, { cid });
-    if (this.recent.size > this.recentLimit) {
-      const oldest = this.recent.keys().next();
-      if (!oldest.done) this.recent.delete(oldest.value);
-    }
-    const waiting = this.waiters.get(event.uri);
-    if (!waiting) return;
-    const remaining = waiting.filter((w) => {
-      if (w.cid !== cid) return true;
-      Deferred.doneUnsafe(w.done, Effect.void);
-      return false;
-    });
-    if (remaining.length > 0) this.waiters.set(event.uri, remaining);
-    else this.waiters.delete(event.uri);
   }
 
   /**
@@ -343,25 +306,24 @@ export class Runner<E = unknown> {
     cid: string | undefined,
     timeout: Duration.Input = this.writeTimeout,
   ): Effect.Effect<void, WriteNotObserved> {
-    return Effect.suspend(() => {
-      const latest = this.recent.get(uri);
-      if (latest && latest.cid === cid) return Effect.void;
-      const done = Deferred.makeUnsafe<void>();
-      const waiter: Waiter = { cid, done };
-      this.waiters.set(uri, [...(this.waiters.get(uri) ?? []), waiter]);
-      const forget = Effect.sync(() => {
-        const left = (this.waiters.get(uri) ?? []).filter((w) => w !== waiter);
-        if (left.length > 0) this.waiters.set(uri, left);
-        else this.waiters.delete(uri);
-      });
-      return Deferred.await(done).pipe(
+    return Effect.scoped(
+      PubSub.subscribe(this.indexedEvents).pipe(
+        Effect.flatMap((subscription) =>
+          Stream.fromSubscription(subscription).pipe(
+            Stream.filter(
+              (e) =>
+                e.uri === uri && (e.kind === "put" ? e.cid : undefined) === cid,
+            ),
+            Stream.runHead,
+          ),
+        ),
         Effect.timeoutOrElse({
           duration: timeout,
           orElse: () => Effect.fail(new WriteNotObserved({ uri, cid })),
         }),
-        Effect.ensuring(forget),
-      );
-    });
+        Effect.asVoid,
+      ),
+    );
   }
 
   private xrpc(

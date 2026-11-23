@@ -99,8 +99,9 @@ js.snapshot({ after: 0 }).pipe(Stream.runForEach((page) => ...));
   `com.atproto.space.*` with the writer's fetch handler, then wait for the
   event they produced. A put is matched on its record URI **and** CID (a CID
   only hashes content, so the URI is what tells equal records apart); a
-  delete on its URI. The runner remembers the latest indexed CID per URI, so
-  an event that arrives before the write's own response still counts.
+  delete on its URI. Indexed events go through a `PubSub` that replays the last
+  1,000 (`recentLimit`) to a late subscriber, so an event that arrives before
+  the write's own response still counts.
   `WriteError` means nothing was written; `WriteNotObserved` (after the
   timeout, default 15 s) means the write succeeded but isn't indexed yet:
   the stream is behind, or a later write to the same record replaced it in
