@@ -94,10 +94,24 @@ resource "google_cloud_run_v2_service" "pear" {
   deletion_protection  = true
 
   template {
-    service_account                  = "953995456319-compute@developer.gserviceaccount.com"
-    timeout                          = "300s"
-    max_instance_request_concurrency = 80
-    session_affinity                 = false
+    service_account = "953995456319-compute@developer.gserviceaccount.com"
+    // Websocket streams (network.habitat.space.subscribe, internal/spacestream)
+    // are long-lived HTTP requests, so they sit on the request timeout: the
+    // Cloud Run websockets doc (https://cloud.google.com/run/docs/triggering/websockets)
+    // says streams are subject to it, defaults to 5 minutes, and allows up to
+    // 60 minutes. Clients (typescript/apps/app's OrgStream/Jetstream) handle
+    // reconnects when a stream ends anyway.
+    timeout = "3600s"
+    // Websocket streams occupy a concurrency slot for their whole lifetime, so
+    // this is the cap that governs them. pear's streams are cheap (a goroutine
+    // waiting on the space log, woken by writes), so 500 is roomy for an
+    // instance with 1 CPU and 512Mi.
+    max_instance_request_concurrency = 500
+    // Best effort per the websockets doc: reconnecting websocket clients land
+    // on the same instance where possible. pear is built to work across
+    // instances anyway (spacestream streams share the host's event log, polled
+    // every 2s), so this is belt-and-suspenders.
+    session_affinity = true
 
     // Direct VPC egress so pear can reach the internal-only Meilisearch VM. Only private
     // ranges go through the VPC; public traffic (PDSes, OTLP, Google) egresses directly.
@@ -125,6 +139,9 @@ resource "google_cloud_run_v2_service" "pear" {
       image = "us-west1-docker.pkg.dev/virtual-charger-477003-g0/cloud-run-source-deploy/habitat/habitat:57dee7c3de2fda41676ff9c8606c045b0f39caeb"
 
       ports {
+        // Cloud Run serves WebSockets over HTTP/1.1 only; the doc says not to
+        // enable HTTP/2 end-to-end. pear's port is therefore named "http1" and
+        // stays there.
         name           = "http1"
         container_port = 8000
       }

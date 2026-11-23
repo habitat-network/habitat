@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { SpaceRef } from "@atproto/syntax";
 import * as Y from "yjs";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
@@ -302,11 +303,36 @@ export class DocRoom extends DurableObject<Env> {
   // between messages. Every message is y-websocket's own two-level wire
   // format: an outer MESSAGE_SYNC/MESSAGE_AWARENESS byte, then (for sync)
   // y-protocols/sync's own inner step1/step2/update framing.
+  // keepStreamOpen keeps the doc's group stream open while editors are
+  // connected, so changes made through other clients keep reaching
+  // applyRemote: the stream closes itself once nothing has used it for a
+  // while (see ../../stream/orgStream.ts). An open y-websocket client renews
+  // its awareness state every 15s, so an editor that's merely open counts.
+  private streamTouchedAt = 0;
+  private keepStreamOpen(): void {
+    const now = Date.now();
+    if (!this.id || now - this.streamTouchedAt < DocRoom.STREAM_TOUCH_MS) {
+      return;
+    }
+    this.streamTouchedAt = now;
+    const org = SpaceRef.parse(this.id.spaceUri).spaceDid;
+    const stream = this.env.ORG_STREAM.get(this.env.ORG_STREAM.idFromName(org));
+    this.ctx.waitUntil(
+      stream.follow(org).then(
+        () => {},
+        (err: unknown) =>
+          console.warn("[docRoom] keeping group stream open failed", err),
+      ),
+    );
+  }
+  private static readonly STREAM_TOUCH_MS = 60_000;
+
   async webSocketMessage(
     ws: WebSocket,
     message: ArrayBuffer | string,
   ): Promise<void> {
     if (typeof message === "string") return; // the protocol is binary-only
+    this.keepStreamOpen();
     const decoder = decoding.createDecoder(new Uint8Array(message));
     const messageType = decoding.readVarUint(decoder);
     if (messageType === MESSAGE_SYNC) {
