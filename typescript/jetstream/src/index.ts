@@ -32,7 +32,6 @@ export type {
   SpaceEvent,
 } from "./events";
 export { decodeEvent, decodeFrame } from "./events";
-export type { HandlerResult } from "./handler";
 export {
   fetchTransport,
   webSocketTransport,

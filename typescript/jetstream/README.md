@@ -23,14 +23,14 @@ const js = new Jetstream({
 
 const indexer = new LexIndexer({ mode: "spaces" })
   .commit(network.habitat.drop.file, {
-    put: async (e) =>
+    put: (e) =>
       db.upsertFile({ uri: e.uri, space: e.space, name: e.record.name }),
-    del: async (e) => db.deleteFile(e.uri),
+    del: (e) => db.deleteFile(e.uri),
   })
-  .spaceDeleted(async (e) => db.deleteSpace(e.space));
+  .spaceDeleted((e) => db.deleteSpace(e.space));
 
 const runner = js.runner(indexer, {
-  cursor: { get: () => db.getCursor(), set: (seq) => db.setCursor(seq) },
+  cursor: { get: db.getCursor, set: (seq) => db.setCursor(seq) }, // Effects
 });
 void runner.replay(); // from the saved cursor, else 0, then live
 
@@ -88,7 +88,8 @@ js.snapshot({ after: 0 }).pipe(Stream.runForEach((page) => ...));
 
 ## Semantics
 
-- **Handlers** may return an Effect, a promise or nothing. They run one event
+- **Handlers** (and the cursor store) are Effects; wrap promise code with
+  `Effect.tryPromise`. They run one event
   at a time; the cursor advances only after an event's handlers all succeed,
   and a failing handler is retried with backoff rather than skipped. Delivery
   is at-least-once, so key handlers on `e.uri`.
@@ -99,8 +100,9 @@ js.snapshot({ after: 0 }).pipe(Stream.runForEach((page) => ...));
   `com.atproto.space.*` with the writer's fetch handler, then wait for the
   event they produced. A put is matched on its record URI **and** CID (a CID
   only hashes content, so the URI is what tells equal records apart); a
-  delete on its URI. The runner remembers the latest indexed CID per URI, so
-  an event that arrives before the write's own response still counts.
+  delete on its URI. Indexed events go through a `PubSub` that replays the last
+  1,000 (`recentLimit`) to a late subscriber, so an event that arrives before
+  the write's own response still counts.
   `WriteError` means nothing was written; `WriteNotObserved` (after the
   timeout, default 15 s) means the write succeeded but isn't indexed yet:
   the stream is behind, or a later write to the same record replaced it in

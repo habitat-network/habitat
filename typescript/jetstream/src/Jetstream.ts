@@ -1,14 +1,24 @@
-import { Duration, Effect, Option, Stream } from "effect";
+import { Duration, Effect, Option, Ref, Schedule, Sink, Stream } from "effect";
 import {
   ConnectionError,
   errorMessage,
   FrameDecodeError,
   StreamError,
 } from "./errors";
-import { decodeEvent, decodeFrame, type SpaceEvent } from "./events";
+import { decodeFrame, decodeSnapshotPage, type SpaceEvent } from "./events";
 import type { LexIndexer } from "./LexIndexer";
 import { type EventSink, Runner, type RunnerOptions } from "./Runner";
 import { type FetchHandler, fetchTransport, type Transport } from "./transport";
+
+// A refused upgrade other than for auth or availability won't get better by
+// retrying.
+const isFatalStatus = (status: number | undefined) =>
+  status !== undefined &&
+  status >= 400 &&
+  status < 500 &&
+  status !== 401 &&
+  status !== 408 &&
+  status !== 429;
 
 const SUBSCRIBE = "network.habitat.space.subscribe";
 const GET_SNAPSHOT = "network.habitat.space.getSnapshot";
@@ -188,36 +198,7 @@ export class Jetstream {
               message: `invalid getSnapshot response: ${errorMessage(cause)}`,
             }),
         });
-        return yield* Effect.try({
-          try: (): SnapshotPage => {
-            const o = body as {
-              events?: unknown;
-              plannedThroughSeq?: unknown;
-              tipSeq?: unknown;
-            };
-            if (
-              !Array.isArray(o.events) ||
-              typeof o.plannedThroughSeq !== "number" ||
-              typeof o.tipSeq !== "number"
-            ) {
-              throw new Error("missing events, plannedThroughSeq or tipSeq");
-            }
-            const events: SpaceEvent[] = [];
-            for (const raw of o.events) {
-              const event = decodeEvent(raw);
-              if (event) events.push(event);
-            }
-            return {
-              events,
-              plannedThroughSeq: o.plannedThroughSeq,
-              tipSeq: o.tipSeq,
-            };
-          },
-          catch: (cause) =>
-            new FrameDecodeError({
-              message: `invalid getSnapshot response: ${errorMessage(cause)}`,
-            }),
-        });
+        return yield* decodeSnapshotPage(body);
       });
     return Stream.paginate(
       { after: options.after ?? 0, tip: undefined as number | undefined },
@@ -247,84 +228,87 @@ export class Jetstream {
   subscribe(
     options: SubscribeOptions = {},
   ): Stream.Stream<SpaceEvent, StreamError | FrameDecodeError> {
-    let next = options.cursor;
-    let failures = 0;
-    const once = (): Stream.Stream<
-      SpaceEvent,
-      StreamError | FrameDecodeError | ConnectionError
-    > =>
-      Stream.suspend(() =>
-        this.transport(this.subscribeUrl(next, options.collections)),
-      ).pipe(
-        Stream.mapEffect(decodeFrame),
-        Stream.flatMap(
-          (frame): Stream.Stream<SpaceEvent, StreamError | ConnectionError> => {
-            switch (frame._tag) {
-              case "Event":
-                next = frame.event.seq + 1;
-                failures = 0;
-                return Stream.succeed(frame.event);
-              case "Error":
-                // An expired credential is the normal end of a long stream:
-                // reconnect, and the fetch handler refreshes the token.
-                if (frame.error === "ExpiredToken") {
-                  return Stream.fail(
-                    new ConnectionError({ message: "credential expired" }),
-                  );
-                }
-                return Stream.fail(
-                  new StreamError({
-                    error: frame.error,
-                    message: frame.message,
-                  }),
-                );
-              case "Info":
-                return Stream.fromEffect(
-                  Effect.logInfo("jetstream info", frame),
-                ).pipe(Stream.drain);
-              case "Unknown":
-                return Stream.empty;
-            }
-          },
+    const next = Ref.makeUnsafe(options.cursor);
+    const reconnect = this.reconnectSchedule();
+    return Stream.unwrap(
+      Ref.get(next).pipe(
+        Effect.map((cursor) =>
+          this.transport(this.subscribeUrl(cursor, options.collections)),
         ),
-      );
-    const withReconnect = (): Stream.Stream<
-      SpaceEvent,
-      StreamError | FrameDecodeError
-    > =>
-      once().pipe(
-        Stream.catchTag("ConnectionError", (err) => {
-          // A refused upgrade other than for auth or availability won't
-          // get better by retrying.
-          if (
-            err.status !== undefined &&
-            err.status >= 400 &&
-            err.status < 500 &&
-            err.status !== 401 &&
-            err.status !== 408 &&
-            err.status !== 429
-          ) {
-            return Stream.fail(
+      ),
+    ).pipe(
+      Stream.mapEffect(decodeFrame),
+      Stream.flatMap(
+        (frame): Stream.Stream<SpaceEvent, StreamError | ConnectionError> => {
+          switch (frame._tag) {
+            case "Event":
+              return Stream.succeed(frame.event).pipe(
+                Stream.tap((e) => Ref.set(next, e.seq + 1)),
+              );
+            case "Error":
+              // An expired credential is the normal end of a long stream:
+              // reconnect, and the fetch handler refreshes the token.
+              return Stream.fail(
+                frame.error === "ExpiredToken"
+                  ? new ConnectionError({ message: "credential expired" })
+                  : new StreamError({
+                      error: frame.error,
+                      message: frame.message,
+                    }),
+              );
+            case "Info":
+              return Stream.fromEffect(
+                Effect.logInfo("jetstream info", frame),
+              ).pipe(Stream.drain);
+            case "Unknown":
+              return Stream.empty;
+          }
+        },
+      ),
+      // Each attempt reads the cursor again, and the backoff starts over
+      // once an attempt delivers an event.
+      Stream.retry(reconnect),
+      // The schedule never gives up on a ConnectionError, so none gets here.
+      Stream.catchTag("ConnectionError", (e) =>
+        Stream.fail(
+          new StreamError({ error: "ConnectionError", message: e.message }),
+        ),
+      ),
+    );
+  }
+
+  // reconnectSchedule backs off exponentially, with jitter, between
+  // attempts, and ends the stream with the error when a reconnect can't fix
+  // it: a malformed frame, a server error frame, or an upgrade refused for a
+  // reason other than auth or availability.
+  private reconnectSchedule() {
+    const cap = this.reconnectCap;
+    return Schedule.exponential(this.reconnectBase).pipe(
+      Schedule.modifyDelay((m) =>
+        Effect.succeed(Duration.min(m.duration, cap)),
+      ),
+      Schedule.jittered,
+      Schedule.setInputType<StreamError | FrameDecodeError | ConnectionError>(),
+      Schedule.passthrough,
+      Schedule.tap(
+        ({
+          input: err,
+        }): Effect.Effect<void, StreamError | FrameDecodeError> => {
+          if (err._tag !== "ConnectionError") return Effect.fail(err);
+          if (isFatalStatus(err.status)) {
+            return Effect.fail(
               new StreamError({
                 error: `HTTP ${err.status}`,
                 message: err.message,
               }),
             );
           }
-          const delay = Duration.min(
-            Duration.times(this.reconnectBase, 2 ** Math.min(failures, 16)),
-            this.reconnectCap,
-          );
-          failures++;
-          return Stream.fromEffect(
-            Effect.logWarning("jetstream reconnecting", {
-              error: err.message,
-              delay: Duration.format(delay),
-            }).pipe(Effect.andThen(Effect.sleep(delay))),
-          ).pipe(Stream.drain, Stream.concat(Stream.suspend(withReconnect)));
-        }),
-      );
-    return withReconnect();
+          return Effect.logWarning("jetstream reconnecting", {
+            error: err.message,
+          });
+        },
+      ),
+    );
   }
 
   /** runner runs an indexer's handlers, or a Sink, over this stream; see [Runner]. */
@@ -332,6 +316,10 @@ export class Jetstream {
     target: LexIndexer<E> | EventSink<E>,
     options?: RunnerOptions,
   ): Runner<E> {
-    return new Runner(this, target, options);
+    const sink = Sink.isSink(target) ? target : target.sink();
+    const collections =
+      options?.collections ??
+      (Sink.isSink(target) ? undefined : target.collections());
+    return new Runner(this, sink as EventSink<E>, { ...options, collections });
   }
 }

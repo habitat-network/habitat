@@ -1,5 +1,5 @@
 import { lexParse } from "@atproto/lex-json";
-import { Effect } from "effect";
+import { Effect, Predicate, Schema } from "effect";
 import { FrameDecodeError } from "./errors";
 
 const NSID = "network.habitat.space.subscribe";
@@ -56,117 +56,158 @@ export type Frame =
   /** A message of a kind this client doesn't know: skipped. */
   | { readonly _tag: "Unknown" };
 
-const isObject = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
-
-const str = (o: Record<string, unknown>, k: string): string => {
-  const v = o[k];
-  if (typeof v !== "string") throw new Error(`missing ${k}`);
-  return v;
+// The wire shapes, as the subscribe lexicon defines them. Decoding them with
+// Schema is what validates a frame; the record body stays Unknown here and is
+// re-parsed as lex JSON afterwards.
+const Fields = {
+  seq: Schema.Int,
+  space: Schema.String,
+  time: Schema.String,
 };
 
-const num = (o: Record<string, unknown>, k: string): number => {
-  const v = o[k];
-  if (typeof v !== "number" || !Number.isSafeInteger(v)) {
-    throw new Error(`missing ${k}`);
-  }
-  return v;
-};
+const CommitPayload = Schema.Struct({
+  ...Fields,
+  did: Schema.String,
+  uri: Schema.String,
+  collection: Schema.String,
+  rkey: Schema.String,
+  rev: Schema.String,
+  operation: Schema.String,
+  cid: Schema.optional(Schema.String),
+  record: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+});
 
-function decodePayload(payload: Record<string, unknown>): Frame {
-  switch (payload.$type) {
-    case `${NSID}#commit`: {
-      const fields: CommitFields = {
-        seq: num(payload, "seq"),
-        space: str(payload, "space"),
-        did: str(payload, "did"),
-        uri: str(payload, "uri"),
-        collection: str(payload, "collection"),
-        rkey: str(payload, "rkey"),
-        rev: str(payload, "rev"),
-        time: str(payload, "time"),
-      };
-      const operation = str(payload, "operation");
-      if (operation === "delete") {
-        return { _tag: "Event", event: { ...fields, kind: "del", operation } };
-      }
-      if (operation !== "create" && operation !== "update") {
-        return { _tag: "Unknown" };
-      }
-      if (!isObject(payload.record)) throw new Error("missing record");
-      // Re-parse the record alone as lex JSON, so {$link}, {$bytes} and
-      // blob refs come out typed, the way records read from a repo do.
-      const record = lexParse(JSON.stringify(payload.record)) as Record<
-        string,
-        unknown
-      >;
-      return {
-        _tag: "Event",
-        event: {
-          ...fields,
-          kind: "put",
-          operation,
-          cid: str(payload, "cid"),
-          record,
-        },
-      };
-    }
+const SpaceDeletedPayload = Schema.Struct(Fields);
+
+const InfoPayload = Schema.Struct({
+  name: Schema.String,
+  message: Schema.optional(Schema.String),
+});
+
+const ErrorFrame = Schema.Struct({
+  error: Schema.String,
+  message: Schema.optional(Schema.String),
+});
+
+const Envelope = Schema.Struct({
+  $type: Schema.String,
+  payload: Schema.optional(Schema.Unknown),
+});
+
+const SnapshotPayload = Schema.Struct({
+  events: Schema.Array(Schema.Unknown),
+  plannedThroughSeq: Schema.Int,
+  tipSeq: Schema.Int,
+});
+
+const unknown: Frame = { _tag: "Unknown" };
+
+const event = (event: SpaceEvent): Frame => ({ _tag: "Event", event });
+
+// decodePayload decodes one payload object by its $type. A kind this client
+// doesn't know is Unknown (skipped), so the server can add event types
+// without breaking old clients; a known kind that doesn't fit its shape fails.
+function decodePayload(payload: unknown) {
+  const type = Predicate.hasProperty(payload, "$type") ? payload.$type : "";
+  switch (type) {
+    case `${NSID}#commit`:
+      return Schema.decodeUnknownEffect(CommitPayload)(payload).pipe(
+        Effect.flatMap(({ operation, cid, record, ...fields }) => {
+          if (operation === "delete") {
+            return Effect.succeed(event({ ...fields, kind: "del", operation }));
+          }
+          if (operation !== "create" && operation !== "update") {
+            return Effect.succeed(unknown);
+          }
+          if (cid === undefined || record === undefined) {
+            return Effect.fail(
+              new Error(`${operation} without cid and record`),
+            );
+          }
+          // Re-parse the record alone as lex JSON, so {$link}, {$bytes} and
+          // blob refs come out typed, the way records read from a repo do.
+          return Effect.try(() =>
+            event({
+              ...fields,
+              kind: "put",
+              operation,
+              cid,
+              record: lexParse(JSON.stringify(record)) as Record<
+                string,
+                unknown
+              >,
+            }),
+          );
+        }),
+      );
     case `${NSID}#spaceDeleted`:
-      return {
-        _tag: "Event",
-        event: {
-          kind: "spaceDeleted",
-          seq: num(payload, "seq"),
-          space: str(payload, "space"),
-          time: str(payload, "time"),
-        },
-      };
+      return Schema.decodeUnknownEffect(SpaceDeletedPayload)(payload).pipe(
+        Effect.map((e) => event({ ...e, kind: "spaceDeleted" })),
+      );
     case `${NSID}#info`:
-      return {
-        _tag: "Info",
-        name: str(payload, "name"),
-        ...(typeof payload.message === "string"
-          ? { message: payload.message }
-          : {}),
-      };
+      return Schema.decodeUnknownEffect(InfoPayload)(payload).pipe(
+        Effect.map((info): Frame => ({ _tag: "Info", ...info })),
+      );
     default:
-      return { _tag: "Unknown" };
+      return Effect.succeed(unknown);
   }
 }
+
+const failed = (what: string) => (cause: unknown) =>
+  new FrameDecodeError({
+    message: `invalid ${what}: ${cause instanceof Error ? cause.message : String(cause)}`,
+  });
 
 /**
  * decodeEvent decodes one event object, the payload of a subscribe message or
  * an entry of getSnapshot's events, which share their shape. Kinds this
  * client doesn't know are undefined.
  */
-export function decodeEvent(payload: unknown): SpaceEvent | undefined {
-  if (!isObject(payload)) throw new Error("event is not an object");
-  const frame = decodePayload(payload);
-  return frame._tag === "Event" ? frame.event : undefined;
-}
+export const decodeEvent = (
+  payload: unknown,
+): Effect.Effect<SpaceEvent | undefined, FrameDecodeError> =>
+  decodePayload(payload).pipe(
+    Effect.map((frame) => (frame._tag === "Event" ? frame.event : undefined)),
+    Effect.mapError(failed("event")),
+  );
 
 /** decodeFrame parses one text frame of the subscribe stream. */
 export const decodeFrame = (
   text: string,
 ): Effect.Effect<Frame, FrameDecodeError> =>
-  Effect.try({
-    try: (): Frame => {
-      const frame: unknown = JSON.parse(text);
-      if (!isObject(frame)) throw new Error("frame is not an object");
-      if (frame.$type === "error") {
-        return {
-          _tag: "Error",
-          error: str(frame, "error"),
-          message: typeof frame.message === "string" ? frame.message : "",
-        };
-      }
-      if (frame.$type !== "message" || !isObject(frame.payload)) {
-        throw new Error("frame is neither a message nor an error");
-      }
-      return decodePayload(frame.payload);
-    },
-    catch: (cause) =>
-      new FrameDecodeError({
-        message: `invalid subscribe frame: ${cause instanceof Error ? cause.message : String(cause)}`,
-      }),
-  });
+  Effect.gen(function* () {
+    const raw: unknown = yield* Effect.try(() => JSON.parse(text));
+    const frame = yield* Schema.decodeUnknownEffect(Envelope)(raw);
+    if (frame.$type === "error") {
+      const e = yield* Schema.decodeUnknownEffect(ErrorFrame)(raw);
+      return {
+        _tag: "Error",
+        error: e.error,
+        message: e.message ?? "",
+      } as const;
+    }
+    if (frame.$type !== "message") {
+      return yield* Effect.fail(
+        new Error("frame is neither a message nor an error"),
+      );
+    }
+    return yield* decodePayload(frame.payload);
+  }).pipe(Effect.mapError(failed("subscribe frame")));
+
+/**
+ * decodeSnapshotPage decodes a getSnapshot response: its events (skipping
+ * kinds this client doesn't know) and its seq bounds.
+ */
+export const decodeSnapshotPage = (body: unknown) =>
+  Schema.decodeUnknownEffect(SnapshotPayload)(body).pipe(
+    Effect.mapError(failed("getSnapshot response")),
+    Effect.flatMap((page) =>
+      Effect.forEach(page.events, decodeEvent).pipe(
+        Effect.map((events) => ({
+          events: events.filter((e) => e !== undefined),
+          plannedThroughSeq: page.plannedThroughSeq,
+          tipSeq: page.tipSeq,
+        })),
+      ),
+    ),
+  );

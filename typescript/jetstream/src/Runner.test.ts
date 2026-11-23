@@ -116,16 +116,23 @@ function setup(fetch?: FetchHandler) {
   const db = new Map<string, unknown>();
   let saved: number | undefined;
   const indexer = new LexIndexer({ mode: "spaces" }).commit(NOTE, {
-    put: async (e) => {
-      db.set(e.uri, e.record);
-    },
+    put: (e) =>
+      Effect.sync(() => {
+        db.set(e.uri, e.record);
+      }),
     del: (e) =>
       Effect.sync(() => {
         db.delete(e.uri);
       }),
   });
   const runner = js.runner(indexer, {
-    cursor: { get: () => saved, set: (c) => void (saved = c) },
+    cursor: {
+      get: Effect.sync(() => saved),
+      set: (c) =>
+        Effect.sync(() => {
+          saved = c;
+        }),
+    },
     writeTimeout: "500 millis",
   });
   return { server, js, db, runner, saved: () => saved };
@@ -243,6 +250,31 @@ describe("Runner", () => {
     await runner.stop();
   });
 
+  it("ends the stream on a refusal that reconnecting can't fix", async () => {
+    const js = new Jetstream({
+      service: "https://pear.test",
+      mode: "spaces",
+      transport: () =>
+        Stream.fail(new ConnectionError({ message: "no", status: 403 })),
+      reconnect: { base: "1 millis", cap: "5 millis" },
+    });
+    await expect(js.runner(new LexIndexer()).replay()).rejects.toMatchObject({
+      _tag: "StreamError",
+      error: "HTTP 403",
+    });
+  });
+
+  it("keeps reconnecting after a dropped connection", async () => {
+    const { server, db, runner } = setup();
+    void runner.replay();
+    await until(() => server.connects.length === 1);
+    server.fail("reset");
+    await until(() => server.connects.length === 2);
+    server.push(1, commit(1, "a", "cid-a"));
+    await until(() => db.size === 1);
+    await runner.stop();
+  });
+
   it("retries a failing handler without advancing the cursor", async () => {
     const server = new FakeServer();
     const js = new Jetstream({
@@ -254,11 +286,12 @@ describe("Runner", () => {
     const seen: string[] = [];
     const runner = js.runner(
       new LexIndexer().commit(NOTE, {
-        put: (e) => {
-          attempts++;
-          if (attempts < 3) return Promise.reject(new Error("db down"));
-          seen.push(e.rkey);
-        },
+        put: (e) =>
+          Effect.gen(function* () {
+            attempts++;
+            if (attempts < 3) return yield* Effect.fail(new Error("db down"));
+            seen.push(e.rkey);
+          }),
       }),
     );
     server.push(1, commit(1, "a", "cid-a"));

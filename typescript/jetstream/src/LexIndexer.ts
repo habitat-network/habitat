@@ -5,7 +5,6 @@ import type {
   SpaceDeletedEvent,
   SpaceEvent,
 } from "./events";
-import { type HandlerResult, toEffect } from "./handler";
 
 /**
  * A collection to index: its NSID, a "<prefix>.*" pattern, or a generated
@@ -24,9 +23,9 @@ export type CollectionRef<R> =
 
 export interface CommitHandlers<R, E> {
   /** A record was created or updated. */
-  readonly put?: (event: PutEvent<R>) => HandlerResult<E>;
+  readonly put?: (event: PutEvent<R>) => Effect.Effect<void, E>;
   /** A record was deleted. */
-  readonly del?: (event: DelEvent) => HandlerResult<E>;
+  readonly del?: (event: DelEvent) => Effect.Effect<void, E>;
 }
 
 export interface LexIndexerOptions {
@@ -40,8 +39,8 @@ interface Registration {
   readonly parse?: (
     value: unknown,
   ) => { success: true; value: unknown } | { success: false };
-  readonly put?: (event: PutEvent<unknown>) => HandlerResult<unknown>;
-  readonly del?: (event: DelEvent) => HandlerResult<unknown>;
+  readonly put?: (event: PutEvent<unknown>) => Effect.Effect<void, unknown>;
+  readonly del?: (event: DelEvent) => Effect.Effect<void, unknown>;
 }
 
 /**
@@ -54,7 +53,7 @@ interface Registration {
 export class LexIndexer<E = unknown> {
   private readonly registrations: Registration[] = [];
   private onSpaceDeleted: Array<
-    (event: SpaceDeletedEvent) => HandlerResult<E>
+    (event: SpaceDeletedEvent) => Effect.Effect<void, E>
   > = [];
 
   constructor(readonly options: LexIndexerOptions = { mode: "spaces" }) {}
@@ -75,7 +74,9 @@ export class LexIndexer<E = unknown> {
     return this;
   }
 
-  spaceDeleted(handler: (event: SpaceDeletedEvent) => HandlerResult<E>): this {
+  spaceDeleted(
+    handler: (event: SpaceDeletedEvent) => Effect.Effect<void, E>,
+  ): this {
     this.onSpaceDeleted.push(handler);
     return this;
   }
@@ -102,13 +103,13 @@ export class LexIndexer<E = unknown> {
     const self = this;
     return Effect.gen(function* () {
       if (event.kind === "spaceDeleted") {
-        for (const fn of self.onSpaceDeleted) yield* toEffect(() => fn(event));
+        for (const fn of self.onSpaceDeleted) yield* fn(event);
         return;
       }
       for (const r of self.registrations) {
         if (!r.matches(event.collection)) continue;
         if (event.kind === "del") {
-          if (r.del) yield* toEffect(() => r.del!(event));
+          if (r.del) yield* r.del(event);
           continue;
         }
         if (!r.put) continue;
@@ -124,7 +125,7 @@ export class LexIndexer<E = unknown> {
           record = parsed.value;
         }
         const put = r.put;
-        yield* toEffect(() => put({ ...event, record }));
+        yield* put({ ...event, record });
       }
     });
   }

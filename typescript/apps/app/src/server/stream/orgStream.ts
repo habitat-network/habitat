@@ -217,8 +217,9 @@ export class OrgStream extends DurableObject<Env> {
       // A replay is a burst of events: write them a group at a time.
       batch: { size: 50, window: "20 millis" },
       cursor: {
-        get: () => storage.get<number>(CURSOR_KEY),
-        set: (cursor) => storage.put(CURSOR_KEY, cursor),
+        get: Effect.tryPromise(() => storage.get<number>(CURSOR_KEY)),
+        set: (cursor) =>
+          Effect.tryPromise(() => storage.put(CURSOR_KEY, cursor)),
       },
     });
   }
