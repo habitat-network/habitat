@@ -1,6 +1,8 @@
 export {
   Jetstream,
   type JetstreamOptions,
+  type SnapshotOptions,
+  type SnapshotPage,
   type SubscribeOptions,
 } from "./Jetstream";
 export {
@@ -29,7 +31,7 @@ export type {
   SpaceDeletedEvent,
   SpaceEvent,
 } from "./events";
-export { decodeFrame } from "./events";
+export { decodeEvent, decodeFrame } from "./events";
 export type { HandlerResult } from "./handler";
 export {
   fetchTransport,

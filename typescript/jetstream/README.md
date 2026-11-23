@@ -70,6 +70,21 @@ A failing sink is run again over the same events, with backoff, before the
 cursor moves, so it must be idempotent. `LexIndexer#sink()` is an indexer as a
 Sink.
 
+## Catching up over HTTP (replay archive)
+
+A fresh runner, or one that was off for long, can catch up through
+`network.habitat.space.getSnapshot` instead of one long WebSocket replay. It
+mirrors Bluesky Jetstream's replay archive (`planSnapshot`): `afterSeq` /
+`beforeSeq` bound the range, the first page pins `tipSeq`, and
+`plannedThroughSeq` is the next page's `afterSeq`. Our log is one compacted
+table rather than sealed segment files, so pages carry the events inline.
+
+```ts
+void runner.replay({ snapshot: true }); // HTTP pages to the tip, then the socket from tip + 1
+// or by hand:
+js.snapshot({ after: 0 }).pipe(Stream.runForEach((page) => ...));
+```
+
 ## Semantics
 
 - **Handlers** may return an Effect, a promise or nothing. They run one event

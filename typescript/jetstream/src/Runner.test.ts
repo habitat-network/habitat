@@ -150,6 +150,50 @@ describe("Runner", () => {
     await runner.stop();
   });
 
+  it("catches up over getSnapshot pages, then follows live from the tip", async () => {
+    const urls: URL[] = [];
+    let server!: FakeServer;
+    // The snapshot endpoint over the server's log, two events a page.
+    const snapshotFetch: FetchHandler = async (input) => {
+      const url = new URL(input);
+      urls.push(url);
+      const after = Number(url.searchParams.get("afterSeq"));
+      const tip = Number(url.searchParams.get("beforeSeq") ?? 5);
+      const page = server.log.filter((e) => e.seq > after && e.seq <= tip);
+      const events = page.slice(0, 2);
+      const through = page.length > 2 ? events[1]!.seq : tip;
+      return Response.json({
+        events: events.map((e) => JSON.parse(e.frame).payload),
+        plannedThroughSeq: through,
+        tipSeq: tip,
+      });
+    };
+    const made = setup(snapshotFetch);
+    server = made.server;
+    for (const [i, k] of ["a", "b", "c", "d", "e"].entries()) {
+      server.push(i + 1, commit(i + 1, k, `cid-${k}`));
+    }
+    void made.runner.replay({ snapshot: true });
+    await until(() => made.db.size === 5);
+    await until(() => server.connects.length === 1);
+    expect(urls.map((u) => u.searchParams.get("afterSeq"))).toEqual([
+      "-1",
+      "2",
+      "4",
+    ]);
+    // The tip is pinned by the first page.
+    expect(urls.map((u) => u.searchParams.get("beforeSeq"))).toEqual([
+      null,
+      "5",
+      "5",
+    ]);
+    expect(made.saved()).toBe(6);
+    expect(server.connects[0].searchParams.get("cursor")).toBe("6");
+    server.push(6, commit(6, "f", "cid-f"));
+    await until(() => made.db.size === 6);
+    await made.runner.stop();
+  });
+
   it("decodes records as lex values", async () => {
     const { server, db, runner } = setup();
     server.push(1, commit(1, "a", "cid-a"));

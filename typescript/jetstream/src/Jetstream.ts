@@ -1,11 +1,17 @@
-import { Duration, Effect, Stream } from "effect";
-import { ConnectionError, FrameDecodeError, StreamError } from "./errors";
-import { decodeFrame, type SpaceEvent } from "./events";
+import { Duration, Effect, Option, Stream } from "effect";
+import {
+  ConnectionError,
+  errorMessage,
+  FrameDecodeError,
+  StreamError,
+} from "./errors";
+import { decodeEvent, decodeFrame, type SpaceEvent } from "./events";
 import type { LexIndexer } from "./LexIndexer";
 import { type EventSink, Runner, type RunnerOptions } from "./Runner";
 import { type FetchHandler, fetchTransport, type Transport } from "./transport";
 
 const SUBSCRIBE = "network.habitat.space.subscribe";
+const GET_SNAPSHOT = "network.habitat.space.getSnapshot";
 
 export interface JetstreamOptions {
   /** The space host to follow: the org's Habitat instance. */
@@ -43,6 +49,24 @@ export interface SubscribeOptions {
   readonly cursor?: number;
   /** Collection NSIDs or "<prefix>.*" patterns. Default: every collection. */
   readonly collections?: readonly string[];
+}
+
+export interface SnapshotOptions {
+  /** Start after this seq (exclusive). Default: the start of the log. */
+  readonly after?: number;
+  /** Collection NSIDs or "<prefix>.*" patterns. Default: every collection. */
+  readonly collections?: readonly string[];
+  /** Events per page, up to 1000. Default: the server's (100). */
+  readonly limit?: number;
+}
+
+/** One page of a snapshot, decoded. */
+export interface SnapshotPage {
+  readonly events: ReadonlyArray<SpaceEvent>;
+  /** The last seq the page covered: the next page's `after`. */
+  readonly plannedThroughSeq: number;
+  /** The end of the snapshot, fixed by its first page. */
+  readonly tipSeq: number;
 }
 
 /**
@@ -95,6 +119,122 @@ export class Jetstream {
       url.searchParams.append("collections", c);
     }
     return url;
+  }
+
+  /** snapshotUrl is a getSnapshot page's URL. */
+  snapshotUrl(
+    after: number,
+    before: number | undefined,
+    options: SnapshotOptions = {},
+  ): URL {
+    const url = new URL(`/xrpc/${GET_SNAPSHOT}`, this.service);
+    url.searchParams.set("afterSeq", String(after));
+    if (before !== undefined) url.searchParams.set("beforeSeq", String(before));
+    if (options.limit !== undefined) {
+      url.searchParams.set("limit", String(options.limit));
+    }
+    for (const space of this.options.spaces ?? []) {
+      url.searchParams.append("spaces", space);
+    }
+    for (const did of this.options.dids ?? []) {
+      url.searchParams.append("dids", did);
+    }
+    for (const c of options.collections ?? []) {
+      url.searchParams.append("collections", c);
+    }
+    return url;
+  }
+
+  /**
+   * snapshot pages through the log up to a tip fixed by its first page, the
+   * counterpart of Jetstream's replay archive (planSnapshot): a backlog is
+   * caught up over plain HTTP, a page at a time, instead of one long
+   * WebSocket replay. Each page is emitted as it arrives, and the stream
+   * ends when plannedThroughSeq reaches tipSeq. Then `subscribe({ cursor:
+   * tipSeq + 1 })` follows live without a gap.
+   *
+   * A failed page is not retried here: its error ends the stream, and the
+   * caller resumes from the last page's plannedThroughSeq.
+   */
+  snapshot(
+    options: SnapshotOptions = {},
+  ): Stream.Stream<SnapshotPage, StreamError | FrameDecodeError> {
+    const self = this;
+    const fetchPage = (
+      after: number,
+      before: number | undefined,
+    ): Effect.Effect<SnapshotPage, StreamError | FrameDecodeError> =>
+      Effect.gen(function* () {
+        const res = yield* Effect.tryPromise({
+          try: () =>
+            self.fetch(self.snapshotUrl(after, before, options).toString()),
+          catch: (cause) =>
+            new StreamError({
+              error: "RequestFailed",
+              message: `getSnapshot: ${errorMessage(cause)}`,
+            }),
+        });
+        if (!res.ok) {
+          const body = yield* Effect.promise(() => res.text().catch(() => ""));
+          return yield* new StreamError({
+            error: `HTTP ${res.status}`,
+            message: `getSnapshot refused: ${body}`,
+          });
+        }
+        const body = yield* Effect.tryPromise({
+          try: () => res.json() as Promise<unknown>,
+          catch: (cause) =>
+            new FrameDecodeError({
+              message: `invalid getSnapshot response: ${errorMessage(cause)}`,
+            }),
+        });
+        return yield* Effect.try({
+          try: (): SnapshotPage => {
+            const o = body as {
+              events?: unknown;
+              plannedThroughSeq?: unknown;
+              tipSeq?: unknown;
+            };
+            if (
+              !Array.isArray(o.events) ||
+              typeof o.plannedThroughSeq !== "number" ||
+              typeof o.tipSeq !== "number"
+            ) {
+              throw new Error("missing events, plannedThroughSeq or tipSeq");
+            }
+            const events: SpaceEvent[] = [];
+            for (const raw of o.events) {
+              const event = decodeEvent(raw);
+              if (event) events.push(event);
+            }
+            return {
+              events,
+              plannedThroughSeq: o.plannedThroughSeq,
+              tipSeq: o.tipSeq,
+            };
+          },
+          catch: (cause) =>
+            new FrameDecodeError({
+              message: `invalid getSnapshot response: ${errorMessage(cause)}`,
+            }),
+        });
+      });
+    return Stream.paginate(
+      { after: options.after ?? 0, tip: undefined as number | undefined },
+      (state) =>
+        fetchPage(state.after, state.tip).pipe(
+          Effect.map((page) => [
+            [page],
+            page.plannedThroughSeq >= page.tipSeq ||
+            page.plannedThroughSeq <= state.after
+              ? Option.none()
+              : Option.some({
+                  after: page.plannedThroughSeq,
+                  tip: page.tipSeq as number | undefined,
+                }),
+          ]),
+        ),
+    );
   }
 
   /**
