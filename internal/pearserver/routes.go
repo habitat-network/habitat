@@ -72,12 +72,6 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc(llmChatCompletionsPath, p.CreateLlmChatCompletion).
 		Methods(http.MethodPost)
 
-	// Simplespace
-	p.router.HandleFunc("/xrpc/network.habitat.simplespace.addMember", p.AddMember)
-	p.router.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", p.RemoveMember)
-	p.router.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", p.ListMembers)
-	p.router.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", p.DeleteSpace)
-
 	// Relationships
 	p.router.HandleFunc("/xrpc/network.habitat.relationship.setUserRelation", p.SetUserRelation)
 	p.router.HandleFunc("/xrpc/network.habitat.relationship.setSpaceRelation", p.SetSpaceRelation)

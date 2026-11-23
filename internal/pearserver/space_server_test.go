@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/comatproto"
-	"github.com/habitat-network/habitat/api/habitat"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
@@ -22,14 +21,14 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// TestServer_Simplespace covers the network.habitat.simplespace.* endpoints
+// TestServer_Space covers the space and memberspace endpoints
 // with a single shared TestServer (caller = owner of org), giving each subtest
 // its own distinctly-keyed space so they don't interfere on the shared store.
-func TestServer_Simplespace(t *testing.T) {
+func TestServer_Space(t *testing.T) {
 	ts := pearserver_testutil.NewTestServer(t)
 	client := httpx_testutil.NewTestXRPCClient(t)
 
-	// createGroupSpace reuses the simplespace CreateSpace handler via the store
+	// createGroupSpace reuses the CreateSpace handler via the store
 	// (org/owner), so a subtest can seed a space directly with a distinct key.
 	createGroupSpace := func(t *testing.T, skey string) habitat_syntax.SpaceURI {
 		t.Helper()
@@ -81,10 +80,12 @@ func TestServer_Simplespace(t *testing.T) {
 			uri := createGroupSpace(t, "add-shared")
 			var out struct{}
 			code := client.Procedure(
-				ts.Server.AddMember,
-				habitat.NetworkHabitatSimplespaceAddMemberInput{
+				ts.Server.PutMembers,
+				comatproto.ComAtprotoMemberspacePutMembersInput{
 					Space: uri.String(),
-					Did:   "did:plc:alice",
+					Members: []comatproto.ComAtprotoMemberspaceDefsMember{
+						{Did: "did:plc:alice", Read: true, Write: true},
+					},
 				},
 				&out,
 			)
@@ -99,10 +100,12 @@ func TestServer_Simplespace(t *testing.T) {
 			uri := habitat_syntax.ConstructSpaceURI(owner, groupTp, "nonexistent")
 			var apiErr atclient.ErrorBody
 			code := client.Procedure(
-				ts.Server.AddMember,
-				habitat.NetworkHabitatSimplespaceAddMemberInput{
+				ts.Server.PutMembers,
+				comatproto.ComAtprotoMemberspacePutMembersInput{
 					Space: uri.String(),
-					Did:   "did:plc:alice",
+					Members: []comatproto.ComAtprotoMemberspaceDefsMember{
+						{Did: "did:plc:alice", Read: true, Write: true},
+					},
 				},
 				&apiErr,
 			)
@@ -117,10 +120,10 @@ func TestServer_Simplespace(t *testing.T) {
 
 			var out struct{}
 			code := client.Procedure(
-				ts.Server.RemoveMember,
-				habitat.NetworkHabitatSimplespaceRemoveMemberInput{
+				ts.Server.RemoveMembers,
+				comatproto.ComAtprotoMemberspaceRemoveMembersInput{
 					Space: uri.String(),
-					Did:   "did:plc:alice",
+					Dids:  []string{"did:plc:alice"},
 				},
 				&out,
 			)
@@ -139,10 +142,10 @@ func TestServer_Simplespace(t *testing.T) {
 			uri := createGroupSpace(t, "remove-org")
 			var out struct{}
 			code := client.Procedure(
-				ts.Server.RemoveMember,
-				habitat.NetworkHabitatSimplespaceRemoveMemberInput{
+				ts.Server.RemoveMembers,
+				comatproto.ComAtprotoMemberspaceRemoveMembersInput{
 					Space: uri.String(),
-					Did:   org.String(),
+					Dids:  []string{org.String()},
 				},
 				&out,
 			)
@@ -154,7 +157,7 @@ func TestServer_Simplespace(t *testing.T) {
 			err := ts.SimpleStore.AddMember(t.Context(), uri, alice)
 			require.NoError(t, err)
 
-			var output habitat.NetworkHabitatSimplespaceListMembersOutput
+			var output comatproto.ComAtprotoMemberspaceListMembersOutput
 			code := client.Query(
 				ts.Server.ListMembers,
 				url.Values{"space": []string{uri.String()}},
@@ -211,10 +214,12 @@ func TestServer_Simplespace(t *testing.T) {
 		// Add someone to the space.
 		var addOut struct{}
 		addCode := client.Procedure(
-			ts.Server.AddMember,
-			habitat.NetworkHabitatSimplespaceAddMemberInput{
+			ts.Server.PutMembers,
+			comatproto.ComAtprotoMemberspacePutMembersInput{
 				Space: uri.String(),
-				Did:   alice.String(),
+				Members: []comatproto.ComAtprotoMemberspaceDefsMember{
+					{Did: alice.String(), Read: true, Write: true},
+				},
 			},
 			&addOut,
 		)
@@ -243,10 +248,10 @@ func TestServer_Simplespace(t *testing.T) {
 		// Remove that member from the space.
 		var removeOut struct{}
 		removeCode := client.Procedure(
-			ts.Server.RemoveMember,
-			habitat.NetworkHabitatSimplespaceRemoveMemberInput{
+			ts.Server.RemoveMembers,
+			comatproto.ComAtprotoMemberspaceRemoveMembersInput{
 				Space: uri.String(),
-				Did:   alice.String(),
+				Dids:  []string{alice.String()},
 			},
 			&removeOut,
 		)
@@ -276,7 +281,7 @@ func TestServer_Simplespace(t *testing.T) {
 			var out struct{}
 			code := client.Procedure(
 				ts.Server.DeleteSpace,
-				habitat.NetworkHabitatSimplespaceDeleteSpaceInput{Space: uri.String()},
+				comatproto.ComAtprotoSpaceDeleteSpaceInput{Space: uri.String()},
 				&out,
 			)
 			require.Equal(t, http.StatusOK, code)
@@ -290,7 +295,7 @@ func TestServer_Simplespace(t *testing.T) {
 			var apiErr atclient.ErrorBody
 			code := client.Procedure(
 				ts.Server.DeleteSpace,
-				habitat.NetworkHabitatSimplespaceDeleteSpaceInput{Space: uri.String()},
+				comatproto.ComAtprotoSpaceDeleteSpaceInput{Space: uri.String()},
 				&apiErr,
 			)
 			require.Equal(t, http.StatusBadRequest, code)
@@ -299,9 +304,9 @@ func TestServer_Simplespace(t *testing.T) {
 	})
 }
 
-// TestServer_Simplespace_Unauthorized uses a failing validator, so it needs its
+// TestServer_Space_Unauthorized uses a failing validator, so it needs its
 // own server.
-func TestServer_Simplespace_Unauthorized(t *testing.T) {
+func TestServer_Space_Unauthorized(t *testing.T) {
 	ts := pearserver_testutil.NewTestServer(t,
 		pearserver_testutil.WithValidator(authntest.NewFailureValidator()),
 	)
@@ -384,9 +389,61 @@ func TestServer_SpacePolicy(t *testing.T) {
 	t.Run("a personalspace has no member list", func(t *testing.T) {
 		code, uri := create(t, map[string]any{"$type": "com.atproto.personalspace.policy"})
 		require.Equal(t, http.StatusOK, code)
-		code, _ = call(t, ts.Server.AddMember, "com.atproto.memberspace.putMember",
-			map[string]any{"space": uri, "did": alice.String(), "read": true, "write": true})
+		code, _ = call(t, ts.Server.PutMembers, "com.atproto.memberspace.putMembers",
+			map[string]any{"space": uri, "members": []map[string]any{
+				{"did": alice.String(), "read": true, "write": true},
+			}})
 		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	get := func(t *testing.T, h http.HandlerFunc, nsid, space string) (int, []byte) {
+		t.Helper()
+		req := httptest.NewRequest(
+			http.MethodGet, "/xrpc/"+nsid+"?space="+url.QueryEscape(space), http.NoBody,
+		)
+		w := httptest.NewRecorder()
+		h(w, req)
+		return w.Code, w.Body.Bytes()
+	}
+	missing := habitat_syntax.ConstructSpaceURI(owner, groupTp, "nonexistent").String()
+
+	t.Run("listMembers rejects a non-memberspace and a missing space", func(t *testing.T) {
+		code, uri := create(t, map[string]any{"$type": "com.atproto.personalspace.policy"})
+		require.Equal(t, http.StatusOK, code)
+		code, _ = get(t, ts.Server.ListMembers, "com.atproto.memberspace.listMembers", uri)
+		require.Equal(t, http.StatusBadRequest, code)
+		code, _ = get(t, ts.Server.ListMembers, "com.atproto.memberspace.listMembers", missing)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("getSpace fails for a missing space", func(t *testing.T) {
+		code, _ := get(t, ts.Server.GetSpace, "com.atproto.space.getSpace", missing)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("updateSpace rejects bad input", func(t *testing.T) {
+		const nsid = "com.atproto.space.updateSpace"
+		policy := map[string]any{"$type": "com.atproto.memberspace.policy"}
+		code, _ := call(t, ts.Server.UpdateSpace, nsid, map[string]any{"space": missing})
+		require.Equal(t, http.StatusBadRequest, code, "missing policy")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid,
+			map[string]any{"space": "not-a-uri", "policy": policy})
+		require.Equal(t, http.StatusBadRequest, code, "bad space uri")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid, "not an object")
+		require.Equal(t, http.StatusBadRequest, code, "bad body")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid, map[string]any{
+			"space": missing,
+			"policy": map[string]any{
+				"$type": "com.atproto.managedspace.policy", "managingApp": "did:web:x",
+			},
+		})
+		require.Equal(t, http.StatusBadRequest, code, "unsupported policy")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid,
+			map[string]any{"space": missing, "policy": map[string]any{"$type": "bogus"}})
+		require.Equal(t, http.StatusBadRequest, code, "invalid policy")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid,
+			map[string]any{"space": missing, "policy": policy})
+		require.Equal(t, http.StatusBadRequest, code, "missing space")
 	})
 }
 

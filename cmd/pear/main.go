@@ -135,7 +135,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(app.Validator, app.Hive, app.HiveDir, app.PDSClientFactory))
 
-	// Consolidated server owning the opensocial, simplespace, relationship,
+	// Consolidated server owning the opensocial, memberspace, relationship,
 	// spaces, and registerNotify handler routes.
 	pearApp := pearserver.New(app)
 

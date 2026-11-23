@@ -105,7 +105,7 @@ const SPACE_RELATIONS: {
 // "the space is already there" error rather than a real failure. HabitatClient
 // surfaces a proxied error as an Error carrying the response body, which
 // for this case is pear's {"error": "SpaceAlreadyExists"} (see
-// internal/pearserver/simplespace_create_space.go).
+// internal/pearserver/space_create_space.go).
 function isSpaceAlreadyExists(err: unknown): boolean {
   return err instanceof Error && err.message.includes("SpaceAlreadyExists");
 }
