@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -243,4 +244,71 @@ func TestServer_SubscribeOrgWideByScope(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestServer_GetSnapshotPagesReadableSpaces(t *testing.T) {
+	ts := pearserver_testutil.NewTestServer(t, pearserver_testutil.WithValidator(
+		authntest.NewSuccessValidator(&authn.CredentialInfo{
+			Subject: alice,
+			Method:  authn.ValidatorMethodOAuth,
+			Scopes:  []string{"atproto", "space:*?authority=*&action=read"},
+		}),
+	))
+	ctx := t.Context()
+	readable, err := ts.SpaceStore.CreateSpace(ctx, org, groupTp, "readable")
+	require.NoError(t, err)
+	_, err = ts.PermStore.SetUserRelation(ctx, alice, readable, habitat_syntax.SpaceRoleReader)
+	require.NoError(t, err)
+	hidden, err := ts.SpaceStore.CreateSpace(ctx, "did:plc:elsewhere", groupTp, "hidden")
+	require.NoError(t, err)
+	put := func(space habitat_syntax.SpaceURI, rkey string) {
+		t.Helper()
+		_, _, err := ts.SpaceStore.PutRecord(ctx, space, owner, noteTp, syntax.RecordKey(rkey),
+			spaces_testutil.MustMarshalRecord(t, map[string]any{"text": rkey}))
+		require.NoError(t, err)
+	}
+	put(readable, "1")
+	put(hidden, "2")
+	put(readable, "3")
+
+	get := func(query url.Values) (int, struct {
+		Events            []map[string]any `json:"events"`
+		PlannedThroughSeq int64            `json:"plannedThroughSeq"`
+		TipSeq            int64            `json:"tipSeq"`
+	}) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet,
+			"/xrpc/network.habitat.space.getSnapshot?"+query.Encode(), nil)
+		rec := httptest.NewRecorder()
+		ts.Server.ServeHTTP(rec, req)
+		var out struct {
+			Events            []map[string]any `json:"events"`
+			PlannedThroughSeq int64            `json:"plannedThroughSeq"`
+			TipSeq            int64            `json:"tipSeq"`
+		}
+		if rec.Code == http.StatusOK {
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out))
+		}
+		return rec.Code, out
+	}
+
+	code, page := get(url.Values{"limit": {"1"}, "collections": {noteTp.String()}})
+	require.Equal(t, http.StatusOK, code)
+	require.Len(t, page.Events, 1)
+	require.Equal(t, "network.habitat.space.subscribe#commit", page.Events[0]["$type"])
+	require.Equal(t, "1", page.Events[0]["rkey"])
+
+	// The next page skips the hidden space's record and reaches the tip.
+	code, next := get(url.Values{
+		"limit":     {"10"},
+		"afterSeq":  {strconv.FormatInt(page.PlannedThroughSeq, 10)},
+		"beforeSeq": {strconv.FormatInt(page.TipSeq, 10)},
+	})
+	require.Equal(t, http.StatusOK, code)
+	require.Len(t, next.Events, 1)
+	require.Equal(t, "3", next.Events[0]["rkey"])
+	require.Equal(t, page.TipSeq, next.PlannedThroughSeq)
+
+	code, _ = get(url.Values{"limit": {"0"}})
+	require.Equal(t, http.StatusBadRequest, code)
 }

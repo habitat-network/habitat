@@ -134,6 +134,17 @@ function decodePayload(payload: Record<string, unknown>): Frame {
   }
 }
 
+/**
+ * decodeEvent decodes one event object, the payload of a subscribe message or
+ * an entry of getSnapshot's events, which share their shape. Kinds this
+ * client doesn't know are undefined.
+ */
+export function decodeEvent(payload: unknown): SpaceEvent | undefined {
+  if (!isObject(payload)) throw new Error("event is not an object");
+  const frame = decodePayload(payload);
+  return frame._tag === "Event" ? frame.event : undefined;
+}
+
 /** decodeFrame parses one text frame of the subscribe stream. */
 export const decodeFrame = (
   text: string,

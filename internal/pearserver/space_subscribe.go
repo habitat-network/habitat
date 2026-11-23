@@ -31,20 +31,8 @@ func (p *PearServer) Subscribe(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var reader spacestream.Reader
-	switch {
-	case cred.Space != "":
-		reader = spacestream.SpaceCredentialReader{Space: cred.Space}
-	case cred.Subject != "" && cred.Method == authn.ValidatorMethodOAuth:
-		// An OAuth client sees only the spaces its space: scopes cover,
-		// however many the user can read.
-		reader = spacestream.UserReader{
-			DID:   cred.Subject,
-			Scope: spacescope.FromScopes(cred.Scopes, cred.Subject),
-		}
-	case cred.Subject != "":
-		reader = spacestream.UserReader{DID: cred.Subject, Scope: spacescope.Unrestricted{}}
-	default:
+	reader, ok := streamReader(cred)
+	if !ok {
 		httpx.WriteUnauthorized(ctx, w, "credential names no user or space", nil)
 		return
 	}
@@ -64,5 +52,24 @@ func (p *PearServer) Subscribe(w http.ResponseWriter, r *http.Request) {
 	// only be logged.
 	if err := p.spaceStream.ServeWebSocket(w, r, sub); err != nil {
 		slog.WarnContext(ctx, "subscribe stream ended", "err", err)
+	}
+}
+
+// streamReader is who a validated credential reads event streams as.
+func streamReader(cred *authn.CredentialInfo) (spacestream.Reader, bool) {
+	switch {
+	case cred.Space != "":
+		return spacestream.SpaceCredentialReader{Space: cred.Space}, true
+	case cred.Subject != "" && cred.Method == authn.ValidatorMethodOAuth:
+		// An OAuth client sees only the spaces its space: scopes cover,
+		// however many the user can read.
+		return spacestream.UserReader{
+			DID:   cred.Subject,
+			Scope: spacescope.FromScopes(cred.Scopes, cred.Subject),
+		}, true
+	case cred.Subject != "":
+		return spacestream.UserReader{DID: cred.Subject, Scope: spacescope.Unrestricted{}}, true
+	default:
+		return nil, false
 	}
 }

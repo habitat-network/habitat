@@ -23,6 +23,11 @@
 //     frame per event, payload $type network.habitat.space.subscribe#<kind>,
 //     and an error frame before a server-side close.
 //
+// For a large backlog, [Server.Snapshot] (network.habitat.space.getSnapshot)
+// pages the same log over plain HTTP up to a pinned tip, the counterpart of
+// Jetstream's replay archive (planSnapshot), and a subscriber then follows
+// live from tip + 1.
+//
 // Delivery is at-least-once and the cursor is inclusive, as in Jetstream.
 package spacestream
 
@@ -329,6 +334,28 @@ func wireTime(t time.Time) string {
 
 // eventFrame renders event as an xrpc.v1.json message frame.
 func eventFrame(event spaces.Event) ([]byte, error) {
+	payload, err := eventObject(event)
+	if err != nil {
+		return nil, err
+	}
+	return messageFrame(payload)
+}
+
+// eventPayload renders event as the JSON of its subscribe object, a frame's
+// payload, with its $type.
+func eventPayload(event spaces.Event) (json.RawMessage, error) {
+	payload, err := eventObject(event)
+	if err != nil {
+		return nil, err
+	}
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("encode event: %w", err)
+	}
+	return out, nil
+}
+
+func eventObject(event spaces.Event) (any, error) {
 	switch e := event.(type) {
 	case spaces.CommitEvent:
 		payload := habitat.NetworkHabitatSpaceSubscribeCommit{
@@ -347,13 +374,13 @@ func eventFrame(event spaces.Event) ([]byte, error) {
 			payload.Record = e.Value
 			payload.Cid = e.Cid.String()
 		}
-		return messageFrame(payload)
+		return payload, nil
 	case spaces.SpaceDeletedEvent:
-		return messageFrame(habitat.NetworkHabitatSpaceSubscribeSpaceDeleted{
+		return habitat.NetworkHabitatSpaceSubscribeSpaceDeleted{
 			Seq:   int64(e.Seq),
 			Space: e.Space.String(),
 			Time:  wireTime(e.Time),
-		})
+		}, nil
 	default:
 		return nil, fmt.Errorf("unknown event %T", event)
 	}

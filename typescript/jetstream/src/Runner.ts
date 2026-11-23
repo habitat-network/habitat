@@ -76,6 +76,13 @@ export interface ReplayOptions {
    * current state before following it live.
    */
   readonly cursor?: number;
+  /**
+   * Catch up over getSnapshot, a page of HTTP at a time, before opening the
+   * WebSocket at the snapshot's tip. Only worthwhile for a large backlog,
+   * such as a fresh runner or one that was off for long; a runner already
+   * near the head may as well subscribe directly. Default: false.
+   */
+  readonly snapshot?: boolean | { readonly limit?: number };
 }
 
 /** Selects the record a write goes to. */
@@ -210,11 +217,34 @@ export class Runner<E = unknown> {
   ): Effect.Effect<void, StreamError | FrameDecodeError | CursorError> {
     const self = this;
     return Effect.gen(function* () {
-      const cursor = options.cursor ?? (yield* self.cursor()) ?? 0;
+      let cursor = options.cursor ?? (yield* self.cursor()) ?? 0;
       const batch = self.options.batch;
+      const collections = self.collections ? [...self.collections] : undefined;
+      if (options.snapshot) {
+        const limit =
+          typeof options.snapshot === "object"
+            ? options.snapshot.limit
+            : undefined;
+        yield* self.jetstream
+          .snapshot({ after: cursor - 1, collections, limit })
+          .pipe(
+            Stream.runForEach((page) =>
+              Effect.gen(function* () {
+                const groupSize = batch && batch.size > 1 ? batch.size : 1;
+                for (let i = 0; i < page.events.length; i += groupSize) {
+                  yield* self.applyAll(page.events.slice(i, i + groupSize));
+                }
+                // The page may end past its last event, over events the
+                // reader can't see: don't scan them again.
+                cursor = page.plannedThroughSeq + 1;
+                yield* self.saveCursor(cursor);
+              }),
+            ),
+          );
+      }
       const events = self.jetstream.subscribe({
         cursor,
-        collections: self.collections ? [...self.collections] : undefined,
+        collections,
       });
       if (batch && batch.size > 1) {
         yield* events.pipe(
