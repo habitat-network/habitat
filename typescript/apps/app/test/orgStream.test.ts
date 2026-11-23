@@ -104,6 +104,10 @@ beforeEach(async () => {
       if (nsid === "network.habitat.space.getSnapshot") {
         expect(req.headers.get(TEST_DID_HEADER)).toBe(ORG);
         snapshotUrls.push(url);
+        // As pear does: afterSeq must be a non-negative integer.
+        if (!(Number(url.searchParams.get("afterSeq")) >= 0)) {
+          return Response.json({ error: "InvalidRequest" }, { status: 400 });
+        }
         // One event at seq 1, which is also the tip.
         return Response.json({
           events: [JSON.parse(fileCommit(1, CID1, "notes.txt")).payload],
@@ -158,10 +162,11 @@ it("catches up on a request, follows live, and writes return once indexed", asyn
   const db = getDb(env);
   await followOrg(env, ORG);
 
-  // Caught up over getSnapshot from the start (afterSeq is cursor - 1),
+  // Caught up over getSnapshot from the start (afterSeq is exclusive and
+  // pear refuses a negative one, so a fresh stream asks after 0),
   // asking only for what the app indexes, before the socket opened.
   expect(snapshotUrls).toHaveLength(1);
-  expect(snapshotUrls[0].searchParams.get("afterSeq")).toBe("-1");
+  expect(snapshotUrls[0].searchParams.get("afterSeq")).toBe("0");
   expect(snapshotUrls[0].searchParams.getAll("collections")).toContain(
     "network.habitat.drop.file",
   );

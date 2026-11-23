@@ -158,6 +158,10 @@ describe("Runner", () => {
       const url = new URL(input);
       urls.push(url);
       const after = Number(url.searchParams.get("afterSeq"));
+      // As pear does: afterSeq must be a non-negative integer.
+      if (!(after >= 0)) {
+        return Response.json({ error: "InvalidRequest" }, { status: 400 });
+      }
       const tip = Number(url.searchParams.get("beforeSeq") ?? 5);
       const page = server.log.filter((e) => e.seq > after && e.seq <= tip);
       const events = page.slice(0, 2);
@@ -188,7 +192,7 @@ describe("Runner", () => {
     expect(caughtUpAt).toEqual({ indexed: 5, connects: 0 });
     await until(() => server.connects.length === 1);
     expect(urls.map((u) => u.searchParams.get("afterSeq"))).toEqual([
-      "-1",
+      "0",
       "2",
       "4",
     ]);

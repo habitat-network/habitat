@@ -233,7 +233,9 @@ export class Runner<E = unknown> {
             ? options.snapshot.limit
             : undefined;
         yield* self.jetstream
-          .snapshot({ after: cursor - 1, collections, limit })
+          // afterSeq is exclusive and never negative: seqs start at 1, so a
+          // fresh runner (cursor 0) asks for everything after 0.
+          .snapshot({ after: Math.max(cursor - 1, 0), collections, limit })
           .pipe(
             Stream.runForEach((page) =>
               Effect.gen(function* () {
