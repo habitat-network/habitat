@@ -5,7 +5,7 @@ test.skip(
   "needs the compose test bed (serves the app and the PDS)",
 );
 
-// A member on the alpha PDS (bob) signs in to the Habitat app (typescript/apps/app,
+// A member on the alpha PDS (carol) signs in to the Habitat app (typescript/apps/app,
 // chalk's successor), creates a group, links it to the app (pear's admin
 // approval), uploads a file, then creates a doc and edits it. The upload must
 // be listed as soon as it returns, and the edit must survive a reload and
@@ -16,13 +16,13 @@ test("a member links a group, creates a doc and edits it", async ({
   chalk,
   pdsAccounts,
 }) => {
-  // bob, not alice: the web client's tests sign in as alice and expect her
-  // to belong to no group.
-  const bob = pdsAccounts.bob;
+  // carol, not alice or bob: the web client's tests sign in as them and
+  // expect them to belong to no group.
+  const carol = pdsAccounts.carol;
   const title = `Plan ${Date.now().toString(36)}`;
 
   await test.step("sign in with the PDS account", async () => {
-    await chalk.signIn(bob);
+    await chalk.signIn(carol);
     await chalk.expectClean();
   });
 
@@ -35,7 +35,7 @@ test("a member links a group, creates a doc and edits it", async ({
   });
 
   await test.step("link the group to the app", async () => {
-    await chalk.connectGroup(bob);
+    await chalk.connectGroup(carol);
     await expect(
       page.getByRole("button", { name: "Connect group" }),
     ).toHaveCount(0);

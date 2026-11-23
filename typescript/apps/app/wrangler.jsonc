@@ -27,6 +27,9 @@
       "migrations_dir": "drizzle",
     },
   ],
+  // Runs the code members deploy as Apps, each in its own sandboxed
+  // isolate (Dynamic Workers; see src/server/apps/runner.ts).
+  "worker_loaders": [{ "binding": "LOADER" }],
   // Makes sure every connected group's stream is running
   // (src/server/stream/index.ts).
   "triggers": { "crons": ["* * * * *"] },
@@ -36,6 +39,11 @@
   "vars": {
     "APP_BASE_URL": "https://app.habitat.network",
     "APP_HABITAT_URL": "https://pear.habitat.network",
+    // Apps run at https://<app>.<APP_RUN_DOMAIN>/. Needs a wildcard DNS
+    // record and Workers route for *.APP_RUN_DOMAIN pointing at this
+    // Worker. Best on its own registrable domain, so apps aren't same-site
+    // with the Habitat app (see src/server/apps/runner.ts).
+    "APP_RUN_DOMAIN": "apps.habitat.network",
   },
   "dev": { "port": 5181 },
   "observability": {

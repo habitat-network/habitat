@@ -9,7 +9,7 @@ import type { PromiseRepoBatch, PromiseSyncSink } from "internal/spaceSync";
 
 // The collections the app indexes from its groups' streams: docs (crdt
 // state, rendered markdown, comments and replies, sharing grants), uploaded
-// files, and group rosters. The stream is asked for only these. Spelled
+// files, deployed apps, and group rosters. The stream is asked for only these. Spelled
 // out rather than imported from the sinks, so the Worker entry (which
 // exports OrgStream) doesn't load them until a stream starts.
 export const INDEXED_COLLECTIONS = [
@@ -20,6 +20,7 @@ export const INDEXED_COLLECTIONS = [
   "network.habitat.relationship.userRelation",
   "network.habitat.relationship.spaceRelation",
   "network.habitat.drop.file",
+  "network.habitat.apps.app",
   "community.opensocial.membership",
 ] as const;
 

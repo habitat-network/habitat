@@ -174,14 +174,34 @@ export class DocSink implements PromiseSyncSink {
     const doc =
       (await docByUri(getDb(env), spaceUri)) ??
       (await indexUnknownDoc(env, spaceRef));
-    const bytes = await this.deps.getBlob(
-      spaceUri,
-      authorDid as DidString,
-      getBlobCidString(blob),
-    );
+    let bytes: Uint8Array;
+    try {
+      bytes = await this.deps.getBlob(
+        spaceUri,
+        authorDid as DidString,
+        getBlobCidString(blob),
+      );
+    } catch (err) {
+      // A blob its repo no longer has can never be read on retry, and the
+      // stream retries a failing record forever, so skipping it keeps one
+      // lost blob from holding back every later record in the group.
+      if (isNotFound(err)) {
+        console.warn("[sink] crdt blob is gone; skipping", uri, err);
+        return;
+      }
+      throw err;
+    }
     const stub = env.DOC.get(env.DOC.idFromName(spaceUri));
     await stub.applyRemote({ spaceUri, ownerDid: doc.ownerDid }, bytes);
   }
+}
+
+// isNotFound reports whether a blob read failed because the host answered
+// 404 (the syncer's XrpcError carries the status; its message names it too).
+function isNotFound(err: unknown): boolean {
+  const status = (err as { status?: unknown } | null)?.status;
+  if (status === 404) return true;
+  return err instanceof Error && /\b404\b/.test(err.message);
 }
 
 // indexUnknownDoc adds a docs row for a doc this deployment has never seen —

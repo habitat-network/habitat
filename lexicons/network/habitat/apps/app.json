@@ -1,0 +1,80 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.apps.app",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "An app deployed to an org: code a member uploaded, which the Habitat app runs in a sandboxed Dynamic Worker. Each app is its own org space (type 'network.habitat.apps'); this record holds the app's metadata and its current version under the literal key 'self'. Deploying a new version overwrites it.",
+            "key": "literal:self",
+            "record": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "slug",
+                    "entrypoint",
+                    "code",
+                    "version",
+                    "compatibilityDate",
+                    "createdAt",
+                    "updatedAt"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "description": "The app's display name."
+                    },
+                    "slug": {
+                        "type": "string",
+                        "maxLength": 40,
+                        "description": "A DNS-safe name for the app (lowercase letters, digits and hyphens), set when the app is created. Part of the app's run URL, so it doesn't change when the app is renamed."
+                    },
+                    "description": {
+                        "type": "string",
+                        "maxLength": 2000
+                    },
+                    "entrypoint": {
+                        "type": "string",
+                        "maxLength": 512,
+                        "description": "The path of the main module within the bundle: an ES module whose default export has a fetch handler."
+                    },
+                    "code": {
+                        "type": "blob",
+                        "accept": [
+                            "application/json"
+                        ],
+                        "description": "The app's code bundle: a JSON object {\"modules\": {<path>: <source>}}. Each path's extension sets its module type (.js and .mjs are ES modules, .cjs CommonJS, .json JSON, anything else text). Referencing the blob here is what keeps it from being garbage collected."
+                    },
+                    "version": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Counts deployments, starting at 1."
+                    },
+                    "compatibilityDate": {
+                        "type": "string",
+                        "maxLength": 10,
+                        "description": "The Workers compatibility date the code runs with (YYYY-MM-DD)."
+                    },
+                    "createdBy": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "The member who created the app. The record itself is written by the org."
+                    },
+                    "updatedBy": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "The member who deployed the current version."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}

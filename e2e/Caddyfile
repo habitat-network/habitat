@@ -24,6 +24,13 @@ https://chalk.habitat-e2e.dev {
 	reverse_proxy chalk:5181
 }
 
+# Apps deployed in the Habitat app, each on its own subdomain; the app's
+# worker runs them (APP_RUN_DOMAIN in compose.yaml).
+https://*.apps.habitat-e2e.dev {
+	tls /certs/cert.pem /certs/key.pem
+	reverse_proxy chalk:5181
+}
+
 # The instance itself, plus the host-routed identities (DID documents, handles)
 # of every org under it.
 https://habitat-e2e.dev, https://*.habitat-e2e.dev {

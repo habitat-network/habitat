@@ -72,6 +72,9 @@ services:
       APP_CREDENTIALS_KEY: WRlpsucNQl8AVO1qNN+T+hzbVtYjdoF21QfF+0uDJSM=
       APP_BASE_URL: https://chalk.habitat-e2e.dev
       APP_HABITAT_URL: https://habitat-e2e.dev
+      # Apps deployed in the app run at https://<app>.apps.habitat-e2e.dev
+      # (caddy routes them back here).
+      APP_RUN_DOMAIN: apps.habitat-e2e.dev
       # The worker (workerd) and node trust the test bed's self-signed certificate,
       # which serves pear, the PDS and the PLC directory.
       SSL_CERT_FILE: /certs/cert.pem
@@ -106,6 +109,7 @@ services:
           - pds.habitat-e2e.dev
           - alice.pds.habitat-e2e.dev
           - bob.pds.habitat-e2e.dev
+          - carol.pds.habitat-e2e.dev
     depends_on:
       pear: { condition: service_started }
       frontend: { condition: service_started }

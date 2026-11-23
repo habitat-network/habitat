@@ -174,6 +174,39 @@ export const files = sqliteTable(
   ],
 );
 
+// apps mirrors the network.habitat.apps.app records synced from each group's
+// app spaces (see src/server/apps/sink.ts): one row per deployed app, at its
+// current version. host is the app's run URL label (<slug>-<skey>), which is
+// how the runner finds the app a request is for.
+export const apps = sqliteTable(
+  "apps",
+  {
+    uri: text("uri").primaryKey(),
+    cid: text("cid").notNull(),
+    space: text("space").notNull(),
+    repo: text("repo").notNull(),
+    orgDid: text("org_did").notNull(),
+    host: text("host").notNull(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description"),
+    entrypoint: text("entrypoint").notNull(),
+    codeCid: text("code_cid").notNull(),
+    codeSize: integer("code_size").notNull(),
+    version: integer("version").notNull(),
+    compatibilityDate: text("compatibility_date").notNull(),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    index("apps_org_updated").on(t.orgDid, t.updatedAt),
+    index("apps_host").on(t.host),
+    index("apps_space_repo").on(t.space, t.repo),
+  ],
+);
+
 // --- OAuth (src/server/oauth.ts) -------------------------------------------
 //
 // The app is its own atproto OAuth client of the Habitat instance. It holds
