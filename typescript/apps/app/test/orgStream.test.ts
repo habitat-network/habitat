@@ -1,6 +1,6 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { fileByUri, getDb, orgStreamCursor, upsertConnectedOrg } from "@/db";
+import { fileByUri, getDb, upsertConnectedOrg } from "@/db";
 import { connectedOrgs, files } from "@/db/schema";
 import { putFileRecord, deleteFileRecord } from "@/server/files/files.server";
 import { followOrg } from "@/server/stream";
