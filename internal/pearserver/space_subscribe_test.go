@@ -278,7 +278,7 @@ func TestServer_GetSnapshotPagesReadableSpaces(t *testing.T) {
 	}) {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet,
-			"/xrpc/network.habitat.space.getSnapshot?"+query.Encode(), nil)
+			"/xrpc/network.habitat.space.getSnapshot?"+query.Encode(), http.NoBody)
 		rec := httptest.NewRecorder()
 		ts.Server.ServeHTTP(rec, req)
 		var out struct {
