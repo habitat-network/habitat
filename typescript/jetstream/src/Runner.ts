@@ -8,6 +8,7 @@ import {
   PubSub,
   Schedule,
   Sink,
+  Schema,
   Stream,
 } from "effect";
 import {
@@ -20,7 +21,6 @@ import {
   errorMessage,
 } from "./errors";
 import type { CommitEvent, SpaceEvent } from "./events";
-import { toEffect } from "./handler";
 import type { Jetstream } from "./Jetstream";
 import type { FetchHandler } from "./transport";
 
@@ -29,13 +29,9 @@ import type { FetchHandler } from "./transport";
  * past the last event every handler finished. One value for the whole
  * stream, however many spaces and repos it spans.
  */
-export interface CursorStore {
-  get():
-    | Effect.Effect<number | undefined, unknown>
-    | PromiseLike<number | undefined>
-    | number
-    | undefined;
-  set(cursor: number): Effect.Effect<void, unknown> | PromiseLike<void> | void;
+export interface CursorStore<E = unknown> {
+  readonly get: Effect.Effect<number | undefined, E>;
+  readonly set: (cursor: number) => Effect.Effect<void, E>;
 }
 
 export interface RunnerOptions {
@@ -125,6 +121,16 @@ export interface WriteResult {
   readonly cid: string;
 }
 
+const WriteResultBody = Schema.Struct({
+  uri: Schema.String,
+  cid: Schema.String,
+});
+
+const XrpcErrorBody = Schema.Struct({
+  error: Schema.optional(Schema.String),
+  message: Schema.optional(Schema.String),
+});
+
 const HANDLER_RETRY = Schedule.exponential("200 millis").pipe(
   Schedule.modifyDelay((m) =>
     Effect.succeed(Duration.min(m.duration, Duration.minutes(1))),
@@ -170,7 +176,7 @@ export class Runner<E = unknown> {
   cursor(): Effect.Effect<number | undefined, CursorError> {
     const store = this.options.cursor;
     if (!store) return Effect.succeed(this.memoryCursor);
-    return toEffect(() => store.get()).pipe(
+    return store.get.pipe(
       Effect.mapError(
         (cause) =>
           new CursorError({
@@ -185,7 +191,7 @@ export class Runner<E = unknown> {
     this.memoryCursor = cursor;
     const store = this.options.cursor;
     if (!store) return Effect.void;
-    return toEffect(() => store.set(cursor)).pipe(
+    return store.set(cursor).pipe(
       Effect.mapError(
         (cause) =>
           new CursorError({
@@ -200,55 +206,51 @@ export class Runner<E = unknown> {
    * run indexes the stream from the cursor, then follows it live, until
    * interrupted or the stream fails in a way reconnecting can't fix.
    */
-  run(
-    options: ReplayOptions = {},
-  ): Effect.Effect<void, StreamError | FrameDecodeError | CursorError> {
-    const self = this;
-    return Effect.gen(function* () {
-      let cursor = options.cursor ?? (yield* self.cursor()) ?? 0;
-      const batch = self.options.batch;
-      const collections = self.options.collections
-        ? [...self.options.collections]
+  readonly run = Effect.fn("Runner.run")(
+    (
+      options: ReplayOptions = {},
+    ): Effect.Effect<void, StreamError | FrameDecodeError | CursorError> => {
+      const { batch } = this.options;
+      const collections = this.options.collections
+        ? [...this.options.collections]
         : undefined;
-      if (options.snapshot) {
-        const limit =
-          typeof options.snapshot === "object"
-            ? options.snapshot.limit
-            : undefined;
-        yield* self.jetstream
-          .snapshot({ after: cursor - 1, collections, limit })
-          .pipe(
-            Stream.runForEach((page) =>
-              Effect.gen(function* () {
-                const groupSize = batch && batch.size > 1 ? batch.size : 1;
-                for (let i = 0; i < page.events.length; i += groupSize) {
-                  yield* self.applyAll(page.events.slice(i, i + groupSize));
-                }
-                // The page may end past its last event, over events the
-                // reader can't see: don't scan them again.
-                cursor = page.plannedThroughSeq + 1;
-                yield* self.saveCursor(cursor);
-              }),
-            ),
-          );
-      }
-      options.onCaughtUp?.();
-      const events = self.jetstream.subscribe({
-        cursor,
-        collections,
+      const size = batch && batch.size > 1 ? batch.size : 1;
+      // Applies events a group at a time, whether they came from a snapshot
+      // page or the socket.
+      const applyGroups = (events: ReadonlyArray<SpaceEvent>) =>
+        Stream.fromArray(events).pipe(
+          Stream.rechunk(size),
+          Stream.runForEachArray((group) => this.applyAll(group)),
+        );
+      return Effect.gen({ self: this }, function* () {
+        let cursor = options.cursor ?? (yield* this.cursor()) ?? 0;
+        if (options.snapshot) {
+          const limit =
+            typeof options.snapshot === "object"
+              ? options.snapshot.limit
+              : undefined;
+          yield* this.jetstream
+            .snapshot({ after: cursor - 1, collections, limit })
+            .pipe(
+              Stream.runForEach((page) =>
+                Effect.gen({ self: this }, function* () {
+                  yield* applyGroups(page.events);
+                  // The page may end past its last event, over events the
+                  // reader can't see: don't scan them again.
+                  cursor = page.plannedThroughSeq + 1;
+                  yield* this.saveCursor(cursor);
+                }),
+              ),
+            );
+        }
+        options.onCaughtUp?.();
+        yield* this.jetstream.subscribe({ cursor, collections }).pipe(
+          Stream.groupedWithin(size, batch?.window ?? "10 millis"),
+          Stream.runForEach((group) => this.applyAll(group)),
+        );
       });
-      if (batch && batch.size > 1) {
-        yield* events.pipe(
-          Stream.groupedWithin(batch.size, batch.window ?? "10 millis"),
-          Stream.runForEach((group) => self.applyAll(group)),
-        );
-      } else {
-        yield* events.pipe(
-          Stream.runForEach((event) => self.applyAll([event])),
-        );
-      }
-    });
-  }
+    },
+  );
 
   /** apply indexes one event and settles the writes waiting on it. */
   apply(event: SpaceEvent): Effect.Effect<void, CursorError> {
@@ -260,42 +262,41 @@ export class Runner<E = unknown> {
    * with backoff until it succeeds, then advances the cursor past them and
    * settles the writes waiting on them.
    */
-  applyAll(
-    events: ReadonlyArray<SpaceEvent>,
-  ): Effect.Effect<void, CursorError> {
-    const self = this;
-    const last = events[events.length - 1];
-    if (!last) return Effect.void;
-    const first = events[0]!;
-    return Effect.gen(function* () {
-      yield* Stream.fromArray(events).pipe(
-        Stream.run(self.sink),
-        Effect.mapError(
-          (cause) =>
-            new HandlerError({
-              uri: first.kind === "spaceDeleted" ? first.space : first.uri,
-              message: errorMessage(cause),
-              cause,
+  readonly applyAll = Effect.fn("Runner.applyAll")(
+    (events: ReadonlyArray<SpaceEvent>): Effect.Effect<void, CursorError> => {
+      const first = events[0];
+      const last = events[events.length - 1];
+      if (!first || !last) return Effect.void;
+      return Effect.gen({ self: this }, function* () {
+        yield* Stream.fromArray(events).pipe(
+          Stream.run(this.sink),
+          Effect.mapError(
+            (cause) =>
+              new HandlerError({
+                uri: first.kind === "spaceDeleted" ? first.space : first.uri,
+                message: errorMessage(cause),
+                cause,
+              }),
+          ),
+          Effect.tapError((err) =>
+            Effect.logWarning("jetstream: handler failed; retrying", {
+              uri: err.uri,
+              error: err.message,
             }),
-        ),
-        Effect.tapError((err) =>
-          Effect.logWarning("jetstream: handler failed; retrying", {
-            uri: err.uri,
-            error: err.message,
-          }),
-        ),
-        // The schedule never ends, so nothing is left to fail with.
-        Effect.retry(HANDLER_RETRY),
-        Effect.orDie,
-      );
-      yield* self.saveCursor(last.seq + 1);
-      for (const event of events) {
-        if (event.kind !== "spaceDeleted") {
-          yield* PubSub.publish(self.indexedEvents, event);
+          ),
+          // The schedule never ends, so nothing is left to fail with.
+          Effect.retry(HANDLER_RETRY),
+          Effect.orDie,
+        );
+        yield* this.saveCursor(last.seq + 1);
+        for (const event of events) {
+          if (event.kind !== "spaceDeleted") {
+            yield* PubSub.publish(this.indexedEvents, event);
+          }
         }
-      }
-    });
-  }
+      });
+    },
+  );
 
   /**
    * awaitIndexed waits until the record at uri has been indexed with cid
@@ -326,72 +327,71 @@ export class Runner<E = unknown> {
     );
   }
 
-  private xrpc(
+  // xrpc calls an XRPC method with fetch, and decodes a successful body with
+  // schema. A refusal is a WriteError carrying the server's error name.
+  private readonly xrpc = Effect.fn("Runner.xrpc")(function* <A, I>(
     nsid: string,
     method: "GET" | "POST",
     params: Record<string, unknown>,
     fetch: FetchHandler,
-  ): Effect.Effect<unknown, WriteError> {
-    return Effect.gen(function* () {
-      let path = `/xrpc/${nsid}`;
-      const init: RequestInit = { method };
-      if (method === "GET") {
-        const qs = new URLSearchParams();
-        for (const [k, v] of Object.entries(params)) {
-          if (v !== undefined) qs.set(k, String(v));
-        }
-        path = `${path}?${qs}`;
-      } else {
-        init.headers = { "content-type": "application/json" };
-        init.body = lexStringify(params as Parameters<typeof lexStringify>[0]);
+    schema: Schema.Codec<A, I>,
+  ): Effect.fn.Return<A, WriteError> {
+    let path = `/xrpc/${nsid}`;
+    const init: RequestInit = { method };
+    if (method === "GET") {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) qs.set(k, String(v));
       }
-      const res = yield* Effect.tryPromise({
-        try: () => fetch(path, init),
-        catch: (cause) =>
-          new WriteError({ nsid, status: 0, message: errorMessage(cause) }),
-      });
-      const text = yield* Effect.promise(() => res.text().catch(() => ""));
-      let body: unknown;
-      try {
-        body = text ? JSON.parse(text) : undefined;
-      } catch {
-        body = undefined;
-      }
-      if (!res.ok) {
-        const error =
-          typeof (body as { error?: unknown })?.error === "string"
-            ? (body as { error: string }).error
-            : undefined;
-        const message =
-          typeof (body as { message?: unknown })?.message === "string"
-            ? (body as { message: string }).message
-            : text;
-        return yield* new WriteError({
-          nsid,
-          status: res.status,
-          ...(error ? { error } : {}),
-          message,
-        });
-      }
-      return body;
-    });
-  }
-
-  private writeResult(
-    nsid: string,
-    body: unknown,
-  ): Effect.Effect<WriteResult, WriteError> {
-    const { uri, cid } = (body ?? {}) as { uri?: unknown; cid?: unknown };
-    if (typeof uri !== "string" || typeof cid !== "string") {
-      return Effect.fail(
-        new WriteError({
-          nsid,
-          status: 200,
-          message: "response has no uri and cid",
-        }),
-      );
+      path = `${path}?${qs}`;
+    } else {
+      init.headers = { "content-type": "application/json" };
+      init.body = lexStringify(params as Parameters<typeof lexStringify>[0]);
     }
-    return Effect.succeed({ uri, cid });
+    const fail = (status: number, message: string, error?: string) =>
+      new WriteError({
+        nsid,
+        status,
+        message,
+        ...(error ? { error } : {}),
+      });
+    const res = yield* Effect.tryPromise({
+      try: () => fetch(path, init),
+      catch: (cause) => fail(0, errorMessage(cause)),
+    });
+    const text = yield* Effect.promise(() => res.text().catch(() => ""));
+    const body: unknown = yield* Effect.try(() =>
+      text ? JSON.parse(text) : undefined,
+    ).pipe(Effect.orElseSucceed(() => undefined));
+    if (!res.ok) {
+      const refusal = yield* Schema.decodeUnknownEffect(XrpcErrorBody)(
+        body,
+      ).pipe(Effect.orElseSucceed(() => ({}) as typeof XrpcErrorBody.Type));
+      return yield* fail(res.status, refusal.message ?? text, refusal.error);
+    }
+    return yield* Schema.decodeUnknownEffect(schema)(body).pipe(
+      Effect.mapError((cause) =>
+        fail(res.status, `unexpected response: ${errorMessage(cause)}`),
+      ),
+    );
+  });
+
+  private write(
+    nsid: "com.atproto.space.putRecord" | "com.atproto.space.createRecord",
+    input: PutRecordInput | CreateRecordInput,
+    options: WriteOptions,
+  ): Effect.Effect<WriteResult, WriteError | WriteNotObserved> {
+    return this.xrpc(
+      nsid,
+      "POST",
+      { ...input },
+      options.fetch ?? this.jetstream.fetch,
+      WriteResultBody,
+    ).pipe(
+      Effect.tap(({ uri, cid }) =>
+        this.awaitIndexed(uri, cid, options.timeout),
+      ),
+    );
   }
 
   /**
@@ -403,18 +403,7 @@ export class Runner<E = unknown> {
     input: PutRecordInput,
     options: WriteOptions = {},
   ): Effect.Effect<WriteResult, WriteError | WriteNotObserved> {
-    const nsid = "com.atproto.space.putRecord";
-    return this.xrpc(
-      nsid,
-      "POST",
-      { ...input },
-      options.fetch ?? this.jetstream.fetch,
-    ).pipe(
-      Effect.flatMap((body) => this.writeResult(nsid, body)),
-      Effect.tap(({ uri, cid }) =>
-        this.awaitIndexed(uri, cid, options.timeout),
-      ),
-    );
+    return this.write("com.atproto.space.putRecord", input, options);
   }
 
   /** createRecord is putRecord for com.atproto.space.createRecord. */
@@ -422,18 +411,7 @@ export class Runner<E = unknown> {
     input: CreateRecordInput,
     options: WriteOptions = {},
   ): Effect.Effect<WriteResult, WriteError | WriteNotObserved> {
-    const nsid = "com.atproto.space.createRecord";
-    return this.xrpc(
-      nsid,
-      "POST",
-      { ...input },
-      options.fetch ?? this.jetstream.fetch,
-    ).pipe(
-      Effect.flatMap((body) => this.writeResult(nsid, body)),
-      Effect.tap(({ uri, cid }) =>
-        this.awaitIndexed(uri, cid, options.timeout),
-      ),
-    );
+    return this.write("com.atproto.space.createRecord", input, options);
   }
 
   /**
@@ -442,34 +420,36 @@ export class Runner<E = unknown> {
    * doesn't exist produces no event, so it's looked up first, and returns
    * at once when it's already gone.
    */
-  deleteRecord(
+  readonly deleteRecord = Effect.fn("Runner.deleteRecord")(function* (
+    this: Runner<E>,
     input: RecordTarget,
     options: WriteOptions = {},
-  ): Effect.Effect<void, WriteError | WriteNotObserved> {
+  ): Effect.fn.Return<void, WriteError | WriteNotObserved> {
     const fetch = options.fetch ?? this.jetstream.fetch;
-    const self = this;
-    return Effect.gen(function* () {
-      const found = yield* self
-        .xrpc("com.atproto.space.getRecord", "GET", { ...input }, fetch)
-        .pipe(
-          Effect.map((body) =>
-            Option.fromNullishOr((body as { uri?: string })?.uri),
-          ),
-          Effect.catchIf(
-            (e) => e.status === 404 || e.error === "RecordNotFound",
-            () => Effect.succeed(Option.none<string>()),
-          ),
-        );
-      yield* self.xrpc(
-        "com.atproto.space.deleteRecord",
-        "POST",
-        { ...input },
-        fetch,
-      );
-      if (Option.isNone(found)) return;
-      yield* self.awaitIndexed(found.value, undefined, options.timeout);
-    });
-  }
+    const found = yield* this.xrpc(
+      "com.atproto.space.getRecord",
+      "GET",
+      { ...input },
+      fetch,
+      Schema.Struct({ uri: Schema.String }),
+    ).pipe(
+      Effect.map(Option.some),
+      Effect.catchIf(
+        (e) => e.status === 404 || e.error === "RecordNotFound",
+        () => Effect.succeed(Option.none()),
+      ),
+    );
+    yield* this.xrpc(
+      "com.atproto.space.deleteRecord",
+      "POST",
+      { ...input },
+      fetch,
+      Schema.Unknown,
+    );
+    if (Option.isSome(found)) {
+      yield* this.awaitIndexed(found.value.uri, undefined, options.timeout);
+    }
+  });
 
   /**
    * replay starts the runner in the background, like @bsky/jetstream's

@@ -23,14 +23,14 @@ const js = new Jetstream({
 
 const indexer = new LexIndexer({ mode: "spaces" })
   .commit(network.habitat.drop.file, {
-    put: async (e) =>
+    put: (e) =>
       db.upsertFile({ uri: e.uri, space: e.space, name: e.record.name }),
-    del: async (e) => db.deleteFile(e.uri),
+    del: (e) => db.deleteFile(e.uri),
   })
-  .spaceDeleted(async (e) => db.deleteSpace(e.space));
+  .spaceDeleted((e) => db.deleteSpace(e.space));
 
 const runner = js.runner(indexer, {
-  cursor: { get: () => db.getCursor(), set: (seq) => db.setCursor(seq) },
+  cursor: { get: db.getCursor, set: (seq) => db.setCursor(seq) }, // Effects
 });
 void runner.replay(); // from the saved cursor, else 0, then live
 
@@ -88,7 +88,8 @@ js.snapshot({ after: 0 }).pipe(Stream.runForEach((page) => ...));
 
 ## Semantics
 
-- **Handlers** may return an Effect, a promise or nothing. They run one event
+- **Handlers** (and the cursor store) are Effects; wrap promise code with
+  `Effect.tryPromise`. They run one event
   at a time; the cursor advances only after an event's handlers all succeed,
   and a failing handler is retried with backoff rather than skipped. Delivery
   is at-least-once, so key handlers on `e.uri`.
