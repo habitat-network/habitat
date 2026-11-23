@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// DeleteSpace implements network.habitat.simplespace.deleteSpace.
+// DeleteSpace implements com.atproto.space.deleteSpace.
 func (p *PearServer) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var input habitat.NetworkHabitatSimplespaceDeleteSpaceInput
+	var input comatproto.ComAtprotoSpaceDeleteSpaceInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return

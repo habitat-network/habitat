@@ -157,7 +157,7 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 		}
 	})
 
-	t.Run("simplespace listMembers", func(t *testing.T) {
+	t.Run("memberspace listMembers", func(t *testing.T) {
 		params := url.Values{"space": {simpleURI.String()}}
 		var out struct {
 			Members []typed `json:"members"`
@@ -166,9 +166,5 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 		require.NoError(t, json.Unmarshal(body, &out))
 		require.NotEmpty(t, out.Members)
 		require.Equal(t, "com.atproto.memberspace.defs#member", out.Members[0].Type)
-
-		body = query(t, ts.Server.ListMembers, "network.habitat.simplespace.listMembers", params)
-		require.NoError(t, json.Unmarshal(body, &out))
-		require.Equal(t, "network.habitat.simplespace.listMembers#member", out.Members[0].Type)
 	})
 }

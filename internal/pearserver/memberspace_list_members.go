@@ -5,16 +5,15 @@ import (
 	"net/http"
 
 	"github.com/habitat-network/habitat/api/comatproto"
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// ListMembers implements network.habitat.simplespace.listMembers.
+// ListMembers implements com.atproto.memberspace.listMembers.
 func (p *PearServer) ListMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var params habitat.NetworkHabitatSimplespaceListMembersParams
+	var params comatproto.ComAtprotoMemberspaceListMembersParams
 	if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
@@ -38,21 +37,12 @@ func (p *PearServer) ListMembers(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list members: %w", err))
 		return
 	}
-	if httpx.IsComAtprotoRequest(r) {
-		// Membership in a simplespace grants both read and write.
-		members := make([]comatproto.ComAtprotoMemberspaceDefsMember, len(dids))
-		for i, did := range dids {
-			members[i] = comatproto.ComAtprotoMemberspaceDefsMember{
-				Did: did.String(), Read: true, Write: true,
-			}
-		}
-		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoMemberspaceListMembersOutput{Members: members})
-		return
-	}
-	members := make([]habitat.NetworkHabitatSimplespaceListMembersMember, len(dids))
+	// Membership in a memberspace grants both read and write.
+	members := make([]comatproto.ComAtprotoMemberspaceDefsMember, len(dids))
 	for i, did := range dids {
-		members[i] = habitat.NetworkHabitatSimplespaceListMembersMember{Did: did.String()}
-
+		members[i] = comatproto.ComAtprotoMemberspaceDefsMember{
+			Did: did.String(), Read: true, Write: true,
+		}
 	}
-	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSimplespaceListMembersOutput{Members: members})
+	httpx.WriteJSON(ctx, w, comatproto.ComAtprotoMemberspaceListMembersOutput{Members: members})
 }
