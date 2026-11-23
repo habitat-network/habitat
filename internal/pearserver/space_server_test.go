@@ -83,7 +83,9 @@ func TestServer_Space(t *testing.T) {
 				ts.Server.PutMembers,
 				comatproto.ComAtprotoMemberspacePutMembersInput{
 					Space:   uri.String(),
-					Members: []comatproto.ComAtprotoMemberspaceDefsMember{{Did: "did:plc:alice", Read: true, Write: true}},
+					Members: []comatproto.ComAtprotoMemberspaceDefsMember{
+						{Did: "did:plc:alice", Read: true, Write: true},
+					},
 				},
 				&out,
 			)
@@ -101,7 +103,9 @@ func TestServer_Space(t *testing.T) {
 				ts.Server.PutMembers,
 				comatproto.ComAtprotoMemberspacePutMembersInput{
 					Space:   uri.String(),
-					Members: []comatproto.ComAtprotoMemberspaceDefsMember{{Did: "did:plc:alice", Read: true, Write: true}},
+					Members: []comatproto.ComAtprotoMemberspaceDefsMember{
+						{Did: "did:plc:alice", Read: true, Write: true},
+					},
 				},
 				&apiErr,
 			)
@@ -213,7 +217,9 @@ func TestServer_Space(t *testing.T) {
 			ts.Server.PutMembers,
 			comatproto.ComAtprotoMemberspacePutMembersInput{
 				Space:   uri.String(),
-				Members: []comatproto.ComAtprotoMemberspaceDefsMember{{Did: alice.String(), Read: true, Write: true}},
+				Members: []comatproto.ComAtprotoMemberspaceDefsMember{
+					{Did: alice.String(), Read: true, Write: true},
+				},
 			},
 			&addOut,
 		)
