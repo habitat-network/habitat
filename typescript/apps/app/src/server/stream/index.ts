@@ -1,15 +1,19 @@
 import type { PutRecordInput, RecordTarget } from "@habitat-network/jetstream";
-import {
-  awaitRecord,
-  deleteRecord,
-  putRecord,
-  type WriteOutcome,
-} from "./orgStream";
+import type { WriteOutcome } from "./orgStream";
 
-// The request side of the org streams (see orgStream.ts): each org's stream
-// runs in the isolate that serves requests against it.
+// The request side of the org streams (see orgStream.ts). Each org's stream
+// lives in its own OrgStream Durable Object; these helpers reach it.
 
-export { followOrg } from "./orgStream";
+function stub(env: Env, org: string) {
+  return env.ORG_STREAM.get(env.ORG_STREAM.idFromName(org));
+}
+
+// followOrg is called on a request made against org: it makes sure the
+// org's stream is running (catching D1 up first if it wasn't). Calls share
+// the org's single Durable Object, so there is one connection per org.
+export async function followOrg(env: Env, org: string): Promise<void> {
+  await stub(env, org).follow(org);
+}
 
 /** The write was refused: nothing was written. */
 export class StreamWriteError extends Error {
@@ -47,7 +51,7 @@ export async function putRecordIndexed(
   writer: string,
   input: PutRecordInput,
 ): Promise<IndexedWrite> {
-  return settle(await putRecord(env, org, writer, input));
+  return settle(await stub(env, org).putRecord(writer, input));
 }
 
 // deleteRecordIndexed deletes a record as writer through org's stream, and
@@ -58,7 +62,7 @@ export async function deleteRecordIndexed(
   writer: string,
   target: RecordTarget,
 ): Promise<IndexedWrite> {
-  return settle(await deleteRecord(env, org, writer, target));
+  return settle(await stub(env, org).deleteRecord(writer, target));
 }
 
 // awaitIndexed waits for a write pear made itself (a procedure such as
@@ -69,5 +73,5 @@ export async function awaitIndexed(
   uri: string,
   cid: string | null,
 ): Promise<IndexedWrite> {
-  return settle(await awaitRecord(env, org, uri, cid));
+  return settle(await stub(env, org).awaitRecord(uri, cid));
 }

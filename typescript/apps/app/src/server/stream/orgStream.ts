@@ -1,4 +1,4 @@
-import { waitUntil } from "cloudflare:workers";
+import { DurableObject } from "cloudflare:workers";
 import {
   Jetstream,
   type PutRecordInput,
@@ -6,29 +6,32 @@ import {
   type Runner,
 } from "@habitat-network/jetstream";
 import { Cause, Effect, Exit } from "effect";
-import {
-  getDb,
-  isConnectedOrg,
-  orgStreamCursor,
-  setOrgStreamCursor,
-} from "@/db";
+import { getDb, isConnectedOrg } from "@/db";
 import { appEventSink, INDEXED_COLLECTIONS } from "./indexer";
 
-// An org's stream follows its spaces through pear's
+// OrgStream follows one org's spaces through pear's
 // network.habitat.space.subscribe, with the org's own OAuth session, and
-// keeps the app's D1 mirror and doc rooms in step with it.
+// keeps the app's D1 mirror and doc rooms in step with it. One Durable
+// Object per org, so there is exactly one runner, one socket and one cursor
+// per org across every isolate.
 //
-// There is no long-lived object behind it. A request made against an org
-// calls followOrg, which (once per isolate per org) catches the mirror up
-// over getSnapshot's HTTP pages from the cursor saved in D1, then keeps the
-// live WebSocket open for as long as the isolate stays awake. When the
-// isolate goes idle and is evicted the socket goes with it; the next request
-// to that org catches up again from the saved cursor.
+// It has no alarm. A request made against the org calls follow(), which
+// catches D1 up over getSnapshot from the saved cursor and then keeps the
+// live WebSocket open; concurrent calls share one catch-up. Each call (and
+// each write) marks the object as used; after IDLE_MS without one the runner
+// is stopped and the socket closed, and the next request catches up again.
+// The open outbound socket is what keeps the object resident meanwhile.
 //
 // Writes that must be visible in D1 before a request returns go through
 // putRecord/deleteRecord/awaitRecord here: the write is made with the
-// writer's session, and the call returns once this isolate's runner has
+// writer's session, and the call returns once this object's runner has
 // indexed the event it produced.
+
+const ORG_KEY = "org";
+const CURSOR_KEY = "cursor";
+
+// How long without a request before the stream is closed.
+const IDLE_MS = 5 * 60_000;
 
 // How long a request waits for the first catch-up before carrying on with
 // whatever D1 already has. The catch-up itself isn't cut short.
@@ -86,172 +89,181 @@ async function sessionFetch(env: Env, did: string) {
     session.fetchHandler(input, init);
 }
 
-interface Following {
-  runner: Promise<Runner>;
-  // Settles once the org's mirror is caught up to the stream's tip and the
-  // socket is opening; rejects if the stream stopped before getting there.
-  caughtUp: Promise<void>;
-}
+export class OrgStream extends DurableObject<Env> {
+  private org: string | undefined;
+  private runner: Promise<Runner> | undefined;
+  // Settles once the first catch-up is applied; rejects if the stream
+  // stopped before that. Set while a stream is running.
+  private caughtUp: Promise<void> | undefined;
+  private idleTimer: ReturnType<typeof setTimeout> | undefined;
 
-// The streams this isolate is running, by org. An entry is added
-// synchronously, before anything is awaited, so concurrent requests for one
-// org share a single catch-up and a single socket. It's removed when the
-// stream stops, so the next request starts it again.
-const following = new Map<string, Following>();
-
-function start(env: Env, org: string): Following {
-  let markCaughtUp!: () => void;
-  let failCaughtUp!: (err: unknown) => void;
-  const caughtUp = new Promise<void>((resolve, reject) => {
-    markCaughtUp = resolve;
-    failCaughtUp = reject;
-  });
-  caughtUp.catch(() => {}); // callers that don't wait mustn't leak a rejection
-
-  const runner = buildRunner(env, org);
-  const entry: Following = { runner, caughtUp };
-  const done = runner
-    .then((r) => r.replay({ snapshot: true, onCaughtUp: markCaughtUp }))
-    .then(
-      () => failCaughtUp(new Error("stream stopped")),
-      (err: unknown) => {
-        console.warn("[orgStream] stream stopped", org, err);
-        failCaughtUp(err);
-      },
-    )
-    .finally(() => {
-      // Forget the runner, so the next request rebuilds it with a fresh
-      // session (the org may have been reconnected).
-      if (following.get(org) === entry) following.delete(org);
+  // follow makes sure org's stream is running, and waits (up to
+  // CATCH_UP_WAIT_MS) for the catch-up. Idempotent: callers share one run.
+  async follow(org: string): Promise<void> {
+    if (this.org && this.org !== org) {
+      throw new Error(`OrgStream for ${this.org} asked to follow ${org}`);
+    }
+    if (!this.org) {
+      this.org = org;
+      await this.ctx.storage.put(ORG_KEY, org);
+    }
+    this.touch();
+    if (!this.caughtUp) {
+      if (!(await isConnectedOrg(getDb(this.env), org))) return;
+      // Another call may have started it while D1 was read.
+      this.caughtUp ??= this.begin(org);
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        console.warn("[orgStream] catch-up still running", org);
+        resolve();
+      }, CATCH_UP_WAIT_MS);
     });
-  // Keeps the stream going for as long as the runtime allows past the
-  // request that started it.
-  waitUntil(done);
-  return entry;
-}
-
-async function buildRunner(env: Env, org: string): Promise<Runner> {
-  const [{ AppSink }, fetch] = await Promise.all([
-    import("./appSink"),
-    sessionFetch(env, org),
-  ]);
-  const db = getDb(env);
-  const jetstream = new Jetstream({
-    service: env.APP_HABITAT_URL,
-    mode: "spaces",
-    fetch,
-  });
-  return jetstream.runner(appEventSink(AppSink.for(env)), {
-    collections: INDEXED_COLLECTIONS,
-    // A replay is a burst of events: write them a group at a time.
-    batch: { size: 50, window: "20 millis" },
-    // The cursor lives in D1, shared by every isolate; it only moves forward.
-    cursor: {
-      get: () => orgStreamCursor(db, org),
-      set: (cursor) => setOrgStreamCursor(db, org, cursor),
-    },
-  });
-}
-
-// followOrg makes sure this isolate is following org's spaces, and waits (up
-// to CATCH_UP_WAIT_MS) for the first catch-up. Call it on a request made
-// against org. It does nothing for an org that isn't connected.
-export async function followOrg(env: Env, org: string): Promise<void> {
-  let entry = following.get(org);
-  if (!entry) {
-    if (!(await isConnectedOrg(getDb(env), org))) return;
-    // Another request may have started it while D1 was read.
-    entry = following.get(org) ?? start(env, org);
-    following.set(org, entry);
+    try {
+      await Promise.race([this.caughtUp, timedOut]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timedOut = new Promise<void>((resolve) => {
-    timer = setTimeout(() => {
-      console.warn("[orgStream] catch-up still running", org);
-      resolve();
-    }, CATCH_UP_WAIT_MS);
-  });
-  try {
-    await Promise.race([entry.caughtUp, timedOut]);
-  } finally {
-    clearTimeout(timer);
+
+  // cursor is the seq the stream resumes from, for diagnostics and tests.
+  async cursor(): Promise<number | undefined> {
+    return this.ctx.storage.get<number>(CURSOR_KEY);
   }
-}
 
-// stopFollowing stops every stream this isolate is running (for tests).
-export async function stopFollowing(): Promise<void> {
-  const all = [...following.values()];
-  following.clear();
-  await Promise.all(all.map((f) => f.runner.then((r) => r.stop())));
-}
+  // running reports whether a stream is open, for tests.
+  isRunning(): boolean {
+    return this.caughtUp !== undefined;
+  }
 
-async function write<A>(
-  env: Env,
-  org: string,
-  effect: (runner: Runner) => Effect.Effect<A, unknown>,
-): Promise<Exit.Exit<A, unknown>> {
-  await followOrg(env, org);
-  const entry = following.get(org);
-  if (!entry) throw new Error(`${org} has no stream: is it connected?`);
-  return Effect.runPromiseExit(effect(await entry.runner));
+  private touch(): void {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      void this.stopStream();
+    }, IDLE_MS);
+  }
+
+  // stopStream closes the stream now, as the idle timer does. The next
+  // follow() catches up again.
+  async stopStream(): Promise<void> {
+    const runner = this.runner;
+    this.runner = undefined;
+    this.caughtUp = undefined;
+    clearTimeout(this.idleTimer);
+    if (runner) await (await runner).stop();
+  }
+
+  private begin(org: string): Promise<void> {
+    let markCaughtUp!: () => void;
+    let failCaughtUp!: (err: unknown) => void;
+    const caughtUp = new Promise<void>((resolve, reject) => {
+      markCaughtUp = resolve;
+      failCaughtUp = reject;
+    });
+    caughtUp.catch(() => {}); // callers that don't wait mustn't leak a rejection
+    const runner = this.buildRunner(org);
+    this.runner = runner;
+    runner
+      .then((r) => r.replay({ snapshot: true, onCaughtUp: markCaughtUp }))
+      .then(
+        () => failCaughtUp(new Error("stream stopped")),
+        (err: unknown) => {
+          console.warn("[orgStream] stream stopped", org, err);
+          failCaughtUp(err);
+        },
+      )
+      .finally(() => {
+        // Forget it (unless a newer run replaced it), so the next call
+        // rebuilds the runner with a fresh session: the org may have been
+        // reconnected.
+        if (this.runner === runner) {
+          this.runner = undefined;
+          this.caughtUp = undefined;
+        }
+      });
+    return caughtUp;
+  }
+
+  private async buildRunner(org: string): Promise<Runner> {
+    const [{ AppSink }, fetch] = await Promise.all([
+      import("./appSink"),
+      sessionFetch(this.env, org),
+    ]);
+    const storage = this.ctx.storage;
+    const jetstream = new Jetstream({
+      service: this.env.APP_HABITAT_URL,
+      mode: "spaces",
+      fetch,
+    });
+    return jetstream.runner(appEventSink(AppSink.for(this.env)), {
+      collections: INDEXED_COLLECTIONS,
+      // A replay is a burst of events: write them a group at a time.
+      batch: { size: 50, window: "20 millis" },
+      cursor: {
+        get: () => storage.get<number>(CURSOR_KEY),
+        set: (cursor) => storage.put(CURSOR_KEY, cursor),
+      },
+    });
+  }
+
+  private async write<A>(
+    effect: (runner: Runner) => Effect.Effect<A, unknown>,
+  ): Promise<Exit.Exit<A, unknown>> {
+    this.org ??= await this.ctx.storage.get<string>(ORG_KEY);
+    if (!this.org) throw new Error("OrgStream has no group yet");
+    await this.follow(this.org);
+    const runner = await this.runner;
+    if (!runner) throw new Error(`${this.org} has no stream: is it connected?`);
+    return Effect.runPromiseExit(effect(runner));
+  }
+
+  // putRecord writes input as writer, and returns once it's indexed.
+  async putRecord(
+    writer: string,
+    input: PutRecordInput,
+  ): Promise<WriteOutcome> {
+    try {
+      const fetch = await sessionFetch(this.env, writer);
+      const exit = await this.write((r) => r.putRecord(input, { fetch }));
+      if (Exit.isSuccess(exit)) return { ok: true, ...exit.value };
+      return failureOf(squashed(exit));
+    } catch (err) {
+      return failureOf(err);
+    }
+  }
+
+  // deleteRecord deletes target as writer, and returns once it's indexed.
+  async deleteRecord(
+    writer: string,
+    target: RecordTarget,
+  ): Promise<WriteOutcome> {
+    try {
+      const fetch = await sessionFetch(this.env, writer);
+      const exit = await this.write((r) => r.deleteRecord(target, { fetch }));
+      if (Exit.isSuccess(exit)) return { ok: true, uri: "", cid: "" };
+      return failureOf(squashed(exit));
+    } catch (err) {
+      return failureOf(err);
+    }
+  }
+
+  // awaitRecord waits for a write made some other way (a pear procedure
+  // that writes records itself) to be indexed: uri with cid, or deleted
+  // when cid is null.
+  async awaitRecord(uri: string, cid: string | null): Promise<WriteOutcome> {
+    try {
+      const exit = await this.write((r) =>
+        r.awaitIndexed(uri, cid ?? undefined),
+      );
+      if (Exit.isSuccess(exit)) return { ok: true, uri, cid: cid ?? "" };
+      return failureOf(squashed(exit));
+    } catch (err) {
+      return failureOf(err);
+    }
+  }
 }
 
 function squashed(exit: Exit.Exit<unknown, unknown>): unknown {
   return Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined;
-}
-
-// putRecord writes input as writer, and returns once it's indexed.
-export async function putRecord(
-  env: Env,
-  org: string,
-  writer: string,
-  input: PutRecordInput,
-): Promise<WriteOutcome> {
-  try {
-    const fetch = await sessionFetch(env, writer);
-    const exit = await write(env, org, (r) => r.putRecord(input, { fetch }));
-    if (Exit.isSuccess(exit)) return { ok: true, ...exit.value };
-    return failureOf(squashed(exit));
-  } catch (err) {
-    return failureOf(err);
-  }
-}
-
-// deleteRecord deletes target as writer, and returns once it's indexed.
-export async function deleteRecord(
-  env: Env,
-  org: string,
-  writer: string,
-  target: RecordTarget,
-): Promise<WriteOutcome> {
-  try {
-    const fetch = await sessionFetch(env, writer);
-    const exit = await write(env, org, (r) =>
-      r.deleteRecord(target, { fetch }),
-    );
-    if (Exit.isSuccess(exit)) return { ok: true, uri: "", cid: "" };
-    return failureOf(squashed(exit));
-  } catch (err) {
-    return failureOf(err);
-  }
-}
-
-// awaitRecord waits for a write made some other way (a pear procedure that
-// writes records itself) to be indexed: uri with cid, or deleted when cid is
-// null.
-export async function awaitRecord(
-  env: Env,
-  org: string,
-  uri: string,
-  cid: string | null,
-): Promise<WriteOutcome> {
-  try {
-    const exit = await write(env, org, (r) =>
-      r.awaitIndexed(uri, cid ?? undefined),
-    );
-    if (Exit.isSuccess(exit)) return { ok: true, uri, cid: cid ?? "" };
-    return failureOf(squashed(exit));
-  } catch (err) {
-    return failureOf(err);
-  }
 }

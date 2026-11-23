@@ -5,16 +5,18 @@
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   // One DocRoom per document: it owns the doc's Yjs state and its editors'
-  // WebSockets (see src/server/docs/rooms/docRoom.ts). A group's event
-  // stream isn't a Durable Object: it runs in the isolate serving requests
-  // for the group (see src/server/stream/orgStream.ts).
+  // WebSockets (see src/server/docs/rooms/docRoom.ts). One OrgStream per
+  // connected group: it follows the group's spaces over pear's subscribe
+  // stream and indexes them into D1 (see src/server/stream/orgStream.ts).
   "durable_objects": {
-    "bindings": [{ "name": "DOC", "class_name": "DocRoom" }],
+    "bindings": [
+      { "name": "DOC", "class_name": "DocRoom" },
+      { "name": "ORG_STREAM", "class_name": "OrgStream" },
+    ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["DocRoom"] },
     { "tag": "v2", "new_sqlite_classes": ["OrgStream"] },
-    { "tag": "v3", "deleted_classes": ["OrgStream"] },
   ],
   "d1_databases": [
     {

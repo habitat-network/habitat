@@ -1,20 +1,21 @@
-import { env } from "cloudflare:test";
+import { env, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fileByUri, getDb, orgStreamCursor, upsertConnectedOrg } from "@/db";
 import { connectedOrgs, files } from "@/db/schema";
 import { putFileRecord, deleteFileRecord } from "@/server/files/files.server";
-import { followOrg, stopFollowing } from "@/server/stream/orgStream";
+import { followOrg } from "@/server/stream";
+import type { OrgStream } from "@/server/stream/orgStream";
 import { TEST_DID_HEADER } from "./fakeOAuth";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
 // The group's stream end to end inside workerd: a request against the org
-// (followOrg) catches D1 up over getSnapshot, then opens pear's subscribe
+// (followOrg, on the org's Durable Object) catches D1 up over getSnapshot, then opens pear's subscribe
 // stream through the group's session (a WebSocket upgrade through fetch, as
 // in production) and indexes what it carries into D1. A write made through
-// it returns only once its event has been indexed. There is no Durable
-// Object and no alarm: concurrent requests share one catch-up and one
-// socket, and nothing runs until a request asks.
+// it returns only once its event has been indexed. The org's Durable Object
+// has no alarm: concurrent requests share one catch-up and one socket, and
+// nothing runs until a request asks.
 
 const ORG = "did:web:org.example";
 const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile`;
@@ -141,7 +142,9 @@ beforeEach(async () => {
   );
 });
 
-afterEach(stopFollowing);
+const stub = () => env.ORG_STREAM.get(env.ORG_STREAM.idFromName(ORG));
+
+afterEach(() => stub().stopStream());
 
 async function until(cond: () => Promise<boolean>) {
   for (let i = 0; i < 200; i++) {
@@ -186,8 +189,12 @@ it("catches up on a request, follows live, and writes return once indexed", asyn
   await deleteFileRecord(env, ORG, SPACE);
   expect(await fileByUri(db, URI)).toBeUndefined();
 
-  // The cursor is kept in D1, past the delete's seq.
-  expect(await orgStreamCursor(db, ORG)).toBe(4);
+  // The cursor is kept past the delete's seq, and nothing is scheduled to
+  // wake the object.
+  await runInDurableObject(stub(), async (_: OrgStream, state) => {
+    expect(await state.storage.get("cursor")).toBe(4);
+    expect(await state.storage.getAlarm()).toBeNull();
+  });
   // Nothing re-opened the stream along the way.
   expect(snapshotUrls).toHaveLength(1);
   expect(subscribeUrls).toHaveLength(1);
@@ -196,6 +203,7 @@ it("catches up on a request, follows live, and writes return once indexed", asyn
 }, 30_000);
 
 it("shares one catch-up and one socket between concurrent requests", async () => {
+  // Through separate stubs, as separate requests (isolates) would.
   await Promise.all(Array.from({ length: 5 }, () => followOrg(env, ORG)));
   await followOrg(env, ORG);
   await until(async () => socket !== undefined);
@@ -206,9 +214,10 @@ it("shares one catch-up and one socket between concurrent requests", async () =>
 it("starts again from the saved cursor once the stream has stopped", async () => {
   await followOrg(env, ORG);
   await until(async () => socket !== undefined);
-  expect(await orgStreamCursor(getDb(env), ORG)).toBe(2);
+  expect(await stub().cursor()).toBe(2);
   // What an evicted isolate looks like to the next request.
-  await stopFollowing();
+  await stub().stopStream();
+  expect(await stub().isRunning()).toBe(false);
   await until(async () => {
     await followOrg(env, ORG);
     return subscribeUrls.length === 2;
@@ -219,6 +228,10 @@ it("starts again from the saved cursor once the stream has stopped", async () =>
 
 it("does nothing for an org that isn't connected", async () => {
   await followOrg(env, "did:web:other.example");
+  const other = env.ORG_STREAM.get(
+    env.ORG_STREAM.idFromName("did:web:other.example"),
+  );
+  expect(await other.isRunning()).toBe(false);
   expect(snapshotUrls).toHaveLength(0);
   expect(subscribeUrls).toHaveLength(0);
 });

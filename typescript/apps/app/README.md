@@ -49,13 +49,14 @@ The app is a public atproto OAuth client of a Habitat instance (pear).
 - **Sync**: docs, comments, files and rosters are indexed into D1 from each
   connected group's `network.habitat.space.subscribe` stream, opened with
   the group's own session (`src/server/stream/`, using
-  `@habitat-network/jetstream`), with one cursor per group, kept in D1
-  (`connected_orgs.stream_cursor`). There is no Durable Object or cron behind
-  it: a request made against a group (`requireOrg`) catches D1 up over
-  `getSnapshot` from the saved cursor, then keeps the live WebSocket open for
-  as long as the isolate stays awake. Each isolate runs at most one stream
-  per group, however many requests arrive at once; an idle isolate is
-  evicted, the socket closes, and the next request catches up again.
+  `@habitat-network/jetstream`), with one cursor per group. Each group has
+  one `OrgStream` Durable Object, so there is exactly one connection per
+  group however many isolates serve requests. It has no alarm or cron: a
+  request made against a group (`requireOrg`) calls `follow()`, which
+  catches D1 up over `getSnapshot` from the saved cursor, then keeps the
+  live WebSocket open. Concurrent calls share one catch-up. After five
+  minutes without a request the object closes the stream, and the next
+  request catches up again.
   Writes that must show at once (uploads, file deletes, removing a member)
   go through it and return once their event is indexed.
   Blobs (a doc's crdt state, uploaded files, an app's code) are read with
