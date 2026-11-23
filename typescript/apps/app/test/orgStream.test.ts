@@ -1,4 +1,8 @@
-import { env, runInDurableObject } from "cloudflare:test";
+import {
+  env,
+  runDurableObjectAlarm,
+  runInDurableObject,
+} from "cloudflare:test";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fileByUri, getDb, upsertConnectedOrg } from "@/db";
 import { connectedOrgs, files } from "@/db/schema";
@@ -79,6 +83,7 @@ function fileDelete(seq: number) {
 let socket: WebSocket | undefined;
 let subscribeUrls: URL[] = [];
 let snapshotUrls: URL[] = [];
+let snapshotStatus = 200;
 let recordExists = false;
 const writes: { nsid: string; did: string | null; body: unknown }[] = [];
 
@@ -86,6 +91,7 @@ beforeEach(async () => {
   socket = undefined;
   subscribeUrls = [];
   snapshotUrls = [];
+  snapshotStatus = 200;
   recordExists = false;
   writes.length = 0;
   await getDb(env).delete(files);
@@ -104,6 +110,9 @@ beforeEach(async () => {
       if (nsid === "network.habitat.space.getSnapshot") {
         expect(req.headers.get(TEST_DID_HEADER)).toBe(ORG);
         snapshotUrls.push(url);
+        if (snapshotStatus !== 200) {
+          return Response.json({ error: "Down" }, { status: snapshotStatus });
+        }
         // As pear does: afterSeq must be a non-negative integer.
         if (!(Number(url.searchParams.get("afterSeq")) >= 0)) {
           return Response.json({ error: "InvalidRequest" }, { status: 400 });
@@ -160,7 +169,7 @@ async function until(cond: () => Promise<boolean>) {
 
 it("catches up on a request, follows live, and writes return once indexed", async () => {
   const db = getDb(env);
-  await followOrg(env, ORG);
+  expect(await followOrg(env, ORG)).toBe("live");
 
   // Caught up over getSnapshot from the start (afterSeq is exclusive and
   // pear refuses a negative one, so a fresh stream asks after 0),
@@ -231,8 +240,28 @@ it("starts again from the saved cursor once the stream has stopped", async () =>
   expect(snapshotUrls[1].searchParams.get("afterSeq")).toBe("1");
 }, 30_000);
 
+it("says when D1 may be behind: the catch-up failed", async () => {
+  snapshotStatus = 400;
+  expect(await followOrg(env, ORG)).toBe("behind");
+  expect(socket).toBeUndefined();
+  // The failed run is dropped, so the next request tries again.
+  snapshotStatus = 200;
+  expect(await followOrg(env, ORG)).toBe("live");
+}, 30_000);
+
+it("clears a keepalive alarm left by the previous version", async () => {
+  await runInDurableObject(stub(), (_: OrgStream, state) =>
+    state.storage.setAlarm(Date.now() + 30_000),
+  );
+  expect(await runDurableObjectAlarm(stub())).toBe(true);
+  await runInDurableObject(stub(), async (_: OrgStream, state) => {
+    expect(await state.storage.getAlarm()).toBeNull();
+  });
+  expect(snapshotUrls).toHaveLength(0);
+});
+
 it("does nothing for an org that isn't connected", async () => {
-  await followOrg(env, "did:web:other.example");
+  expect(await followOrg(env, "did:web:other.example")).toBe("unconnected");
   const other = env.ORG_STREAM.get(
     env.ORG_STREAM.idFromName("did:web:other.example"),
   );

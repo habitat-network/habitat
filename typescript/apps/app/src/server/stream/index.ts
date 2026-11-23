@@ -1,5 +1,7 @@
 import type { PutRecordInput, RecordTarget } from "@habitat-network/jetstream";
-import type { WriteOutcome } from "./orgStream";
+import type { FollowState, WriteOutcome } from "./orgStream";
+
+export type { FollowState };
 
 // The request side of the org streams (see orgStream.ts). Each org's stream
 // lives in its own OrgStream Durable Object; these helpers reach it.
@@ -11,8 +13,8 @@ function stub(env: Env, org: string) {
 // followOrg is called on a request made against org: it makes sure the
 // org's stream is running (catching D1 up first if it wasn't). Calls share
 // the org's single Durable Object, so there is one connection per org.
-export async function followOrg(env: Env, org: string): Promise<void> {
-  await stub(env, org).follow(org);
+export async function followOrg(env: Env, org: string): Promise<FollowState> {
+  return stub(env, org).follow(org);
 }
 
 /** The write was refused: nothing was written. */

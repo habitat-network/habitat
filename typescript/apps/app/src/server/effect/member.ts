@@ -122,27 +122,38 @@ export const myOrgs = Effect.fn("myOrgs")(function* () {
 });
 
 // requireOrg checks the signed-in member belongs to org, the gate every
-// group-scoped server function starts with. The synced memberships table
-// answers it; a group missing from it (joined since the last sync) is
-// checked with pear once, which also starts syncing its roster.
+// group-scoped server function starts with.
 //
 // It's also the request made "against" org that starts the org's event
-// stream in this isolate if it isn't running (see ../stream/orgStream.ts).
+// stream if it isn't running (see ../stream/orgStream.ts), and the stream
+// runs first: the synced memberships table only answers once it's caught
+// up, so a member removed while the stream was idle is refused. When D1
+// may be behind (the catch-up failed or is slow), or the member isn't in it
+// (joined since the last sync), pear is asked instead.
 export const requireOrg = Effect.fn("requireOrg")(function* (org: string) {
   const did = yield* currentMember;
   const db = yield* Database;
   const env = yield* AppEnv;
-  if (!(yield* Effect.promise(() => isMemberOf(db, org, did)))) {
+  // Imported lazily: the stream pulls in the sinks, which reach back into
+  // the modules that import this one.
+  const state = yield* Effect.tryPromise(async () => {
+    const { followOrg } = await import("@/server/stream");
+    return followOrg(env, org);
+  }).pipe(
+    Effect.catch((e) =>
+      Effect.logWarning("following group failed", e).pipe(
+        Effect.as("behind" as const),
+      ),
+    ),
+  );
+  const synced =
+    state !== "behind" &&
+    (yield* Effect.promise(() => isMemberOf(db, org, did)));
+  if (!synced) {
     const orgs = yield* refreshMemberships();
     if (!orgs.includes(org as DidString)) {
       return yield* new NotAMember({ org });
     }
   }
-  // Catch D1 up and keep the live socket open. Imported lazily: the stream
-  // pulls in the sinks, which reach back into the modules that import this.
-  yield* Effect.tryPromise(async () => {
-    const { followOrg } = await import("@/server/stream");
-    await followOrg(env, org);
-  }).pipe(Effect.catch((e) => Effect.logWarning("following group failed", e)));
   return { did, org: org as DidString };
 });

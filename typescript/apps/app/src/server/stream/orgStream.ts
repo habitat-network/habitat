@@ -37,6 +37,12 @@ const IDLE_MS = 5 * 60_000;
 // whatever D1 already has. The catch-up itself isn't cut short.
 const CATCH_UP_WAIT_MS = 10_000;
 
+// What follow() found: "live" once D1 is caught up to the stream's tip,
+// "behind" if the catch-up failed or is still running after
+// CATCH_UP_WAIT_MS (D1 may be stale), "unconnected" for an org this
+// deployment holds no session for (there is no stream to follow).
+export type FollowState = "live" | "behind" | "unconnected";
+
 // What a write returns: failures come back as data, so callers don't have to
 // know the SDK's tagged errors.
 export type WriteOutcome =
@@ -99,7 +105,7 @@ export class OrgStream extends DurableObject<Env> {
 
   // follow makes sure org's stream is running, and waits (up to
   // CATCH_UP_WAIT_MS) for the catch-up. Idempotent: callers share one run.
-  async follow(org: string): Promise<void> {
+  async follow(org: string): Promise<FollowState> {
     if (this.org && this.org !== org) {
       throw new Error(`OrgStream for ${this.org} asked to follow ${org}`);
     }
@@ -109,23 +115,33 @@ export class OrgStream extends DurableObject<Env> {
     }
     this.touch();
     if (!this.caughtUp) {
-      if (!(await isConnectedOrg(getDb(this.env), org))) return;
+      if (!(await isConnectedOrg(getDb(this.env), org))) return "unconnected";
       // Another call may have started it while D1 was read.
       this.caughtUp ??= this.begin(org);
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const timedOut = new Promise<void>((resolve) => {
+    const timedOut = new Promise<FollowState>((resolve) => {
       timer = setTimeout(() => {
         console.warn("[orgStream] catch-up still running", org);
-        resolve();
+        resolve("behind");
       }, CATCH_UP_WAIT_MS);
     });
     try {
-      await Promise.race([this.caughtUp, timedOut]);
+      return await Promise.race([
+        this.caughtUp.then(
+          (): FollowState => "live",
+          (): FollowState => "behind",
+        ),
+        timedOut,
+      ]);
     } finally {
       clearTimeout(timer);
     }
   }
+
+  // alarm only clears the keepalive alarm an older version of this object
+  // scheduled: it is never set again, so this runs at most once per object.
+  async alarm(): Promise<void> {}
 
   // cursor is the seq the stream resumes from, for diagnostics and tests.
   async cursor(): Promise<number | undefined> {
@@ -212,7 +228,9 @@ export class OrgStream extends DurableObject<Env> {
   ): Promise<Exit.Exit<A, unknown>> {
     this.org ??= await this.ctx.storage.get<string>(ORG_KEY);
     if (!this.org) throw new Error("OrgStream has no group yet");
-    await this.follow(this.org);
+    if ((await this.follow(this.org)) === "unconnected") {
+      throw new Error(`${this.org} has no stream: is it connected?`);
+    }
     const runner = await this.runner;
     if (!runner) throw new Error(`${this.org} has no stream: is it connected?`);
     return Effect.runPromiseExit(effect(runner));
