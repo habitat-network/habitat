@@ -1015,7 +1015,7 @@ importers:
     devDependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.13
+        version: 0.4.14
       msw:
         specifier: ^2.15.0
         version: 2.15.0(@types/node@22.20.5)(typescript@7.0.2)
@@ -1030,7 +1030,7 @@ importers:
     dependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.13
+        version: 0.4.14
       '@atproto/api':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261029171913
@@ -1323,32 +1323,32 @@ packages:
     resolution: {integrity: sha512-Nf4r3hH33f7nXU62tjf42lOFC2tlIwsfQVaOr+NFVWGGKSQEqEe23PFO0C7mXzFDWzq50q645ZEhtBrzM2QMEw==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/did-resolver@0.3.13':
-    resolution: {integrity: sha512-peNomkIMFcvsrq+1CHXiWv/sAakcYFenIWCB+EI94TPdDezNgRs39R6c8XaU3+UxSbzkfky7R3ywSOiKVVIY1g==}
+  '@atproto-labs/did-resolver@0.3.14':
+    resolution: {integrity: sha512-Yp9/87LEPguiVtx9SJYO8uZTJmTCT+FBJya8laxezAT+4ChRCRAxgWF9Es28UAigwoJ/SO08kHa2Ynj5D0BLww==}
     engines: {node: '>=22'}
 
   '@atproto-labs/fetch@0.3.6':
     resolution: {integrity: sha512-ro/J/cnqIp4bnSzDl8N3SkruvQcE3Pze+1H70mKdFfyFcdhPr+7O4lggl4VCbhI84Yqgz47c0xC6F/Yl39SxDA==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/fetch@0.4.2':
-    resolution: {integrity: sha512-9mgISMM2eY/w373HUNrtWq4onPzES1K6DaeAv9BDcEgovcKTkcI60H9Jjp38thU2i/dQaGpKrxmxR9qc0FZocg==}
+  '@atproto-labs/fetch@0.4.3':
+    resolution: {integrity: sha512-Da747rqMhHOSbwEBUfpyCpg3kKwhPZNGLNTFBVc/JQ+KTsDmUy64quRwFqXEy+pd8xoaQ0fodaLDHGbD/LNK7Q==}
     engines: {node: '>=22'}
 
   '@atproto-labs/handle-resolver@0.0.0-spaces-alpha-20261029171913':
     resolution: {integrity: sha512-+bJNe443JnCJZpcdnFRjHJSC3TBz6N/WfXW9tpYZpVDV2ZkSgYLw8mp66HAQkLnuCQgd/wuiQ6F6mW8wVwh/aw==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/handle-resolver@0.4.10':
-    resolution: {integrity: sha512-hsYYvGhi6Tv6f4Fti//i/vllVIb/wrJaOcbT3Yh7oo10VxBKAyxzVaB7mIJcho2YJ5kHd2kbCYYPWLw8pvm/bg==}
+  '@atproto-labs/handle-resolver@0.4.11':
+    resolution: {integrity: sha512-K9ogJhLHAewBPAe0pkNTBDKSP+CieilXjvL/iD3+MAIGEp29yVinXMSfiybAoPVT6rBqfukslv3N2apFz0NIGw==}
     engines: {node: '>=22'}
 
   '@atproto-labs/identity-resolver@0.0.0-spaces-alpha-20261029171913':
     resolution: {integrity: sha512-WsN0dP8Rs4a7lThqpdjf5tE16Mw3rC8Q0h2M1DIY79URVHFc63Ip7LxCpTPjLjNy5b/mY+SUbkKfFVgioQA/1g==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/identity-resolver@0.4.13':
-    resolution: {integrity: sha512-zh7DfDemd5xOeVcuPKkrvObP9SUNrFt/gzkbywc0Obsx5LQMcP5q+ADAInFPpEuYJ5I4AOc4A7G6s6fKbL52KQ==}
+  '@atproto-labs/identity-resolver@0.4.14':
+    resolution: {integrity: sha512-N/Ni291K6wCHTpVQ7+Mx4BcuCQpyfV4z4GEXcr3Px7CMZD5Vm8B4oD/m+gTBMR5Ni39tH4v8uIA0b/0t1FrzmA==}
     engines: {node: '>=22'}
 
   '@atproto-labs/pipe@0.2.4':
@@ -1363,8 +1363,16 @@ packages:
     resolution: {integrity: sha512-DD1v7MEfYF3BAcEpMTTpzfBLWLoI2HuyBhku2YpjHoqPrRrhCtE1alkxfPHjtjJVIjuU/XNU0cF/wB3+5FiKsA==}
     engines: {node: '>=22'}
 
+  '@atproto-labs/simple-store-memory@0.2.7':
+    resolution: {integrity: sha512-c3SLLf1ztfxdA8ZVtl1Kj47iSRIC/hzPqQHkDm+LOtN3b0znhugn9cIV/Ta6r9JgNBDUYNUAmRXAzRMy1w6JWA==}
+    engines: {node: '>=22'}
+
   '@atproto-labs/simple-store@0.5.1':
     resolution: {integrity: sha512-vfvoDhu6ds6BT3Pqe+d2/LBU1WpDRtt69y6zltlfMCoucPm82m1j50/Wb6xTvv+oZ+2j0JyZVXsmXQ12SWYQJg==}
+    engines: {node: '>=22'}
+
+  '@atproto-labs/simple-store@0.5.2':
+    resolution: {integrity: sha512-ecARZs4rBFY5OEr2XnsXBEx3IOgd9VGAdjiG0TUWgV6gIBIXbLm8QvMfn345yIZs99DY2q+Jbj0al/Bzuw3yBg==}
     engines: {node: '>=22'}
 
   '@atproto/api@0.0.0-spaces-alpha-20261029171913':
@@ -7792,9 +7800,6 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.1.3:
-    resolution: {integrity: sha512-QWNEu35groH/78Ejq01lZGt8U0sF1P4nrhbcAZz5WffcS27bUUK9C/db+xWWUwNYUvFD5SrSLE0mFGtwyP0PCQ==}
-
   effect@4.1.4:
     resolution: {integrity: sha512-Tgrv/9FN+TZYyOn8XSli+fVqAfwDrDAkiX5Uu9vztINb675VTQdhD0gWI5Kzvhlh9QqzjZvw72iugqw5pwoghQ==}
 
@@ -12699,12 +12704,12 @@ snapshots:
       '@atproto/did': 0.0.0-spaces-alpha-20261029171913
       zod: 3.25.76
 
-  '@atproto-labs/did-resolver@0.3.13':
+  '@atproto-labs/did-resolver@0.3.14':
     dependencies:
-      '@atproto-labs/fetch': 0.4.2
+      '@atproto-labs/fetch': 0.4.3
       '@atproto-labs/pipe': 0.2.5
-      '@atproto-labs/simple-store': 0.5.1
-      '@atproto-labs/simple-store-memory': 0.2.6
+      '@atproto-labs/simple-store': 0.5.2
+      '@atproto-labs/simple-store-memory': 0.2.7
       '@atproto/did': 0.5.6
       zod: 3.25.76
 
@@ -12712,7 +12717,7 @@ snapshots:
     dependencies:
       '@atproto-labs/pipe': 0.2.4
 
-  '@atproto-labs/fetch@0.4.2':
+  '@atproto-labs/fetch@0.4.3':
     dependencies:
       '@atproto-labs/pipe': 0.2.5
 
@@ -12723,10 +12728,10 @@ snapshots:
       '@atproto/did': 0.0.0-spaces-alpha-20261029171913
       zod: 3.25.76
 
-  '@atproto-labs/handle-resolver@0.4.10':
+  '@atproto-labs/handle-resolver@0.4.11':
     dependencies:
-      '@atproto-labs/simple-store': 0.5.1
-      '@atproto-labs/simple-store-memory': 0.2.6
+      '@atproto-labs/simple-store': 0.5.2
+      '@atproto-labs/simple-store-memory': 0.2.7
       '@atproto/did': 0.5.6
       zod: 3.25.76
 
@@ -12735,10 +12740,10 @@ snapshots:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20261029171913
       '@atproto-labs/handle-resolver': 0.0.0-spaces-alpha-20261029171913
 
-  '@atproto-labs/identity-resolver@0.4.13':
+  '@atproto-labs/identity-resolver@0.4.14':
     dependencies:
-      '@atproto-labs/did-resolver': 0.3.13
-      '@atproto-labs/handle-resolver': 0.4.10
+      '@atproto-labs/did-resolver': 0.3.14
+      '@atproto-labs/handle-resolver': 0.4.11
 
   '@atproto-labs/pipe@0.2.4': {}
 
@@ -12749,7 +12754,14 @@ snapshots:
       '@atproto-labs/simple-store': 0.5.1
       lru-cache: 10.4.3
 
+  '@atproto-labs/simple-store-memory@0.2.7':
+    dependencies:
+      '@atproto-labs/simple-store': 0.5.2
+      lru-cache: 10.4.3
+
   '@atproto-labs/simple-store@0.5.1': {}
+
+  '@atproto-labs/simple-store@0.5.2': {}
 
   '@atproto/api@0.0.0-spaces-alpha-20261029171913':
     dependencies:
@@ -19956,8 +19968,6 @@ snapshots:
   eastasianwidth@0.2.0: {}
 
   ee-first@1.1.1: {}
-
-  effect@4.1.3: {}
 
   effect@4.1.4: {}
 
