@@ -86,7 +86,7 @@ services:
   # :3000). OTLP/HTTP is ingested on :4318 (gRPC :4317). No host port is
   # published; Grafana is reachable via Caddy at grafana.local.habitat.network.
   lgtm:
-    image: grafana/otel-lgtm:0.41.0
+    image: grafana/otel-lgtm:0.41.1
     environment:
       # Grafana builds absolute URLs, so tell it the browser-facing address.
       GF_SERVER_ROOT_URL: https://grafana.local.habitat.network:${HABITAT_DEV_PORT:-443}
