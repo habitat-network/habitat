@@ -395,6 +395,56 @@ func TestServer_SpacePolicy(t *testing.T) {
 			}})
 		require.Equal(t, http.StatusBadRequest, code)
 	})
+
+	get := func(t *testing.T, h http.HandlerFunc, nsid, space string) (int, []byte) {
+		t.Helper()
+		req := httptest.NewRequest(
+			http.MethodGet, "/xrpc/"+nsid+"?space="+url.QueryEscape(space), nil,
+		)
+		w := httptest.NewRecorder()
+		h(w, req)
+		return w.Code, w.Body.Bytes()
+	}
+	missing := habitat_syntax.ConstructSpaceURI(owner, groupTp, "nonexistent").String()
+
+	t.Run("listMembers rejects a non-memberspace and a missing space", func(t *testing.T) {
+		code, uri := create(t, map[string]any{"$type": "com.atproto.personalspace.policy"})
+		require.Equal(t, http.StatusOK, code)
+		code, _ = get(t, ts.Server.ListMembers, "com.atproto.memberspace.listMembers", uri)
+		require.Equal(t, http.StatusBadRequest, code)
+		code, _ = get(t, ts.Server.ListMembers, "com.atproto.memberspace.listMembers", missing)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("getSpace fails for a missing space", func(t *testing.T) {
+		code, _ := get(t, ts.Server.GetSpace, "com.atproto.space.getSpace", missing)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("updateSpace rejects bad input", func(t *testing.T) {
+		const nsid = "com.atproto.space.updateSpace"
+		policy := map[string]any{"$type": "com.atproto.memberspace.policy"}
+		code, _ := call(t, ts.Server.UpdateSpace, nsid, map[string]any{"space": missing})
+		require.Equal(t, http.StatusBadRequest, code, "missing policy")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid,
+			map[string]any{"space": "not-a-uri", "policy": policy})
+		require.Equal(t, http.StatusBadRequest, code, "bad space uri")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid, "not an object")
+		require.Equal(t, http.StatusBadRequest, code, "bad body")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid, map[string]any{
+			"space": missing,
+			"policy": map[string]any{
+				"$type": "com.atproto.managedspace.policy", "managingApp": "did:web:x",
+			},
+		})
+		require.Equal(t, http.StatusBadRequest, code, "unsupported policy")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid,
+			map[string]any{"space": missing, "policy": map[string]any{"$type": "bogus"}})
+		require.Equal(t, http.StatusBadRequest, code, "invalid policy")
+		code, _ = call(t, ts.Server.UpdateSpace, nsid,
+			map[string]any{"space": missing, "policy": policy})
+		require.Equal(t, http.StatusBadRequest, code, "missing space")
+	})
 }
 
 // relationSpaceInput is a com.atproto.space.createSpace input using habitat's
