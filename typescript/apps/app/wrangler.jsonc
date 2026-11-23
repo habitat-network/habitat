@@ -22,8 +22,7 @@
     {
       "binding": "DB",
       "database_name": "app",
-      // Placeholder: run `wrangler d1 create app` and paste the real id.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "4e6dd98d-9e14-48f6-b92a-4f4f97022deb",
       "migrations_dir": "drizzle",
     },
   ],

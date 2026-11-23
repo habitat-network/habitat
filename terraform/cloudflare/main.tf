@@ -43,6 +43,7 @@ locals {
     brain = "57434a39-0d31-48db-8f4a-2522d07b45b6"
     drop  = "6b294689-d211-48c5-ba18-7c96d912fccc"
     chalk = "d8d8fd58-088a-47c7-8c24-7ec9e6483204"
+    app   = "4e6dd98d-9e14-48f6-b92a-4f4f97022deb"
   }
 }
 
@@ -89,4 +90,20 @@ resource "cloudflare_d1_database" "this" {
   lifecycle {
     ignore_changes = [file_size, num_tables, version]
   }
+}
+
+import {
+  to = cloudflare_d1_database.this["app"]
+  id = "${var.account_id}/4e6dd98d-9e14-48f6-b92a-4f4f97022deb"
+}
+
+// app.habitat.network is the "app" app's own hostname (wrangler.jsonc's
+// APP_BASE_URL). It doesn't exist in the account yet, so this creates it;
+// the other app custom domains are imported into the map above.
+resource "cloudflare_workers_custom_domain" "app" {
+  account_id  = var.account_id
+  zone_id     = local.zone_id
+  hostname    = "app.habitat.network"
+  service     = "app"
+  environment = "production"
 }
