@@ -61,19 +61,21 @@ describe("userMessage", () => {
       nsid: "network.habitat.mcp.addServer",
       status: 400,
       message: "network.habitat.mcp.addServer failed (400): {...}",
-      detail: "url must be an absolute http or https URL: \"nope\"",
+      detail: 'url must be an absolute http or https URL: "nope"',
     });
     expect(userMessage(rejected)).toBe(
-      "url must be an absolute http or https URL: \"nope\"",
+      'url must be an absolute http or https URL: "nope"',
     );
-    expect(userMessage(new HabitatError({
+    expect(
+      userMessage(
+        new HabitatError({
           nsid: rejected.nsid,
           status: 500,
           message: rejected.message,
           detail: "internal detail",
-        }))).toBe(
-      rejected.message,
-    );
+        }),
+      ),
+    ).toBe(rejected.message);
   });
 
   it("doesn't say whether a group the member isn't in exists", () => {
