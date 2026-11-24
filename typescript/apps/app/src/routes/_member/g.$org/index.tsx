@@ -1,5 +1,9 @@
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Button,
   Card,
@@ -14,7 +18,6 @@ import {
 } from "internal/components/ui";
 import {
   ArrowRight,
-  ChevronDown,
   ChevronRight,
   CircleCheck,
   CircleDashed,
@@ -37,7 +40,7 @@ export const Route = createFileRoute("/_member/g/$org/")({
 
 function HomePage() {
   const { org } = Route.useParams();
-  const navigate = useNavigate();
+
   const queryClient = useQueryClient();
   const { data: servers } = useSuspenseQuery(mcpServersQuery(org));
   const unconnected = servers.filter((s) => !s.connected);
@@ -68,24 +71,24 @@ function HomePage() {
       <PageBody className="flex max-w-3xl flex-col gap-6">
         <Card size="sm">
           <Collapsible open={open} onOpenChange={setUserOpen} className="px-2">
-            <CollapsibleTrigger render={<Button
-              variant="ghost"
-              className="justify-between w-full"
-              >
-              Connections
-              <span className="flex items-center gap-2">
-                {allConnected && servers.length > 1 && (
-                  <CircleCheck className="size-4 text-emerald-600" />
-                )}
-                <ChevronRight
-                  className={cn(
-                    "size-4 transition-transform",
-                    open ? "rotate-90" : "",
-                  )}
-                />
-              </span>
-            </Button>}>
-            </CollapsibleTrigger>
+            <CollapsibleTrigger
+              render={
+                <Button variant="ghost" className="justify-between w-full">
+                  Connections
+                  <span className="flex items-center gap-2">
+                    {allConnected && servers.length > 1 && (
+                      <CircleCheck className="size-4 text-emerald-600" />
+                    )}
+                    <ChevronRight
+                      className={cn(
+                        "size-4 transition-transform",
+                        open ? "rotate-90" : "",
+                      )}
+                    />
+                  </span>
+                </Button>
+              }
+            ></CollapsibleTrigger>
             <CollapsibleContent className="py-1">
               {unconnected.length > 0 ? (
                 <div className="flex gap-3 overflow-x-auto">
@@ -100,23 +103,25 @@ function HomePage() {
                 </div>
               ) : servers.length === 0 ? (
                 <div className="flex p-2 items-center flex-col gap-2">
-                  <span className="text-muted-foreground">No connections for this organization</span>
-                  <Button render={<Link to="/g/$org/mcp" params={{ org }} />} >
+                  <span className="text-muted-foreground">
+                    No connections for this organization
+                  </span>
+                  <Button render={<Link to="/g/$org/mcp" params={{ org }} />}>
                     Add MCP servers
                   </Button>
                 </div>
               ) : null}
-              { servers.length > 0 &&
+              {servers.length > 0 && (
                 <Button
-                variant="link"
-                render={<Link to="/g/$org/mcp" params={{ org }} />}
-                size="sm"
-                className="ml-auto"
+                  variant="link"
+                  render={<Link to="/g/$org/mcp" params={{ org }} />}
+                  size="sm"
+                  className="ml-auto"
                 >
-                MCP servers
-                <ArrowRight data-icon="inline-end" />
+                  MCP servers
+                  <ArrowRight data-icon="inline-end" />
                 </Button>
-              }
+              )}
             </CollapsibleContent>
           </Collapsible>
         </Card>

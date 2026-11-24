@@ -88,7 +88,6 @@ function JoinPage() {
             )}
           </CardContent>
         </Card>
-
       </PageBody>
     </>
   );

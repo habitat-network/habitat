@@ -352,11 +352,7 @@ function AddServer({
               }}
             >
               <span className="flex items-center gap-2 font-medium">
-                <img
-                  src={`/connectors/${c.icon}`}
-                  alt=""
-                  className="size-4"
-                />
+                <img src={`/connectors/${c.icon}`} alt="" className="size-4" />
                 {c.name}
               </span>
               <span className="text-sm text-muted-foreground">
