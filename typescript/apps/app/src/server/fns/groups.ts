@@ -162,22 +162,24 @@ export const createGroup = createServerFn({ method: "POST" })
         const habitat = yield* Habitat;
         const handle = data.handle.trim().toLowerCase();
         if (!handle) return yield* new BadRequest({ message: "Pick a handle" });
-        const { org } = yield* habitat.xrpc(
-          did,
-          network.habitat.opensocial.createOrg.main,
-          { body: { handle } },
-          yield* viaInstance,
-        ).pipe(
-          Effect.catchTag("HabitatError", (e) =>
-            e.error === "HandleTaken"
-              ? Effect.fail(
-                  new BadRequest({
-                    message: `The handle "${handle}" is already taken. Pick another one.`,
-                  }),
-                )
-              : Effect.fail(e),
-          ),
-        );
+        const { org } = yield* habitat
+          .xrpc(
+            did,
+            network.habitat.opensocial.createOrg.main,
+            { body: { handle } },
+            yield* viaInstance,
+          )
+          .pipe(
+            Effect.catchTag("HabitatError", (e) =>
+              e.error === "HandleTaken"
+                ? Effect.fail(
+                    new BadRequest({
+                      message: `The handle "${handle}" is already taken. Pick another one.`,
+                    }),
+                  )
+                : Effect.fail(e),
+            ),
+          );
         yield* accept(did, org);
         if (data.name.trim()) {
           yield* habitat.xrpc(
