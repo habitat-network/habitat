@@ -27,6 +27,7 @@ import {
   Cable,
   ChevronsUpDown,
   FolderOpen,
+  Home,
   LogIn,
   LogOut,
   Plus,
@@ -64,6 +65,7 @@ export function AppSidebar({
 
   const groupItems: NavItem[] = currentOrg
     ? [
+        { to: "/g/$org", label: "Home", icon: Home },
         { to: "/g/$org/files", label: "Files", icon: FolderOpen },
         { to: "/g/$org/search", label: "Search", icon: Search },
         // Apps is a dev-only section while it's being built.
@@ -124,6 +126,7 @@ export function AppSidebar({
 }
 
 type GroupPath =
+  | "/g/$org"
   | "/g/$org/files"
   | "/g/$org/search"
   | "/g/$org/apps"
@@ -158,9 +161,12 @@ function NavSection({
         <SidebarMenu>
           {items.map((item) => {
             const href = item.to.replace("/g/$org", base);
-            // Files stays active inside a doc.
+            // The org's index route is Home; every other page starts with
+            // its path, so Home is active only on the index itself.
             const active =
-              pathname.startsWith(href) ||
+              (item.to === "/g/$org"
+                ? pathname === base || pathname === `${base}/`
+                : pathname.startsWith(href)) ||
               (item.to === "/g/$org/files" &&
                 pathname.startsWith(`${base}/docs/`));
             return (
