@@ -9,6 +9,9 @@ import type { network } from "api";
 export interface McpConnector {
   // Stable identifier for the connector, used as a React key.
   id: string;
+  // Brand mark, an SVG file in public/connectors served at
+  // /connectors/<file>; shown in the add-server picker.
+  icon: string;
   // Display name in the picker and form.
   name: string;
   description: string;
@@ -29,6 +32,7 @@ export interface McpConnector {
 export const MCP_CONNECTORS: McpConnector[] = [
   {
     id: "google-drive",
+    icon: "google-drive.svg",
     preset: "google-drive",
     memberAuth: "oauth",
     name: "Google Drive",
@@ -39,6 +43,7 @@ export const MCP_CONNECTORS: McpConnector[] = [
   },
   {
     id: "google-cloud",
+    icon: "google-cloud.svg",
     preset: "google-cloud",
     memberAuth: "oauth",
     name: "Google Cloud",
@@ -49,6 +54,7 @@ export const MCP_CONNECTORS: McpConnector[] = [
   },
   {
     id: "google-calendar",
+    icon: "google-calendar.svg",
     preset: "google-calendar",
     memberAuth: "oauth",
     name: "Google Calendar",
@@ -59,6 +65,7 @@ export const MCP_CONNECTORS: McpConnector[] = [
   },
   {
     id: "gmail",
+    icon: "gmail.svg",
     preset: "gmail",
     memberAuth: "oauth",
     name: "Gmail",
@@ -68,6 +75,7 @@ export const MCP_CONNECTORS: McpConnector[] = [
   },
   {
     id: "slack",
+    icon: "slack.svg",
     preset: "slack",
     memberAuth: "oauth",
     name: "Slack",
@@ -77,6 +85,7 @@ export const MCP_CONNECTORS: McpConnector[] = [
   },
   {
     id: "github",
+    icon: "github.svg",
     preset: "github",
     memberAuth: "token",
     name: "GitHub",
