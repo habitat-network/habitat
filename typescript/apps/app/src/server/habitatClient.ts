@@ -1,35 +1,9 @@
 import type { OAuthSession } from "@atproto/oauth-client";
+import type { LexValue } from "@atproto/lex";
 
 // EmailDomainNotFoundError is thrown by startLogin when a work email can't be
 // resolved to an identity, i.e. its domain isn't mapped to any org.
 export class EmailDomainNotFoundError extends Error {}
-
-// UnauthorizedError is thrown by HabitatClient when pear no longer accepts
-// the DID's OAuth session: a call came back 401 (after the OAuth client's
-// own refresh-and-retry), or the session couldn't be restored at all
-// (revoked, or its refresh token expired). It carries the DID so the
-// sign-out middleware (src/start.ts) can tell the signed-in member's own
-// session apart from an org's, which failing doesn't end the member's login.
-export class UnauthorizedError extends Error {
-  constructor(
-    readonly did: string,
-    message: string,
-    options?: ErrorOptions,
-  ) {
-    super(message, options);
-  }
-}
-
-// findUnauthorizedError returns the UnauthorizedError in err's cause chain,
-// if any.
-export function findUnauthorizedError(
-  err: unknown,
-): UnauthorizedError | undefined {
-  for (let e = err; e instanceof Error; e = e.cause) {
-    if (e instanceof UnauthorizedError) return e;
-  }
-  return undefined;
-}
 
 // OAuthAppState rides through the OAuth round-trip in the `state` param and
 // tells /oauth/callback which flow just finished: a member signing in, or a
@@ -98,143 +72,58 @@ export function instanceProxy(
   return `did:web:${instance.host}#habitat`;
 }
 
-// HabitatClient makes authenticated calls to the Habitat instance as a
-// specific DID — a member, or an org a member has connected — using the
-// OAuth session chalk holds for it (src/server/oauth.ts). Calls go to the
-// session's own PDS, which proxies space and relationship calls on to the
-// space's host the usual atproto way (Atproto-Proxy).
-export class HabitatClient {
-  private session: Promise<OAuthSession> | undefined;
-
-  constructor(
-    private env: Env,
-    private did: string,
-  ) {}
-
-  // asDid returns a client for the same environment authenticated as
-  // another DID's session. Used where a call has to be made as somebody
-  // other than the signed-in member — creating a doc's comments space and
-  // its inheritance, which only the doc owner is a manager of (see
-  // ensureCommentsSpace).
-  asDid(did: string): HabitatClient {
-    return new HabitatClient(this.env, did);
-  }
-
-  // agent restores the DID's OAuth session once per client, lazily: most
-  // clients are built per request, and some never make a call at all.
-  //
-  // ./oauth is imported dynamically because DocRoom imports this module, and
-  // so does the Worker entry the tests load before any test file runs: a
-  // static import would be evaluated then, out of reach of the vi.mock()
-  // the tests swap in a fake OAuth client with (test/fakeOAuth.ts).
-  private agent(): Promise<OAuthSession> {
-    this.session ??= import("./oauth")
-      .then(({ createOAuthClient }) =>
-        createOAuthClient(this.env).restore(this.did),
-      )
-      .catch((err: unknown) => {
-        throw new UnauthorizedError(
-          this.did,
-          `restoring the OAuth session for ${this.did} failed`,
-          { cause: err },
-        );
-      });
-    return this.session;
-  }
-
-  async call<T>(
+// HabitatClient is the Promise view of the Habitat service
+// (src/server/effect/services.ts) for one DID, for code that isn't written as
+// Effects: the doc rooms, the sync sink, the docs and comments helpers. It
+// is the same implementation the Effect callers use, so a call fails the
+// same way: it rejects with SessionExpired when pear no longer accepts the
+// DID's session, and with HabitatError (carrying the HTTP status and XRPC
+// error name) for anything else.
+export interface HabitatClient {
+  // call makes an untyped call by NSID; GET payloads become query
+  // parameters. `proxy` is the DID whose `#habitat` service should handle it
+  // (Atproto-Proxy).
+  call<T>(
     nsid: string,
     method: "GET" | "POST",
     payload: Record<string, unknown>,
-    opts?: { atprotoProxy?: string },
-  ): Promise<T> {
-    let path = `/xrpc/${nsid}`;
-    let body: string | undefined;
-    const headers: Record<string, string> = {};
-    const session = await this.agent();
-    const proxy = opts?.atprotoProxy ?? instanceProxy(session, this.env, nsid);
-    if (proxy) headers["atproto-proxy"] = proxy;
-    if (method === "GET") {
-      const qs = new URLSearchParams();
-      for (const [k, v] of Object.entries(payload)) {
-        if (v !== undefined && v !== null) qs.set(k, String(v));
-      }
-      path = `${path}?${qs.toString()}`;
-    } else {
-      body = JSON.stringify(payload);
-      headers["content-type"] = "application/json";
-    }
-    const res = await session.fetchHandler(path, { method, body, headers });
-    if (res.status === 401) {
-      throw new UnauthorizedError(
-        this.did,
-        `${nsid} failed (401): ${await res.text()}`,
-      );
-    }
-    if (!res.ok) {
-      throw new Error(`${nsid} failed (${res.status}): ${await res.text()}`);
-    }
-    // A procedure with no output schema (e.g.
-    // network.habitat.relationship.deleteRelation) returns an empty 200
-    // body. res.json() throws "Unexpected end of JSON input" on that —
-    // read as text first and only parse when there's actually something to
-    // parse, so a call whose return value the caller ignores doesn't throw
-    // regardless.
-    const text = await res.text();
-    return (text ? JSON.parse(text) : undefined) as T;
-  }
-
-  // uploadBlob uploads raw bytes to the DID's own repo via
-  // network.habitat.repo.uploadBlob, returning the blob reference to embed
-  // in a subsequent putRecord call.
-  async uploadBlob(
+    opts?: { proxy?: string },
+  ): Promise<T>;
+  // uploadBlob uploads raw bytes to the DID's own repo, returning the blob
+  // reference to embed in a subsequent putRecord call.
+  uploadBlob(
     bytes: Uint8Array,
     mimeType: string,
-  ): Promise<{ blob: unknown; cid: string }> {
-    const nsid = "network.habitat.repo.uploadBlob";
-    const session = await this.agent();
-    const headers: Record<string, string> = { "content-type": mimeType };
-    const proxy = instanceProxy(session, this.env, nsid);
-    if (proxy) headers["atproto-proxy"] = proxy;
-    const res = await session.fetchHandler(`/xrpc/${nsid}`, {
-      method: "POST",
-      headers,
-      body: bytes as BodyInit,
-    });
-    if (res.status === 401) {
-      throw new UnauthorizedError(
-        this.did,
-        `uploadBlob failed (401): ${await res.text()}`,
-      );
-    }
-    if (!res.ok) {
-      throw new Error(`uploadBlob failed (${res.status}): ${await res.text()}`);
-    }
-    return (await res.json()) as { blob: unknown; cid: string };
-  }
+  ): Promise<{ blob: LexValue; cid: string }>;
+  // getBlob reads a blob from a space repo, as the DID.
+  getBlob(space: string, repo: string, cid: string): Promise<Uint8Array>;
+  // asDid returns a client for another DID's session, for calls only that
+  // DID may make (a doc's owner creating its comments space).
+  asDid(did: string): HabitatClient;
+}
 
-  // getBlob reads a blob from a space repo the DID owns, as that DID
-  // (pear authorizes it by its read access to the space).
-  async getBlob(space: string, repo: string, cid: string): Promise<Uint8Array> {
-    const nsid = "network.habitat.space.getBlob";
-    const session = await this.agent();
-    const headers: Record<string, string> = {};
-    const proxy = instanceProxy(session, this.env, nsid);
-    if (proxy) headers["atproto-proxy"] = proxy;
-    const qs = new URLSearchParams({ space, repo, cid });
-    const res = await session.fetchHandler(`/xrpc/${nsid}?${qs}`, {
-      method: "GET",
-      headers,
-    });
-    if (res.status === 401) {
-      throw new UnauthorizedError(
-        this.did,
-        `getBlob failed (401): ${await res.text()}`,
-      );
-    }
-    if (!res.ok) {
-      throw new Error(`getBlob failed (${res.status}): ${await res.text()}`);
-    }
-    return new Uint8Array(await res.arrayBuffer());
-  }
+// createHabitatClient builds a HabitatClient for env outside an Effect
+// runtime (Durable Objects, the sync sink).
+//
+// The services module is imported dynamically because DocRoom imports this
+// module, and so does the Worker entry the tests load before any test file
+// runs: a static import would evaluate ./oauth then, out of reach of the
+// vi.mock() the tests swap in a fake OAuth client with (test/fakeOAuth.ts).
+export function createHabitatClient(env: Env, did: string): HabitatClient {
+  const make = async (did: string) => {
+    const [{ makeHabitat, promiseClient }, { createOAuthClient }] =
+      await Promise.all([import("./effect/services"), import("./oauth")]);
+    return promiseClient(makeHabitat(env, createOAuthClient(env)), did);
+  };
+  const lazy = (did: string): HabitatClient => {
+    let client: Promise<HabitatClient> | undefined;
+    const get = () => (client ??= make(did));
+    return {
+      call: async (...args) => (await get()).call(...args),
+      uploadBlob: async (...args) => (await get()).uploadBlob(...args),
+      getBlob: async (...args) => (await get()).getBlob(...args),
+      asDid: lazy,
+    };
+  };
+  return lazy(did);
 }

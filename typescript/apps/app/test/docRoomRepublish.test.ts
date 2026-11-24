@@ -10,6 +10,10 @@ import type { DocRoom } from "../src/server/docs/rooms/docRoom";
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 import { getDb, docByUri, upsertDoc } from "../src/db";
 
+// The first write from a freshly started room loads the Habitat service, which
+// can take a while when the whole suite is running at once.
+const FLUSH_TIMEOUT_MS = 5000;
+
 const URI = "at://did:web:alice.example/space/network.habitat.docs/pub";
 
 const fetchMock = vi.fn();
@@ -66,7 +70,7 @@ it("republishes crdt and markdown under the owner's repo", async () => {
       "network.habitat.docs.crdt",
       "network.habitat.docs.markdown",
     ]);
-  });
+  }, FLUSH_TIMEOUT_MS);
 });
 
 it("skips republish when the owner is unknown", async () => {

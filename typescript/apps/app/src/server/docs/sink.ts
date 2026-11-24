@@ -31,7 +31,7 @@ import {
   COMMENT_REPLY_COLLECTION,
   docSpaceUriForComments,
 } from "./comments.server";
-import { HabitatClient } from "@/server/habitatClient";
+import { createHabitatClient } from "@/server/habitatClient";
 
 const CRDT_COLLECTION = network.habitat.docs.crdt.$nsid;
 const MARKDOWN_COLLECTION = network.habitat.docs.markdown.$nsid;
@@ -184,11 +184,9 @@ export class DocSink {
 }
 
 // isNotFound reports whether a blob read failed because the host answered
-// 404 (the syncer's XrpcError carries the status; its message names it too).
+// 404 (the syncer's XrpcError and our HabitatError both carry the status).
 function isNotFound(err: unknown): boolean {
-  const status = (err as { status?: unknown } | null)?.status;
-  if (status === 404) return true;
-  return err instanceof Error && /\b404\b/.test(err.message);
+  return (err as { status?: unknown } | null)?.status === 404;
 }
 
 // indexUnknownDoc adds a docs row for a doc this deployment has never seen —
@@ -211,7 +209,10 @@ async function indexUnknownDoc(
   const spaceUri = spaceRef.toString();
   let ownerDid: string = spaceRef.spaceDid;
   try {
-    const { relations } = await new HabitatClient(env, spaceRef.spaceDid).call<{
+    const { relations } = await createHabitatClient(
+      env,
+      spaceRef.spaceDid,
+    ).call<{
       relations: { subject: string }[];
     }>("network.habitat.relationship.listRelations", "GET", {
       space: spaceUri,

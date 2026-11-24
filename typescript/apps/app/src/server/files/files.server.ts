@@ -42,43 +42,6 @@ export async function createFileSpace(
   return body.uri as SpaceRefString;
 }
 
-export interface UploadedBlob {
-  // The blob ref exactly as the server returned it — embedded as-is in the
-  // file record, so the reference matches what pear stored.
-  blob: LexValue;
-  cid: string;
-}
-
-// uploadBlob stores the bytes in the agent's repo. pear deletes an uploaded
-// blob that no record references within a short window, which is why the
-// upload is always followed by putFileRecord.
-//
-// Sent with a raw fetch rather than xrpc(): the input is the file's bytes
-// with its own content type, not a lexicon-encoded body.
-export async function uploadBlob(
-  agent: Agent,
-  bytes: Uint8Array,
-  mimeType: string,
-): Promise<UploadedBlob> {
-  const res = await agent.fetchHandler(
-    "/xrpc/network.habitat.repo.uploadBlob",
-    {
-      method: "POST",
-      headers: { "content-type": mimeType || "application/octet-stream" },
-      body: bytes as BodyInit,
-    },
-  );
-  if (!res.ok) {
-    const text = await res.text();
-    if (res.status === 413) throw new FileTooLargeError(text);
-    throw new Error(`uploadBlob failed (${res.status}): ${text}`);
-  }
-  const { blob, cid } = (await res.json()) as UploadedBlob;
-  return { blob, cid };
-}
-
-export class FileTooLargeError extends Error {}
-
 // putFileRecord writes the network.habitat.drop.file record that names the
 // file and references its blob, into the org's own repo in the file's space,
 // and returns once the group's stream has indexed it into the files table.

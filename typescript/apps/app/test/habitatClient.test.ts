@@ -3,12 +3,11 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import {
   EmailDomainNotFoundError,
-  HabitatClient,
-  UnauthorizedError,
-  findUnauthorizedError,
+  createHabitatClient,
   instanceProxy,
   startLogin,
 } from "../src/server/habitatClient";
+import { SessionExpired } from "../src/server/effect/errors";
 import { authorize } from "./fakeOAuth";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
@@ -61,7 +60,7 @@ describe("startLogin", () => {
   });
 });
 
-describe("HabitatClient", () => {
+describe("createHabitatClient", () => {
   const server = setupServer();
   beforeEach(() => server.listen({ onUnhandledRequest: "error" }));
   afterEach(() => {
@@ -80,7 +79,7 @@ describe("HabitatClient", () => {
         },
       ),
     );
-    const client = new HabitatClient(testEnv, "did:plc:member1");
+    const client = createHabitatClient(testEnv, "did:plc:member1");
     await client.call("network.habitat.space.listRecords", "GET", {
       space: "at://did:plc:owner/space/network.habitat.docs/abc",
       cursor: undefined,
@@ -104,7 +103,7 @@ describe("HabitatClient", () => {
         },
       ),
     );
-    await new HabitatClient(testEnv, "did:plc:member1")
+    await createHabitatClient(testEnv, "did:plc:member1")
       .asDid("did:plc:owner")
       .call("network.habitat.relationship.setSpaceRelation", "POST", {});
     expect(did).toBe("did:plc:owner");
@@ -123,13 +122,13 @@ describe("HabitatClient", () => {
         },
       ),
     );
-    const out = await new HabitatClient(testEnv, "did:plc:member1").call<{
+    const out = await createHabitatClient(testEnv, "did:plc:member1").call<{
       uri: string;
     }>(
       "community.opensocial.createSpace",
       "POST",
       { org: "did:web:org.example" },
-      { atprotoProxy: "did:web:org.example#habitat" },
+      { proxy: "did:web:org.example" },
     );
     expect(out).toEqual({ uri: "at://x" });
     expect(body).toEqual({ org: "did:web:org.example" });
@@ -143,27 +142,31 @@ describe("HabitatClient", () => {
       ),
     );
     await expect(
-      new HabitatClient(testEnv, "did:plc:member1").call(
+      createHabitatClient(testEnv, "did:plc:member1").call(
         "com.atproto.space.createSpace",
         "POST",
         {},
       ),
-    ).rejects.toThrow(
-      'com.atproto.space.createSpace failed (400): {"error":"SpaceAlreadyExists"}',
-    );
+    ).rejects.toMatchObject({
+      _tag: "HabitatError",
+      status: 400,
+      error: "SpaceAlreadyExists",
+      message:
+        'com.atproto.space.createSpace failed (400): {"error":"SpaceAlreadyExists"}',
+    });
   });
 
-  it("throws UnauthorizedError carrying the DID on a 401", async () => {
+  it("rejects with SessionExpired carrying the DID on a 401", async () => {
     server.use(
       http.get("http://pds.test/xrpc/network.habitat.space.listSpaces", () =>
         HttpResponse.json({ error: "InvalidToken" }, { status: 401 }),
       ),
     );
-    const err = await new HabitatClient(testEnv, "did:plc:member1")
+    const err = await createHabitatClient(testEnv, "did:plc:member1")
       .call("network.habitat.space.listSpaces", "GET", {})
       .catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(UnauthorizedError);
-    expect((err as UnauthorizedError).did).toBe("did:plc:member1");
+    expect(err).toBeInstanceOf(SessionExpired);
+    expect((err as SessionExpired).did).toBe("did:plc:member1");
   });
 
   it("getBlob reads a blob from the DID's own space repo as the DID", async () => {
@@ -180,7 +183,7 @@ describe("HabitatClient", () => {
       ),
     );
     await expect(
-      new HabitatClient(testEnv, "did:web:org").getBlob(
+      createHabitatClient(testEnv, "did:web:org").getBlob(
         "at://did:web:org/space/t/k",
         "did:web:org",
         "bafkcode",
@@ -188,7 +191,7 @@ describe("HabitatClient", () => {
     ).resolves.toEqual(new Uint8Array([7, 8]));
   });
 
-  it("uploadBlob throws UnauthorizedError on a 401", async () => {
+  it("uploadBlob rejects with SessionExpired on a 401", async () => {
     server.use(
       http.post(
         "http://pds.test/xrpc/network.habitat.repo.uploadBlob",
@@ -196,11 +199,11 @@ describe("HabitatClient", () => {
       ),
     );
     await expect(
-      new HabitatClient(testEnv, "did:plc:member1").uploadBlob(
+      createHabitatClient(testEnv, "did:plc:member1").uploadBlob(
         new Uint8Array([1]),
         "application/octet-stream",
       ),
-    ).rejects.toBeInstanceOf(UnauthorizedError);
+    ).rejects.toBeInstanceOf(SessionExpired);
   });
 
   // Regression test: a procedure with no output schema (e.g.
@@ -216,7 +219,7 @@ describe("HabitatClient", () => {
         () => new HttpResponse(null, { status: 200 }),
       ),
     );
-    const client = new HabitatClient(testEnv, "did:plc:member1");
+    const client = createHabitatClient(testEnv, "did:plc:member1");
     await expect(
       client.call("network.habitat.relationship.deleteRelation", "POST", {
         uri: "at://did:plc:owner/space/network.habitat.docs/abc/rel/xyz",
@@ -241,26 +244,12 @@ describe("HabitatClient", () => {
         },
       ),
     );
-    const client = new HabitatClient(testEnv, "did:plc:member1");
+    const client = createHabitatClient(testEnv, "did:plc:member1");
     const out = await client.uploadBlob(
       new Uint8Array([1, 2, 3]),
       "application/octet-stream",
     );
     expect(out.cid).toBe("bafy123");
-  });
-});
-
-describe("findUnauthorizedError", () => {
-  it("finds an UnauthorizedError anywhere in the cause chain", () => {
-    const unauthorized = new UnauthorizedError("did:plc:member1", "401");
-    expect(
-      findUnauthorizedError(new Error("wrapped", { cause: unauthorized })),
-    ).toBe(unauthorized);
-  });
-
-  it("returns undefined for other errors", () => {
-    expect(findUnauthorizedError(new Error("boom"))).toBeUndefined();
-    expect(findUnauthorizedError("not an error")).toBeUndefined();
   });
 });
 

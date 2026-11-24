@@ -3,7 +3,6 @@ import { xrpc } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
 import { community } from "api";
 import type { AppBundle } from "@/lib/apps";
-import { uploadBlob } from "../files/files.server";
 import { deleteRecordIndexed, putRecordIndexed } from "../stream";
 import { APP_COLLECTION } from "./sink";
 
@@ -51,15 +50,6 @@ export function decodeBundle(bytes: Uint8Array): AppBundle {
     if (typeof value !== "string") throw new Error("app bundle is malformed");
   }
   return { modules: modules as Record<string, string> };
-}
-
-// uploadBundle stores a bundle as a blob in the org's repo. Like a file's
-// blob, it must be referenced by a record soon or pear collects it.
-export async function uploadBundle(
-  orgAgent: Agent,
-  bundle: AppBundle,
-): Promise<{ blob: LexValue; cid: string }> {
-  return uploadBlob(orgAgent, encodeBundle(bundle), "application/json");
 }
 
 export interface AppRecordInput {

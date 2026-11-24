@@ -12,8 +12,8 @@ import {
 import {
   createAppSpace,
   deleteAppRecord,
+  encodeBundle,
   putAppRecord,
-  uploadBundle,
 } from "@/server/apps/apps.server";
 import { BadRequest, NotFound } from "@/server/effect/errors";
 import { requireOrg } from "@/server/effect/member";
@@ -115,8 +115,12 @@ export const deployApp = createServerFn({ method: "POST" })
           : yield* attempt(org, "apps.createSpace", () =>
               createAppSpace(session, org),
             );
-        const { blob } = yield* attempt(org, "apps.uploadBundle", () =>
-          uploadBundle(session, bundle),
+        // Like a file's blob, it must be referenced by a record soon or pear
+        // collects it.
+        const { blob } = yield* habitat.uploadBlob(
+          org,
+          encodeBundle(bundle),
+          "application/json",
         );
         const description = data.description?.trim().slice(0, 2000);
         const { indexed } = yield* putAppRecord(org, space, {

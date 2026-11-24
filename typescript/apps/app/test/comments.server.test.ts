@@ -13,7 +13,7 @@ import {
   writeReply,
   COMMENT_REPLY_COLLECTION,
 } from "../src/server/docs/comments.server";
-import { HabitatClient } from "../src/server/habitatClient";
+import { createHabitatClient } from "../src/server/habitatClient";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 import { env as cfEnv } from "cloudflare:test";
@@ -133,7 +133,7 @@ describe("ensureCommentsSpace", () => {
         },
       ),
     );
-    const client = new HabitatClient(testEnv, ALICE);
+    const client = createHabitatClient(testEnv, ALICE);
     const result = await ensureCommentsSpace(client, DOC, {
       ownerDid: ALICE,
       isOrg: false,
@@ -200,7 +200,7 @@ describe("ensureCommentsSpace", () => {
         },
       ),
     );
-    const client = new HabitatClient(testEnv, ALICE);
+    const client = createHabitatClient(testEnv, ALICE);
     const result = await ensureCommentsSpace(client, DOC, {
       ownerDid: "did:web:org.example",
       isOrg: true,
@@ -229,7 +229,7 @@ describe("ensureCommentsSpace", () => {
         () => HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` }),
       ),
     );
-    const client = new HabitatClient(testEnv, ALICE);
+    const client = createHabitatClient(testEnv, ALICE);
     const result = await ensureCommentsSpace(client, DOC, {
       ownerDid: ALICE,
       isOrg: false,
@@ -243,7 +243,7 @@ describe("ensureCommentsSpace", () => {
         throw new Error("should not be called");
       }),
     );
-    const client = new HabitatClient(testEnv, ALICE);
+    const client = createHabitatClient(testEnv, ALICE);
     expect(
       await ensureCommentsSpace(client, "not-a-uri", {
         ownerDid: ALICE,
@@ -293,7 +293,7 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
         },
       ),
     );
-    const client = new HabitatClient(testEnv, ALICE);
+    const client = createHabitatClient(testEnv, ALICE);
     const view = await writeComment(client, db(), ALICE, DOC, {
       body: "great point",
       anchorStart: ANCHOR_START,
@@ -332,7 +332,7 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
         },
       ),
     );
-    const client = new HabitatClient(testEnv, BOB);
+    const client = createHabitatClient(testEnv, BOB);
     const root = {
       uri: `${COMMENTS_SPACE}/${ALICE}/network.habitat.docs.comment/1`,
       cid: "bafycomment1",
@@ -377,7 +377,7 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
         },
       ),
     );
-    const client = new HabitatClient(testEnv, ALICE);
+    const client = createHabitatClient(testEnv, ALICE);
     await removeComment(client, db(), ALICE, uri);
     expect(deleteBody).toEqual({
       space: COMMENTS_SPACE,
@@ -390,7 +390,7 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
 
   it("removeComment refuses to delete another author's comment", async () => {
     const uri = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.comment/1`;
-    const client = new HabitatClient(testEnv, ALICE);
+    const client = createHabitatClient(testEnv, ALICE);
     await expect(removeComment(client, db(), ALICE, uri)).rejects.toThrow(
       "forbidden",
     );
@@ -398,7 +398,7 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
 
   it("removeReply refuses to delete another author's reply", async () => {
     const uri = `${COMMENTS_SPACE}/${BOB}/${COMMENT_REPLY_COLLECTION}/1`;
-    const client = new HabitatClient(testEnv, ALICE);
+    const client = createHabitatClient(testEnv, ALICE);
     await expect(removeReply(client, db(), ALICE, uri)).rejects.toThrow(
       "forbidden",
     );

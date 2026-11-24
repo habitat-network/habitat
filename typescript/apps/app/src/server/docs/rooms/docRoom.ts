@@ -5,7 +5,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
-import { HabitatClient } from "@/server/habitatClient";
+import { createHabitatClient } from "@/server/habitatClient";
 import { renderDoc } from "@/lib/render";
 import { docByUri, getDb, upsertDoc } from "@/db";
 
@@ -471,7 +471,7 @@ export class DocRoom extends DurableObject<Env> {
   // missing everything that predates this batch.
   private async flushMember(memberDid: string): Promise<void> {
     if (!this.id) return;
-    const client = new HabitatClient(this.env, memberDid);
+    const client = createHabitatClient(this.env, memberDid);
     const blob = await client.uploadBlob(
       Y.encodeStateAsUpdateV2(this.ydoc),
       "application/octet-stream",
@@ -496,7 +496,7 @@ export class DocRoom extends DurableObject<Env> {
     const ownerDid = this.id?.ownerDid;
     if (!this.id || !ownerDid) return;
     const rendered = renderDoc(this.ydoc);
-    const client = new HabitatClient(this.env, ownerDid);
+    const client = createHabitatClient(this.env, ownerDid);
     const blob = await client.uploadBlob(
       Y.encodeStateAsUpdateV2(this.ydoc),
       "application/octet-stream",

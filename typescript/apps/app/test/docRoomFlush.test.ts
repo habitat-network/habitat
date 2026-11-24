@@ -9,6 +9,10 @@ import type { DocRoom } from "../src/server/docs/rooms/docRoom";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
+// The first write from a freshly started room loads the Habitat service, which
+// can take a while when the whole suite is running at once.
+const FLUSH_TIMEOUT_MS = 5000;
+
 const URI = "at://did:web:alice.example/space/network.habitat.docs/flush";
 const ID = { spaceUri: URI, ownerDid: "did:web:alice.example" };
 
@@ -103,7 +107,7 @@ it("uploads a blob and putRecords to the member's own repo when the alarm fires"
       collection: "network.habitat.docs.crdt",
       rkey: "self",
     });
-  });
+  }, FLUSH_TIMEOUT_MS);
 });
 
 it("flushes each member to their own repo separately", async () => {
