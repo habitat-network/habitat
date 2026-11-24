@@ -86,10 +86,10 @@ type SnapshotPage struct {
 // Snapshot reads one page of the log up to a pinned tip, authorizing events
 // as a stream would. A page ends when it holds query.Limit events or reaches
 // the tip, so a reader that sees few of the log's events still makes progress
-// without a long scan: a page also ends after scanning maxScan log entries.
-// sub's Query is ignored in favor of query. A space credential's filter is
-// narrowed to its space, and a spaces filter that excludes it is
-// [ErrCredentialMismatch].
+// without a long scan: a page also ends after scanning maxSnapshotScan log
+// entries. Only sub's reader and expiry are used; query supplies the filter. A
+// space credential's filter is narrowed to its space, and a spaces filter that
+// excludes it is [ErrCredentialMismatch].
 func (s *Server) Snapshot(
 	ctx context.Context,
 	sub Subscription,
@@ -103,57 +103,37 @@ func (s *Server) Snapshot(
 	if query.Before != nil && *query.Before < tip {
 		tip = *query.Before
 	}
-	sub.Query = Query{Filter: query.Filter}
-	if sub, err = Prepare(sub); err != nil {
+	sub, err = Prepare(Subscription{
+		Query:     Query{Filter: query.Filter},
+		Reader:    sub.Reader,
+		ExpiresAt: sub.ExpiresAt,
+	})
+	if err != nil {
 		return SnapshotPage{}, err
 	}
 
-	page := SnapshotPage{Events: []json.RawMessage{}, PlannedThroughSeq: query.After, TipSeq: tip}
-	if query.After > tip {
-		page.PlannedThroughSeq = tip
-		return page, nil
-	}
-	next := query.After + 1
-	access := newAccessCache(s.roles, sub)
-	scanned := 0
-	for next <= tip {
-		events, err := s.source.ListEvents(ctx, sub.Query.Filter, next, s.pageSize)
-		if err != nil {
-			return SnapshotPage{}, fmt.Errorf("list events: %w", err)
-		}
-		for _, event := range events {
-			if event.EventSeq() > tip {
-				page.PlannedThroughSeq = tip
-				return page, nil
-			}
-			ok, err := access.allows(ctx, event)
+	page := SnapshotPage{Events: []json.RawMessage{}, TipSeq: tip}
+	next, done, err := s.scan(ctx, sub,
+		scanRange{From: query.After + 1, To: tip, MaxScan: maxSnapshotScan},
+		func(event spaces.Event) (bool, error) {
+			payload, err := eventObject(event)
 			if err != nil {
-				return SnapshotPage{}, fmt.Errorf("authorize event: %w", err)
+				return false, err
 			}
-			if ok {
-				frame, err := eventPayload(event)
-				if err != nil {
-					return SnapshotPage{}, err
-				}
-				page.Events = append(page.Events, frame)
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				return false, fmt.Errorf("encode event: %w", err)
 			}
-			page.PlannedThroughSeq = event.EventSeq()
-			next = event.EventSeq() + 1
-			scanned++
-			if len(page.Events) >= query.Limit {
-				return page, nil
-			}
-		}
-		if len(events) < s.pageSize {
-			// The filtered log has nothing more before the tip.
-			page.PlannedThroughSeq = tip
-			return page, nil
-		}
-		if scanned >= maxSnapshotScan {
-			return page, nil
-		}
+			page.Events = append(page.Events, raw)
+			return len(page.Events) < query.Limit, nil
+		})
+	if err != nil {
+		return SnapshotPage{}, err
 	}
-	page.PlannedThroughSeq = tip
+	page.PlannedThroughSeq = next - 1
+	if done {
+		page.PlannedThroughSeq = tip
+	}
 	return page, nil
 }
 
