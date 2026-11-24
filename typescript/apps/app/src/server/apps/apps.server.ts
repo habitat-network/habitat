@@ -3,11 +3,7 @@ import { xrpc } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
 import { community } from "api";
 import type { AppBundle } from "@/lib/apps";
-import {
-  deleteRecordIndexed,
-  type IndexedWrite,
-  putRecordIndexed,
-} from "../stream";
+import { deleteRecordIndexed, putRecordIndexed } from "../stream";
 import { APP_COLLECTION } from "./sink";
 
 // Calls the app makes against the Habitat instance to deploy Apps, each
@@ -73,14 +69,13 @@ export interface AppRecordInput {
 // org's repo in the app's space, and returns once the group's stream has
 // indexed it into the apps table, so the runner serves the new version as
 // soon as this returns.
-export async function putAppRecord(
-  env: Env,
+export function putAppRecord(
   orgDid: DidString,
   space: SpaceRefString,
   app: AppRecordInput,
-): Promise<IndexedWrite> {
+) {
   const now = new Date().toISOString();
-  return putRecordIndexed(env, orgDid, orgDid, {
+  return putRecordIndexed(orgDid, orgDid, {
     space,
     repo: orgDid,
     collection: APP_COLLECTION,
@@ -104,12 +99,8 @@ export async function putAppRecord(
 
 // deleteAppRecord removes an app's record, which takes it offline: the
 // runner no longer finds it, and pear collects the unreferenced code blob.
-export async function deleteAppRecord(
-  env: Env,
-  orgDid: DidString,
-  space: SpaceRefString,
-): Promise<IndexedWrite> {
-  return deleteRecordIndexed(env, orgDid, orgDid, {
+export function deleteAppRecord(orgDid: DidString, space: SpaceRefString) {
+  return deleteRecordIndexed(orgDid, orgDid, {
     space,
     repo: orgDid,
     collection: APP_COLLECTION,

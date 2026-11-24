@@ -1,5 +1,8 @@
-import type { PutRecordInput, RecordTarget } from "@habitat-network/jetstream";
-import type { FollowState, WriteOutcome } from "./orgStream";
+import type { DidString, NsidString, SpaceRefString } from "@atproto/syntax";
+import { com } from "api";
+import { Effect } from "effect";
+import { AppEnv, Habitat } from "../effect/services";
+import type { FollowState } from "./orgStream";
 
 export type { FollowState };
 
@@ -17,63 +20,72 @@ export async function followOrg(env: Env, org: string): Promise<FollowState> {
   return stub(env, org).follow(org);
 }
 
-/** The write was refused: nothing was written. */
-export class StreamWriteError extends Error {
-  constructor(
-    message: string,
-    readonly status?: number,
-    readonly error?: string,
-  ) {
-    super(message);
-  }
-}
-
-export interface IndexedWrite {
-  uri: string;
-  cid: string;
-  // False when the write succeeded but its event wasn't indexed in time
-  // (the stream is behind or reconnecting): D1 catches up shortly.
-  indexed: boolean;
-}
-
-function settle(outcome: WriteOutcome): IndexedWrite {
-  if (outcome.ok) return { uri: outcome.uri, cid: outcome.cid, indexed: true };
-  if (outcome.tag === "WriteNotObserved") {
-    console.warn("[stream] write not indexed in time:", outcome.message);
-    return { uri: "", cid: "", indexed: false };
-  }
-  throw new StreamWriteError(outcome.message, outcome.status, outcome.error);
-}
-
-// putRecordIndexed writes a record as writer through org's stream, and
-// returns once D1 reflects it: no optimistic update needed.
-export async function putRecordIndexed(
-  env: Env,
-  org: string,
-  writer: string,
-  input: PutRecordInput,
-): Promise<IndexedWrite> {
-  return settle(await stub(env, org).putRecord(writer, input));
-}
-
-// deleteRecordIndexed deletes a record as writer through org's stream, and
-// returns once D1 reflects it.
-export async function deleteRecordIndexed(
-  env: Env,
-  org: string,
-  writer: string,
-  target: RecordTarget,
-): Promise<IndexedWrite> {
-  return settle(await stub(env, org).deleteRecord(writer, target));
-}
-
-// awaitIndexed waits for a write pear made itself (a procedure such as
-// ejectMember) to reach D1: uri at cid, or deleted when cid is null.
-export async function awaitIndexed(
-  env: Env,
+// awaitIndexed waits for a write to reach D1 through org's stream: uri at
+// cid, or deleted when cid is null. False when it wasn't indexed in time
+// (the stream is behind or reconnecting): D1 catches up shortly.
+export const awaitIndexed = Effect.fn("stream.awaitIndexed")(function* (
   org: string,
   uri: string,
   cid: string | null,
-): Promise<IndexedWrite> {
-  return settle(await stub(env, org).awaitRecord(uri, cid));
+) {
+  const env = yield* AppEnv;
+  return yield* Effect.tryPromise(() =>
+    stub(env, org).awaitRecord(org, uri, cid),
+  ).pipe(
+    Effect.catch((err) =>
+      Effect.logWarning("awaiting indexing failed", err).pipe(Effect.as(false)),
+    ),
+  );
+});
+
+// What identifies the record a write is made to.
+export interface RecordTarget {
+  space: SpaceRefString;
+  repo: DidString;
+  collection: NsidString;
+  rkey: string;
 }
+
+// putRecordIndexed writes a record as writer (their own session, through
+// the typed Habitat service) and returns once org's stream has indexed it,
+// so D1 reflects it with no optimistic update. `indexed` is false when the
+// write was made but not seen in time.
+export const putRecordIndexed = Effect.fn("stream.putRecord")(function* (
+  org: string,
+  writer: string,
+  input: RecordTarget & { record: Record<string, unknown> },
+) {
+  const habitat = yield* Habitat;
+  const { uri, cid } = yield* habitat.xrpc(
+    writer,
+    com.atproto.space.putRecord.main,
+    { body: input as never },
+  );
+  return { uri, cid, indexed: yield* awaitIndexed(org, uri, cid) };
+});
+
+// deleteRecordIndexed deletes a record as writer and returns once org's
+// stream has indexed the delete. Deleting a record that isn't there is not
+// an error, and produces no event to wait for.
+export const deleteRecordIndexed = Effect.fn("stream.deleteRecord")(function* (
+  org: string,
+  writer: string,
+  target: RecordTarget,
+) {
+  const habitat = yield* Habitat;
+  const found = yield* habitat
+    .xrpc(writer, com.atproto.space.getRecord.main, { params: target })
+    .pipe(
+      Effect.map(({ uri }) => uri),
+      Effect.catchTag("HabitatError", (e) =>
+        e.status === 404 || e.error === "RecordNotFound"
+          ? Effect.succeed(undefined)
+          : Effect.fail(e),
+      ),
+    );
+  yield* habitat.xrpc(writer, com.atproto.space.deleteRecord.main, {
+    body: target,
+  });
+  if (!found) return { indexed: true };
+  return { indexed: yield* awaitIndexed(org, found, null) };
+});

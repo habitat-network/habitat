@@ -1,11 +1,7 @@
 import { type Agent, type LexValue, xrpc } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
 import { community, network } from "api";
-import {
-  deleteRecordIndexed,
-  type IndexedWrite,
-  putRecordIndexed,
-} from "../stream";
+import { deleteRecordIndexed, putRecordIndexed } from "../stream";
 import { FILE_COLLECTION } from "./sink";
 
 // Calls Drop made, and the app now makes, against the Habitat instance, each as a specific OAuth
@@ -49,13 +45,12 @@ export async function createFileSpace(
 // putFileRecord writes the network.habitat.drop.file record that names the
 // file and references its blob, into the org's own repo in the file's space,
 // and returns once the group's stream has indexed it into the files table.
-export async function putFileRecord(
-  env: Env,
+export function putFileRecord(
   orgDid: DidString,
   space: SpaceRefString,
   file: { name: string; blob: LexValue; uploadedBy: DidString },
-): Promise<IndexedWrite> {
-  return putRecordIndexed(env, orgDid, orgDid, {
+) {
+  return putRecordIndexed(orgDid, orgDid, {
     space,
     repo: orgDid,
     collection: FILE_COLLECTION,
@@ -75,12 +70,8 @@ export async function putFileRecord(
 // referenced is left for pear to garbage collect once nothing references
 // it; there's no direct blob deletion. Succeeds whether or not the record
 // was still there.
-export async function deleteFileRecord(
-  env: Env,
-  orgDid: DidString,
-  space: SpaceRefString,
-): Promise<IndexedWrite> {
-  return deleteRecordIndexed(env, orgDid, orgDid, {
+export function deleteFileRecord(orgDid: DidString, space: SpaceRefString) {
+  return deleteRecordIndexed(orgDid, orgDid, {
     space,
     repo: orgDid,
     collection: FILE_COLLECTION,

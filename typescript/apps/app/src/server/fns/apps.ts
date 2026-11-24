@@ -100,7 +100,6 @@ export const deployApp = createServerFn({ method: "POST" })
         });
 
         const db = yield* Database;
-        const env = yield* AppEnv;
         const habitat = yield* Habitat;
         const session = yield* habitat.session(org);
 
@@ -124,23 +123,21 @@ export const deployApp = createServerFn({ method: "POST" })
           "application/json",
         );
         const description = data.description?.trim().slice(0, 2000);
-        const { indexed } = yield* attempt(org, "apps.putRecord", () =>
-          putAppRecord(env, org, space, {
-            name,
-            slug: existing?.slug ?? slugify(name),
-            description: description || undefined,
-            entrypoint: data.entrypoint,
-            code: blob,
-            version: (existing?.version ?? 0) + 1,
-            compatibilityDate:
-              existing?.compatibilityDate ?? DEFAULT_COMPATIBILITY_DATE,
-            createdBy: existing?.createdBy ?? undefined,
-            createdAt: existing
-              ? new Date(existing.createdAt).toISOString()
-              : undefined,
-            updatedBy: did as DidString,
-          }),
-        );
+        const { indexed } = yield* putAppRecord(org, space, {
+          name,
+          slug: existing?.slug ?? slugify(name),
+          description: description || undefined,
+          entrypoint: data.entrypoint,
+          code: blob,
+          version: (existing?.version ?? 0) + 1,
+          compatibilityDate:
+            existing?.compatibilityDate ?? DEFAULT_COMPATIBILITY_DATE,
+          createdBy: existing?.createdBy ?? undefined,
+          createdAt: existing
+            ? new Date(existing.createdAt).toISOString()
+            : undefined,
+          updatedBy: did as DidString,
+        });
         yield* Effect.logInfo("deployed app", {
           space,
           version: (existing?.version ?? 0) + 1,
@@ -175,10 +172,7 @@ export const deleteApp = createServerFn({ method: "POST" })
         if (!app || app.orgDid !== org) {
           return yield* new NotFound({ message: "App not found" });
         }
-        const env = yield* AppEnv;
-        yield* attempt(org, "apps.deleteRecord", () =>
-          deleteAppRecord(env, org as DidString, app.space as SpaceRefString),
-        );
+        yield* deleteAppRecord(org as DidString, app.space as SpaceRefString);
         yield* Effect.logInfo("deleted app", { app: data.uri });
       }),
     ),
