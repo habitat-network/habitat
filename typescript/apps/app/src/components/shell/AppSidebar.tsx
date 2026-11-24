@@ -42,7 +42,7 @@ import {
 import type { Member } from "@/server/fns/auth";
 import { signOut } from "@/server/fns/auth";
 import type { GroupSummary } from "@/server/fns/groups";
-import { groupLabel, groupQuery } from "@/lib/queries";
+import { groupLabel, groupQuery } from "@/lib/queries/groups";
 
 // AppSidebar is the app's navigation: the group switcher, search, and the
 // two sections of the design (Workspace and Manage are about the current

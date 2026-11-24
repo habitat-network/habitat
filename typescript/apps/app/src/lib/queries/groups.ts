@@ -1,9 +1,14 @@
 import { queryOptions } from "@tanstack/react-query";
-import { listMyGroups, getGroup, listMyInvites } from "@/server/fns/groups";
-import { listMcpServers, listMcpTools } from "@/server/fns/mcp";
+import {
+  getGroup,
+  getMyGroupProfile,
+  listMyGroups,
+  listMyInvites,
+} from "@/server/fns/groups";
 
-// Query options shared between route loaders (which prefetch) and the
-// components that read them, so both use the same cache entries.
+// Groups: the member's groups, invites and profiles.
+// Query options are shared between route loaders (which ensure them) and
+// the components that read them, so both use the same cache entries.
 
 export const myGroupsQuery = queryOptions({
   queryKey: ["groups"],
@@ -21,16 +26,10 @@ export const myInvitesQuery = queryOptions({
   queryFn: () => listMyInvites(),
 });
 
-export const mcpServersQuery = (org: string) =>
+export const myGroupProfileQuery = (org: string) =>
   queryOptions({
-    queryKey: ["mcp", org],
-    queryFn: () => listMcpServers({ data: { org } }),
-  });
-
-export const mcpToolsQuery = (org: string, id: string) =>
-  queryOptions({
-    queryKey: ["mcp", org, id, "tools"],
-    queryFn: () => listMcpTools({ data: { org, id } }),
+    queryKey: ["myGroupProfile", org],
+    queryFn: () => getMyGroupProfile({ data: { org } }),
   });
 
 // groupLabel is what to call a group: its name, else its DID.

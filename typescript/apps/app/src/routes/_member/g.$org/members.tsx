@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { UserAvatar } from "internal";
@@ -46,13 +50,15 @@ import {
   PageHeader,
 } from "@/components/shell/PageHeader";
 import { useHabitatActors } from "@/hooks/useHabitatActors";
-import { groupLabel, groupQuery } from "@/lib/queries";
-import { rolesQuery } from "@/lib/roles";
+import { groupLabel, groupQuery } from "@/lib/queries/groups";
+import {
+  groupInvitesQuery,
+  membersQuery,
+  rolesQuery,
+} from "@/lib/queries/members";
 import {
   assignRoles,
   inviteMember,
-  listGroupInvites,
-  listGroupMembers,
   removeMember,
   revokeInvite,
   type MemberView,
@@ -65,6 +71,13 @@ import {
 
 export const Route = createFileRoute("/_member/g/$org/members")({
   validateSearch: z.object({ tab: z.enum(["members", "invites"]).optional() }),
+  loader: ({ context, params }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(groupQuery(params.org)),
+      context.queryClient.ensureQueryData(membersQuery(params.org)),
+      context.queryClient.ensureQueryData(groupInvitesQuery(params.org)),
+      context.queryClient.ensureQueryData(rolesQuery(params.org)),
+    ]),
   component: MembersPage,
 });
 
@@ -79,29 +92,23 @@ function MembersPage() {
   const { tab = "members" } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const { member } = Route.useRouteContext();
-  const { data: group } = useQuery(groupQuery(org));
-  const { data: members = [], isPending } = useQuery({
-    queryKey: ["members", org],
-    queryFn: () => listGroupMembers({ data: { org } }),
-  });
-  const { data: invites = [] } = useQuery({
-    queryKey: ["groupInvites", org],
-    queryFn: () => listGroupInvites({ data: { org } }),
-  });
+  const { data: group } = useSuspenseQuery(groupQuery(org));
+  const { data: members } = useSuspenseQuery(membersQuery(org));
+  const { data: invites } = useSuspenseQuery(groupInvitesQuery(org));
   // Invitees aren't members yet, so pear has no group profile for them;
   // resolve their handles the way the doc share dialog does.
   const inviteeDids = useMemo(() => invites.map((i) => i.invitee), [invites]);
   const getInvitee = useHabitatActors(inviteeDids);
-  const { data: roles } = useQuery(rolesQuery(org));
-  const can = (action: string) => group?.myActions.includes(action) ?? false;
+  const { data: roles } = useSuspenseQuery(rolesQuery(org));
+  const can = (action: string) => group.myActions.includes(action);
 
   return (
     <>
       <PageHeader
         title="Members"
-        description={group && `${members.length} in ${groupLabel(group)}`}
+        description={`${members.length} in ${groupLabel(group)}`}
       >
-        {can("invite") && <InviteDialog org={org} roles={roles?.roles ?? []} />}
+        {can("invite") && <InviteDialog org={org} roles={roles.roles} />}
       </PageHeader>
       <PageBody>
         <Tabs
@@ -121,37 +128,35 @@ function MembersPage() {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="members" className="mt-4">
-            {isPending ? null : (
-              <Card className="overflow-hidden p-0">
-                <Table>
-                  <TableHeader className="bg-muted/40">
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-full pl-5">Member</TableHead>
-                      <TableHead>Roles</TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        Since
-                      </TableHead>
-                      <TableHead className="w-10 pr-5">
-                        <span className="sr-only">Actions</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {members.map((m) => (
-                      <MemberRow
-                        key={m.did}
-                        org={org}
-                        member={m}
-                        isMe={m.did === member.did}
-                        roles={roles?.roles ?? []}
-                        canAssign={can("role.assign")}
-                        canEject={can("eject")}
-                      />
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
-            )}
+            <Card className="overflow-hidden p-0">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-full pl-5">Member</TableHead>
+                    <TableHead>Roles</TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Since
+                    </TableHead>
+                    <TableHead className="w-10 pr-5">
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {members.map((m) => (
+                    <MemberRow
+                      key={m.did}
+                      org={org}
+                      member={m}
+                      isMe={m.did === member.did}
+                      roles={roles?.roles ?? []}
+                      canAssign={can("role.assign")}
+                      canEject={can("eject")}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
           </TabsContent>
           <TabsContent value="invites" className="mt-4">
             {invites.length === 0 ? (

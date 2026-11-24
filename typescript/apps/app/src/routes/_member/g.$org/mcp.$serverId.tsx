@@ -29,7 +29,8 @@ import { Suspense, useState } from "react";
 import { McpServerIcon } from "@/components/mcp/McpServerIcon";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import { AUTH_LABELS, mcpServerDisplay } from "@/lib/mcpConnectors";
-import { groupQuery, mcpServersQuery, mcpToolsQuery } from "@/lib/queries";
+import { groupQuery } from "@/lib/queries/groups";
+import { mcpServersQuery, mcpToolsQuery } from "@/lib/queries/mcp";
 import {
   connectMcpServer,
   disconnectMcpServer,

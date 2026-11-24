@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { myGroupsQuery } from "@/lib/queries";
+import { myGroupsQuery } from "@/lib/queries/groups";
 
 // The home page is the member's first group, or joining one if they have
 // none yet.

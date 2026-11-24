@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { OrgAvatar } from "internal";
 import {
@@ -18,19 +22,20 @@ import {
   toast,
 } from "internal/components/ui";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
-import { myGroupsQuery, myInvitesQuery } from "@/lib/queries";
+import { myGroupsQuery, myInvitesQuery } from "@/lib/queries/groups";
 import { acceptInvite } from "@/server/fns/groups";
 
 // Join a group: the member's pending invites.
 
 export const Route = createFileRoute("/_member/join")({
+  loader: ({ context }) => context.queryClient.ensureQueryData(myInvitesQuery),
   component: JoinPage,
 });
 
 function JoinPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const queryClient = useQueryClient();
-  const { data: invites = [] } = useQuery(myInvitesQuery);
+  const { data: invites } = useSuspenseQuery(myInvitesQuery);
   const join = useMutation({
     mutationFn: (org: string) => acceptInvite({ data: { org } }),
     onSuccess: async (_, org) => {

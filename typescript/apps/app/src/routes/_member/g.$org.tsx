@@ -1,8 +1,8 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { Button, toast } from "internal/components/ui";
 import { Unplug } from "lucide-react";
-import { groupLabel, groupQuery } from "@/lib/queries";
+import { groupLabel, groupQuery } from "@/lib/queries/groups";
 import { startGroupConnect } from "@/server/fns/auth";
 
 // Layout for one group's pages. Loads the group (and whether the member
@@ -24,10 +24,10 @@ export const Route = createFileRoute("/_member/g/$org")({
 
 function GroupLayout() {
   const { org } = Route.useParams();
-  const { data: group } = useQuery(groupQuery(org));
+  const { data: group } = useSuspenseQuery(groupQuery(org));
   return (
     <>
-      {group && !group.connected && (
+      {!group.connected && (
         <ConnectBanner
           org={org}
           name={groupLabel(group)}
