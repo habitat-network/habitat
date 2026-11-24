@@ -1,14 +1,15 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getBlobCidString, getBlobSize, type LexMap } from "@atproto/lex";
 
 import { AtUri, SpaceRef } from "@atproto/syntax";
 import { network } from "api";
-import type { RepoBatch, SyncSink } from "../stream/batch";
+import { Effect } from "effect";
+import type { Domain } from "../stream/domain";
 import type { Db } from "@/db";
 import { apps } from "@/db/schema";
 import { hostLabel } from "@/lib/apps";
 
-export const APP_COLLECTION = "network.habitat.apps.app";
+export const APP_COLLECTION = network.habitat.apps.app.$nsid;
 
 type AppRow = typeof apps.$inferInsert;
 
@@ -61,69 +62,42 @@ export function toAppRow(
   };
 }
 
-// AppRecordSink keeps the apps table equal to the set of
+// appsDomain keeps the apps table equal to the set of
 // network.habitat.apps.app records across every synced app space. The code
 // isn't copied: the runner reads it from the group's space host when an
-// app's isolate starts (see runner.ts). Applied the same way as FileSink:
-// one D1 batch per apply, upserts by uri so a replay is a no-op.
-export class AppRecordSink implements SyncSink {
-  constructor(private opts: { db: Db }) {}
-
-  async apply(batch: RepoBatch, signal: AbortSignal): Promise<void> {
-    const { db } = this.opts;
-    switch (batch._tag) {
-      case "Ops": {
-        const upserts: AppRow[] = [];
-        const deletes: string[] = [];
-        for (const change of batch.changes) {
-          if (change.collection !== APP_COLLECTION) continue;
-          if (change.cid === null) {
-            deletes.push(change.uri);
-          } else if (change.value) {
-            const row = toAppRow(
-              change.uri,
-              change.cid.toString(),
-              change.value,
-            );
-            // A record that no longer parses takes the app down rather than
-            // leaving its last good version running.
-            if (row) upserts.push(row);
-            else deletes.push(change.uri);
-          }
-        }
-        signal.throwIfAborted();
-        await this.write(upserts, deletes);
-        break;
-      }
-      case "RepoRemoved":
-        await db
-          .delete(apps)
-          .where(and(eq(apps.space, batch.space), eq(apps.repo, batch.did)));
-        break;
-      case "SpaceDeleted":
-        await db.delete(apps).where(eq(apps.space, batch.space));
-        break;
-    }
-  }
-
-  private upsert(row: AppRow) {
-    const { uri: _, ...set } = row;
-    return this.opts.db
-      .insert(apps)
-      .values(row)
-      .onConflictDoUpdate({ target: apps.uri, set });
-  }
-
-  private async write(upserts: AppRow[], deletes: string[]) {
-    const { db } = this.opts;
-    const statements = [
-      ...(deletes.length > 0
-        ? [db.delete(apps).where(inArray(apps.uri, deletes))]
-        : []),
-      ...upserts.map((row) => this.upsert(row)),
-    ];
-    if (statements.length === 0) return;
-    const [first, ...rest] = statements;
-    await db.batch([first, ...rest]);
-  }
+// app's isolate starts (see runner.ts). Upserts by uri, so a replay is a
+// no-op.
+export function appsDomain(db: Db): Domain {
+  return {
+    collections: [
+      {
+        collection: APP_COLLECTION,
+        handlers: {
+          put: (event) =>
+            Effect.tryPromise(async () => {
+              const row = toAppRow(event.uri, event.cid, event.record);
+              // A record that no longer parses takes the app down rather than
+              // leaving its last good version running.
+              if (!row) {
+                await db.delete(apps).where(eq(apps.uri, event.uri));
+                return;
+              }
+              const { uri: _, ...set } = row;
+              await db
+                .insert(apps)
+                .values(row)
+                .onConflictDoUpdate({ target: apps.uri, set });
+            }),
+          del: (event) =>
+            Effect.tryPromise(async () => {
+              await db.delete(apps).where(eq(apps.uri, event.uri));
+            }),
+        },
+      },
+    ],
+    spaceDeleted: (event) =>
+      Effect.tryPromise(async () => {
+        await db.delete(apps).where(eq(apps.space, event.space));
+      }),
+  };
 }

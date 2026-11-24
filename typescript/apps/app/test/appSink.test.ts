@@ -1,17 +1,21 @@
 import { env } from "cloudflare:workers";
-import { jsonToLex, parseCid, type LexMap } from "@atproto/lex";
+import { jsonToLex, type LexMap } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import type { RepoBatch } from "../src/server/stream/batch";
 import { beforeEach, describe, expect, it } from "vitest";
 import { appByHost, appsForOrg, getDb } from "@/db";
 import { apps } from "@/db/schema";
-import { APP_COLLECTION, AppRecordSink, toAppRow } from "@/server/apps/sink";
+import { APP_COLLECTION, toAppRow } from "@/server/apps/sink";
+import {
+  delEvent,
+  indexEvents,
+  putEvent,
+  spaceDeletedEvent,
+  RECORD_CID,
+} from "./events";
 
 const ORG = "did:web:org.example" as DidString;
 const SPACE = `at://${ORG}/space/network.habitat.apps/3kapp` as SpaceRefString;
 const URI = `${SPACE}/${ORG}/${APP_COLLECTION}/self`;
-const RECORD_CID =
-  "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm";
 const BLOB_CID = "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku";
 
 const appRecord = (over: Record<string, unknown> = {}) =>
@@ -64,36 +68,20 @@ describe("toAppRow", () => {
   });
 });
 
-describe("AppRecordSink", () => {
+describe("apps indexing", () => {
   const db = getDb(env);
-  const signal = new AbortController().signal;
-  const sink = new AppRecordSink({ db });
 
   beforeEach(async () => {
     await db.delete(apps);
   });
 
-  const put = (value: LexMap): RepoBatch => ({
-    _tag: "Ops",
-    space: SPACE,
-    did: ORG,
-    rev: "r1",
-    changes: [
-      {
-        uri: URI,
-        collection: APP_COLLECTION,
-        rkey: "self",
-        cid: parseCid(RECORD_CID),
-        value,
-      },
-    ],
-  });
+  const put = (value: LexMap) =>
+    putEvent(SPACE, ORG, APP_COLLECTION, "self", value);
 
   it("indexes a deployed app and its new versions", async () => {
-    await sink.apply(put(appRecord()), signal);
-    await sink.apply(
+    await indexEvents(
+      put(appRecord()),
       put(appRecord({ version: 2, entrypoint: "main.js" })),
-      signal,
     );
     const [row] = await appsForOrg(db, ORG);
     expect(row).toMatchObject({
@@ -105,29 +93,18 @@ describe("AppRecordSink", () => {
   });
 
   it("takes an app down when its record is deleted or stops parsing", async () => {
-    await sink.apply(put(appRecord()), signal);
-    await sink.apply(put(appRecord({ slug: "Bad Slug" })), signal);
+    await indexEvents(put(appRecord()), put(appRecord({ slug: "Bad Slug" })));
     expect(await appsForOrg(db, ORG)).toEqual([]);
 
-    await sink.apply(put(appRecord()), signal);
-    await sink.apply(
-      {
-        _tag: "Ops",
-        space: SPACE,
-        did: ORG,
-        rev: "r2",
-        changes: [
-          { uri: URI, collection: APP_COLLECTION, rkey: "self", cid: null },
-        ],
-      },
-      signal,
+    await indexEvents(
+      put(appRecord()),
+      delEvent(SPACE, ORG, APP_COLLECTION, "self"),
     );
     expect(await appsForOrg(db, ORG)).toEqual([]);
   });
 
   it("follows space deletions", async () => {
-    await sink.apply(put(appRecord()), signal);
-    await sink.apply({ _tag: "SpaceDeleted", space: SPACE }, signal);
+    await indexEvents(put(appRecord()), spaceDeletedEvent(SPACE));
     expect(await appsForOrg(db, ORG)).toEqual([]);
   });
 });

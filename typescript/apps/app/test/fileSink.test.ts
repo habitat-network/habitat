@@ -1,17 +1,15 @@
 import { env } from "cloudflare:workers";
-import { jsonToLex, parseCid, type LexMap } from "@atproto/lex";
+import { jsonToLex, type LexMap } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import type { RepoBatch } from "../src/server/stream/batch";
 import { beforeEach, describe, expect, it } from "vitest";
 import { filesForOrg, getDb } from "@/db";
 import { files } from "@/db/schema";
-import { FILE_COLLECTION, FileSink } from "@/server/files/sink";
+import { FILE_COLLECTION } from "@/server/files/sink";
+import { delEvent, indexEvents, putEvent, spaceDeletedEvent } from "./events";
 
 const ORG = "did:web:org.example" as DidString;
 const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile` as SpaceRefString;
 const URI = `${SPACE}/${ORG}/${FILE_COLLECTION}/self`;
-const RECORD_CID =
-  "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm";
 const BLOB_CID = "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku";
 
 const fileRecord = (name: string) =>
@@ -28,38 +26,19 @@ const fileRecord = (name: string) =>
     createdAt: "2026-10-08T12:00:00.000Z",
   }) as LexMap;
 
-describe("FileSink", () => {
+describe("files indexing", () => {
   const db = getDb(env);
-  const signal = new AbortController().signal;
-  const sink = new FileSink({ db });
 
   beforeEach(async () => {
     await db.delete(files);
   });
 
-  const ops = (
-    changes: Extract<RepoBatch, { _tag: "Ops" }>["changes"],
-  ): RepoBatch => ({
-    _tag: "Ops",
-    space: SPACE,
-    did: ORG,
-    rev: "r1",
-    changes,
-  });
+  const put = (name: string) =>
+    putEvent(SPACE, ORG, FILE_COLLECTION, "self", fileRecord(name));
+  const del = () => delEvent(SPACE, ORG, FILE_COLLECTION, "self");
 
   it("indexes a created file", async () => {
-    await sink.apply(
-      ops([
-        {
-          uri: URI,
-          collection: FILE_COLLECTION,
-          rkey: "self",
-          cid: parseCid(RECORD_CID),
-          value: fileRecord("notes.txt"),
-        },
-      ]),
-      signal,
-    );
+    await indexEvents(put("notes.txt"));
 
     expect(await filesForOrg(db, ORG)).toEqual([
       {
@@ -74,105 +53,46 @@ describe("FileSink", () => {
     ]);
   });
 
-  it("replays a batch idempotently", async () => {
-    const batch = ops([
-      {
-        uri: URI,
-        collection: FILE_COLLECTION,
-        rkey: "self",
-        cid: parseCid(RECORD_CID),
-        value: fileRecord("notes.txt"),
-      },
-    ]);
-    await sink.apply(batch, signal);
-    await sink.apply(batch, signal);
+  it("replays an event idempotently", async () => {
+    await indexEvents(put("notes.txt"), put("notes.txt"));
     expect(await filesForOrg(db, ORG)).toHaveLength(1);
   });
 
   it("removes a deleted file and ignores other collections and bad records", async () => {
-    await sink.apply(
-      ops([
-        {
-          uri: URI,
-          collection: FILE_COLLECTION,
-          rkey: "self",
-          cid: parseCid(RECORD_CID),
-          value: fileRecord("notes.txt"),
-        },
-        {
-          uri: `${SPACE}/${ORG}/app.example.other/self`,
-          collection: "app.example.other",
-          rkey: "self",
-          cid: parseCid(RECORD_CID),
-          value: fileRecord("ignored.txt"),
-        },
-      ]),
-      signal,
+    await indexEvents(
+      put("notes.txt"),
+      putEvent(
+        SPACE,
+        ORG,
+        "app.example.other",
+        "self",
+        fileRecord("ignored.txt"),
+      ),
     );
     expect(await filesForOrg(db, ORG)).toHaveLength(1);
 
-    await sink.apply(
-      ops([
-        {
-          uri: URI,
-          collection: FILE_COLLECTION,
-          rkey: "self",
-          cid: null,
-        },
-      ]),
-      signal,
-    );
+    await indexEvents(del());
     expect(await filesForOrg(db, ORG)).toEqual([]);
 
-    await sink.apply(
-      ops([
-        {
-          uri: URI,
-          collection: FILE_COLLECTION,
-          rkey: "self",
-          cid: parseCid(RECORD_CID),
-          value: { $type: FILE_COLLECTION, name: 42 } as unknown as LexMap,
-        },
-      ]),
-      signal,
+    await indexEvents(
+      putEvent(SPACE, ORG, FILE_COLLECTION, "self", {
+        $type: FILE_COLLECTION,
+        name: 42,
+      }),
     );
     expect(await filesForOrg(db, ORG)).toEqual([]);
   });
 
   it("drops a space's files when the space is deleted", async () => {
-    await sink.apply(
-      ops([
-        {
-          uri: URI,
-          collection: FILE_COLLECTION,
-          rkey: "self",
-          cid: parseCid(RECORD_CID),
-          value: fileRecord("notes.txt"),
-        },
-      ]),
-      signal,
-    );
-    await sink.apply({ _tag: "SpaceDeleted", space: SPACE }, signal);
+    await indexEvents(put("notes.txt"), spaceDeletedEvent(SPACE));
     expect(await filesForOrg(db, ORG)).toEqual([]);
   });
 
-  it("writes nothing when aborted before committing", async () => {
-    const controller = new AbortController();
-    controller.abort();
-    await expect(
-      sink.apply(
-        ops([
-          {
-            uri: URI,
-            collection: FILE_COLLECTION,
-            rkey: "self",
-            cid: parseCid(RECORD_CID),
-            value: fileRecord("notes.txt"),
-          },
-        ]),
-        controller.signal,
-      ),
-    ).rejects.toThrow();
+  it("only indexes files from file spaces", async () => {
+    const other = `at://${ORG}/space/network.habitat.docs/3kdoc`;
+    await indexEvents(
+      putEvent(other, ORG, FILE_COLLECTION, "self", fileRecord("notes.txt")),
+    );
     expect(await filesForOrg(db, ORG)).toEqual([]);
   });
 });

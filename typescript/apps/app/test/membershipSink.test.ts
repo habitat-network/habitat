@@ -1,7 +1,6 @@
 import { env } from "cloudflare:workers";
-import { jsonToLex, parseCid, type LexMap } from "@atproto/lex";
-import type { DidString, SpaceRefString } from "@atproto/syntax";
-import type { RepoBatch } from "../src/server/stream/batch";
+import { jsonToLex, type LexMap } from "@atproto/lex";
+import type { DidString } from "@atproto/syntax";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   getDb,
@@ -11,16 +10,14 @@ import {
   reconcileMemberships,
 } from "@/db";
 import { memberships } from "@/db/schema";
-import { MEMBERSHIP_COLLECTION, MembershipSink } from "@/server/members/sink";
+import { MEMBERSHIP_COLLECTION } from "@/server/members/sink";
+import { delEvent, indexEvents, putEvent, spaceDeletedEvent } from "./events";
 
 const ORG = "did:web:org.example" as DidString;
 const OTHER_ORG = "did:web:other.example" as DidString;
 const ALICE = "did:plc:alice";
 const BOB = "did:plc:bob";
-const SPACE =
-  `at://${ORG}/space/community.opensocial.members/self` as SpaceRefString;
-const RECORD_CID =
-  "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm";
+const SPACE = `at://${ORG}/space/community.opensocial.members/self`;
 
 const membership = (...roles: string[]) =>
   jsonToLex({
@@ -29,78 +26,60 @@ const membership = (...roles: string[]) =>
     updatedAt: "2026-11-18T12:00:00.000Z",
   }) as LexMap;
 
-describe("MembershipSink", () => {
+describe("roster indexing", () => {
   const db = getDb(env);
-  const signal = new AbortController().signal;
-  const sink = new MembershipSink({ db });
 
   beforeEach(async () => {
     await db.delete(memberships);
   });
 
-  const ops = (
-    changes: Extract<RepoBatch, { _tag: "Ops" }>["changes"],
-    did: DidString = ORG,
-  ): RepoBatch => ({
-    _tag: "Ops",
-    space: SPACE,
-    did,
-    rev: "r1",
-    changes,
-  });
-
-  const created = (member: string, ...roles: string[]) => ({
-    uri: `${SPACE}/${ORG}/${MEMBERSHIP_COLLECTION}/${member}`,
-    collection: MEMBERSHIP_COLLECTION,
-    rkey: member,
-    cid: parseCid(RECORD_CID),
-    value: membership(...roles),
-  });
-  const deleted = (member: string) => ({
-    uri: `${SPACE}/${ORG}/${MEMBERSHIP_COLLECTION}/${member}`,
-    collection: MEMBERSHIP_COLLECTION,
-    rkey: member,
-    cid: null,
-  });
+  const created = (member: string, roles: string[] = [], did: string = ORG) =>
+    putEvent(SPACE, did, MEMBERSHIP_COLLECTION, member, membership(...roles));
+  const deleted = (member: string) =>
+    delEvent(SPACE, ORG, MEMBERSHIP_COLLECTION, member);
 
   it("records a member when their membership record is created", async () => {
-    await sink.apply(ops([created(ALICE, "admin")]), signal);
+    await indexEvents(created(ALICE, ["admin"]));
     expect(await isMemberOf(db, ORG, ALICE)).toBe(true);
     expect(await orgsOf(db, ALICE)).toEqual([ORG]);
     expect(await isMemberOf(db, ORG, BOB)).toBe(false);
   });
 
   it("drops a member when their membership record is deleted", async () => {
-    await sink.apply(ops([created(ALICE), created(BOB)]), signal);
-    await sink.apply(ops([deleted(BOB)]), signal);
+    await indexEvents(created(ALICE), created(BOB), deleted(BOB));
     expect(await memberDidsOf(db, ORG)).toEqual([ALICE]);
   });
 
-  it("is a no-op when a batch is replayed", async () => {
-    const batch = ops([created(ALICE, "member")]);
-    await sink.apply(batch, signal);
-    await sink.apply(batch, signal);
+  it("is a no-op when an event is replayed", async () => {
+    await indexEvents(created(ALICE, ["member"]), created(ALICE, ["member"]));
     expect(await memberDidsOf(db, ORG)).toEqual([ALICE]);
   });
 
   it("ignores other collections and records not in the group's own repo", async () => {
-    await sink.apply(
-      ops([
-        {
-          ...created(ALICE),
-          collection: "community.opensocial.acceptance",
-        },
-      ]),
-      signal,
+    await indexEvents(
+      putEvent(
+        SPACE,
+        ORG,
+        "community.opensocial.acceptance",
+        ALICE,
+        membership(),
+      ),
+      created(BOB, [], ALICE),
     );
-    await sink.apply(ops([created(BOB)], ALICE as DidString), signal);
     expect(await memberDidsOf(db, ORG)).toEqual([]);
   });
 
   it("clears the roster when the space is deleted", async () => {
-    await sink.apply(ops([created(ALICE)]), signal);
-    await sink.apply({ _tag: "SpaceDeleted", space: SPACE }, signal);
+    await indexEvents(created(ALICE), spaceDeletedEvent(SPACE));
     expect(await memberDidsOf(db, ORG)).toEqual([]);
+  });
+
+  it("leaves rosters alone when another kind of space is deleted", async () => {
+    await indexEvents(
+      created(ALICE),
+      spaceDeletedEvent(`at://${ORG}/space/network.habitat.docs/3kdoc`),
+    );
+    expect(await memberDidsOf(db, ORG)).toEqual([ALICE]);
   });
 });
 

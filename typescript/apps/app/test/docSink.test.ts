@@ -1,9 +1,9 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
-import { jsonToLex, parseCid, type LexMap } from "@atproto/lex";
+import { jsonToLex, type LexMap } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import type { RepoBatch } from "../src/server/stream/batch";
+import { delEvent, indexEvents, putEvent, spaceDeletedEvent } from "./events";
 import { DocSink } from "../src/server/docs/sink";
 import {
   commentsForDoc,
@@ -448,88 +448,27 @@ it("ignores a commentReply record that fails lexicon validation", async () => {
   expect(await repliesForDoc(getDb(env), URI)).toEqual([]);
 });
 
-// Whole batches, as the stream indexer hands them to SyncSink.apply.
-describe("DocSink.apply", () => {
+// Whole events, as the stream hands them to the app's indexer.
+describe("doc indexing", () => {
   const BOB_DID = "did:web:bob.example" as DidString;
   const SPACE = URI as SpaceRefString;
-  const signal = new AbortController().signal;
-  const userRelation = (rkey: string) =>
-    `${URI}/${BOB_DID}/network.habitat.relationship.userRelation/${rkey}`;
+  const COLLECTION = "network.habitat.relationship.userRelation";
   const grant = (subject: string) =>
     jsonToLex({ subject, relation: "reader" }) as LexMap;
-  const sink = () => new DocSink(env, { getBlob });
+  const carol = "did:web:carol.example";
 
-  // ops is a one-write batch from Bob's repo.
-  const ops = (...items: { rkey: string; record: LexMap }[]): RepoBatch => ({
-    _tag: "Ops",
-    space: SPACE,
-    did: BOB_DID,
-    rev: "rev2",
-    changes: items.map(({ rkey, record }) => ({
-      uri: userRelation(rkey),
-      collection: "network.habitat.relationship.userRelation",
-      rkey,
-      cid: parseCid(RECORD_CID),
-      value: record,
-    })),
+  it("applies writes and deletes", async () => {
+    await indexEvents(putEvent(SPACE, BOB_DID, COLLECTION, "r1", grant(carol)));
+    expect(await docsFor(getDb(env), carol)).toHaveLength(1);
+    await indexEvents(delEvent(SPACE, BOB_DID, COLLECTION, "r1"));
+    expect(await docsFor(getDb(env), carol)).toEqual([]);
   });
 
-  it("applies an Ops batch's writes and deletes", async () => {
-    await sink().apply(
-      {
-        _tag: "Ops",
-        space: SPACE,
-        did: BOB_DID,
-        rev: "rev1",
-        changes: [
-          {
-            uri: userRelation("r1"),
-            collection: "network.habitat.relationship.userRelation",
-            rkey: "r1",
-            cid: parseCid(RECORD_CID),
-            value: grant("did:web:carol.example"),
-          },
-        ],
-      },
-      signal,
+  it("a deleted space clears the mirrored records", async () => {
+    await indexEvents(
+      putEvent(SPACE, BOB_DID, COLLECTION, "r1", grant(carol)),
+      spaceDeletedEvent(SPACE),
     );
-    expect(await docsFor(getDb(env), "did:web:carol.example")).toHaveLength(1);
-    await sink().apply(
-      {
-        _tag: "Ops",
-        space: SPACE,
-        did: BOB_DID,
-        rev: "rev2",
-        changes: [
-          {
-            uri: userRelation("r1"),
-            collection: "network.habitat.relationship.userRelation",
-            rkey: "r1",
-            cid: null,
-          },
-        ],
-      },
-      signal,
-    );
-    expect(await docsFor(getDb(env), "did:web:carol.example")).toEqual([]);
-  });
-
-  it("RepoRemoved and SpaceDeleted clear the mirrored records", async () => {
-    await sink().apply(
-      ops({ rkey: "r1", record: grant("did:web:carol.example") }),
-      signal,
-    );
-    await sink().apply(
-      { _tag: "RepoRemoved", space: SPACE, did: BOB_DID },
-      signal,
-    );
-    expect(await docsFor(getDb(env), "did:web:carol.example")).toEqual([]);
-
-    await sink().apply(
-      ops({ rkey: "r1", record: grant("did:web:carol.example") }),
-      signal,
-    );
-    await sink().apply({ _tag: "SpaceDeleted", space: SPACE }, signal);
-    expect(await docsFor(getDb(env), "did:web:carol.example")).toEqual([]);
+    expect(await docsFor(getDb(env), carol)).toEqual([]);
   });
 });
