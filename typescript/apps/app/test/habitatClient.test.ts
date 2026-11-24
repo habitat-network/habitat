@@ -252,3 +252,39 @@ describe("createHabitatClient", () => {
     expect(out.cid).toBe("bafy123");
   });
 });
+
+describe("instanceProxy", () => {
+  const env = { APP_HABITAT_URL: "https://pear.example" };
+  const at = (issuer: string) =>
+    ({ serverMetadata: { issuer } }) as Parameters<typeof instanceProxy>[0];
+
+  it("routes a Habitat method from another PDS to the instance", () => {
+    expect(
+      instanceProxy(
+        at("https://pds.example"),
+        env,
+        "network.habitat.space.listSpaces",
+      ),
+    ).toBe("did:web:pear.example#habitat");
+  });
+
+  it("leaves a session with the instance itself alone", () => {
+    expect(
+      instanceProxy(
+        at("https://pear.example/"),
+        env,
+        "network.habitat.space.listSpaces",
+      ),
+    ).toBeUndefined();
+  });
+
+  it("leaves methods the PDS serves itself alone", () => {
+    expect(
+      instanceProxy(
+        at("https://pds.example"),
+        env,
+        "com.atproto.space.putRecord",
+      ),
+    ).toBeUndefined();
+  });
+});
