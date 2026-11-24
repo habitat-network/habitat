@@ -2,7 +2,7 @@ import type { LexMap } from "@atproto/lex";
 import type {
   CommitHandlers,
   SpaceDeletedEvent,
-} from "@habitat-network/jetstream";
+} from "@habitat-network/jetstream/effect";
 import type { Effect } from "effect";
 
 // A Domain is what one part of the app (files, apps, rosters, docs) indexes

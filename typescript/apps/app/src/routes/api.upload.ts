@@ -4,12 +4,7 @@ import { Effect } from "effect";
 import { BadRequest, HabitatError } from "@/server/effect/errors";
 import { requireOrg } from "@/server/effect/member";
 import { runHandler } from "@/server/effect/run";
-import {
-  AppEnv,
-  attempt,
-  Habitat,
-  toHabitatError,
-} from "@/server/effect/services";
+import { attempt, Habitat, toHabitatError } from "@/server/effect/services";
 import {
   createFileSpace,
   FileTooLargeError,
@@ -56,7 +51,6 @@ export const Route = createFileRoute("/api/upload")({
               request.headers.get("content-type") || "application/octet-stream";
 
             const habitat = yield* Habitat;
-            const env = yield* AppEnv;
             const session = yield* habitat.session(org);
             const space = yield* attempt(org, "files.createSpace", () =>
               createFileSpace(session, org),
@@ -78,13 +72,11 @@ export const Route = createFileRoute("/api/upload")({
             });
             // Returns once the group's stream has indexed the record, so
             // the file list already shows it.
-            const { indexed } = yield* attempt(org, "files.putRecord", () =>
-              putFileRecord(env, org, space, {
-                name,
-                blob,
-                uploadedBy: did as DidString,
-              }),
-            );
+            const { indexed } = yield* putFileRecord(org, space, {
+              name,
+              blob,
+              uploadedBy: did as DidString,
+            });
             yield* Effect.logInfo("uploaded file", {
               space,
               bytes: bytes.byteLength,

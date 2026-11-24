@@ -1,6 +1,6 @@
 import type { LexMap } from "@atproto/lex";
 import { SpaceRef } from "@atproto/syntax";
-import { LexIndexer, type SpaceEvent } from "@habitat-network/jetstream";
+import { LexIndexer, type SpaceEvent } from "@habitat-network/jetstream/effect";
 import { Effect } from "effect";
 import { getDb } from "@/db";
 import { APP_SPACE_TYPE } from "../apps/apps.server";

@@ -1,4 +1,5 @@
 import type { DidString, SpaceRefString } from "@atproto/syntax";
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 const { putRecordIndexed, deleteRecordIndexed } = vi.hoisted(() => ({
@@ -44,23 +45,23 @@ describe("app bundles", () => {
 
 describe("putAppRecord", () => {
   it("writes the app's record into the group's repo through its stream", async () => {
-    putRecordIndexed.mockResolvedValueOnce({
-      uri: "u",
-      cid: "c",
-      indexed: true,
-    });
-    await putAppRecord({} as Env, ORG, SPACE, {
-      name: "Chat",
-      slug: "chat",
-      entrypoint: "index.js",
-      code: BLOB,
-      version: 2,
-      compatibilityDate: "2026-08-01",
-      createdBy: "did:plc:alice",
-      createdAt: "2026-11-01T00:00:00.000Z",
-      updatedBy: "did:plc:bob" as DidString,
-    });
-    expect(putRecordIndexed).toHaveBeenCalledWith(expect.anything(), ORG, ORG, {
+    putRecordIndexed.mockReturnValueOnce(
+      Effect.succeed({ uri: "u", cid: "c", indexed: true }),
+    );
+    await Effect.runPromise(
+      putAppRecord(ORG, SPACE, {
+        name: "Chat",
+        slug: "chat",
+        entrypoint: "index.js",
+        code: BLOB,
+        version: 2,
+        compatibilityDate: "2026-08-01",
+        createdBy: "did:plc:alice",
+        createdAt: "2026-11-01T00:00:00.000Z",
+        updatedBy: "did:plc:bob" as DidString,
+      }),
+    );
+    expect(putRecordIndexed).toHaveBeenCalledWith(ORG, ORG, {
       space: SPACE,
       repo: ORG,
       collection: APP_COLLECTION,
@@ -80,22 +81,13 @@ describe("putAppRecord", () => {
   });
 
   it("deletes the record to take an app down", async () => {
-    deleteRecordIndexed.mockResolvedValueOnce({
-      uri: "",
-      cid: "",
-      indexed: true,
+    deleteRecordIndexed.mockReturnValueOnce(Effect.succeed({ indexed: true }));
+    await Effect.runPromise(deleteAppRecord(ORG, SPACE));
+    expect(deleteRecordIndexed).toHaveBeenCalledWith(ORG, ORG, {
+      space: SPACE,
+      repo: ORG,
+      collection: APP_COLLECTION,
+      rkey: "self",
     });
-    await deleteAppRecord({} as Env, ORG, SPACE);
-    expect(deleteRecordIndexed).toHaveBeenCalledWith(
-      expect.anything(),
-      ORG,
-      ORG,
-      {
-        space: SPACE,
-        repo: ORG,
-        collection: APP_COLLECTION,
-        rkey: "self",
-      },
-    );
   });
 });
