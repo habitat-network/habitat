@@ -10,6 +10,7 @@ import { AppEnv, Habitat } from "@/server/effect/services";
 import { MEMBERSHIP_COLLECTION } from "@/server/members/sink";
 import { awaitIndexed } from "@/server/stream";
 import {
+  assignableWith,
   getProfiles,
   listMembers,
   listRoles,
@@ -219,12 +220,25 @@ export const removeMember = createServerFn({ method: "POST" })
       Effect.gen(function* () {
         const { did, org } = yield* requireOrg(data.org);
         const habitat = yield* Habitat;
-        yield* habitat.xrpc(
-          did,
-          community.opensocial.ejectMember.main,
-          { body: { org, member: data.member as DidString } },
-          viaGroup(org),
-        );
+        // A member who is already gone (an earlier attempt got through but
+        // its answer was lost, or someone else removed them) is the outcome
+        // asked for, not a failure.
+        const gone = yield* habitat
+          .xrpc(
+            did,
+            community.opensocial.ejectMember.main,
+            { body: { org, member: data.member as DidString } },
+            viaGroup(org),
+          )
+          .pipe(
+            Effect.as(false),
+            Effect.catchTag("HabitatError", (e) =>
+              e.error === "MemberNotFound"
+                ? Effect.succeed(true)
+                : Effect.fail(e),
+            ),
+          );
+        if (gone) return;
         // pear deletes the member's membership record from the roster;
         // wait for the group's stream to index that, so they lose access
         // here at once.
@@ -292,6 +306,7 @@ export const putRole = createServerFn({ method: "POST" })
           });
         }
         const habitat = yield* Habitat;
+        const existing = yield* listRoles(did, org);
         yield* habitat.xrpc(
           did,
           community.opensocial.putRole.main,
@@ -305,9 +320,49 @@ export const putRole = createServerFn({ method: "POST" })
           },
           viaGroup(org),
         );
+        if (!existing.some((r) => r.id === role)) {
+          yield* makeAssignable(did, org, role);
+        }
       }),
     ),
   );
+
+// makeAssignable lets every role that holds role.assign assign a role just
+// created. pear only lets a member grant the roles their roles are listed as
+// able to assign, and a new role is in nobody's list, so without this it
+// couldn't be given to anyone (a 403) until someone edited the permissions.
+// A group with no permissions record needs nothing: its admins may assign
+// any declared role.
+const makeAssignable = Effect.fn("makeAssignable")(function* (
+  did: string,
+  org: string,
+  role: string,
+) {
+  const permissions = yield* readPermissions(did, org);
+  if (!permissions.exists) return;
+  const assignable = assignableWith(
+    permissions.bindings,
+    permissions.assignable,
+    role,
+  );
+  if (!assignable) return;
+  const habitat = yield* Habitat;
+  yield* habitat.xrpc(
+    did,
+    community.opensocial.updatePermissions.main,
+    {
+      body: {
+        org,
+        bindings: permissions.bindings.map((b) => ({
+          action: b.action,
+          roles: [...b.roles],
+        })),
+        assignable,
+      },
+    },
+    viaGroup(org),
+  );
+});
 
 export const deleteRole = createServerFn({ method: "POST" })
   .validator(

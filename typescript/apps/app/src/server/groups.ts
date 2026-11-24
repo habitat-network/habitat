@@ -197,6 +197,32 @@ export const listRoles = Effect.fn("listRoles")(function* (
   }));
 });
 
+// assignableWith is the assignable list that also lets every role holding
+// role.assign assign role, or null when it already does (or nothing holds
+// role.assign).
+export function assignableWith(
+  bindings: readonly { action: string; roles: readonly string[] }[],
+  assignable: readonly { role: string; roles: readonly string[] }[],
+  role: string,
+): { role: string; roles: string[] }[] | null {
+  const next = assignable.map((a) => ({ role: a.role, roles: [...a.roles] }));
+  const assigners = new Set(
+    bindings.filter((b) => b.action === "role.assign").flatMap((b) => b.roles),
+  );
+  let changed = false;
+  for (const assigner of assigners) {
+    const entry = next.find((a) => a.role === assigner);
+    if (!entry) {
+      next.push({ role: assigner, roles: [role] });
+      changed = true;
+    } else if (!entry.roles.includes(role)) {
+      entry.roles.push(role);
+      changed = true;
+    }
+  }
+  return changed ? next : null;
+}
+
 export type ActionBinding = community.opensocial.permissions.ActionBinding;
 export type AssignableBinding =
   community.opensocial.permissions.AssignableBinding;
@@ -243,8 +269,10 @@ export const readPermissions = Effect.fn("readPermissions")(function* (
   } satisfies PermissionsView;
 });
 
-// groupNames resolves display names for groups: the name cached when the
-// group was connected, else its profile.
+// groupNames resolves display names for groups: the group's profile, else
+// the name cached when it was connected. The cache is only a snapshot from
+// connect time, so it must not win over the profile or a rename would never
+// show.
 export const groupNames = Effect.fn("groupNames")(function* (
   did: string,
   orgs: readonly string[],
@@ -256,13 +284,12 @@ export const groupNames = Effect.fn("groupNames")(function* (
     orgs,
     (org) =>
       Effect.gen(function* () {
-        const name = cached.get(org);
-        if (name !== undefined) {
-          names.set(org, { name, connected: true });
-          return;
-        }
         const profile = yield* readGroupProfile(did, org);
-        names.set(org, { name: profile.name, connected: false });
+        const fallback = cached.get(org);
+        names.set(org, {
+          name: profile.name ?? fallback ?? null,
+          connected: fallback !== undefined,
+        });
       }),
     { concurrency: 8, discard: true },
   );

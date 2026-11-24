@@ -203,7 +203,7 @@ function RolesPage() {
                 </div>
                 {canConfigure && (
                   <>
-                    <RoleDialog org={org} role={selected} />
+                    <RoleDialog key={selected.id} org={org} role={selected} />
                     {selected.id !== "admin" && selected.id !== "member" && (
                       <Button
                         variant="destructive"
@@ -362,6 +362,17 @@ function RoleDialog({
   const [id, setId] = useState(role?.id ?? "");
   const [name, setName] = useState(role?.name ?? "");
   const [description, setDescription] = useState(role?.description ?? "");
+  // The form state is seeded from `role` once, but this component stays
+  // mounted while the selected role changes, so re-seed it every time the
+  // dialog opens. Otherwise Edit shows whichever role was selected first.
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      setId(role?.id ?? "");
+      setName(role?.name ?? "");
+      setDescription(role?.description ?? "");
+    }
+    setOpen(next);
+  };
   const save = useMutation({
     mutationFn: () => putRole({ data: { org, role: id, name, description } }),
     onSuccess: async () => {
@@ -377,7 +388,7 @@ function RoleDialog({
       }),
   });
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button variant={role ? "outline" : "default"} />}>
         {role ? (
           "Edit"
