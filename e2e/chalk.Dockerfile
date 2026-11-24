@@ -29,9 +29,10 @@ WORKDIR /app/typescript/apps/app
 # The browser resolves handles of DIDs bsky doesn't know through this pear.
 ARG HABITAT_DOMAIN=habitat-e2e.dev
 ENV VITE_HABITAT_DOMAIN=$HABITAT_DOMAIN
-# Built in development mode so import.meta.env.DEV is true: the app shows dev-only
-# sections (such as Apps in the sidebar) that the e2e tests drive.
-RUN pnpm exec vite build --mode development
+# import.meta.env.DEV must be true: the app shows dev-only sections (such as
+# Apps in the sidebar) that the e2e tests drive. vite build --mode development
+# alone leaves NODE_ENV=production, which keeps DEV false, so set both.
+RUN NODE_ENV=development pnpm exec vite build --mode development
 
 ENV WRANGLER_SEND_METRICS=false CI=1
 COPY e2e/chalk-entrypoint.sh /usr/local/bin/chalk-entrypoint
