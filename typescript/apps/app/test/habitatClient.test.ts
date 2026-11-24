@@ -1,4 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  beforeAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { warmHabitat } from "./warmHabitat";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import {
@@ -11,6 +20,8 @@ import { SessionExpired } from "../src/server/effect/errors";
 import { authorize } from "./fakeOAuth";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
+
+beforeAll(warmHabitat, 60_000);
 
 const testEnv = {} as Env;
 

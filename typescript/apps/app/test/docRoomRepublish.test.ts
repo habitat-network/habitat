@@ -1,20 +1,16 @@
-import {
-  env,
-  runInDurableObject,
-  runDurableObjectAlarm,
-} from "cloudflare:test";
-import { beforeEach, expect, it, vi } from "vitest";
+import { env, runInDurableObject } from "cloudflare:test";
+import { warmHabitat } from "./warmHabitat";
+import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import type { DocRoom } from "../src/server/docs/rooms/docRoom";
+import { runAlarmNow } from "./docRoomAlarm";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 import { getDb, docByUri, upsertDoc } from "../src/db";
 
-// The first write from a freshly started room loads the Habitat service, which
-// can take a while when the whole suite is running at once.
-const FLUSH_TIMEOUT_MS = 5000;
-
 const URI = "at://did:web:alice.example/space/network.habitat.docs/pub";
+
+beforeAll(warmHabitat, 60_000);
 
 const fetchMock = vi.fn();
 beforeEach(async () => {
@@ -49,28 +45,24 @@ it("republishes crdt and markdown under the owner's repo", async () => {
       headingUpdate("Title"),
     ),
   );
-  await new Promise((resolve) => setTimeout(resolve, 2100));
-  await runDurableObjectAlarm(stub);
-  // As in the tests below: a background alarm may still be flushing.
-  await vi.waitFor(() => {
-    const puts = fetchMock.mock.calls
-      .filter((c) => String(c[0]).includes("space.putRecord"))
-      .map(
-        (c) =>
-          JSON.parse(String(c[1].body)) as {
-            space: string;
-            repo: string;
-            collection: string;
-          },
-      );
-    const ownerPuts = puts.filter(
-      (p) => p.space === URI && p.repo === "did:web:alice.example",
+  await runAlarmNow(stub);
+  const puts = fetchMock.mock.calls
+    .filter((c) => String(c[0]).includes("space.putRecord"))
+    .map(
+      (c) =>
+        JSON.parse(String(c[1].body)) as {
+          space: string;
+          repo: string;
+          collection: string;
+        },
     );
-    expect(ownerPuts.map((p) => p.collection).sort()).toEqual([
-      "network.habitat.docs.crdt",
-      "network.habitat.docs.markdown",
-    ]);
-  }, FLUSH_TIMEOUT_MS);
+  const ownerPuts = puts.filter(
+    (p) => p.space === URI && p.repo === "did:web:alice.example",
+  );
+  expect(ownerPuts.map((p) => p.collection).sort()).toEqual([
+    "network.habitat.docs.crdt",
+    "network.habitat.docs.markdown",
+  ]);
 });
 
 it("skips republish when the owner is unknown", async () => {
@@ -79,21 +71,15 @@ it("skips republish when the owner is unknown", async () => {
   await runInDurableObject(stub, (r: DocRoom) =>
     r.applyEdit({ spaceUri: uri }, "did:web:bob.example", headingUpdate("x")),
   );
-  await new Promise((resolve) => setTimeout(resolve, 2100));
-  await runDurableObjectAlarm(stub);
-  // This room's own real alarm can fire during the wait above and still be
-  // mid-flush when runDurableObjectAlarm returns (see docRoomFlush.test.ts),
-  // so wait for the member's write rather than reading the mock once.
-  await vi.waitFor(() => {
-    const repos = fetchMock.mock.calls
-      .filter((c) => String(c[0]).includes("space.putRecord"))
-      .map(
-        (c) => JSON.parse(String(c[1].body)) as { space: string; repo: string },
-      )
-      .filter((body) => body.space === uri)
-      .map((body) => body.repo);
-    expect(repos).toEqual(["did:web:bob.example"]);
-  });
+  await runAlarmNow(stub);
+  const repos = fetchMock.mock.calls
+    .filter((c) => String(c[0]).includes("space.putRecord"))
+    .map(
+      (c) => JSON.parse(String(c[1].body)) as { space: string; repo: string },
+    )
+    .filter((body) => body.space === uri)
+    .map((body) => body.repo);
+  expect(repos).toEqual(["did:web:bob.example"]);
 });
 
 it("writes the rendered title back to the D1 index", async () => {
@@ -112,9 +98,6 @@ it("writes the rendered title back to the D1 index", async () => {
       headingUpdate("Hello"),
     ),
   );
-  await new Promise((resolve) => setTimeout(resolve, 2100));
-  await runDurableObjectAlarm(stub);
-  await vi.waitFor(async () => {
-    expect((await docByUri(getDb(env), uri))?.title).toBe("Hello");
-  });
+  await runAlarmNow(stub);
+  expect((await docByUri(getDb(env), uri))?.title).toBe("Hello");
 });

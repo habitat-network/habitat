@@ -7,6 +7,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { warmHabitat } from "./warmHabitat";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import type { DidString } from "@atproto/syntax";
@@ -14,6 +15,8 @@ import { getSpaceBlob } from "../src/server/blobs";
 import { TEST_DID_HEADER } from "./fakeOAuth";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
+
+beforeAll(warmHabitat, 60_000);
 
 const ORG = "did:web:org.example" as DidString;
 const MEMBER = "did:web:alice.example" as DidString;

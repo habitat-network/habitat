@@ -1,5 +1,6 @@
 import { env } from "cloudflare:test";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmHabitat } from "./warmHabitat";
 import * as Y from "yjs";
 import { jsonToLex, type LexMap } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
@@ -15,6 +16,8 @@ import {
 } from "../src/db";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
+
+beforeAll(warmHabitat, 60_000);
 
 // A well-formed empty Yjs V2 update — `applyRemote` applies the blob's bytes
 // with `Y.applyUpdateV2`, which decodes them, so an arbitrary byte sequence

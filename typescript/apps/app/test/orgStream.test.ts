@@ -4,7 +4,8 @@ import {
   runInDurableObject,
 } from "cloudflare:test";
 import { Effect } from "effect";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { beforeAll, afterEach, beforeEach, expect, it, vi } from "vitest";
+import { warmHabitat } from "./warmHabitat";
 import { fileByUri, getDb, upsertConnectedOrg } from "@/db";
 import { connectedOrgs, files } from "@/db/schema";
 import { putFileRecord, deleteFileRecord } from "@/server/files/files.server";
@@ -14,6 +15,8 @@ import type { OrgStream } from "@/server/stream/orgStream";
 import { TEST_DID_HEADER } from "./fakeOAuth";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
+
+beforeAll(warmHabitat, 60_000);
 
 // The group's stream end to end inside workerd: a request against the org
 // (followOrg, on the org's Durable Object) catches D1 up over getSnapshot, then opens pear's subscribe
