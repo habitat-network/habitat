@@ -1,3 +1,4 @@
+import { HabitatError } from "@/server/effect/errors";
 import { AtUri, SpaceRef, toDatetimeString } from "@atproto/syntax";
 import { lexToJson } from "@atproto/lex-json";
 import type { network } from "api";
@@ -100,12 +101,11 @@ const SPACE_RELATIONS: {
 ];
 
 // isSpaceAlreadyExists reports whether err is createSpace's expected
-// "the space is already there" error rather than a real failure. HabitatClient
-// surfaces a proxied error as an Error carrying the response body, which
-// for this case is pear's {"error": "SpaceAlreadyExists"} (see
+// "the space is already there" error rather than a real failure: a
+// HabitatError named SpaceAlreadyExists (see
 // internal/pearserver/space_create_space.go).
 function isSpaceAlreadyExists(err: unknown): boolean {
-  return err instanceof Error && err.message.includes("SpaceAlreadyExists");
+  return err instanceof HabitatError && err.error === "SpaceAlreadyExists";
 }
 
 // ensureCommentsSpace creates a doc's comments space and its inheritance
@@ -156,7 +156,7 @@ export async function ensureCommentsSpace(
           policy: RELATION_SPACE_POLICY,
           roles: [],
         },
-        { atprotoProxy: `${opts.ownerDid}#habitat` },
+        { proxy: opts.ownerDid },
       );
     } else {
       await ownerClient.call("com.atproto.space.createSpace", "POST", {

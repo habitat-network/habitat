@@ -4,18 +4,8 @@ import { Effect } from "effect";
 import { BadRequest, HabitatError } from "@/server/effect/errors";
 import { requireOrg } from "@/server/effect/member";
 import { runHandler } from "@/server/effect/run";
-import {
-  AppEnv,
-  attempt,
-  Habitat,
-  toHabitatError,
-} from "@/server/effect/services";
-import {
-  createFileSpace,
-  FileTooLargeError,
-  putFileRecord,
-  uploadBlob,
-} from "@/server/files/files.server";
+import { AppEnv, attempt, Habitat } from "@/server/effect/services";
+import { createFileSpace, putFileRecord } from "@/server/files/files.server";
 import { requireConnected } from "@/server/groups";
 import { MAX_FILE_BYTES, formatBytes } from "@/lib/files";
 
@@ -61,21 +51,19 @@ export const Route = createFileRoute("/api/upload")({
             const space = yield* attempt(org, "files.createSpace", () =>
               createFileSpace(session, org),
             );
-            const { blob } = yield* Effect.tryPromise({
-              try: () => uploadBlob(session, bytes, mimeType),
-              catch: (cause) =>
-                cause instanceof FileTooLargeError
-                  ? new HabitatError({
-                      nsid: "network.habitat.repo.uploadBlob",
-                      status: 413,
-                      message: "That file is too large",
-                    })
-                  : toHabitatError(
-                      org,
-                      "network.habitat.repo.uploadBlob",
-                      cause,
-                    ),
-            });
+            const { blob } = yield* habitat
+              .uploadBlob(org, bytes, mimeType)
+              .pipe(
+                Effect.mapError((error) =>
+                  error._tag === "HabitatError" && error.status === 413
+                    ? new HabitatError({
+                        nsid: error.nsid,
+                        status: 413,
+                        message: "That file is too large",
+                      })
+                    : error,
+                ),
+              );
             // Returns once the group's stream has indexed the record, so
             // the file list already shows it.
             const { indexed } = yield* attempt(org, "files.putRecord", () =>

@@ -7,22 +7,16 @@ import {
   userMessage,
 } from "@/server/effect/errors";
 import { toHabitatError } from "@/server/effect/services";
-import { UnauthorizedError } from "@/server/habitatClient";
 
 const MEMBER = "did:web:alice.example";
 
 describe("toHabitatError", () => {
-  it("treats an UnauthorizedError anywhere in the cause chain as an expired session", () => {
-    const cause = new Error("wrapped", {
-      cause: new UnauthorizedError("did:web:org.example", "no session"),
+  it("passes the typed errors through", () => {
+    const expired = new SessionExpired({
+      did: "did:web:org.example",
+      message: "no session",
     });
-    const error = toHabitatError(
-      MEMBER,
-      "network.habitat.space.listSpaces",
-      cause,
-    );
-    expect(error).toBeInstanceOf(SessionExpired);
-    expect(error).toMatchObject({ did: "did:web:org.example" });
+    expect(toHabitatError(MEMBER, "x.y.z", expired)).toBe(expired);
   });
 
   it("reports a 401 from a group call as a refusal, not an expired session", () => {
@@ -37,19 +31,6 @@ describe("toHabitatError", () => {
     const proxied = toHabitatError(MEMBER, nsid, denied, true);
     expect(proxied).toBeInstanceOf(HabitatError);
     expect(proxied).toMatchObject({ status: 403, nsid });
-  });
-
-  it("reads the status out of a HabitatClient failure message", () => {
-    const error = toHabitatError(
-      MEMBER,
-      "network.habitat.repo.uploadBlob",
-      new Error("network.habitat.repo.uploadBlob failed (413): too large"),
-    );
-    expect(error).toBeInstanceOf(HabitatError);
-    expect(error).toMatchObject({
-      status: 413,
-      nsid: "network.habitat.repo.uploadBlob",
-    });
   });
 
   it("uses status 0 when the request never got an answer", () => {

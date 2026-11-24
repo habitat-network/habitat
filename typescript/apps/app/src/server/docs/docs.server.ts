@@ -1,3 +1,4 @@
+import { HabitatError } from "@/server/effect/errors";
 import { SpaceRef, type DidString } from "@atproto/syntax";
 import type { HabitatClient } from "@/server/habitatClient";
 import { commentsSpaceUri } from "./comments.server";
@@ -41,7 +42,7 @@ export async function createDocSpace(
         policy: RELATION_SPACE_POLICY,
         roles: [],
       },
-      { atprotoProxy: `${currentOrg}#habitat` },
+      { proxy: currentOrg },
     );
     return { uri: created.uri, ownerDid: currentOrg };
   }
@@ -222,7 +223,7 @@ export interface UserRelationView {
 // A space that doesn't exist holds no grants, rather than being an error:
 // docs created before comments spaces were introduced have none, and pear
 // rejects any relationship query against a missing space as SpaceNotFound
-// (HabitatClient surfaces the proxied response body in the error message).
+// (a HabitatError named SpaceNotFound).
 // Without this, every sharing path that also looks at a doc's comments
 // space would fail outright for those docs.
 export async function listUserGrants(
@@ -240,7 +241,7 @@ export async function listUserGrants(
     });
     return relations;
   } catch (err) {
-    if (err instanceof Error && err.message.includes("SpaceNotFound")) {
+    if (err instanceof HabitatError && err.error === "SpaceNotFound") {
       return [];
     }
     throw err;

@@ -3,6 +3,7 @@ import {
   xrpc as lexXrpc,
   XrpcError,
   type Agent,
+  type LexValue,
   type Main,
   type Procedure,
   type Query,
@@ -13,11 +14,7 @@ import type { OAuthClient, OAuthSession } from "@atproto/oauth-client";
 import { Context, Effect, Layer, Predicate } from "effect";
 import { getDb, type Db } from "@/db";
 import { createOAuthClient } from "@/server/oauth";
-import {
-  HabitatClient,
-  UnauthorizedError,
-  instanceProxy,
-} from "@/server/habitatClient";
+import { type HabitatClient, instanceProxy } from "@/server/habitatClient";
 import { HabitatError, SessionExpired } from "./errors";
 
 // The services every server-side Effect in the app can ask for. They're all
@@ -61,106 +58,230 @@ export interface CallOptions {
 
 // Habitat makes calls to the Habitat instance as a specific DID (a member,
 // or a group a member has connected), using the OAuth session the app holds
-// for it. Every failure is typed: SessionExpired when pear no longer accepts
-// the session, HabitatError for anything else.
-export class Habitat extends Context.Service<
-  Habitat,
-  {
-    // session restores the DID's OAuth session.
-    readonly session: (
-      did: string,
-    ) => Effect.Effect<OAuthSession, SessionExpired>;
-    // xrpc is @atproto/lex's typed xrpc() as the DID. It answers with the
-    // response body, already decoded against the method's output schema.
-    readonly xrpc: <const M extends Query | Procedure>(
-      did: string,
-      method: Main<M>,
-      options?: XrpcOptions<M>,
-      call?: CallOptions,
-    ) => Effect.Effect<XrpcResponse<M>["body"], HabitatError | SessionExpired>;
-    // call is an untyped call by NSID, for methods whose lexicon the api
-    // package doesn't generate a schema for, or whose body the app reads
-    // loosely on purpose. GET payloads become query parameters.
-    readonly call: <T>(
-      did: string,
-      nsid: string,
-      method: "GET" | "POST",
-      payload: Record<string, unknown>,
-      call?: CallOptions,
-    ) => Effect.Effect<T, HabitatError | SessionExpired>;
-    // client is the Promise-based HabitatClient for the same DID, for the
-    // code ported from Chalk that isn't written as Effects (the doc rooms,
-    // the sync sink, comments).
-    readonly client: (did: string) => HabitatClient;
-  }
->()("app/Habitat") {
+// for it. It is the app's one XRPC client: every failure is typed at the
+// source, SessionExpired when pear no longer accepts the session,
+// HabitatError (with the HTTP status and XRPC error name) for anything else.
+export interface HabitatService {
+  // session restores the DID's OAuth session.
+  readonly session: (
+    did: string,
+  ) => Effect.Effect<OAuthSession, SessionExpired>;
+  // xrpc is @atproto/lex's typed xrpc() as the DID. It answers with the
+  // response body, already decoded against the method's output schema.
+  readonly xrpc: <const M extends Query | Procedure>(
+    did: string,
+    method: Main<M>,
+    options?: XrpcOptions<M>,
+    call?: CallOptions,
+  ) => Effect.Effect<XrpcResponse<M>["body"], HabitatError | SessionExpired>;
+  // call is an untyped call by NSID, for methods whose lexicon the api
+  // package doesn't generate a schema for, or whose body the app reads
+  // loosely on purpose. GET payloads become query parameters.
+  readonly call: <T>(
+    did: string,
+    nsid: string,
+    method: "GET" | "POST",
+    payload: Record<string, unknown>,
+    call?: CallOptions,
+  ) => Effect.Effect<T, HabitatError | SessionExpired>;
+  // uploadBlob uploads raw bytes to the DID's own repo.
+  readonly uploadBlob: (
+    did: string,
+    bytes: Uint8Array,
+    mimeType: string,
+  ) => Effect.Effect<
+    { blob: LexValue; cid: string },
+    HabitatError | SessionExpired
+  >;
+  // getBlob reads a blob from a space repo, as the DID.
+  readonly getBlob: (
+    did: string,
+    space: string,
+    repo: string,
+    cid: string,
+  ) => Effect.Effect<Uint8Array, HabitatError | SessionExpired>;
+  // client is the same service as a Promise-based HabitatClient for the DID,
+  // for the code that isn't written as Effects (the doc helpers, comments).
+  readonly client: (did: string) => HabitatClient;
+}
+
+export class Habitat extends Context.Service<Habitat, HabitatService>()(
+  "app/Habitat",
+) {
   static readonly layer = Layer.effect(
     Habitat,
     Effect.gen(function* () {
-      const env = yield* AppEnv;
-      const oauth = yield* OAuth;
-
-      const session = Effect.fn("Habitat.session")(function* (did: string) {
-        return yield* Effect.tryPromise({
-          try: () => oauth.restore(did),
-          catch: (cause) =>
-            new SessionExpired({
-              did,
-              message: `restoring the OAuth session for ${did} failed: ${messageOf(cause)}`,
-            }),
-        });
-      });
-
-      const xrpc = <const M extends Query | Procedure>(
-        did: string,
-        method: Main<M>,
-        options?: XrpcOptions<M>,
-        call?: CallOptions,
-      ) =>
-        Effect.gen(function* () {
-          const oauthSession = yield* session(did);
-          const agent: Agent = oauthSession;
-          const nsid = methodNsid(method);
-          const opts = withProxy(
-            options ?? {},
-            call?.proxy
-              ? `${call.proxy}#habitat`
-              : instanceProxy(oauthSession, env, nsid),
-          ) as XrpcOptions<M>;
-          const res = yield* Effect.tryPromise({
-            try: () => lexXrpc(agent, method, opts),
-            catch: (cause) => toHabitatError(did, nsid, cause, !!call?.proxy),
-          });
-          return res.body;
-        }).pipe(
-          Effect.withSpan("Habitat.xrpc", {
-            attributes: { did, nsid: methodNsid(method) },
-          }),
-        );
-
-      const callNsid = <T>(
-        did: string,
-        nsid: string,
-        method: "GET" | "POST",
-        payload: Record<string, unknown>,
-        call?: CallOptions,
-      ) =>
-        Effect.tryPromise({
-          try: () =>
-            new HabitatClient(env, did).call<T>(nsid, method, payload, {
-              atprotoProxy: call?.proxy ? `${call.proxy}#habitat` : undefined,
-            }),
-          catch: (cause) => toHabitatError(did, nsid, cause, !!call?.proxy),
-        }).pipe(Effect.withSpan("Habitat.call", { attributes: { did, nsid } }));
-
-      return Habitat.of({
-        session,
-        xrpc,
-        call: callNsid,
-        client: (did) => new HabitatClient(env, did),
-      });
+      return makeHabitat(yield* AppEnv, yield* OAuth);
     }),
   );
+}
+
+// makeHabitat builds the service from the Worker's bindings and an OAuth
+// client; Habitat.layer provides the app's, and createHabitatClient (for
+// code outside an Effect runtime) builds its own.
+export function makeHabitat(env: Env, oauth: OAuthClient): HabitatService {
+  const session = Effect.fn("Habitat.session")(function* (did: string) {
+    return yield* Effect.tryPromise({
+      try: () => oauth.restore(did),
+      catch: (cause) =>
+        new SessionExpired({
+          did,
+          message: `restoring the OAuth session for ${did} failed: ${messageOf(cause)}`,
+        }),
+    });
+  });
+
+  const xrpc = <const M extends Query | Procedure>(
+    did: string,
+    method: Main<M>,
+    options?: XrpcOptions<M>,
+    call?: CallOptions,
+  ) =>
+    Effect.gen(function* () {
+      const oauthSession = yield* session(did);
+      const agent: Agent = oauthSession;
+      const nsid = methodNsid(method);
+      const opts = withProxy(
+        options ?? {},
+        proxyFor(oauthSession, env, nsid, call),
+      ) as XrpcOptions<M>;
+      const res = yield* Effect.tryPromise({
+        try: () => lexXrpc(agent, method, opts),
+        catch: (cause) => toHabitatError(did, nsid, cause, !!call?.proxy),
+      });
+      return res.body;
+    }).pipe(
+      Effect.withSpan("Habitat.xrpc", {
+        attributes: { did, nsid: methodNsid(method) },
+      }),
+    );
+
+  // fetchXrpc sends one raw request through the DID's session and fails with
+  // the typed error for any non-2xx response.
+  const fetchXrpc = (
+    did: string,
+    nsid: string,
+    init: { method: "GET" | "POST"; query?: URLSearchParams; body?: BodyInit },
+    headers: Record<string, string>,
+    call?: CallOptions,
+  ) =>
+    Effect.gen(function* () {
+      const oauthSession = yield* session(did);
+      const proxy = proxyFor(oauthSession, env, nsid, call);
+      if (proxy) headers["atproto-proxy"] = proxy;
+      const path = `/xrpc/${nsid}${init.query ? `?${init.query}` : ""}`;
+      const res = yield* Effect.tryPromise({
+        try: () =>
+          oauthSession.fetchHandler(path, {
+            method: init.method,
+            body: init.body,
+            headers,
+          }),
+        catch: (cause) => toHabitatError(did, nsid, cause, !!call?.proxy),
+      });
+      if (!res.ok) {
+        const text = yield* Effect.promise(() => res.text());
+        return yield* failure(did, nsid, res.status, text, !!call?.proxy);
+      }
+      return res;
+    });
+
+  const callNsid = <T>(
+    did: string,
+    nsid: string,
+    method: "GET" | "POST",
+    payload: Record<string, unknown>,
+    call?: CallOptions,
+  ) =>
+    Effect.gen(function* () {
+      let query: URLSearchParams | undefined;
+      let body: string | undefined;
+      const headers: Record<string, string> = {};
+      if (method === "GET") {
+        query = new URLSearchParams();
+        for (const [k, v] of Object.entries(payload)) {
+          if (v !== undefined && v !== null) query.set(k, String(v));
+        }
+      } else {
+        body = JSON.stringify(payload);
+        headers["content-type"] = "application/json";
+      }
+      const res = yield* fetchXrpc(
+        did,
+        nsid,
+        { method, query, body },
+        headers,
+        call,
+      );
+      // A procedure with no output schema (e.g.
+      // network.habitat.relationship.deleteRelation) returns an empty 200
+      // body, which res.json() would throw on.
+      const text = yield* Effect.promise(() => res.text());
+      return (text ? JSON.parse(text) : undefined) as T;
+    }).pipe(Effect.withSpan("Habitat.call", { attributes: { did, nsid } }));
+
+  const uploadBlob = (did: string, bytes: Uint8Array, mimeType: string) =>
+    Effect.gen(function* () {
+      const res = yield* fetchXrpc(
+        did,
+        "network.habitat.repo.uploadBlob",
+        { method: "POST", body: bytes as BodyInit },
+        { "content-type": mimeType },
+      );
+      return (yield* Effect.promise(() => res.json())) as {
+        blob: LexValue;
+        cid: string;
+      };
+    }).pipe(Effect.withSpan("Habitat.uploadBlob", { attributes: { did } }));
+
+  const getBlob = (did: string, space: string, repo: string, cid: string) =>
+    Effect.gen(function* () {
+      const res = yield* fetchXrpc(
+        did,
+        "network.habitat.space.getBlob",
+        { method: "GET", query: new URLSearchParams({ space, repo, cid }) },
+        {},
+      );
+      return new Uint8Array(yield* Effect.promise(() => res.arrayBuffer()));
+    }).pipe(Effect.withSpan("Habitat.getBlob", { attributes: { did } }));
+
+  const service: HabitatService = {
+    session,
+    xrpc,
+    call: callNsid,
+    uploadBlob,
+    getBlob,
+    client: (did) => promiseClient(service, did),
+  };
+  return service;
+}
+
+// promiseClient is the Promise view of the service for one DID. A failed
+// call rejects with the typed SessionExpired or HabitatError itself.
+export function promiseClient(
+  habitat: HabitatService,
+  did: string,
+): HabitatClient {
+  return {
+    call: (nsid, method, payload, opts) =>
+      Effect.runPromise(habitat.call(did, nsid, method, payload, opts)),
+    uploadBlob: (bytes, mimeType) =>
+      Effect.runPromise(habitat.uploadBlob(did, bytes, mimeType)),
+    getBlob: (space, repo, cid) =>
+      Effect.runPromise(habitat.getBlob(did, space, repo, cid)),
+    asDid: (other) => promiseClient(habitat, other),
+  };
+}
+
+function proxyFor(
+  session: OAuthSession,
+  env: Env,
+  nsid: string,
+  call?: CallOptions,
+): string | undefined {
+  return call?.proxy
+    ? `${call.proxy}#habitat`
+    : instanceProxy(session, env, nsid);
 }
 
 // methodNsid reads a lexicon method's NSID off its schema, for logs and
@@ -182,26 +303,54 @@ function withProxy<O extends { headers?: HeadersInit }>(
   return { ...options, headers };
 }
 
-// toHabitatError classifies whatever a call threw: a 401 (or a session that
-// couldn't be restored) is SessionExpired, anything else a HabitatError
-// carrying pear's status and XRPC error name when there was a response.
+// failure is the typed error for a non-2xx response: a 401 is SessionExpired
+// (pear no longer accepts the session, after the OAuth client's own
+// refresh-and-retry), anything else a HabitatError carrying the status and
+// the XRPC error name when the body names one.
 //
 // proxied is true for a call made to a group through the member's pear
 // (atproto-proxy). Pear answers a denied action there with a 401 whose body
 // the proxy strips, so it can't be told from a lapsed session; the member's
-// own session was restored fine to get that far (a refresh failure is an
-// UnauthorizedError, handled above), so it is reported as a refusal rather
-// than signing the member out.
+// own session was restored fine to get that far, so it is reported as a
+// refusal rather than signing the member out.
+function failure(
+  did: string,
+  nsid: string,
+  status: number,
+  body: string,
+  proxied: boolean,
+) {
+  const message = `${nsid} failed (${status}): ${body}`;
+  if (status === 401 && !proxied) {
+    return Effect.fail(new SessionExpired({ did, message }));
+  }
+  let error: unknown;
+  try {
+    error = (JSON.parse(body) as { error?: unknown }).error;
+  } catch {
+    // not JSON; there is no error name
+  }
+  return Effect.fail(
+    new HabitatError({
+      nsid,
+      status: status === 401 ? 403 : status,
+      error: Predicate.isString(error) ? error : undefined,
+      message,
+    }),
+  );
+}
+
+// toHabitatError classifies whatever a call threw: the typed errors pass
+// through, an XrpcError from the typed client is classified like a raw
+// response, and anything else is a HabitatError with status 0.
 export function toHabitatError(
   did: string,
   nsid: string,
   cause: unknown,
   proxied = false,
 ): HabitatError | SessionExpired {
-  for (let e = cause; e instanceof Error; e = e.cause) {
-    if (e instanceof UnauthorizedError) {
-      return new SessionExpired({ did: e.did, message: e.message });
-    }
+  if (cause instanceof SessionExpired || cause instanceof HabitatError) {
+    return cause;
   }
   if (cause instanceof XrpcError) {
     const status = Predicate.hasProperty(cause, "status")
@@ -217,14 +366,7 @@ export function toHabitatError(
       message: messageOf(cause),
     });
   }
-  const status = statusFromMessage(messageOf(cause));
-  return new HabitatError({ nsid, status, message: messageOf(cause) });
-}
-
-// HabitatClient reports failures as "<nsid> failed (<status>): <body>".
-function statusFromMessage(message: string): number {
-  const match = /failed \((\d{3})\)/.exec(message);
-  return match ? Number(match[1]) : 0;
+  return new HabitatError({ nsid, status: 0, message: messageOf(cause) });
 }
 
 export function messageOf(cause: unknown): string {

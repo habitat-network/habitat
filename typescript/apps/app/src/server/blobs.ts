@@ -1,5 +1,5 @@
 import { SpaceRef, type DidString } from "@atproto/syntax";
-import { HabitatClient } from "./habitatClient";
+import { createHabitatClient } from "./habitatClient";
 
 // getSpaceBlob reads a blob (a doc's crdt state, an uploaded file, an app's
 // code) out of a space through pear's network.habitat.space.getBlob, as the
@@ -13,5 +13,5 @@ export async function getSpaceBlob(
   cid: string,
 ): Promise<Uint8Array> {
   const authority = SpaceRef.parse(space).spaceDid;
-  return new HabitatClient(env, authority).getBlob(space, repo, cid);
+  return createHabitatClient(env, authority).getBlob(space, repo, cid);
 }
