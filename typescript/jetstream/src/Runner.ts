@@ -1,9 +1,7 @@
 import { lexStringify } from "@atproto/lex-json";
 import {
-  Cause,
   Duration,
   Effect,
-  Fiber,
   Option,
   PubSub,
   Schedule,
@@ -21,7 +19,7 @@ import {
   errorMessage,
 } from "./errors";
 import type { CommitEvent, SpaceEvent } from "./events";
-import type { Jetstream } from "./Jetstream";
+import type { JetstreamClient } from "./Jetstream";
 import type { FetchHandler } from "./transport";
 
 /**
@@ -150,17 +148,16 @@ const HANDLER_RETRY = Schedule.exponential("200 millis").pipe(
  * hash the record's content, so the URI is what tells two equal records
  * apart); a delete on its URI.
  */
-export class Runner<E = unknown> {
+export class RunnerClient<E = unknown> {
   // Every event the sink has finished, for awaitIndexed. It replays the last
   // `recentLimit` to a late subscriber, so a write whose event was indexed
   // before its response arrived still finds it.
   private readonly indexedEvents: PubSub.PubSub<CommitEvent>;
   private readonly writeTimeout: Duration.Duration;
   private memoryCursor: number | undefined;
-  private fiber: Fiber.Fiber<void, unknown> | undefined;
 
   constructor(
-    readonly jetstream: Jetstream,
+    readonly jetstream: JetstreamClient,
     private readonly sink: EventSink<E>,
     readonly options: RunnerOptions = {},
   ) {
@@ -422,70 +419,35 @@ export class Runner<E = unknown> {
    * doesn't exist produces no event, so it's looked up first, and returns
    * at once when it's already gone.
    */
-  readonly deleteRecord = Effect.fn("Runner.deleteRecord")(function* (
-    this: Runner<E>,
+  deleteRecord(
     input: RecordTarget,
     options: WriteOptions = {},
-  ): Effect.fn.Return<void, WriteError | WriteNotObserved> {
-    const fetch = options.fetch ?? this.jetstream.fetch;
-    const found = yield* this.xrpc(
-      "com.atproto.space.getRecord",
-      "GET",
-      { ...input },
-      fetch,
-      Schema.Struct({ uri: Schema.String }),
-    ).pipe(
-      Effect.map(Option.some),
-      Effect.catchIf(
-        (e) => e.status === 404 || e.error === "RecordNotFound",
-        () => Effect.succeed(Option.none()),
-      ),
-    );
-    yield* this.xrpc(
-      "com.atproto.space.deleteRecord",
-      "POST",
-      { ...input },
-      fetch,
-      Schema.Unknown,
-    );
-    if (Option.isSome(found)) {
-      yield* this.awaitIndexed(found.value.uri, undefined, options.timeout);
-    }
-  });
-
-  /**
-   * replay starts the runner in the background, like @bsky/jetstream's
-   * `js.runner(indexer).replay({ cursor })`. The returned promise settles
-   * when the runner stops: with stop(), or on an error it can't recover
-   * from.
-   */
-  replay(options: ReplayOptions = {}): Promise<void> {
-    if (this.fiber) throw new Error("runner already started");
-    const fiber = Effect.runFork(this.run(options));
-    this.fiber = fiber;
-    // Stopping interrupts the fiber; that's a clean end, not a failure.
-    return Effect.runPromise(
-      Fiber.join(fiber).pipe(
-        Effect.catchCause((cause) =>
-          Cause.hasInterruptsOnly(cause)
-            ? Effect.void
-            : Effect.failCause(cause),
+  ): Effect.Effect<void, WriteError | WriteNotObserved> {
+    return Effect.gen({ self: this }, function* () {
+      const fetch = options.fetch ?? this.jetstream.fetch;
+      const found = yield* this.xrpc(
+        "com.atproto.space.getRecord",
+        "GET",
+        { ...input },
+        fetch,
+        Schema.Struct({ uri: Schema.String }),
+      ).pipe(
+        Effect.map(Option.some),
+        Effect.catchIf(
+          (e) => e.status === 404 || e.error === "RecordNotFound",
+          () => Effect.succeed(Option.none()),
         ),
-      ),
-    ).finally(() => {
-      if (this.fiber === fiber) this.fiber = undefined;
-    });
-  }
-
-  /** running reports whether replay has started and not yet stopped. */
-  running(): boolean {
-    return this.fiber !== undefined;
-  }
-
-  /** stop interrupts a runner started with replay. */
-  async stop(): Promise<void> {
-    const fiber = this.fiber;
-    this.fiber = undefined;
-    if (fiber) await Effect.runPromise(Fiber.interrupt(fiber));
+      );
+      yield* this.xrpc(
+        "com.atproto.space.deleteRecord",
+        "POST",
+        { ...input },
+        fetch,
+        Schema.Unknown,
+      );
+      if (Option.isSome(found)) {
+        yield* this.awaitIndexed(found.value.uri, undefined, options.timeout);
+      }
+    }).pipe(Effect.withSpan("Runner.deleteRecord"));
   }
 }

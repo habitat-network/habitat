@@ -1,50 +1,29 @@
+// The promise-based API, shaped after @bsky/jetstream's spaces mode. Effect
+// programs import the services from "@habitat-network/jetstream/effect".
 export {
   Jetstream,
-  type JetstreamOptions,
-  type SnapshotOptions,
-  type SnapshotPage,
-  type SubscribeOptions,
-} from "./Jetstream";
-export {
   LexIndexer,
-  type CollectionRef,
-  type CommitHandlers,
-  type LexIndexerOptions,
-} from "./LexIndexer";
-export {
   Runner,
-  type EventSink,
-  type CreateRecordInput,
-  type CursorStore,
-  type PutRecordInput,
-  type RecordTarget,
-  type ReplayOptions,
-  type RunnerOptions,
-  type WriteOptions,
-  type WriteResult,
-} from "./Runner";
+  type HandlerResult,
+  type PromiseCommitHandlers,
+  type PromiseCursorStore,
+  type PromiseRunnerOptions,
+} from "./api";
 export type {
-  CommitEvent,
-  DelEvent,
-  Frame,
-  PutEvent,
-  SpaceDeletedEvent,
-  SpaceEvent,
-} from "./events";
-export { decodeEvent, decodeFrame } from "./events";
-export {
-  fetchTransport,
-  webSocketTransport,
-  type FetchHandler,
-  type SocketLike,
-  type Transport,
-} from "./transport";
-export {
-  ConnectionError,
-  CursorError,
-  FrameDecodeError,
-  HandlerError,
-  StreamError,
-  WriteError,
-  WriteNotObserved,
-} from "./errors";
+  JetstreamOptions,
+  SnapshotOptions,
+  SnapshotPage,
+  SubscribeOptions,
+} from "./Jetstream";
+export type {
+  CreateRecordInput,
+  EventSink,
+  PutRecordInput,
+  RecordTarget,
+  ReplayOptions,
+  RunnerOptions,
+  WriteOptions,
+  WriteResult,
+} from "./Runner";
+export type { CollectionRef, LexIndexerOptions } from "./LexIndexer";
+export * from "./shared";

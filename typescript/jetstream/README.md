@@ -23,29 +23,55 @@ const js = new Jetstream({
 
 const indexer = new LexIndexer({ mode: "spaces" })
   .commit(network.habitat.drop.file, {
-    put: (e) =>
+    put: async (e) =>
       db.upsertFile({ uri: e.uri, space: e.space, name: e.record.name }),
-    del: (e) => db.deleteFile(e.uri),
+    del: async (e) => db.deleteFile(e.uri),
   })
-  .spaceDeleted((e) => db.deleteSpace(e.space));
+  .spaceDeleted(async (e) => db.deleteSpace(e.space));
 
 const runner = js.runner(indexer, {
-  cursor: { get: db.getCursor, set: (seq) => db.setCursor(seq) }, // Effects
+  cursor: { get: () => db.getCursor(), set: (seq) => db.setCursor(seq) },
 });
 void runner.replay(); // from the saved cursor, else 0, then live
 
 // Writes return once the runner has indexed them: no optimistic update.
-await Effect.runPromise(
-  runner.putRecord(
-    {
-      space,
-      repo: memberDid,
-      collection: "network.habitat.drop.file",
-      rkey: "self",
-      record,
-    },
-    { fetch: memberSession.fetchHandler.bind(memberSession) },
-  ),
+await runner.putRecord(
+  {
+    space,
+    repo: memberDid,
+    collection: "network.habitat.drop.file",
+    rkey: "self",
+    record,
+  },
+  { fetch: memberSession.fetchHandler.bind(memberSession) },
+);
+```
+
+## Two faces: promises and Effect
+
+The package root is the promise-based API above, shaped after
+`@bsky/jetstream`: `new Jetstream(...)`, `new LexIndexer()` with `async`
+handlers, `js.runner(...)` with `replay()`/`stop()`, and writes that return
+promises (rejecting with the tagged errors below). `runner.effect` and
+`js.effect` reach the Effect objects behind a wrapper.
+
+Effect programs use the services from `@habitat-network/jetstream/effect`
+directly: `Jetstream` and `Runner` are `Context.Service`s built with layers,
+handlers (its own `LexIndexer`) and the `CursorStore` are Effects, and the
+runner's methods (`run`, `putRecord`, ...) are Effects.
+
+```ts
+import { Effect } from "effect";
+import { Jetstream, Runner } from "@habitat-network/jetstream/effect";
+
+const program = Effect.gen(function* () {
+  const runner = yield* Runner;
+  yield* runner.run({ snapshot: true });
+});
+
+program.pipe(
+  Effect.provide(Runner.layer({ target: sink, collections, cursor })),
+  Effect.provide(Jetstream.layer({ service, mode: "spaces", fetch })),
 );
 ```
 
@@ -88,8 +114,7 @@ js.snapshot({ after: 0 }).pipe(Stream.runForEach((page) => ...));
 
 ## Semantics
 
-- **Handlers** (and the cursor store) are Effects; wrap promise code with
-  `Effect.tryPromise`. They run one event
+- **Handlers** run one event
   at a time; the cursor advances only after an event's handlers all succeed,
   and a failing handler is retried with backoff rather than skipped. Delivery
   is at-least-once, so key handlers on `e.uri`.
@@ -124,14 +149,14 @@ promise-based entry points for apps that don't run their own Effect runtime.
 
 The client of `network.habitat.space.subscribe`.
 
-| Option      | Meaning                                                                                                              |
-| ----------- | -------------------------------------------------------------------------------------------------------------------- |
-| `service`   | The space host to follow: the org's Habitat (pear) URL.                                                              |
-| `mode`      | Only `"spaces"`; kept so call sites match `@bsky/jetstream`.                                                          |
-| `fetch`     | The credential: typically an OAuth session's `fetchHandler`. Receives paths for XRPC calls and absolute URLs for the stream. Defaults to unauthenticated `fetch` against `service`. |
-| `transport` | How to open the WebSocket. Defaults to `fetchTransport(fetch)`.                                                       |
-| `spaces`, `dids` | Server-side filters, applied to every subscription.                                                              |
-| `reconnect` | `{ base, cap }` backoff, default 500 ms doubling to 30 s.                                                             |
+| Option           | Meaning                                                                                                                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `service`        | The space host to follow: the org's Habitat (pear) URL.                                                                                                                             |
+| `mode`           | Only `"spaces"`; kept so call sites match `@bsky/jetstream`.                                                                                                                        |
+| `fetch`          | The credential: typically an OAuth session's `fetchHandler`. Receives paths for XRPC calls and absolute URLs for the stream. Defaults to unauthenticated `fetch` against `service`. |
+| `transport`      | How to open the WebSocket. Defaults to `fetchTransport(fetch)`.                                                                                                                     |
+| `spaces`, `dids` | Server-side filters, applied to every subscription.                                                                                                                                 |
+| `reconnect`      | `{ base, cap }` backoff, default 500 ms doubling to 30 s.                                                                                                                           |
 
 - `subscribe({ cursor?, collections? })` returns `Stream<SpaceEvent, StreamError | FrameDecodeError>`:
   events from `cursor` (inclusive; `0` replays, omitted starts live), then live,
@@ -218,15 +243,15 @@ yet indexed).
    with `lexParse` so `$link`, `$bytes` and blob refs come out as typed values.
    Unknown payload kinds and operations are skipped, so the server can add
    event types without breaking old clients.
-3. **Jetstream** (`Jetstream.ts`): owns the *connection-level* cursor. Each
+3. **Jetstream** (`Jetstream.ts`): owns the _connection-level_ cursor. Each
    connection attempt starts at `next` (the seq after the last event
-   *emitted*), and `next` survives reconnects, so consumers see one unbroken
+   _emitted_), and `next` survives reconnects, so consumers see one unbroken
    at-least-once sequence. `ExpiredToken` is converted to a retryable
    `ConnectionError` (the fetch handler refreshes the token on the next
    attempt). Refusals with 4xx other than 401/408/429 become a fatal
    `StreamError`. Reconnect delay is exponential, capped, and reset after any
    event arrives. `Info` frames are logged, not emitted.
-4. **Runner** (`Runner.ts`): owns the *durable* cursor and the write path.
+4. **Runner** (`Runner.ts`): owns the _durable_ cursor and the write path.
 
 ### Runner: indexing and the cursor
 
@@ -246,7 +271,7 @@ persisted one in `Runner` (for restarts).
 
 ### Runner: write-and-wait
 
-`putRecord` and friends call the writer's XRPC endpoint with *their* fetch
+`putRecord` and friends call the writer's XRPC endpoint with _their_ fetch
 handler (the member's session, resolving against their own host), then block
 until the stream has delivered and the sinks have indexed the resulting event:
 
@@ -257,7 +282,7 @@ until the stream has delivered and the sinks have indexed the resulting event:
   bounded, insertion-ordered **recent map** (`uri → latest cid`, default 10,000
   entries, oldest evicted) and resolves matching `waiters`.
 - `awaitIndexed` first checks the recent map, which handles the race where the
-  event arrives *before* the write's HTTP response. Otherwise it registers a
+  event arrives _before_ the write's HTTP response. Otherwise it registers a
   `Deferred` waiter and times out (15 s default) with `WriteNotObserved`.
 - Because the server log is compacted, a later write to the same record can
   supersede yours before you observe it. That surfaces as `WriteNotObserved`

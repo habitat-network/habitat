@@ -217,9 +217,8 @@ export class OrgStream extends DurableObject<Env> {
       // A replay is a burst of events: write them a group at a time.
       batch: { size: 50, window: "20 millis" },
       cursor: {
-        get: Effect.tryPromise(() => storage.get<number>(CURSOR_KEY)),
-        set: (cursor) =>
-          Effect.tryPromise(() => storage.put(CURSOR_KEY, cursor)),
+        get: () => storage.get<number>(CURSOR_KEY),
+        set: (cursor) => storage.put(CURSOR_KEY, cursor),
       },
     });
   }
@@ -244,7 +243,9 @@ export class OrgStream extends DurableObject<Env> {
   ): Promise<WriteOutcome> {
     try {
       const fetch = await sessionFetch(this.env, writer);
-      const exit = await this.write((r) => r.putRecord(input, { fetch }));
+      const exit = await this.write((r) =>
+        r.effect.putRecord(input, { fetch }),
+      );
       if (Exit.isSuccess(exit)) return { ok: true, ...exit.value };
       return failureOf(squashed(exit));
     } catch (err) {
@@ -259,7 +260,9 @@ export class OrgStream extends DurableObject<Env> {
   ): Promise<WriteOutcome> {
     try {
       const fetch = await sessionFetch(this.env, writer);
-      const exit = await this.write((r) => r.deleteRecord(target, { fetch }));
+      const exit = await this.write((r) =>
+        r.effect.deleteRecord(target, { fetch }),
+      );
       if (Exit.isSuccess(exit)) return { ok: true, uri: "", cid: "" };
       return failureOf(squashed(exit));
     } catch (err) {
@@ -273,7 +276,7 @@ export class OrgStream extends DurableObject<Env> {
   async awaitRecord(uri: string, cid: string | null): Promise<WriteOutcome> {
     try {
       const exit = await this.write((r) =>
-        r.awaitIndexed(uri, cid ?? undefined),
+        r.effect.awaitIndexed(uri, cid ?? undefined),
       );
       if (Exit.isSuccess(exit)) return { ok: true, uri, cid: cid ?? "" };
       return failureOf(squashed(exit));

@@ -10,6 +10,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./effect": {
+      "types": "./src/effect.ts",
+      "import": "./src/effect.ts"
     }
   },
   "scripts": {
