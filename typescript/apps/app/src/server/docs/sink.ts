@@ -6,7 +6,9 @@ import {
   type LexValue,
 } from "@atproto/lex";
 import { network } from "api";
-import type { RepoBatch, SyncSink } from "../stream/batch";
+import type { DelEvent, PutEvent } from "@habitat-network/jetstream";
+import { Effect } from "effect";
+import type { Domain } from "../stream/domain";
 import {
   deleteComment,
   deleteCommentReply,
@@ -31,10 +33,23 @@ import {
 } from "./comments.server";
 import { HabitatClient } from "@/server/habitatClient";
 
-const CRDT_COLLECTION = "network.habitat.docs.crdt";
-const MARKDOWN_COLLECTION = "network.habitat.docs.markdown";
-const USER_RELATION_COLLECTION = "network.habitat.relationship.userRelation";
-const SPACE_RELATION_COLLECTION = "network.habitat.relationship.spaceRelation";
+const CRDT_COLLECTION = network.habitat.docs.crdt.$nsid;
+const MARKDOWN_COLLECTION = network.habitat.docs.markdown.$nsid;
+const USER_RELATION_COLLECTION =
+  network.habitat.relationship.userRelation.$nsid;
+const SPACE_RELATION_COLLECTION =
+  network.habitat.relationship.spaceRelation.$nsid;
+
+// The collections the doc mirror indexes: crdt state, rendered markdown,
+// comments and replies, and the sharing grants.
+const DOC_COLLECTIONS = [
+  CRDT_COLLECTION,
+  MARKDOWN_COLLECTION,
+  COMMENT_COLLECTION,
+  COMMENT_REPLY_COLLECTION,
+  USER_RELATION_COLLECTION,
+  SPACE_RELATION_COLLECTION,
+];
 // The space type whose role-holders are "everyone in the org" — a
 // spaceRelation naming one of these as its subject is an org-wide grant.
 const MEMBERS_SPACE_TYPE = "community.opensocial.members";
@@ -54,54 +69,50 @@ export interface RecordChange {
   value: LexMap | null;
 }
 
-// DocSink is the SyncSink for chalk: it keeps chalk's D1
+// DocSink keeps chalk's D1
 // mirror (docs, doc_access, doc_org_access, comments, comment_replies) and
 // each doc's DocRoom in step with the records synced from doc spaces and
 // their comments spaces. It replaces sap's outbox webhook.
 //
 // Delivery is at-least-once, and every handler is an upsert or a delete by
-// the record's own URI, so a replayed batch is a no-op. Unlike Drop's sink
-// this isn't one D1 transaction per batch — records also land in DocRoom,
-// which no D1 batch can cover — so an aborted apply can leave a prefix of
-// the batch applied; the replay that follows converges on the same state.
-export class DocSink implements SyncSink {
+// the record's own URI, so a replayed event is a no-op. Unlike Drop's sink
+// this isn't one D1 statement per event — records also land in DocRoom,
+// which no D1 statement can cover — so a failed apply can leave a part of
+// it applied; the replay that follows converges on the same state.
+export class DocSink {
   constructor(
     private env: Env,
     private deps: SinkDeps,
   ) {}
 
-  async apply(batch: RepoBatch, signal: AbortSignal): Promise<void> {
-    const db = getDb(this.env);
-    switch (batch._tag) {
-      case "Ops": {
-        for (const change of batch.changes) {
-          signal.throwIfAborted();
-          if (change.cid === null) {
-            await this.applyChange({ uri: change.uri, cid: "", value: null });
-          } else if (change.value) {
-            await this.applyChange({
-              uri: change.uri,
-              cid: change.cid.toString(),
-              value: change.value,
-            });
+  // domain is the sink's handlers for the indexer: every collection it
+  // mirrors, and a deleted space dropping what was mirrored from it.
+  domain(): Domain {
+    const put = (event: PutEvent<LexMap>) =>
+      Effect.tryPromise(() =>
+        this.applyChange({
+          uri: event.uri,
+          cid: event.cid,
+          value: event.record,
+        }),
+      );
+    const del = (event: DelEvent) =>
+      Effect.tryPromise(() =>
+        this.applyChange({ uri: event.uri, cid: "", value: null }),
+      );
+    return {
+      collections: DOC_COLLECTIONS.map((collection) => ({
+        collection,
+        handlers: { put, del },
+      })),
+      spaceDeleted: (event) =>
+        Effect.tryPromise(async () => {
+          const db = getDb(this.env);
+          for (const uri of await mirroredRecordUris(db, `${event.space}/`)) {
+            await deleteMirroredRecord(db, uri);
           }
-        }
-        break;
-      }
-      case "RepoRemoved":
-        for (const uri of await mirroredRecordUris(
-          db,
-          `${batch.space}/${batch.did}/`,
-        )) {
-          await deleteMirroredRecord(db, uri);
-        }
-        break;
-      case "SpaceDeleted":
-        for (const uri of await mirroredRecordUris(db, `${batch.space}/`)) {
-          await deleteMirroredRecord(db, uri);
-        }
-        break;
-    }
+        }),
+    };
   }
 
   // applyChange routes one record change to the handler for its collection.
@@ -442,4 +453,9 @@ function relationFields(
   }
   if (!subject || !relation) return undefined;
   return { subject, relation };
+}
+
+// docsDomain is the doc mirror's handlers for the app indexer.
+export function docsDomain(env: Env, deps: SinkDeps): Domain {
+  return new DocSink(env, deps).domain();
 }

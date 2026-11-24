@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   getBlobCidString,
   getBlobMime,
@@ -7,17 +7,14 @@ import {
 } from "@atproto/lex";
 import { AtUri, SpaceRef } from "@atproto/syntax";
 import { network } from "api";
-import type { RepoBatch, SyncSink } from "../stream/batch";
+import { Effect } from "effect";
+import type { Domain } from "../stream/domain";
 import type { Db } from "@/db";
 import { files } from "@/db/schema";
 
-export const FILE_COLLECTION = "network.habitat.drop.file";
+export const FILE_COLLECTION = network.habitat.drop.file.$nsid;
 
 type FileRow = typeof files.$inferInsert;
-
-export interface FileSinkOptions {
-  db: Db;
-}
 
 // toFileRow maps one synced record to its files row, or undefined if it isn't
 // a well-formed network.habitat.drop.file record. A malformed record is
@@ -52,68 +49,37 @@ export function toFileRow(
   };
 }
 
-// FileSink is the SyncSink for Drop: it keeps the files
-// table equal to the set of network.habitat.drop.file records across every
-// streamed space. Blobs aren't copied: downloads read them from pear (see src/routes/api.download.ts).
-//
-// Each batch is applied as one D1 batch (a single transaction), so an
-// aborted or failed apply leaves the table as it was. Delivery is
-// at-least-once; upserting by uri makes a replay a no-op.
-export class FileSink implements SyncSink {
-  constructor(private opts: FileSinkOptions) {}
-
-  async apply(batch: RepoBatch, signal: AbortSignal): Promise<void> {
-    const { db } = this.opts;
-    switch (batch._tag) {
-      case "Ops": {
-        const upserts: FileRow[] = [];
-        const deletes: string[] = [];
-        for (const change of batch.changes) {
-          if (change.collection !== FILE_COLLECTION) continue;
-          if (change.cid === null) {
-            deletes.push(change.uri);
-          } else if (change.value) {
-            const row = toFileRow(
-              change.uri,
-              change.cid.toString(),
-              change.value,
-            );
-            if (row) upserts.push(row);
-          }
-        }
-        signal.throwIfAborted();
-        await this.write(upserts, deletes);
-        break;
-      }
-      case "RepoRemoved":
-        await db
-          .delete(files)
-          .where(and(eq(files.space, batch.space), eq(files.repo, batch.did)));
-        break;
-      case "SpaceDeleted":
-        await db.delete(files).where(eq(files.space, batch.space));
-        break;
-    }
-  }
-
-  private upsert(row: FileRow) {
-    const { uri: _, ...set } = row;
-    return this.opts.db
-      .insert(files)
-      .values(row)
-      .onConflictDoUpdate({ target: files.uri, set });
-  }
-
-  private async write(upserts: FileRow[], deletes: string[]) {
-    const { db } = this.opts;
-    const statements = [
-      ...(deletes.length > 0
-        ? [db.delete(files).where(inArray(files.uri, deletes))]
-        : []),
-      ...upserts.map((row) => this.upsert(row)),
-    ];
-    if (statements.length === 0) return;
-    const [first, ...rest] = statements;
-    await db.batch([first, ...rest]);
-  }
+// filesDomain keeps the files table equal to the set of
+// network.habitat.drop.file records across every streamed file space. Blobs
+// aren't copied: downloads read them from pear (see
+// src/routes/api.download.ts). Each event is one D1 statement, upserted by
+// uri, so a replay is a no-op.
+export function filesDomain(db: Db): Domain {
+  return {
+    collections: [
+      {
+        collection: FILE_COLLECTION,
+        handlers: {
+          put: (event) =>
+            Effect.tryPromise(async () => {
+              const row = toFileRow(event.uri, event.cid, event.record);
+              if (!row) return;
+              const { uri: _, ...set } = row;
+              await db
+                .insert(files)
+                .values(row)
+                .onConflictDoUpdate({ target: files.uri, set });
+            }),
+          del: (event) =>
+            Effect.tryPromise(async () => {
+              await db.delete(files).where(eq(files.uri, event.uri));
+            }),
+        },
+      },
+    ],
+    spaceDeleted: (event) =>
+      Effect.tryPromise(async () => {
+        await db.delete(files).where(eq(files.space, event.space));
+      }),
+  };
 }

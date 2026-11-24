@@ -7,7 +7,6 @@ import {
 } from "@habitat-network/jetstream";
 import { Cause, Effect, Exit } from "effect";
 import { getDb, isConnectedOrg } from "@/db";
-import { appEventSink, INDEXED_COLLECTIONS } from "./indexer";
 
 // OrgStream follows one org's spaces through pear's
 // network.habitat.space.subscribe, with the org's own OAuth session, and
@@ -202,8 +201,10 @@ export class OrgStream extends DurableObject<Env> {
   }
 
   private async buildRunner(org: string): Promise<Runner> {
-    const [{ AppSink }, fetch] = await Promise.all([
-      import("./appSink"),
+    // Loaded here rather than at the top so the Worker entry (which exports
+    // OrgStream) doesn't pull in the sinks until a stream starts.
+    const [{ appIndexer }, fetch] = await Promise.all([
+      import("./appIndexer"),
       sessionFetch(this.env, org),
     ]);
     const storage = this.ctx.storage;
@@ -212,8 +213,7 @@ export class OrgStream extends DurableObject<Env> {
       mode: "spaces",
       fetch,
     });
-    return jetstream.runner(appEventSink(AppSink.for(this.env)), {
-      collections: INDEXED_COLLECTIONS,
+    return jetstream.runner(appIndexer(this.env), {
       // A replay is a burst of events: write them a group at a time.
       batch: { size: 50, window: "20 millis" },
       cursor: {
