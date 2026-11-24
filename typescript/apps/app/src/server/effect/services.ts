@@ -313,7 +313,7 @@ function withProxy<O extends { headers?: HeadersInit }>(
 // the proxy strips, so it can't be told from a lapsed session; the member's
 // own session was restored fine to get that far, so it is reported as a
 // refusal rather than signing the member out.
-function failure(
+export function failure(
   did: string,
   nsid: string,
   status: number,
@@ -325,8 +325,11 @@ function failure(
     return Effect.fail(new SessionExpired({ did, message }));
   }
   let error: unknown;
+  let detail: unknown;
   try {
-    error = (JSON.parse(body) as { error?: unknown }).error;
+    const parsed = JSON.parse(body) as { error?: unknown; message?: unknown };
+    error = parsed.error;
+    detail = parsed.message;
   } catch {
     // not JSON; there is no error name
   }
@@ -336,6 +339,7 @@ function failure(
       status: status === 401 ? 403 : status,
       error: Predicate.isString(error) ? error : undefined,
       message,
+      detail: Predicate.isString(detail) && detail ? detail : undefined,
     }),
   );
 }

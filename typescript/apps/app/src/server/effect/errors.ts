@@ -33,6 +33,9 @@ export class HabitatError extends Schema.TaggedError<HabitatError>()(
     status: Schema.Number,
     error: Schema.optional(Schema.String),
     message: Schema.String,
+    // pear's own explanation for a rejected request (the `message` of its
+    // error body), which is written for the person who made the request.
+    detail: Schema.optional(Schema.String),
   },
 ) {}
 
@@ -87,7 +90,11 @@ export function userMessage(error: AppError): string {
     case "SessionExpired":
       return "Your session with this group expired. An admin needs to reconnect it.";
     case "HabitatError":
-      return error.message;
+      // A 4xx is pear saying what was wrong with the request; the raw
+      // message is for the logs.
+      return error.status >= 400 && error.status < 500 && error.detail
+        ? error.detail
+        : error.message;
     case "NotAMember":
       return "You aren't a member of that group";
     case "OrgNotConnected":
