@@ -26,7 +26,8 @@ import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { McpServerIcon } from "@/components/mcp/McpServerIcon";
 import { mcpServerDisplay, sortMcpServers } from "@/lib/mcpConnectors";
-import { mcpServersQuery } from "@/lib/queries";
+import { McpConnectCard } from "@/components/mcp/McpConnectCard";
+import { mcpServersQuery, orgMcpUrlQuery } from "@/lib/queries";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import { connectMcpServer, type McpServerView } from "@/server/fns/mcp";
 
@@ -35,7 +36,10 @@ import { connectMcpServer, type McpServerView } from "@/server/fns/mcp";
 
 export const Route = createFileRoute("/_member/g/$org/")({
   loader: ({ context, params }) =>
-    context.queryClient.query(mcpServersQuery(params.org)),
+    Promise.all([
+      context.queryClient.query(mcpServersQuery(params.org)),
+      context.queryClient.query(orgMcpUrlQuery(params.org)),
+    ]),
   component: HomePage,
 });
 
@@ -44,6 +48,7 @@ function HomePage() {
 
   const queryClient = useQueryClient();
   const { data } = useSuspenseQuery(mcpServersQuery(org));
+  const { data: mcpUrl } = useSuspenseQuery(orgMcpUrlQuery(org));
   const servers = sortMcpServers(data);
   const unconnected = servers.filter((s) => !s.connected);
   const allConnected = servers.length > 0 && unconnected.length === 0;
@@ -127,6 +132,7 @@ function HomePage() {
             </CollapsibleContent>
           </Collapsible>
         </Card>
+        <McpConnectCard url={mcpUrl} />
       </PageBody>
     </>
   );

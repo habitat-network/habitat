@@ -3,7 +3,7 @@ import { network } from "api";
 import { Effect, Schema } from "effect";
 import { currentMember, requireOrg } from "@/server/effect/member";
 import { runEffect } from "@/server/effect/run";
-import { Habitat } from "@/server/effect/services";
+import { AppEnv, Habitat } from "@/server/effect/services";
 import { viaGroup } from "@/server/groups";
 
 // MCP servers: the tools members' agents can call inside the group, served
@@ -53,6 +53,21 @@ export const listMcpServers = createServerFn({ method: "GET" })
           viaGroup(org),
         );
         return servers;
+      }),
+    ),
+  );
+
+// getOrgMcpUrl is the org's MCP endpoint on the Habitat instance (pear's
+// mcpserver.Path + "/" + org), which MCP clients are pointed at.
+export const getOrgMcpUrl = createServerFn({ method: "GET" })
+  .validator(Schema.decodeUnknownSync(OrgInput))
+  .handler(({ data }) =>
+    runEffect(
+      "mcp.url",
+      Effect.gen(function* () {
+        const { did } = yield* requireOrg(data.org);
+        const env = yield* AppEnv;
+        return new URL(`/mcp/${did}`, env.APP_HABITAT_URL).toString();
       }),
     ),
   );

@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { listMyGroups, getGroup, listMyInvites } from "@/server/fns/groups";
-import { listMcpServers, listMcpTools } from "@/server/fns/mcp";
+import { getOrgMcpUrl, listMcpServers, listMcpTools } from "@/server/fns/mcp";
 
 // Query options shared between route loaders (which prefetch) and the
 // components that read them, so both use the same cache entries.
@@ -25,6 +25,12 @@ export const mcpServersQuery = (org: string) =>
   queryOptions({
     queryKey: ["mcp", org],
     queryFn: () => listMcpServers({ data: { org } }),
+  });
+
+export const orgMcpUrlQuery = (org: string) =>
+  queryOptions({
+    queryKey: ["mcp", org, "url"],
+    queryFn: () => getOrgMcpUrl({ data: { org } }),
   });
 
 export const mcpToolsQuery = (org: string, id: string) =>
