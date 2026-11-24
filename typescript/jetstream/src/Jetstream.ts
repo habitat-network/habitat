@@ -1,4 +1,4 @@
-import { Duration, Effect, Option, Ref, Schedule, Sink, Stream } from "effect";
+import { Duration, Effect, Option, Ref, Schedule, Stream } from "effect";
 import {
   ConnectionError,
   errorMessage,
@@ -6,8 +6,6 @@ import {
   StreamError,
 } from "./errors";
 import { decodeFrame, decodeSnapshotPage, type SpaceEvent } from "./events";
-import type { LexIndexer } from "./LexIndexer";
-import { type EventSink, Runner, type RunnerOptions } from "./Runner";
 import { type FetchHandler, fetchTransport, type Transport } from "./transport";
 
 // A refused upgrade other than for auth or availability won't get better by
@@ -80,7 +78,8 @@ export interface SnapshotPage {
 }
 
 /**
- * Jetstream is a client of network.habitat.space.subscribe, Habitat's
+ * JetstreamClient is the Effect implementation of the Jetstream service (see
+ * ./services.ts), a client of network.habitat.space.subscribe, Habitat's
  * Jetstream for spaces: every record write and space deletion across the
  * spaces the credential may read, as one sequence with one cursor.
  *
@@ -89,7 +88,7 @@ export interface SnapshotPage {
  * "spaces" })`, `js.runner(indexer).replay({ cursor })`), so either side can
  * be swapped for the official package as it lands.
  */
-export class Jetstream {
+export class JetstreamClient {
   readonly service: URL;
   readonly fetch: FetchHandler;
   private readonly transport: Transport;
@@ -309,17 +308,5 @@ export class Jetstream {
         },
       ),
     );
-  }
-
-  /** runner runs an indexer's handlers, or a Sink, over this stream; see [Runner]. */
-  runner<E>(
-    target: LexIndexer<E> | EventSink<E>,
-    options?: RunnerOptions,
-  ): Runner<E> {
-    const sink = Sink.isSink(target) ? target : target.sink();
-    const collections =
-      options?.collections ??
-      (Sink.isSink(target) ? undefined : target.collections());
-    return new Runner(this, sink as EventSink<E>, { ...options, collections });
   }
 }

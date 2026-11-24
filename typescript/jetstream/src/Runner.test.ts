@@ -1,9 +1,8 @@
 import { type Cause, Effect, Queue, Sink, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 import { ConnectionError } from "./errors";
-import { Jetstream } from "./Jetstream";
+import { Jetstream, LexIndexer } from "./api";
 import type { SpaceEvent } from "./events";
-import { LexIndexer } from "./LexIndexer";
 import type { FetchHandler, Transport } from "./transport";
 
 const SPACE = "at://did:web:org.test/space/network.habitat.docs/d1";
@@ -116,22 +115,19 @@ function setup(fetch?: FetchHandler) {
   const db = new Map<string, unknown>();
   let saved: number | undefined;
   const indexer = new LexIndexer({ mode: "spaces" }).commit(NOTE, {
-    put: (e) =>
-      Effect.sync(() => {
-        db.set(e.uri, e.record);
-      }),
-    del: (e) =>
-      Effect.sync(() => {
-        db.delete(e.uri);
-      }),
+    put: async (e) => {
+      db.set(e.uri, e.record);
+    },
+    del: (e) => {
+      db.delete(e.uri);
+    },
   });
   const runner = js.runner(indexer, {
     cursor: {
-      get: Effect.sync(() => saved),
-      set: (c) =>
-        Effect.sync(() => {
-          saved = c;
-        }),
+      get: () => saved,
+      set: (c) => {
+        saved = c;
+      },
     },
     writeTimeout: "500 millis",
   });
@@ -286,12 +282,11 @@ describe("Runner", () => {
     const seen: string[] = [];
     const runner = js.runner(
       new LexIndexer().commit(NOTE, {
-        put: (e) =>
-          Effect.gen(function* () {
-            attempts++;
-            if (attempts < 3) return yield* Effect.fail(new Error("db down"));
-            seen.push(e.rkey);
-          }),
+        put: async (e) => {
+          attempts++;
+          if (attempts < 3) throw new Error("db down");
+          seen.push(e.rkey);
+        },
       }),
     );
     server.push(1, commit(1, "a", "cid-a"));
@@ -299,7 +294,7 @@ describe("Runner", () => {
     void runner.replay();
     await until(() => seen.length === 2);
     expect(seen).toEqual(["a", "b"]);
-    expect(await Effect.runPromise(runner.cursor())).toBe(3);
+    expect(await Effect.runPromise(runner.effect.cursor())).toBe(3);
     await runner.stop();
   });
 
@@ -317,7 +312,7 @@ describe("Runner", () => {
     await until(() => server.connects.length === 1);
 
     const write = Effect.runPromise(
-      runner.putRecord({
+      runner.effect.putRecord({
         space: SPACE,
         repo: "did:web:org.test",
         collection: NOTE,
@@ -357,7 +352,7 @@ describe("Runner", () => {
     void runner.replay();
     await until(() => server.connects.length === 1);
     const write = Effect.runPromise(
-      runner.putRecord({
+      runner.effect.putRecord({
         space: SPACE,
         repo: "did:web:org.test",
         collection: NOTE,
@@ -379,7 +374,7 @@ describe("Runner", () => {
     void runner.replay();
     await until(() => server.connects.length === 1);
     const exit = await Effect.runPromise(
-      runner
+      runner.effect
         .putRecord(
           {
             space: SPACE,
@@ -404,7 +399,7 @@ describe("Runner", () => {
       ),
     );
     const err = await Effect.runPromise(
-      runner
+      runner.effect
         .putRecord({
           space: SPACE,
           repo: "did:web:org.test",
@@ -441,7 +436,7 @@ describe("Runner", () => {
       collection: NOTE,
       rkey: "a",
     };
-    const done = Effect.runPromise(runner.deleteRecord(target));
+    const done = Effect.runPromise(runner.effect.deleteRecord(target));
     await tick();
     server.push(2, del(2, "a"));
     await done;
@@ -449,7 +444,7 @@ describe("Runner", () => {
 
     exists = false;
     await Effect.runPromise(
-      runner.deleteRecord(target, { timeout: "20 millis" }),
+      runner.effect.deleteRecord(target, { timeout: "20 millis" }),
     );
     await runner.stop();
   });
@@ -475,7 +470,7 @@ describe("Runner", () => {
     void runner.replay();
     await until(() => groups.flat().length === 2);
     expect(groups.flat()).toEqual(["a", "b"]);
-    expect(await Effect.runPromise(runner.cursor())).toBe(3);
+    expect(await Effect.runPromise(runner.effect.cursor())).toBe(3);
     await runner.stop();
   });
 
@@ -505,7 +500,7 @@ describe("Runner", () => {
     void runner.replay();
     await until(() => groups.length === 1);
     expect(groups).toEqual([["a", "b", "c"]]);
-    expect(await Effect.runPromise(runner.cursor())).toBe(4);
+    expect(await Effect.runPromise(runner.effect.cursor())).toBe(4);
     await runner.stop();
   });
 
@@ -532,7 +527,7 @@ describe("Runner", () => {
     void runner.replay();
     await until(() => seen.length === 1);
     expect(attempts).toBe(3);
-    expect(await Effect.runPromise(runner.cursor())).toBe(2);
+    expect(await Effect.runPromise(runner.effect.cursor())).toBe(2);
     await runner.stop();
   });
 
@@ -544,7 +539,7 @@ describe("Runner", () => {
     void runner.replay();
     await until(() => server.connects.length === 1);
     const write = Effect.runPromise(
-      runner.putRecord({
+      runner.effect.putRecord({
         space: SPACE,
         repo: "did:web:org.test",
         collection: NOTE,
