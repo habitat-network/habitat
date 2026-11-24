@@ -41,6 +41,23 @@
     // with the Habitat app (see src/server/apps/runner.ts).
     "APP_RUN_DOMAIN": "apps.habitat.network",
   },
+  // Preview builds (Workers Builds on non-production branches) reuse the
+  // production values. That includes the production D1 database, so
+  // previews read and write production data.
+  "previews": {
+    "vars": {
+      "APP_BASE_URL": "https://app.habitat.network",
+      "APP_HABITAT_URL": "https://pear.habitat.network",
+      "APP_RUN_DOMAIN": "apps.habitat.network",
+    },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_id": "4e6dd98d-9e14-48f6-b92a-4f4f97022deb",
+      },
+    ],
+    "worker_loaders": [{ "binding": "LOADER" }],
+  },
   "dev": { "port": 5181 },
   "observability": {
     "logs": {
