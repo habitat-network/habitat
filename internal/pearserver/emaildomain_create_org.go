@@ -12,6 +12,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/emaildomain"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
@@ -47,6 +48,10 @@ func (p *PearServer) CreateEmailDomainOrg(w http.ResponseWriter, r *http.Request
 		return
 	}
 	org, err := p.opensocialStore.NewOrgWithoutCreator(ctx, input.Handle)
+	if errors.Is(err, hive.ErrNotCreated) {
+		writeHandleTaken(ctx, w)
+		return
+	}
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("new org: %w", err))
 		return

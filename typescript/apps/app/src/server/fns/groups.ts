@@ -167,6 +167,16 @@ export const createGroup = createServerFn({ method: "POST" })
           network.habitat.opensocial.createOrg.main,
           { body: { handle } },
           yield* viaInstance,
+        ).pipe(
+          Effect.catchTag("HabitatError", (e) =>
+            e.error === "HandleTaken"
+              ? Effect.fail(
+                  new BadRequest({
+                    message: `The handle "${handle}" is already taken. Pick another one.`,
+                  }),
+                )
+              : Effect.fail(e),
+          ),
         );
         yield* accept(did, org);
         if (data.name.trim()) {

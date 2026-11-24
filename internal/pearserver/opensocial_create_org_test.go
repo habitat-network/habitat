@@ -34,6 +34,16 @@ func TestServer_CreateOrg(t *testing.T) {
 		require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
 	})
 
+	t.Run("rejects a taken handle with a conflict", func(t *testing.T) {
+		ts := newOpenSocialServer(t, alice)
+
+		in := habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: "taken"}
+		var out habitat.NetworkHabitatOpensocialCreateOrgOutput
+		require.Equal(t, http.StatusOK, client.Procedure(ts.Server.CreateOrg, in, &out))
+		code := client.Procedure(ts.Server.CreateOrg, in, &out)
+		require.Equal(t, http.StatusConflict, code)
+	})
+
 	t.Run("requires auth", func(t *testing.T) {
 		ts := pearserver_testutil.NewTestServer(
 			t,
