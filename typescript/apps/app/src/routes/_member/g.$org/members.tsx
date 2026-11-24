@@ -50,13 +50,12 @@ import {
   PageHeader,
 } from "@/components/shell/PageHeader";
 import { useHabitatActors } from "@/hooks/useHabitatActors";
+import { groupLabel, groupQuery } from "@/lib/queries/groups";
 import {
   groupInvitesQuery,
-  groupLabel,
-  groupQuery,
   membersQuery,
   rolesQuery,
-} from "@/lib/queries";
+} from "@/lib/queries/members";
 import {
   assignRoles,
   inviteMember,

@@ -32,7 +32,8 @@ import { Plus, Shield, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
-import { groupQuery, rolesQuery } from "@/lib/queries";
+import { groupQuery } from "@/lib/queries/groups";
+import { rolesQuery } from "@/lib/queries/members";
 import { ACTIONS } from "@/lib/roles";
 import {
   deleteRole,

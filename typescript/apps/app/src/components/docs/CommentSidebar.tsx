@@ -7,7 +7,7 @@ import {
 import { UserAvatar } from "internal";
 import { Button, Textarea, toast } from "internal/components/ui";
 import { X } from "lucide-react";
-import { commentsQuery } from "@/lib/queries";
+import { commentsQuery } from "@/lib/queries/docs";
 import { useHabitatActors } from "@/hooks/useHabitatActors";
 import {
   createComment,

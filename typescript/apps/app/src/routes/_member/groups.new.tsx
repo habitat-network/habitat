@@ -22,7 +22,7 @@ import {
   type JoinPolicy,
 } from "@/components/groups/JoinPolicyPicker";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
-import { myGroupsQuery } from "@/lib/queries";
+import { myGroupsQuery } from "@/lib/queries/groups";
 import { createGroup } from "@/server/fns/groups";
 
 // Create a group: its name and handle, its profile, and who can join. The

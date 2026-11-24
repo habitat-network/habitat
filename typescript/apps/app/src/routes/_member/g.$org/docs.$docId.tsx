@@ -39,9 +39,8 @@ import {
   docAccessQuery,
   docOrgAccessQuery,
   docSummaryQuery,
-  groupLabel,
-  groupQuery,
-} from "@/lib/queries";
+} from "@/lib/queries/docs";
+import { groupLabel, groupQuery } from "@/lib/queries/groups";
 import {
   getDocInitialState,
   getDocRole,

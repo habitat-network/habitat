@@ -2,7 +2,7 @@ import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { Button, toast } from "internal/components/ui";
 import { Unplug } from "lucide-react";
-import { groupLabel, groupQuery } from "@/lib/queries";
+import { groupLabel, groupQuery } from "@/lib/queries/groups";
 import { startGroupConnect } from "@/server/fns/auth";
 
 // Layout for one group's pages. Loads the group (and whether the member

@@ -24,7 +24,8 @@ import {
 } from "internal/components/ui";
 import { AppWindow } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
-import { connectedAppsQuery, groupLabel, myGroupsQuery } from "@/lib/queries";
+import { groupLabel, myGroupsQuery } from "@/lib/queries/groups";
+import { connectedAppsQuery } from "@/lib/queries/mcp";
 import { signOut } from "@/server/fns/auth";
 import { leaveGroup } from "@/server/fns/groups";
 

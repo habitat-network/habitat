@@ -13,7 +13,7 @@ import {
   toast,
 } from "internal/components/ui";
 import { UsersIcon } from "lucide-react";
-import { docOrgAccessQuery } from "@/lib/queries";
+import { docOrgAccessQuery } from "@/lib/queries/docs";
 import { revokeDocOrgAccess, shareDocWithOrg } from "@/server/fns/docs";
 
 type OrgAccess = "editor" | "viewer" | "none";

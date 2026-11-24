@@ -30,7 +30,8 @@ import { useState } from "react";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
 import { MCP_CONNECTORS, type McpConnector } from "@/lib/mcpConnectors";
-import { groupQuery, mcpServersQuery } from "@/lib/queries";
+import { groupQuery } from "@/lib/queries/groups";
+import { mcpServersQuery } from "@/lib/queries/mcp";
 import {
   addMcpServer,
   connectMcpServer,

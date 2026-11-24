@@ -44,7 +44,9 @@ import { useUploads } from "@/hooks/useUploads";
 import { useWindowDrop } from "@/hooks/useWindowDrop";
 import { cn } from "@/lib/cn";
 import { formatBytes, MAX_FILE_BYTES } from "@/lib/files";
-import { docsQuery, filesQuery, groupLabel, groupQuery } from "@/lib/queries";
+import { docsQuery } from "@/lib/queries/docs";
+import { filesQuery } from "@/lib/queries/files";
+import { groupLabel, groupQuery } from "@/lib/queries/groups";
 import { createDoc, type DocSummary } from "@/server/fns/docs";
 import { deleteFile, type FileView } from "@/server/fns/files";
 

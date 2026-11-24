@@ -26,7 +26,7 @@ import { CodePicker, type PickedCode } from "@/components/apps/CodePicker";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
 import { formatBytes } from "@/lib/files";
-import { appsQuery } from "@/lib/queries";
+import { appsQuery } from "@/lib/queries/apps";
 import { slugify } from "@/lib/apps";
 import { deleteApp, deployApp, type AppView } from "@/server/fns/apps";
 

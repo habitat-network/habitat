@@ -22,7 +22,7 @@ import {
   toast,
 } from "internal/components/ui";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
-import { myGroupsQuery, myInvitesQuery } from "@/lib/queries";
+import { myGroupsQuery, myInvitesQuery } from "@/lib/queries/groups";
 import { acceptInvite } from "@/server/fns/groups";
 
 // Join a group: the member's pending invites.

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
-import { mcpServersQuery } from "@/lib/queries";
+import { mcpServersQuery } from "@/lib/queries/mcp";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import { connectMcpServer, type McpServerView } from "@/server/fns/mcp";
 

@@ -29,7 +29,7 @@ import {
   groupQuery,
   myGroupProfileQuery,
   myGroupsQuery,
-} from "@/lib/queries";
+} from "@/lib/queries/groups";
 import {
   leaveGroup,
   putMyGroupProfile,

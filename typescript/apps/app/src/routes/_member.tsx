@@ -3,7 +3,7 @@ import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider } from "internal/components/ui";
 import { useEffect, useSyncExternalStore } from "react";
 import { AppSidebar } from "@/components/shell/AppSidebar";
-import { myGroupsQuery } from "@/lib/queries";
+import { myGroupsQuery } from "@/lib/queries/groups";
 import { getMember } from "@/server/fns/auth";
 
 const LAST_GROUP_KEY = "habitat.lastGroup";
