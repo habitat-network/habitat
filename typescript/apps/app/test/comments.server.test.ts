@@ -1,4 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  beforeAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { warmHabitat } from "./warmHabitat";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import {
@@ -16,6 +25,8 @@ import {
 import { createHabitatClient } from "../src/server/habitatClient";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
+
+beforeAll(warmHabitat, 60_000);
 import { env as cfEnv } from "cloudflare:test";
 import { commentsForDoc, getDb, repliesForDoc, upsertComment } from "../src/db";
 

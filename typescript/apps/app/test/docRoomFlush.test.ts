@@ -1,20 +1,16 @@
-import {
-  env,
-  runInDurableObject,
-  runDurableObjectAlarm,
-} from "cloudflare:test";
-import { beforeEach, expect, it, vi } from "vitest";
+import { env, runInDurableObject } from "cloudflare:test";
+import { warmHabitat } from "./warmHabitat";
+import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import type { DocRoom } from "../src/server/docs/rooms/docRoom";
+import { cancelAlarm, runAlarmNow } from "./docRoomAlarm";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
-// The first write from a freshly started room loads the Habitat service, which
-// can take a while when the whole suite is running at once.
-const FLUSH_TIMEOUT_MS = 5000;
-
 const URI = "at://did:web:alice.example/space/network.habitat.docs/flush";
 const ID = { spaceUri: URI, ownerDid: "did:web:alice.example" };
+
+beforeAll(warmHabitat, 60_000);
 
 const fetchMock = vi.fn();
 beforeEach(() => {
@@ -74,40 +70,26 @@ it("uploads a blob and putRecords to the member's own repo when the alarm fires"
       updateFrom((d) => d.getText("body").insert(0, "x")),
     ),
   );
-  // runDurableObjectAlarm runs the alarm handler unconditionally — it does
-  // not fast-forward this environment's Date.now() to the alarm's scheduled
-  // time — so alarm()'s own idleDeadline/firstPushAt due-check (a real
-  // production guard: a DO's single alarm can have several pending rows
-  // with different deadlines, and only the ones actually due should flush)
-  // would otherwise skip a row scheduled moments ago. Wait past IDLE_MS for
-  // real, matching what a live alarm firing at its scheduled time sees.
-  await new Promise((resolve) => setTimeout(resolve, 2100));
-  await runDurableObjectAlarm(stub);
-  // This room's own real alarm can fire during the wait above and still be
-  // mid-flush when runDurableObjectAlarm returns (finding no alarm left to
-  // run), so wait for its writes rather than reading the mock once.
-  await vi.waitFor(() => {
-    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(
-      urls.some((u) => u.includes("network.habitat.repo.uploadBlob")),
-    ).toBe(true);
-    // Earlier tests' real alarms (also scheduled IDLE_MS out) can fire in the
-    // background during this test's real wait above, so filter on this test's
-    // own space URI rather than assuming the first/only "space.putRecord" call
-    // observed belongs to it.
-    const put = fetchMock.mock.calls.find(
-      (c) =>
-        String(c[0]).includes("space.putRecord") &&
-        JSON.parse(String(c[1].body)).space === uri,
-    );
-    expect(put).toBeDefined();
-    expect(JSON.parse(String(put![1].body))).toMatchObject({
-      space: uri,
-      repo: "did:web:bob.example",
-      collection: "network.habitat.docs.crdt",
-      rkey: "self",
-    });
-  }, FLUSH_TIMEOUT_MS);
+  // runAlarmNow (test/docRoomAlarm.ts) makes the flush due and runs the alarm
+  // to completion, with no real waiting and no background alarm.
+  await runAlarmNow(stub);
+  const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+  expect(urls.some((u) => u.includes("network.habitat.repo.uploadBlob"))).toBe(
+    true,
+  );
+  // Filter on this test's own space URI: the mock is shared across tests.
+  const put = fetchMock.mock.calls.find(
+    (c) =>
+      String(c[0]).includes("space.putRecord") &&
+      JSON.parse(String(c[1].body)).space === uri,
+  );
+  expect(put).toBeDefined();
+  expect(JSON.parse(String(put![1].body))).toMatchObject({
+    space: uri,
+    repo: "did:web:bob.example",
+    collection: "network.habitat.docs.crdt",
+    rkey: "self",
+  });
 });
 
 it("flushes each member to their own repo separately", async () => {
@@ -122,21 +104,17 @@ it("flushes each member to their own repo separately", async () => {
       ),
     );
   }
-  await new Promise((resolve) => setTimeout(resolve, 2100)); // see the note above
-  await runDurableObjectAlarm(stub);
-  // As above: a background alarm may still be flushing the second member.
-  await vi.waitFor(() => {
-    const repos = fetchMock.mock.calls
-      .filter((c) => String(c[0]).includes("space.putRecord"))
-      .map(
-        (c) => JSON.parse(String(c[1].body)) as { space: string; repo: string },
-      )
-      .filter((body) => body.space === uri)
-      .map((body) => body.repo);
-    expect(new Set(repos)).toEqual(
-      new Set(["did:web:bob.example", "did:web:carol.example"]),
-    );
-  });
+  await runAlarmNow(stub);
+  const repos = fetchMock.mock.calls
+    .filter((c) => String(c[0]).includes("space.putRecord"))
+    .map(
+      (c) => JSON.parse(String(c[1].body)) as { space: string; repo: string },
+    )
+    .filter((body) => body.space === uri)
+    .map((body) => body.repo);
+  expect(new Set(repos)).toEqual(
+    new Set(["did:web:bob.example", "did:web:carol.example"]),
+  );
 });
 
 it("keeps the pending flush when the pear write fails", async () => {
@@ -155,10 +133,11 @@ it("keeps the pending flush when the pear write fails", async () => {
   fetchMock.mockImplementation(async () => {
     throw new Error("pear is down");
   });
-  await new Promise((resolve) => setTimeout(resolve, 2100)); // see the note above
-  await runDurableObjectAlarm(stub).catch(() => {});
+  await runAlarmNow(stub).catch(() => {});
   await runInDurableObject(stub, async (_r: DocRoom, state) => {
     const pending = await state.storage.list({ prefix: "pending:" });
     expect([...pending.keys()]).toContain("pending:member:did:web:bob.example");
   });
+  // Don't leave a failing alarm to fire (and throw) after the test is over.
+  await cancelAlarm(stub);
 });
