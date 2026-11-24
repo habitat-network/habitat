@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { DidString, NsidString, SpaceRefString } from "@atproto/syntax";
 import { com, community, network } from "api";
-import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { Effect, Schema } from "effect";
 import { isConnectedOrg } from "@/db";
 import { BadRequest } from "@/server/effect/errors";
@@ -12,7 +11,7 @@ import {
   requireOrg,
 } from "@/server/effect/member";
 import { runEffect } from "@/server/effect/run";
-import { AppEnv, Database, Habitat } from "@/server/effect/services";
+import { Database, Habitat } from "@/server/effect/services";
 import {
   getProfiles,
   groupNames,
@@ -148,9 +147,6 @@ export const createGroup = createServerFn({ method: "POST" })
         handle: Schema.String,
         name: Schema.String,
         description: Schema.optional(Schema.String),
-        joinPolicy: Schema.optional(
-          Schema.Literals(["open", "invite", "request"]),
-        ),
       }),
     ),
   )
@@ -178,9 +174,6 @@ export const createGroup = createServerFn({ method: "POST" })
                 org: org as DidString,
                 name: data.name.trim(),
                 description: data.description?.trim() || undefined,
-                joinPolicy: data.joinPolicy
-                  ? `community.opensocial.profile#${data.joinPolicy}`
-                  : undefined,
               },
             },
             viaGroup(org),
@@ -272,36 +265,8 @@ export const acceptInvite = createServerFn({ method: "POST" })
     ),
   );
 
-// lookupGroup shows a group's public profile to someone deciding whether to
-// join it, given its DID or handle.
-export const lookupGroup = createServerFn({ method: "GET" })
-  .validator(Schema.decodeUnknownSync(Schema.Struct({ group: Schema.String })))
-  .handler(({ data }) =>
-    runEffect(
-      "groups.lookup",
-      Effect.gen(function* () {
-        const did = yield* currentMember;
-        const env = yield* AppEnv;
-        const identity = yield* Effect.tryPromise({
-          try: () =>
-            new HabitatIdentityResolver(env.APP_HABITAT_URL).resolve(
-              data.group.trim().replace(/^@/, ""),
-            ),
-          catch: () =>
-            new BadRequest({ message: `Couldn't find ${data.group}` }),
-        });
-        const profile = yield* readGroupProfile(did, identity.did);
-        return {
-          did: identity.did,
-          handle: identity.handle === "handle.invalid" ? null : identity.handle,
-          ...profile,
-        };
-      }),
-    ),
-  );
-
-// updateGroupProfile replaces the group's name, description and join
-// policy. pear requires the community.configure action.
+// updateGroupProfile replaces the group's name and description. pear
+// requires the community.configure action.
 export const updateGroupProfile = createServerFn({ method: "POST" })
   .validator(
     Schema.decodeUnknownSync(
@@ -309,9 +274,6 @@ export const updateGroupProfile = createServerFn({ method: "POST" })
         org: Schema.String,
         name: Schema.String,
         description: Schema.String,
-        joinPolicy: Schema.optional(
-          Schema.Literals(["open", "invite", "request"]),
-        ),
       }),
     ),
   )
@@ -329,9 +291,6 @@ export const updateGroupProfile = createServerFn({ method: "POST" })
               org,
               name: data.name,
               description: data.description || undefined,
-              joinPolicy: data.joinPolicy
-                ? `community.opensocial.profile#${data.joinPolicy}`
-                : undefined,
             },
           },
           viaGroup(org),
