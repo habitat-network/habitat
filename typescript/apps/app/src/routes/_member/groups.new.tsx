@@ -38,8 +38,7 @@ function CreateGroupPage() {
   const [handleEdited, setHandleEdited] = useState(false);
   const [description, setDescription] = useState("");
   const create = useMutation({
-    mutationFn: () =>
-      createGroup({ data: { name, handle, description } }),
+    mutationFn: () => createGroup({ data: { name, handle, description } }),
     onSuccess: async ({ org }) => {
       await queryClient.invalidateQueries({ queryKey: myGroupsQuery.queryKey });
       await navigate({ to: "/g/$org/files", params: { org } });
