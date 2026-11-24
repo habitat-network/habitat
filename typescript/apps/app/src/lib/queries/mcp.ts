@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
+  getOrgMcpUrl,
   listConnectedApps,
   listMcpServers,
   listMcpTools,
@@ -13,6 +14,12 @@ export const mcpServersQuery = (org: string) =>
   queryOptions({
     queryKey: ["mcp", org],
     queryFn: () => listMcpServers({ data: { org } }),
+  });
+
+export const orgMcpUrlQuery = (org: string) =>
+  queryOptions({
+    queryKey: ["mcp", org, "url"],
+    queryFn: () => getOrgMcpUrl({ data: { org } }),
   });
 
 export const connectedAppsQuery = queryOptions({
