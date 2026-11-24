@@ -3,8 +3,7 @@ import type { SearchResultView } from "@/server/fns/mcp";
 const DOCS_COLLECTION = "network.habitat.docs.markdown";
 
 export type ResultLink =
-  | { kind: "doc"; docId: string }
-  | { kind: "external"; href: string };
+  { kind: "doc"; docId: string } | { kind: "external"; href: string };
 
 // resultLink says where a search hit's "Open" button should go. Habitat
 // docs open in the app's own doc route (a record's url is a raw at:// URI,
