@@ -36,6 +36,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"time"
 
@@ -107,7 +108,7 @@ type Subscription struct {
 	ExpiresAt time.Time
 }
 
-// ErrCredentialMismatch is returned by [Server.Run] when a space credential
+// ErrCredentialMismatch is returned by [Prepare] when a space credential
 // subscriber's spaces filter leaves out the space it can read, so the stream
 // could never carry anything.
 var ErrCredentialMismatch = errors.New("spaces filter excludes the credential's space")
@@ -169,8 +170,9 @@ func NewServer(
 
 // Prepare checks a subscription before its connection is upgraded, so a
 // request that can't stream anything is refused with HTTP 400 like
-// Jetstream's pre-upgrade errors. It narrows a space credential's filter to
-// its space.
+// Jetstream's pre-upgrade errors: a space credential whose spaces filter
+// excludes its space is [ErrCredentialMismatch]. It narrows a space
+// credential's filter to its space.
 func Prepare(sub Subscription) (Subscription, error) {
 	cred, ok := sub.Reader.(SpaceCredentialReader)
 	if !ok {
@@ -236,33 +238,22 @@ func (s *Server) run(ctx context.Context, conn Conn, sub Subscription) error {
 	for {
 		// Taken before reading, so a write during the read still wakes us.
 		wake := s.broadcaster.Wait()
+		// Called for its side effect: it numbers rows written since the last
+		// call, which ListEvents only returns once numbered.
 		if _, err := s.source.SequenceEvents(ctx); err != nil {
 			return fmt.Errorf("sequence events: %w", err)
 		}
-		events, err := s.source.ListEvents(ctx, sub.Query.Filter, next, s.pageSize)
-		if err != nil {
-			return fmt.Errorf("list events: %w", err)
-		}
-		access := newAccessCache(s.roles, sub)
-		for _, event := range events {
-			ok, err := access.allows(ctx, event)
-			if err != nil {
-				return fmt.Errorf("authorize event: %w", err)
-			}
-			if ok {
+		// Scan to the end of the log as it is now, then wait for more.
+		next, _, err = s.scan(ctx, sub, scanRange{From: next, To: math.MaxInt64},
+			func(event spaces.Event) (bool, error) {
 				frame, err := eventFrame(event)
 				if err != nil {
-					return err
+					return false, err
 				}
-				if err := conn.WriteFrame(ctx, frame); err != nil {
-					return err
-				}
-			}
-			next = event.EventSeq() + 1
-		}
-		if len(events) == s.pageSize {
-			// Not at the head yet: keep reading.
-			continue
+				return true, conn.WriteFrame(ctx, frame)
+			})
+		if err != nil {
+			return err
 		}
 		select {
 		case <-ctx.Done():
@@ -271,6 +262,74 @@ func (s *Server) run(ctx context.Context, conn Conn, sub Subscription) error {
 		case <-poll.C:
 		}
 	}
+}
+
+// scanRange bounds a [Server.scan].
+type scanRange struct {
+	// From is the first seq to read.
+	From spaces.EventSeq
+	// To is the last seq to read, inclusive.
+	To spaces.EventSeq
+	// MaxScan, when positive, ends the scan after a page that brings the log
+	// entries read, visible or not, to at least this many.
+	MaxScan int
+}
+
+// scan reads the log over r a page at a time, authorizing each page as the
+// subscription's reader and passing the events it may see to visit, in seq
+// order. It is the one read-authorize-advance loop behind both subscribe and
+// getSnapshot. sub must have been through [Prepare].
+//
+// visit returns false to end the scan early, after the event it was given.
+// scan returns next, the first seq not yet covered, and done, which is true
+// when it covered everything through r.To that the log holds, and false when
+// visit or r.MaxScan ended it early.
+func (s *Server) scan(
+	ctx context.Context,
+	sub Subscription,
+	r scanRange,
+	visit func(spaces.Event) (more bool, err error),
+) (next spaces.EventSeq, done bool, err error) {
+	next = r.From
+	scanned := 0
+	for next <= r.To {
+		events, err := s.source.ListEvents(ctx, sub.Query.Filter, next, s.pageSize)
+		if err != nil {
+			return next, false, fmt.Errorf("list events: %w", err)
+		}
+		// A fresh cache per page, so a revoked reader stops receiving
+		// events within a page.
+		access := newAccessCache(s.roles, sub)
+		for _, event := range events {
+			if event.EventSeq() > r.To {
+				return next, true, nil
+			}
+			ok, err := access.allows(ctx, event)
+			if err != nil {
+				return next, false, fmt.Errorf("authorize event: %w", err)
+			}
+			next = event.EventSeq() + 1
+			scanned++
+			if !ok {
+				continue
+			}
+			more, err := visit(event)
+			if err != nil {
+				return next, false, err
+			}
+			if !more {
+				return next, false, nil
+			}
+		}
+		if len(events) < s.pageSize {
+			// The filtered log has nothing more through r.To.
+			return next, true, nil
+		}
+		if r.MaxScan > 0 && scanned >= r.MaxScan {
+			return next, false, nil
+		}
+	}
+	return next, true, nil
 }
 
 // accessCache authorizes one page of events, resolving each space's access
@@ -339,20 +398,6 @@ func eventFrame(event spaces.Event) ([]byte, error) {
 		return nil, err
 	}
 	return messageFrame(payload)
-}
-
-// eventPayload renders event as the JSON of its subscribe object, a frame's
-// payload, with its $type.
-func eventPayload(event spaces.Event) (json.RawMessage, error) {
-	payload, err := eventObject(event)
-	if err != nil {
-		return nil, err
-	}
-	out, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("encode event: %w", err)
-	}
-	return out, nil
 }
 
 func eventObject(event spaces.Event) (any, error) {
