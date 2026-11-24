@@ -228,15 +228,8 @@ export const removeMember = createServerFn({ method: "POST" })
         // pear deletes the member's membership record from the roster;
         // wait for the group's stream to index that, so they lose access
         // here at once.
-        const env = yield* AppEnv;
         const membership = `${membersSpace(org)}/${org}/${MEMBERSHIP_COLLECTION}/${data.member}`;
-        yield* Effect.tryPromise(() =>
-          awaitIndexed(env, org, membership, null),
-        ).pipe(
-          Effect.catch((e) =>
-            Effect.logWarning("indexing roster change failed", e),
-          ),
-        );
+        yield* awaitIndexed(org, membership, null);
         yield* Effect.logInfo("removed member", { org, member: data.member });
       }),
     ),

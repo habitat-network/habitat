@@ -6,7 +6,7 @@ import { deleteFileRecord } from "@/server/files/files.server";
 import { NotFound } from "@/server/effect/errors";
 import { requireOrg } from "@/server/effect/member";
 import { runEffect } from "@/server/effect/run";
-import { AppEnv, attempt, Database } from "@/server/effect/services";
+import { Database } from "@/server/effect/services";
 import { getProfiles, requireConnected } from "@/server/groups";
 
 // Files: Drop's shared file bucket. Each uploaded file is its own group
@@ -66,11 +66,8 @@ export const deleteFile = createServerFn({ method: "POST" })
         if (!file || file.orgDid !== org) {
           return yield* new NotFound({ message: "File not found" });
         }
-        const env = yield* AppEnv;
         // Returns once the files table no longer lists it.
-        yield* attempt(org, "files.deleteRecord", () =>
-          deleteFileRecord(env, org as DidString, file.space as SpaceRefString),
-        );
+        yield* deleteFileRecord(org as DidString, file.space as SpaceRefString);
         yield* Effect.logInfo("deleted file", { file: data.uri });
       }),
     ),

@@ -3,10 +3,12 @@ import {
   runDurableObjectAlarm,
   runInDurableObject,
 } from "cloudflare:test";
+import { Effect } from "effect";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fileByUri, getDb, upsertConnectedOrg } from "@/db";
 import { connectedOrgs, files } from "@/db/schema";
 import { putFileRecord, deleteFileRecord } from "@/server/files/files.server";
+import { AppLayer } from "@/server/effect/services";
 import { followOrg } from "@/server/stream";
 import type { OrgStream } from "@/server/stream/orgStream";
 import { TEST_DID_HEADER } from "./fakeOAuth";
@@ -143,17 +145,29 @@ beforeEach(async () => {
       writes.push({ nsid, did, body });
       if (nsid === "com.atproto.space.putRecord") {
         // The event follows the response, as it would from pear's sequencer.
-        setTimeout(() => socket?.send(fileCommit(2, CID2, "renamed.txt")), 20);
+        sendFromStream(fileCommit(2, CID2, "renamed.txt"));
         return Response.json({ uri: URI, cid: CID2 });
       }
       if (nsid === "com.atproto.space.deleteRecord") {
-        setTimeout(() => socket?.send(fileDelete(3)), 20);
+        sendFromStream(fileDelete(3));
         return Response.json({});
       }
       return Response.json({ error: "NotFound" }, { status: 404 });
     }),
   );
 });
+
+const run = <A, E>(effect: Effect.Effect<A, E, never | typeof AppLayer.Type>) =>
+  Effect.runPromise(effect.pipe(Effect.provide(AppLayer)));
+
+// pear's socket half belongs to the stream object's I/O context, so events
+// are sent from inside it, a moment after the write's response.
+function sendFromStream(frame: string) {
+  setTimeout(
+    () => void runInDurableObject(stub(), () => socket?.send(frame)),
+    20,
+  );
+}
 
 const stub = () => env.ORG_STREAM.get(env.ORG_STREAM.idFromName(ORG));
 
@@ -186,11 +200,13 @@ it("catches up on a request, follows live, and writes return once indexed", asyn
   expect(subscribeUrls[0].searchParams.get("cursor")).toBe("2");
 
   // A write made through the stream is in D1 by the time it returns.
-  const written = await putFileRecord(env, ORG, SPACE, {
-    name: "renamed.txt",
-    blob: BLOB,
-    uploadedBy: "did:plc:alice",
-  });
+  const written = await run(
+    putFileRecord(ORG, SPACE, {
+      name: "renamed.txt",
+      blob: BLOB,
+      uploadedBy: "did:plc:alice",
+    }),
+  );
   expect(written).toEqual({ uri: URI, cid: CID2, indexed: true });
   expect((await fileByUri(db, URI))?.name).toBe("renamed.txt");
   expect(writes[0]).toMatchObject({
@@ -200,7 +216,7 @@ it("catches up on a request, follows live, and writes return once indexed", asyn
   });
 
   recordExists = true;
-  await deleteFileRecord(env, ORG, SPACE);
+  await run(deleteFileRecord(ORG, SPACE));
   expect(await fileByUri(db, URI)).toBeUndefined();
 
   // The cursor is kept past the delete's seq, and nothing is scheduled to
@@ -214,6 +230,15 @@ it("catches up on a request, follows live, and writes return once indexed", asyn
   expect(subscribeUrls).toHaveLength(1);
   // The first run loads the sinks and the SDK, which takes a few seconds on
   // CI runners.
+}, 30_000);
+
+it("returns at once from deleting a record that isn't there", async () => {
+  await followOrg(env, ORG);
+  const started = Date.now();
+  const result = await run(deleteFileRecord(ORG, SPACE));
+  expect(result).toEqual({ indexed: true });
+  // No event follows a delete of nothing, so nothing waited for one.
+  expect(Date.now() - started).toBeLessThan(5_000);
 }, 30_000);
 
 it("shares one catch-up and one socket between concurrent requests", async () => {

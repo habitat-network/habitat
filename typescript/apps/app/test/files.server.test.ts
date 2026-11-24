@@ -1,4 +1,5 @@
 import type { DidString, SpaceRefString } from "@atproto/syntax";
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 const { deleteRecordIndexed } = vi.hoisted(() => ({
@@ -17,27 +18,22 @@ const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile` as SpaceRefString;
 
 describe("deleteFileRecord", () => {
   it("deletes the file record from the org's repo through the group's stream", async () => {
-    deleteRecordIndexed.mockResolvedValueOnce({
-      uri: "",
-      cid: "",
-      indexed: true,
+    deleteRecordIndexed.mockReturnValueOnce(Effect.succeed({ indexed: true }));
+    await Effect.runPromise(deleteFileRecord(ORG, SPACE));
+    expect(deleteRecordIndexed).toHaveBeenCalledWith(ORG, ORG, {
+      space: SPACE,
+      repo: ORG,
+      collection: FILE_COLLECTION,
+      rkey: "self",
     });
-    await deleteFileRecord({} as Env, ORG, SPACE);
-    expect(deleteRecordIndexed).toHaveBeenCalledWith(
-      expect.anything(),
-      ORG,
-      ORG,
-      {
-        space: SPACE,
-        repo: ORG,
-        collection: FILE_COLLECTION,
-        rkey: "self",
-      },
-    );
   });
 
   it("surfaces a failed delete", async () => {
-    deleteRecordIndexed.mockRejectedValueOnce(new Error("SpaceNotFound"));
-    await expect(deleteFileRecord({} as Env, ORG, SPACE)).rejects.toThrow();
+    deleteRecordIndexed.mockReturnValueOnce(
+      Effect.fail(new Error("SpaceNotFound")),
+    );
+    await expect(
+      Effect.runPromise(deleteFileRecord(ORG, SPACE)),
+    ).rejects.toThrow();
   });
 });
