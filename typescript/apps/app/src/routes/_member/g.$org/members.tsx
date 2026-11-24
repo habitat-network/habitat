@@ -55,8 +55,8 @@ import {
   groupLabel,
   groupQuery,
   membersQuery,
+  rolesQuery,
 } from "@/lib/queries";
-import { rolesQuery } from "@/lib/roles";
 import {
   assignRoles,
   inviteMember,
