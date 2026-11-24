@@ -25,12 +25,14 @@ import { Route as MemberGroupsNewRouteImport } from './routes/_member/groups.new
 import { Route as MemberGOrgIndexRouteImport } from './routes/_member/g.$org/index'
 import { Route as MemberGOrgAppsRouteImport } from './routes/_member/g.$org/apps'
 import { Route as MemberGOrgFilesRouteImport } from './routes/_member/g.$org/files'
-import { Route as MemberGOrgMcpRouteImport } from './routes/_member/g.$org/mcp'
 import { Route as MemberGOrgMembersRouteImport } from './routes/_member/g.$org/members'
 import { Route as MemberGOrgRolesRouteImport } from './routes/_member/g.$org/roles'
 import { Route as MemberGOrgSearchRouteImport } from './routes/_member/g.$org/search'
 import { Route as MemberGOrgSettingsRouteImport } from './routes/_member/g.$org/settings'
 import { Route as MemberGOrgDocsDocIdRouteImport } from './routes/_member/g.$org/docs.$docId'
+import { Route as MemberGOrgMcpIndexRouteImport } from './routes/_member/g.$org/mcp.index'
+import { Route as MemberGOrgMcpServerIdRouteImport } from './routes/_member/g.$org/mcp.$serverId'
+import { Route as MemberGOrgMcpNewRouteImport } from './routes/_member/g.$org/mcp.new'
 
 const MemberRoute = MemberRouteImport.update({
   id: '/_member',
@@ -112,11 +114,6 @@ const MemberGOrgFilesRoute = MemberGOrgFilesRouteImport.update({
   path: '/files',
   getParentRoute: () => MemberGOrgRoute,
 } as any)
-const MemberGOrgMcpRoute = MemberGOrgMcpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
-  getParentRoute: () => MemberGOrgRoute,
-} as any)
 const MemberGOrgMembersRoute = MemberGOrgMembersRouteImport.update({
   id: '/members',
   path: '/members',
@@ -142,6 +139,21 @@ const MemberGOrgDocsDocIdRoute = MemberGOrgDocsDocIdRouteImport.update({
   path: '/docs/$docId',
   getParentRoute: () => MemberGOrgRoute,
 } as any)
+const MemberGOrgMcpIndexRoute = MemberGOrgMcpIndexRouteImport.update({
+  id: '/mcp/',
+  path: '/mcp/',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
+const MemberGOrgMcpServerIdRoute = MemberGOrgMcpServerIdRouteImport.update({
+  id: '/mcp/$serverId',
+  path: '/mcp/$serverId',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
+const MemberGOrgMcpNewRoute = MemberGOrgMcpNewRouteImport.update({
+  id: '/mcp/new',
+  path: '/mcp/new',
+  getParentRoute: () => MemberGOrgRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof MemberIndexRoute
@@ -158,13 +170,15 @@ export interface FileRoutesByFullPath {
   '/groups/new': typeof MemberGroupsNewRoute
   '/g/$org/apps': typeof MemberGOrgAppsRoute
   '/g/$org/files': typeof MemberGOrgFilesRoute
-  '/g/$org/mcp': typeof MemberGOrgMcpRoute
   '/g/$org/members': typeof MemberGOrgMembersRoute
   '/g/$org/roles': typeof MemberGOrgRolesRoute
   '/g/$org/search': typeof MemberGOrgSearchRoute
   '/g/$org/settings': typeof MemberGOrgSettingsRoute
   '/g/$org/': typeof MemberGOrgIndexRoute
   '/g/$org/docs/$docId': typeof MemberGOrgDocsDocIdRoute
+  '/g/$org/mcp/$serverId': typeof MemberGOrgMcpServerIdRoute
+  '/g/$org/mcp/new': typeof MemberGOrgMcpNewRoute
+  '/g/$org/mcp/': typeof MemberGOrgMcpIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -180,13 +194,15 @@ export interface FileRoutesByTo {
   '/groups/new': typeof MemberGroupsNewRoute
   '/g/$org/apps': typeof MemberGOrgAppsRoute
   '/g/$org/files': typeof MemberGOrgFilesRoute
-  '/g/$org/mcp': typeof MemberGOrgMcpRoute
   '/g/$org/members': typeof MemberGOrgMembersRoute
   '/g/$org/roles': typeof MemberGOrgRolesRoute
   '/g/$org/search': typeof MemberGOrgSearchRoute
   '/g/$org/settings': typeof MemberGOrgSettingsRoute
   '/g/$org': typeof MemberGOrgIndexRoute
   '/g/$org/docs/$docId': typeof MemberGOrgDocsDocIdRoute
+  '/g/$org/mcp/$serverId': typeof MemberGOrgMcpServerIdRoute
+  '/g/$org/mcp/new': typeof MemberGOrgMcpNewRoute
+  '/g/$org/mcp': typeof MemberGOrgMcpIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -205,13 +221,15 @@ export interface FileRoutesById {
   '/_member/groups/new': typeof MemberGroupsNewRoute
   '/_member/g/$org/apps': typeof MemberGOrgAppsRoute
   '/_member/g/$org/files': typeof MemberGOrgFilesRoute
-  '/_member/g/$org/mcp': typeof MemberGOrgMcpRoute
   '/_member/g/$org/members': typeof MemberGOrgMembersRoute
   '/_member/g/$org/roles': typeof MemberGOrgRolesRoute
   '/_member/g/$org/search': typeof MemberGOrgSearchRoute
   '/_member/g/$org/settings': typeof MemberGOrgSettingsRoute
   '/_member/g/$org/': typeof MemberGOrgIndexRoute
   '/_member/g/$org/docs/$docId': typeof MemberGOrgDocsDocIdRoute
+  '/_member/g/$org/mcp/$serverId': typeof MemberGOrgMcpServerIdRoute
+  '/_member/g/$org/mcp/new': typeof MemberGOrgMcpNewRoute
+  '/_member/g/$org/mcp/': typeof MemberGOrgMcpIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -230,13 +248,15 @@ export interface FileRouteTypes {
     | '/groups/new'
     | '/g/$org/apps'
     | '/g/$org/files'
-    | '/g/$org/mcp'
     | '/g/$org/members'
     | '/g/$org/roles'
     | '/g/$org/search'
     | '/g/$org/settings'
     | '/g/$org/'
     | '/g/$org/docs/$docId'
+    | '/g/$org/mcp/$serverId'
+    | '/g/$org/mcp/new'
+    | '/g/$org/mcp/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -252,13 +272,15 @@ export interface FileRouteTypes {
     | '/groups/new'
     | '/g/$org/apps'
     | '/g/$org/files'
-    | '/g/$org/mcp'
     | '/g/$org/members'
     | '/g/$org/roles'
     | '/g/$org/search'
     | '/g/$org/settings'
     | '/g/$org'
     | '/g/$org/docs/$docId'
+    | '/g/$org/mcp/$serverId'
+    | '/g/$org/mcp/new'
+    | '/g/$org/mcp'
   id:
     | '__root__'
     | '/_member'
@@ -276,13 +298,15 @@ export interface FileRouteTypes {
     | '/_member/groups/new'
     | '/_member/g/$org/apps'
     | '/_member/g/$org/files'
-    | '/_member/g/$org/mcp'
     | '/_member/g/$org/members'
     | '/_member/g/$org/roles'
     | '/_member/g/$org/search'
     | '/_member/g/$org/settings'
     | '/_member/g/$org/'
     | '/_member/g/$org/docs/$docId'
+    | '/_member/g/$org/mcp/$serverId'
+    | '/_member/g/$org/mcp/new'
+    | '/_member/g/$org/mcp/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -410,13 +434,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberGOrgFilesRouteImport
       parentRoute: typeof MemberGOrgRoute
     }
-    '/_member/g/$org/mcp': {
-      id: '/_member/g/$org/mcp'
-      path: '/mcp'
-      fullPath: '/g/$org/mcp'
-      preLoaderRoute: typeof MemberGOrgMcpRouteImport
-      parentRoute: typeof MemberGOrgRoute
-    }
     '/_member/g/$org/members': {
       id: '/_member/g/$org/members'
       path: '/members'
@@ -452,31 +469,56 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberGOrgDocsDocIdRouteImport
       parentRoute: typeof MemberGOrgRoute
     }
+    '/_member/g/$org/mcp/': {
+      id: '/_member/g/$org/mcp/'
+      path: '/mcp'
+      fullPath: '/g/$org/mcp/'
+      preLoaderRoute: typeof MemberGOrgMcpIndexRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
+    '/_member/g/$org/mcp/$serverId': {
+      id: '/_member/g/$org/mcp/$serverId'
+      path: '/mcp/$serverId'
+      fullPath: '/g/$org/mcp/$serverId'
+      preLoaderRoute: typeof MemberGOrgMcpServerIdRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
+    '/_member/g/$org/mcp/new': {
+      id: '/_member/g/$org/mcp/new'
+      path: '/mcp/new'
+      fullPath: '/g/$org/mcp/new'
+      preLoaderRoute: typeof MemberGOrgMcpNewRouteImport
+      parentRoute: typeof MemberGOrgRoute
+    }
   }
 }
 
 interface MemberGOrgRouteChildren {
   MemberGOrgAppsRoute: typeof MemberGOrgAppsRoute
   MemberGOrgFilesRoute: typeof MemberGOrgFilesRoute
-  MemberGOrgMcpRoute: typeof MemberGOrgMcpRoute
   MemberGOrgMembersRoute: typeof MemberGOrgMembersRoute
   MemberGOrgRolesRoute: typeof MemberGOrgRolesRoute
   MemberGOrgSearchRoute: typeof MemberGOrgSearchRoute
   MemberGOrgSettingsRoute: typeof MemberGOrgSettingsRoute
   MemberGOrgIndexRoute: typeof MemberGOrgIndexRoute
   MemberGOrgDocsDocIdRoute: typeof MemberGOrgDocsDocIdRoute
+  MemberGOrgMcpServerIdRoute: typeof MemberGOrgMcpServerIdRoute
+  MemberGOrgMcpNewRoute: typeof MemberGOrgMcpNewRoute
+  MemberGOrgMcpIndexRoute: typeof MemberGOrgMcpIndexRoute
 }
 
 const MemberGOrgRouteChildren: MemberGOrgRouteChildren = {
   MemberGOrgAppsRoute: MemberGOrgAppsRoute,
   MemberGOrgFilesRoute: MemberGOrgFilesRoute,
-  MemberGOrgMcpRoute: MemberGOrgMcpRoute,
   MemberGOrgMembersRoute: MemberGOrgMembersRoute,
   MemberGOrgRolesRoute: MemberGOrgRolesRoute,
   MemberGOrgSearchRoute: MemberGOrgSearchRoute,
   MemberGOrgSettingsRoute: MemberGOrgSettingsRoute,
   MemberGOrgIndexRoute: MemberGOrgIndexRoute,
   MemberGOrgDocsDocIdRoute: MemberGOrgDocsDocIdRoute,
+  MemberGOrgMcpServerIdRoute: MemberGOrgMcpServerIdRoute,
+  MemberGOrgMcpNewRoute: MemberGOrgMcpNewRoute,
+  MemberGOrgMcpIndexRoute: MemberGOrgMcpIndexRoute,
 }
 
 const MemberGOrgRouteWithChildren = MemberGOrgRoute._addFileChildren(
