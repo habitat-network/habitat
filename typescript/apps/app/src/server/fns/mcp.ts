@@ -202,6 +202,59 @@ export const disconnectMcpServer = createServerFn({ method: "POST" })
     ),
   );
 
+export interface McpToolView {
+  name: string;
+  title: string | null;
+  description: string | null;
+}
+
+export interface McpToolsView {
+  tools: McpToolView[];
+  // Why the tools couldn't be listed, e.g. the caller isn't connected yet.
+  error: string | null;
+}
+
+// listMcpTools lists the tools a server offers, by making a tools/list
+// request to it as the member (so it needs the member to be connected).
+export const listMcpTools = createServerFn({ method: "GET" })
+  .validator(Schema.decodeUnknownSync(ServerInput))
+  .handler(({ data }) =>
+    runEffect(
+      "mcp.tools",
+      Effect.gen(function* () {
+        const { did, org } = yield* requireOrg(data.org);
+        const habitat = yield* Habitat;
+        const out = yield* habitat.xrpc(
+          did,
+          network.habitat.mcp.debug.main,
+          { body: { org, id: data.id, method: "tools/list" } },
+          viaGroup(org),
+        );
+        if (!out.ok || !out.result) {
+          return {
+            tools: [],
+            error: out.error ?? "The server returned no result",
+          } satisfies McpToolsView;
+        }
+        const parsed = JSON.parse(out.result) as {
+          tools?: {
+            name: string;
+            title?: string;
+            description?: string;
+          }[];
+        };
+        return {
+          tools: (parsed.tools ?? []).map((t) => ({
+            name: t.name,
+            title: t.title ?? null,
+            description: t.description ?? null,
+          })),
+          error: null,
+        } satisfies McpToolsView;
+      }),
+    ),
+  );
+
 // searchGroup runs one page of a federated search over the group's Habitat
 // records and the member's connected MCP servers: a new search with query,
 // or the next page of one with cursor. pear waits up to 10s for results.

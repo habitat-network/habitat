@@ -94,3 +94,54 @@ export const MCP_CONNECTORS: McpConnector[] = [
     docsUrl: "https://github.com/github/github-mcp-server",
   },
 ];
+
+// McpServerDisplay is how to show a server: a formatted name, and the
+// connector's brand mark when the server is a known one.
+export interface McpServerDisplay {
+  name: string;
+  icon: string | null;
+  connector: McpConnector | null;
+}
+
+// mcpServerDisplay formats a server for display. A server added from a known
+// connector (its id or name is the connector's) takes the connector's name
+// and icon; any other server gets its id tidied up ("my-server" becomes "My
+// Server") and no icon.
+export function mcpServerDisplay(server: {
+  id: string;
+  name: string;
+}): McpServerDisplay {
+  const keys = [server.id, server.name].map((k) => k.toLowerCase());
+  const connector =
+    MCP_CONNECTORS.find(
+      (c) => keys.includes(c.id) || keys.includes(c.defaultName),
+    ) ?? null;
+  if (connector) {
+    return {
+      name: connector.name,
+      icon: `/connectors/${connector.icon}`,
+      connector,
+    };
+  }
+  const name = server.name
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return { name: name || server.id, icon: null, connector: null };
+}
+
+// sortMcpServers puts servers the member hasn't connected first, keeping the
+// given order otherwise.
+export function sortMcpServers<T extends { connected: boolean }>(
+  servers: T[],
+): T[] {
+  return [...servers].sort((a, b) => Number(a.connected) - Number(b.connected));
+}
+
+// How members sign in to a server, by its authType.
+export const AUTH_LABELS: Record<string, string> = {
+  oauth: "Each member signs in",
+  token: "Each member adds a token",
+  manual: "No sign-in needed",
+};

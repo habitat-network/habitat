@@ -1,5 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
-import { listConnectedApps, listMcpServers } from "@/server/fns/mcp";
+import {
+  listConnectedApps,
+  listMcpServers,
+  listMcpTools,
+} from "@/server/fns/mcp";
 
 // MCP: the group's servers and the apps a member has authorized.
 // Query options are shared between route loaders (which ensure them) and
@@ -15,3 +19,9 @@ export const connectedAppsQuery = queryOptions({
   queryKey: ["connectedApps"],
   queryFn: () => listConnectedApps(),
 });
+
+export const mcpToolsQuery = (org: string, id: string) =>
+  queryOptions({
+    queryKey: ["mcp", org, id, "tools"],
+    queryFn: () => listMcpTools({ data: { org, id } }),
+  });

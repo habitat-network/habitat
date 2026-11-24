@@ -21,10 +21,11 @@ import {
   ChevronRight,
   CircleCheck,
   CircleDashed,
-  Plug,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
+import { McpServerIcon } from "@/components/mcp/McpServerIcon";
+import { mcpServerDisplay, sortMcpServers } from "@/lib/mcpConnectors";
 import { mcpServersQuery } from "@/lib/queries/mcp";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import { connectMcpServer, type McpServerView } from "@/server/fns/mcp";
@@ -42,7 +43,8 @@ function HomePage() {
   const { org } = Route.useParams();
 
   const queryClient = useQueryClient();
-  const { data: servers } = useSuspenseQuery(mcpServersQuery(org));
+  const { data } = useSuspenseQuery(mcpServersQuery(org));
+  const servers = sortMcpServers(data);
   const unconnected = servers.filter((s) => !s.connected);
   const allConnected = servers.length > 0 && unconnected.length === 0;
   // Controlled state: the collapse is open when the user last toggled it,
@@ -130,8 +132,8 @@ function HomePage() {
   );
 }
 
-// ServerItem is one server in the horizontal scroll: a Plugin icon, the
-// server's name, and a circle — dashed while it's pending, checked once
+// ServerItem is one server in the horizontal scroll: the server's icon and
+// display name, and a circle — dashed while it's pending, checked once
 // connected. Clicking a pending server starts connecting it.
 function ServerItem({
   server,
@@ -142,6 +144,7 @@ function ServerItem({
   connected: boolean;
   onConnect: () => void;
 }) {
+  const display = mcpServerDisplay(server);
   return (
     <Item
       variant="outline"
@@ -154,10 +157,10 @@ function ServerItem({
       )}
     >
       <ItemMedia>
-        <Plug className="size-4" />
+        <McpServerIcon icon={display.icon} className="size-6 bg-transparent" />
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{server.name}</ItemTitle>
+        <ItemTitle>{display.name}</ItemTitle>
       </ItemContent>
       <ItemMedia>
         {connected ? (
