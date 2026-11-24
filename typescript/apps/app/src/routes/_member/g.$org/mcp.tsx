@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import {
@@ -26,12 +30,11 @@ import { useState } from "react";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
 import { MCP_CONNECTORS, type McpConnector } from "@/lib/mcpConnectors";
-import { groupQuery } from "@/lib/queries";
+import { groupQuery, mcpServersQuery } from "@/lib/queries";
 import {
   addMcpServer,
   connectMcpServer,
   disconnectMcpServer,
-  listMcpServers,
   removeMcpServer,
   type McpServerView,
 } from "@/server/fns/mcp";
@@ -42,6 +45,11 @@ import {
 
 export const Route = createFileRoute("/_member/g/$org/mcp")({
   validateSearch: z.object({ server: z.string().optional() }),
+  loader: ({ context, params }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(groupQuery(params.org)),
+      context.queryClient.ensureQueryData(mcpServersQuery(params.org)),
+    ]),
   component: McpPage,
 });
 
@@ -58,12 +66,9 @@ function McpPage() {
   const { org } = Route.useParams();
   const { server: selectedId } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { data: group } = useQuery(groupQuery(org));
-  const { data: servers = [], isPending } = useQuery({
-    queryKey: ["mcp", org],
-    queryFn: () => listMcpServers({ data: { org } }),
-  });
-  const canConfigure = group?.myActions.includes("mcp.configure") ?? false;
+  const { data: group } = useSuspenseQuery(groupQuery(org));
+  const { data: servers } = useSuspenseQuery(mcpServersQuery(org));
+  const canConfigure = group.myActions.includes("mcp.configure");
   const adding = selectedId === "new";
   const selected =
     servers.find((s) => s.server.id === selectedId) ??
@@ -84,7 +89,7 @@ function McpPage() {
       </PageHeader>
       <div className="flex min-h-0 flex-1">
         <div className="flex w-80 shrink-0 flex-col gap-2 overflow-y-auto border-r p-3">
-          {!isPending && servers.length === 0 && (
+          {servers.length === 0 && (
             <EmptyState icon={<Plug />} title="No MCP servers yet">
               {canConfigure
                 ? "Add one to give members its tools."

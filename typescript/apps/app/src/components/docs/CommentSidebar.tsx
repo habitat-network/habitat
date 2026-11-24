@@ -1,15 +1,19 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { UserAvatar } from "internal";
 import { Button, Textarea, toast } from "internal/components/ui";
 import { X } from "lucide-react";
+import { commentsQuery } from "@/lib/queries";
 import { useHabitatActors } from "@/hooks/useHabitatActors";
 import {
   createComment,
   createReply,
   deleteComment,
   deleteReply,
-  listComments,
   type StrongRef,
 } from "@/server/fns/docs";
 
@@ -67,16 +71,10 @@ export function CommentSidebar({
   onClose,
 }: CommentSidebarProps) {
   const queryClient = useQueryClient();
-  const queryKey = ["comments", org, docId];
+  const { queryKey } = commentsQuery(org, docId);
 
-  const { data } = useQuery({
-    queryKey,
-    queryFn: () => listComments({ data: { org, docId } }),
-  });
-  // Memoized on `data`, not on a freshly-built `?? []`: a new array
-  // identity every render would make the useMemo below (and useActors'
-  // query key through it) churn on every render.
-  const comments = useMemo(() => data?.comments ?? [], [data]);
+  const { data } = useSuspenseQuery(commentsQuery(org, docId));
+  const comments = data.comments;
 
   const authorDids = useMemo(
     () =>

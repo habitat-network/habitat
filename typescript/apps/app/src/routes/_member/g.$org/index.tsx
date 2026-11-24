@@ -34,7 +34,7 @@ import { connectMcpServer, type McpServerView } from "@/server/fns/mcp";
 
 export const Route = createFileRoute("/_member/g/$org/")({
   loader: ({ context, params }) =>
-    context.queryClient.query(mcpServersQuery(params.org)),
+    context.queryClient.ensureQueryData(mcpServersQuery(params.org)),
   component: HomePage,
 });
 

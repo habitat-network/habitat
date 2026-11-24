@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider } from "internal/components/ui";
 import { useEffect, useSyncExternalStore } from "react";
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_member")({
 
 function MemberLayout() {
   const { member } = Route.useRouteContext();
-  const { data: groups = [] } = useQuery(myGroupsQuery);
+  const { data: groups } = useSuspenseQuery(myGroupsQuery);
   const { org } = useParams({ strict: false });
   const lastGroup = useLastGroup(org);
   // Pages outside a group (Connections, Join, Create) keep the sidebar on

@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -9,11 +13,8 @@ import {
   toast,
 } from "internal/components/ui";
 import { UsersIcon } from "lucide-react";
-import {
-  getDocOrgAccess,
-  revokeDocOrgAccess,
-  shareDocWithOrg,
-} from "@/server/fns/docs";
+import { docOrgAccessQuery } from "@/lib/queries";
+import { revokeDocOrgAccess, shareDocWithOrg } from "@/server/fns/docs";
 
 type OrgAccess = "editor" | "viewer" | "none";
 
@@ -37,13 +38,9 @@ export function OrgShareControl({
   orgName: string;
 }) {
   const queryClient = useQueryClient();
-  const queryKey = ["docOrgAccess", org, docId];
+  const { queryKey } = docOrgAccessQuery(org, docId);
 
-  const { data: access = "none" } = useQuery({
-    queryKey,
-    queryFn: async (): Promise<OrgAccess> =>
-      (await getDocOrgAccess({ data: { org, docId } })) ?? "none",
-  });
+  const { data: access } = useSuspenseQuery(docOrgAccessQuery(org, docId));
 
   const { mutate: setAccess, isPending } = useMutation({
     mutationFn: (next: OrgAccess) =>

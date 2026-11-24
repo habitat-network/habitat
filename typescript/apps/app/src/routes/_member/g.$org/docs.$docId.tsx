@@ -6,8 +6,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   queryOptions,
   useMutation,
-  useQuery,
   useQueryClient,
+  useSuspenseQuery,
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
@@ -34,13 +34,17 @@ import {
 } from "@/extensions/commentAnchor";
 import { OrgShareControl } from "@/components/docs/OrgShareControl";
 import { useYDoc } from "@/hooks/useYDoc";
-import { groupLabel, groupQuery } from "@/lib/queries";
+import {
+  commentsQuery,
+  docAccessQuery,
+  docOrgAccessQuery,
+  docSummaryQuery,
+  groupLabel,
+  groupQuery,
+} from "@/lib/queries";
 import {
   getDocInitialState,
   getDocRole,
-  getDocSummary,
-  listComments,
-  listDocAccess,
   revokeDocAccess,
   shareDoc,
 } from "@/server/fns/docs";
@@ -70,13 +74,18 @@ function caretColor(did: string): string {
 // space URI.
 export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
   loader: async ({ context, params }) => {
+    const { org, docId } = params;
+    const { queryClient } = context;
     const [role, initialState] = await Promise.all([
-      context.queryClient.ensureQueryData(
-        docRoleQueryOptions(params.org, params.docId),
-      ),
-      context.queryClient.ensureQueryData(
-        docInitialStateQueryOptions(params.org, params.docId),
-      ),
+      queryClient.ensureQueryData(docRoleQueryOptions(org, docId)),
+      queryClient.ensureQueryData(docInitialStateQueryOptions(org, docId)),
+      // Read with useSuspenseQuery by the page, the share dialog and the
+      // comments sidebar.
+      queryClient.ensureQueryData(groupQuery(org)),
+      queryClient.ensureQueryData(docSummaryQuery(org, docId)),
+      queryClient.ensureQueryData(docAccessQuery(org, docId)),
+      queryClient.ensureQueryData(docOrgAccessQuery(org, docId)),
+      queryClient.ensureQueryData(commentsQuery(org, docId)),
     ]);
     return { role, initialState };
   },
@@ -85,13 +94,10 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
     const { member } = Route.useRouteContext();
     const currentUserDid = member.did;
     const { role, initialState } = Route.useLoaderData();
-    const { data: group } = useQuery(groupQuery(org));
-    const { data: summary } = useQuery({
-      queryKey: ["docSummary", org, uri],
-      queryFn: () => getDocSummary({ data: { org, docId: uri } }),
-    });
+    const { data: group } = useSuspenseQuery(groupQuery(org));
+    const { data: summary } = useSuspenseQuery(docSummaryQuery(org, uri));
     const self = {
-      displayName: group?.me.displayName ?? null,
+      displayName: group.me.displayName,
       handle: member.handle,
     };
     const { ydoc, awareness } = useYDoc(uri, initialState);
@@ -102,13 +108,10 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
     const canComment = role === "editor" || role === "commenter";
     const queryClient = useQueryClient();
 
-    const accessQueryKey = ["docAccess", org, uri];
+    const accessQueryKey = docAccessQuery(org, uri).queryKey;
     // listDocAccess only returns DIDs and the tier each one holds;
     // resolving DIDs to handles/avatars for display is useActors's job.
-    const { data: access = [] } = useQuery({
-      queryKey: accessQueryKey,
-      queryFn: () => listDocAccess({ data: { org, docId: uri } }),
-    });
+    const { data: access } = useSuspenseQuery(docAccessQuery(org, uri));
     // Memoized so useActors' query key doesn't churn on every render.
     const accessDids = useMemo(() => access.map((a) => a.did), [access]);
     const getActor = useHabitatActors(accessDids);
@@ -178,10 +181,7 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
     // Shared with CommentSidebar via the same react-query cache entry
     // (identical queryKey) rather than prop-drilled — only the anchor
     // fields are needed here, to keep the editor's highlights in sync.
-    const { data: commentsData } = useQuery({
-      queryKey: ["comments", org, uri],
-      queryFn: () => listComments({ data: { org, docId: uri } }),
-    });
+    const { data: commentsData } = useSuspenseQuery(commentsQuery(org, uri));
 
     const caretName = self.displayName ?? self.handle ?? currentUserDid;
     const caretUser = useMemo(
@@ -238,13 +238,11 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
       // has already nulled out — `editor.commands` throws in that case
       // rather than just being falsy.
       if (!editor || editor.isDestroyed) return;
-      const anchors: CommentAnchor[] = (commentsData?.comments ?? []).map(
-        (c) => ({
-          uri: c.uri,
-          anchorStart: c.anchorStart,
-          anchorEnd: c.anchorEnd,
-        }),
-      );
+      const anchors: CommentAnchor[] = commentsData.comments.map((c) => ({
+        uri: c.uri,
+        anchorStart: c.anchorStart,
+        anchorEnd: c.anchorEnd,
+      }));
       if (pendingAnchor) {
         anchors.push({
           uri: "pending",
@@ -320,7 +318,7 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
         </div>
         <PageHeader
           title={summary?.title || "Untitled"}
-          description={group ? groupLabel(group) : undefined}
+          description={groupLabel(group)}
         >
           <div className="flex gap-2">
             {canComment ? (
@@ -351,13 +349,11 @@ export const Route = createFileRoute("/_member/g/$org/docs/$docId")({
                 }
                 onRemovePermission={(actor) => removePermission(actor)}
               >
-                {group && (
-                  <OrgShareControl
-                    org={org}
-                    docId={uri}
-                    orgName={groupLabel(group)}
-                  />
-                )}
+                <OrgShareControl
+                  org={org}
+                  docId={uri}
+                  orgName={groupLabel(group)}
+                />
               </ShareDialog>
             )}
             <HelpDialog />

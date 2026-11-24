@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import {
@@ -22,33 +26,28 @@ import { CodePicker, type PickedCode } from "@/components/apps/CodePicker";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
 import { formatBytes } from "@/lib/files";
+import { appsQuery } from "@/lib/queries";
 import { slugify } from "@/lib/apps";
-import {
-  deleteApp,
-  deployApp,
-  listApps,
-  type AppView,
-} from "@/server/fns/apps";
+import { deleteApp, deployApp, type AppView } from "@/server/fns/apps";
 
 // Apps: code members upload, which runs in a sandbox at its own URL. The
 // list on the left, the selected app (or the new app form) on the right.
 
 export const Route = createFileRoute("/_member/g/$org/apps")({
   validateSearch: z.object({ app: z.string().optional() }),
+  loader: ({ context, params }) =>
+    Promise.all([context.queryClient.ensureQueryData(appsQuery(params.org))]),
   component: AppsPage,
 });
 
-const appsKey = (org: string) => ["apps", org];
+const appsKey = (org: string) => appsQuery(org).queryKey;
 
 function AppsPage() {
   const { org } = Route.useParams();
   const { app: selectedId } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { data: apps = [], isPending } = useQuery({
-    queryKey: appsKey(org),
-    queryFn: () => listApps({ data: { org } }),
-  });
-  const creating = selectedId === "new" || (!isPending && apps.length === 0);
+  const { data: apps } = useSuspenseQuery(appsQuery(org));
+  const creating = selectedId === "new" || apps.length === 0;
   const selected = creating
     ? null
     : (apps.find((a) => a.uri === selectedId) ?? apps[0] ?? null);
@@ -66,7 +65,7 @@ function AppsPage() {
       </PageHeader>
       <div className="flex min-h-0 flex-1">
         <div className="flex w-80 shrink-0 flex-col gap-2 overflow-y-auto border-r p-3">
-          {!isPending && apps.length === 0 && (
+          {apps.length === 0 && (
             <EmptyState icon={<AppWindow />} title="No apps yet">
               Upload some code to deploy your group's first app.
             </EmptyState>
