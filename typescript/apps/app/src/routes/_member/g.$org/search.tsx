@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import {
   Badge,
@@ -18,6 +18,7 @@ import {
 import { useState } from "react";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
+import { resultLink } from "@/lib/searchLinks";
 import {
   searchGroup,
   type SearchBackend,
@@ -190,17 +191,28 @@ function SearchPage() {
                 </>
               )}
             </dl>
-            {selected.url && (
-              <Button
-                variant="outline"
-                render={
-                  <a href={selected.url} target="_blank" rel="noreferrer" />
-                }
-              >
-                <ExternalLink data-icon="inline-start" />
-                Open
-              </Button>
-            )}
+            {(() => {
+              const link = resultLink(selected);
+              if (!link) return null;
+              return (
+                <Button
+                  variant="outline"
+                  render={
+                    link.kind === "doc" ? (
+                      <Link
+                        to="/g/$org/docs/$docId"
+                        params={{ org, docId: link.docId }}
+                      />
+                    ) : (
+                      <a href={link.href} target="_blank" rel="noreferrer" />
+                    )
+                  }
+                >
+                  <ExternalLink data-icon="inline-start" />
+                  Open
+                </Button>
+              );
+            })()}
           </aside>
         )}
       </div>
