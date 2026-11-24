@@ -113,12 +113,18 @@ export const refreshMemberships = Effect.fn("refreshMemberships")(function* () {
 
 // myOrgs lists the groups the member belongs to, as last synced; a member
 // with none yet (just signed in, or just joined) is bootstrapped from pear.
+// A group this deployment isn't connected to has no stream keeping its
+// rows current (a removal would never reach them), so while the member
+// holds any such group pear is asked again.
 export const myOrgs = Effect.fn("myOrgs")(function* () {
   const did = yield* currentMember;
   const db = yield* Database;
   const orgs = yield* Effect.promise(() => orgsOf(db, did));
-  if (orgs.length > 0) return orgs as DidString[];
-  return yield* refreshMemberships();
+  if (orgs.length === 0) return yield* refreshMemberships();
+  const connected = yield* Effect.promise(() => connectedOrgNames(db, orgs));
+  if (orgs.some((org) => !connected.has(org)))
+    return yield* refreshMemberships();
+  return orgs as DidString[];
 });
 
 // requireOrg checks the signed-in member belongs to org, the gate every
@@ -127,9 +133,11 @@ export const myOrgs = Effect.fn("myOrgs")(function* () {
 // It's also the request made "against" org that starts the org's event
 // stream if it isn't running (see ../stream/orgStream.ts), and the stream
 // runs first: the synced memberships table only answers once it's caught
-// up, so a member removed while the stream was idle is refused. When D1
-// may be behind (the catch-up failed or is slow), or the member isn't in it
-// (joined since the last sync), pear is asked instead.
+// up, so a member removed while the stream was idle is refused. D1 is
+// trusted only when the stream is "live". When it may be behind (the
+// catch-up failed or is slow), the group isn't connected (no stream keeps
+// its rows current, so a removed member would stay in them forever), or the
+// member isn't in it (joined since the last sync), pear is asked instead.
 export const requireOrg = Effect.fn("requireOrg")(function* (org: string) {
   const did = yield* currentMember;
   const db = yield* Database;
@@ -147,8 +155,7 @@ export const requireOrg = Effect.fn("requireOrg")(function* (org: string) {
     ),
   );
   const synced =
-    state !== "behind" &&
-    (yield* Effect.promise(() => isMemberOf(db, org, did)));
+    state === "live" && (yield* Effect.promise(() => isMemberOf(db, org, did)));
   if (!synced) {
     const orgs = yield* refreshMemberships();
     if (!orgs.includes(org as DidString)) {
