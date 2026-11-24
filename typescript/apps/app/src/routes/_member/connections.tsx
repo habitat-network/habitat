@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { OrgAvatar, UserAvatar } from "internal";
 import {
@@ -20,15 +24,20 @@ import {
 } from "internal/components/ui";
 import { AppWindow } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
-import { groupLabel, myGroupsQuery } from "@/lib/queries";
+import { groupLabel, myGroupsQuery } from "@/lib/queries/groups";
+import { connectedAppsQuery } from "@/lib/queries/mcp";
 import { signOut } from "@/server/fns/auth";
 import { leaveGroup } from "@/server/fns/groups";
-import { listConnectedApps } from "@/server/fns/mcp";
 
 // Connections: the member's account, the groups they belong to, and the
 // apps they've authorized to act for them.
 
 export const Route = createFileRoute("/_member/connections")({
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(myGroupsQuery),
+      context.queryClient.ensureQueryData(connectedAppsQuery),
+    ]),
   component: ConnectionsPage,
 });
 
@@ -42,11 +51,8 @@ function ConnectionsPage() {
   const { member } = Route.useRouteContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: groups = [] } = useQuery(myGroupsQuery);
-  const { data: apps = [], isError } = useQuery({
-    queryKey: ["connectedApps"],
-    queryFn: () => listConnectedApps(),
-  });
+  const { data: groups } = useSuspenseQuery(myGroupsQuery);
+  const { data: apps } = useSuspenseQuery(connectedAppsQuery);
   const leave = useMutation({
     mutationFn: (org: string) => leaveGroup({ data: { org } }),
     onSuccess: () =>
@@ -169,12 +175,7 @@ function ConnectionsPage() {
           </CardHeader>
           <CardContent>
             <ItemGroup className="gap-2">
-              {isError && (
-                <p className="text-sm text-muted-foreground">
-                  Couldn't load your apps.
-                </p>
-              )}
-              {!isError && apps.length === 0 && (
+              {apps.length === 0 && (
                 <p className="text-sm text-muted-foreground">No apps yet.</p>
               )}
               {apps.map((a) => (

@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import {
@@ -28,8 +32,9 @@ import { Plus, Shield, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
-import { groupQuery } from "@/lib/queries";
-import { ACTIONS, rolesQuery } from "@/lib/roles";
+import { groupQuery } from "@/lib/queries/groups";
+import { rolesQuery } from "@/lib/queries/members";
+import { ACTIONS } from "@/lib/roles";
 import {
   deleteRole,
   putRole,
@@ -45,6 +50,11 @@ import {
 
 export const Route = createFileRoute("/_member/g/$org/roles")({
   validateSearch: z.object({ role: z.string().optional() }),
+  loader: ({ context, params }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(groupQuery(params.org)),
+      context.queryClient.ensureQueryData(rolesQuery(params.org)),
+    ]),
   component: RolesPage,
 });
 
@@ -74,11 +84,10 @@ function RolesPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const queryClient = useQueryClient();
-  const { data: group } = useQuery(groupQuery(org));
-  const { data } = useQuery(rolesQuery(org));
-  const canConfigure =
-    group?.myActions.includes("community.configure") ?? false;
-  const roles = data?.roles ?? [];
+  const { data: group } = useSuspenseQuery(groupQuery(org));
+  const { data } = useSuspenseQuery(rolesQuery(org));
+  const canConfigure = group.myActions.includes("community.configure");
+  const roles = data.roles;
   const selectedId = search.role ?? roles[0]?.id;
   const selected = roles.find((r) => r.id === selectedId) ?? null;
 
@@ -86,16 +95,10 @@ function RolesPage() {
   const [edit, setEdit] = useState<{ from: RolesPayload; draft: Draft } | null>(
     null,
   );
-  const draft = data
-    ? edit?.from === data
-      ? edit.draft
-      : toDraft(data.roles, data.permissions)
-    : null;
-  const setDraft = (f: (d: Draft | null) => Draft | null) => {
-    if (!data) return;
-    const next = f(draft);
-    if (next) setEdit({ from: data, draft: next });
-  };
+  const draft =
+    edit?.from === data ? edit.draft : toDraft(data.roles, data.permissions);
+  const setDraft = (f: (d: Draft) => Draft) =>
+    setEdit({ from: data, draft: f(draft) });
 
   const save = useMutation({
     mutationFn: (d: Draft) =>
@@ -141,7 +144,6 @@ function RolesPage() {
 
   const toggle = (map: "actions" | "assignable", key: string, role: string) =>
     setDraft((d) => {
-      if (!d) return d;
       const next = new Map(d[map]);
       const set = new Set(next.get(key) ?? []);
       if (set.has(role)) set.delete(role);
@@ -185,7 +187,7 @@ function RolesPage() {
           ))}
         </nav>
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
-          {!selected || !draft ? (
+          {!selected ? (
             <EmptyState icon={<Shield />} title="No roles yet" />
           ) : (
             <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -216,7 +218,7 @@ function RolesPage() {
                 )}
               </div>
 
-              {!data?.permissions.exists && (
+              {!data.permissions.exists && (
                 <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
                   This group hasn't set up permissions yet, so admins can do
                   everything and nobody else can do anything. Saving writes the

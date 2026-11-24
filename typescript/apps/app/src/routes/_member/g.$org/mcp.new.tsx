@@ -26,7 +26,7 @@ import {
   MCP_CONNECTORS,
   type McpConnector,
 } from "@/lib/mcpConnectors";
-import { groupQuery } from "@/lib/queries";
+import { groupQuery } from "@/lib/queries/groups";
 import { addMcpServer } from "@/server/fns/mcp";
 
 // Add an MCP server: a known connector by name, or a custom server by URL.

@@ -1,12 +1,3 @@
-import { queryOptions } from "@tanstack/react-query";
-import { getRolesAndPermissions } from "@/server/fns/manage";
-
-export const rolesQuery = (org: string) =>
-  queryOptions({
-    queryKey: ["roles", org],
-    queryFn: () => getRolesAndPermissions({ data: { org } }),
-  });
-
 // The actions pear checks (community.opensocial.permissions), with what
 // each one lets a role do, in the order the roles page lists them.
 export const ACTIONS: { id: string; label: string; description: string }[] = [

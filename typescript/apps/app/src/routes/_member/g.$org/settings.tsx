@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Button,
@@ -20,9 +24,13 @@ import {
   type JoinPolicy,
 } from "@/components/groups/JoinPolicyPicker";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
-import { groupLabel, groupQuery, myGroupsQuery } from "@/lib/queries";
 import {
-  getMyGroupProfile,
+  groupLabel,
+  groupQuery,
+  myGroupProfileQuery,
+  myGroupsQuery,
+} from "@/lib/queries/groups";
+import {
   leaveGroup,
   putMyGroupProfile,
   updateGroupProfile,
@@ -32,32 +40,32 @@ import {
 // the member's own profile within the group, and leaving it.
 
 export const Route = createFileRoute("/_member/g/$org/settings")({
+  loader: ({ context, params }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(groupQuery(params.org)),
+      context.queryClient.ensureQueryData(myGroupProfileQuery(params.org)),
+    ]),
   component: SettingsPage,
 });
 
 function SettingsPage() {
   const { org } = Route.useParams();
-  const { data: group } = useQuery(groupQuery(org));
+  const { data: group } = useSuspenseQuery(groupQuery(org));
   return (
     <>
-      <PageHeader
-        title="Group settings"
-        description={group && groupLabel(group)}
-      />
+      <PageHeader title="Group settings" description={groupLabel(group)} />
       <PageBody className="flex max-w-3xl flex-col gap-6">
-        {group && (
-          <GroupProfileCard
-            org={org}
-            initial={{
-              name: group.name ?? "",
-              description: group.description ?? "",
-              joinPolicy: group.joinPolicy ?? "invite",
-            }}
-            canEdit={group.myActions.includes("community.configure")}
-          />
-        )}
+        <GroupProfileCard
+          org={org}
+          initial={{
+            name: group.name ?? "",
+            description: group.description ?? "",
+            joinPolicy: group.joinPolicy ?? "invite",
+          }}
+          canEdit={group.myActions.includes("community.configure")}
+        />
         <MyProfileCard org={org} />
-        <LeaveCard org={org} name={group ? groupLabel(group) : ""} />
+        <LeaveCard org={org} name={groupLabel(group)} />
       </PageBody>
     </>
   );
@@ -141,11 +149,8 @@ function GroupProfileCard({
 }
 
 function MyProfileCard({ org }: { org: string }) {
-  const { data } = useQuery({
-    queryKey: ["myGroupProfile", org],
-    queryFn: () => getMyGroupProfile({ data: { org } }),
-  });
-  return data ? <MyProfileForm key={org} org={org} initial={data} /> : null;
+  const { data } = useSuspenseQuery(myGroupProfileQuery(org));
+  return <MyProfileForm key={org} org={org} initial={data} />;
 }
 
 function MyProfileForm({
@@ -218,9 +223,11 @@ function LeaveCard({ org, name }: { org: string; name: string }) {
   const leave = useMutation({
     mutationFn: () => leaveGroup({ data: { org } }),
     onSuccess: async () => {
-      queryClient.removeQueries({ queryKey: ["group", org] });
       await queryClient.invalidateQueries({ queryKey: myGroupsQuery.queryKey });
       await navigate({ to: "/" });
+      // After leaving the page: its suspense queries would refetch (and
+      // fail with NotAMember) if the group went away while it was mounted.
+      queryClient.removeQueries({ queryKey: ["group", org] });
     },
     onError: (e) =>
       toast.add({

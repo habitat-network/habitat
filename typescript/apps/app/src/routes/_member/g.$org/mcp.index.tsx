@@ -22,7 +22,8 @@ import {
   mcpServerDisplay,
   sortMcpServers,
 } from "@/lib/mcpConnectors";
-import { groupQuery, mcpServersQuery } from "@/lib/queries";
+import { groupQuery } from "@/lib/queries/groups";
+import { mcpServersQuery } from "@/lib/queries/mcp";
 
 // MCP servers: the tools the group's members reach through pear's MCP
 // gateway. Admins (mcp.configure) add and remove servers; every member

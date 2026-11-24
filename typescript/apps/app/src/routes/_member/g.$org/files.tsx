@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import {
@@ -40,9 +44,11 @@ import { useUploads } from "@/hooks/useUploads";
 import { useWindowDrop } from "@/hooks/useWindowDrop";
 import { cn } from "@/lib/cn";
 import { formatBytes, MAX_FILE_BYTES } from "@/lib/files";
-import { groupLabel, groupQuery } from "@/lib/queries";
-import { createDoc, listDocs, type DocSummary } from "@/server/fns/docs";
-import { deleteFile, listFiles, type FileView } from "@/server/fns/files";
+import { docsQuery } from "@/lib/queries/docs";
+import { filesQuery } from "@/lib/queries/files";
+import { groupLabel, groupQuery } from "@/lib/queries/groups";
+import { createDoc, type DocSummary } from "@/server/fns/docs";
+import { deleteFile, type FileView } from "@/server/fns/files";
 
 // Files is the group's workspace: its collaborative docs (from chalk) and
 // uploaded files (from drop) in one list. The left column narrows by kind,
@@ -58,6 +64,7 @@ export const Route = createFileRoute("/_member/g/$org/files")({
   validateSearch: Search,
   loader: ({ context, params }) =>
     Promise.all([
+      context.queryClient.ensureQueryData(groupQuery(params.org)),
       context.queryClient.ensureQueryData(docsQuery(params.org)),
       context.queryClient.ensureQueryData(filesQuery(params.org)),
     ]),
@@ -67,15 +74,6 @@ export const Route = createFileRoute("/_member/g/$org/files")({
 // Synced rows land in D1 as space notifications and cron passes arrive, so
 // the lists are polled; there's nothing to push.
 const POLL_MS = 10_000;
-
-const docsQuery = (org: string) => ({
-  queryKey: ["docs", org],
-  queryFn: () => listDocs({ data: { org } }),
-});
-const filesQuery = (org: string) => ({
-  queryKey: ["files", org],
-  queryFn: () => listFiles({ data: { org } }),
-});
 
 type Item =
   | { kind: "doc"; id: string; name: string; doc: DocSummary }
@@ -88,21 +86,21 @@ function FilesPage() {
   const view = search.view ?? "list";
   const navigate = useNavigate({ from: Route.fullPath });
   const queryClient = useQueryClient();
-  const { data: group } = useQuery(groupQuery(org));
-  const { data: docs = [] } = useQuery({
+  const { data: group } = useSuspenseQuery(groupQuery(org));
+  const { data: docs } = useSuspenseQuery({
     ...docsQuery(org),
     refetchInterval: POLL_MS,
   });
-  const { data: files = [] } = useQuery({
+  const { data: files } = useSuspenseQuery({
     ...filesQuery(org),
     refetchInterval: POLL_MS,
   });
   const { uploads, add, dismiss } = useUploads(org);
   const input = useRef<HTMLInputElement>(null);
-  const connected = group?.connected ?? false;
+  const connected = group.connected;
   // Dropping files only uploads once the group is connected.
   const dragging = useWindowDrop((f) => connected && add(f));
-  const name = group ? groupLabel(group) : "";
+  const name = groupLabel(group);
 
   const newDoc = useMutation({
     mutationFn: () => createDoc({ data: { org } }),

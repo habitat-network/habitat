@@ -27,7 +27,7 @@ import { cn } from "@/lib/cn";
 import { McpServerIcon } from "@/components/mcp/McpServerIcon";
 import { mcpServerDisplay, sortMcpServers } from "@/lib/mcpConnectors";
 import { McpConnectCard } from "@/components/mcp/McpConnectCard";
-import { mcpServersQuery, orgMcpUrlQuery } from "@/lib/queries";
+import { mcpServersQuery, orgMcpUrlQuery } from "@/lib/queries/mcp";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import { connectMcpServer, type McpServerView } from "@/server/fns/mcp";
 
@@ -37,8 +37,8 @@ import { connectMcpServer, type McpServerView } from "@/server/fns/mcp";
 export const Route = createFileRoute("/_member/g/$org/")({
   loader: ({ context, params }) =>
     Promise.all([
-      context.queryClient.query(mcpServersQuery(params.org)),
-      context.queryClient.query(orgMcpUrlQuery(params.org)),
+      context.queryClient.ensureQueryData(mcpServersQuery(params.org)),
+      context.queryClient.ensureQueryData(orgMcpUrlQuery(params.org)),
     ]),
   component: HomePage,
 });
