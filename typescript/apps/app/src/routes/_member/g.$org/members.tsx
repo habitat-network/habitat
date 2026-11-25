@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
   Field,
   FieldDescription,
+  FieldError,
   FieldLabel,
   Input,
   Table,
@@ -445,8 +446,13 @@ function InviteDialog({ org, roles }: { org: string; roles: RoleView[] }) {
               autoFocus
               placeholder="alice.example.com"
               value={invitee}
-              onChange={(e) => setInvitee(e.target.value)}
+              aria-invalid={invite.isError || undefined}
+              onChange={(e) => {
+                setInvitee(e.target.value);
+                if (invite.isError) invite.reset();
+              }}
             />
+            {invite.isError && <FieldError>{invite.error.message}</FieldError>}
           </Field>
           <Field>
             <FieldLabel>Roles</FieldLabel>
