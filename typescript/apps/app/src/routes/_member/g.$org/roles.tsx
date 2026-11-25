@@ -30,6 +30,7 @@ import {
 } from "internal/components/ui";
 import { Plus, Shield, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
 import { groupQuery } from "@/lib/queries/groups";
@@ -348,6 +349,8 @@ function Toggle({
   );
 }
 
+type RoleFormValues = { id: string; name: string; description: string };
+
 // RoleDialog creates a role, or renames one.
 function RoleDialog({
   org,
@@ -359,23 +362,29 @@ function RoleDialog({
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
   const [open, setOpen] = useState(false);
-  const [id, setId] = useState(role?.id ?? "");
-  const [name, setName] = useState(role?.name ?? "");
-  const [description, setDescription] = useState(role?.description ?? "");
-  // The form state is seeded from `role` once, but this component stays
-  // mounted while the selected role changes, so re-seed it every time the
-  // dialog opens. Otherwise Edit shows whichever role was selected first.
+  const defaults: RoleFormValues = {
+    id: role?.id ?? "",
+    name: role?.name ?? "",
+    description: role?.description ?? "",
+  };
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { isValid },
+  } = useForm<RoleFormValues>({ mode: "onChange", defaultValues: defaults });
+  // This component stays mounted while the selected role changes, so
+  // re-seed the form every time the dialog opens. Otherwise Edit shows
+  // whichever role was selected first.
   const handleOpenChange = (next: boolean) => {
-    if (next) {
-      setId(role?.id ?? "");
-      setName(role?.name ?? "");
-      setDescription(role?.description ?? "");
-    }
+    if (next) reset(defaults);
     setOpen(next);
   };
   const save = useMutation({
-    mutationFn: () => putRole({ data: { org, role: id, name, description } }),
-    onSuccess: async () => {
+    mutationFn: ({ id, name, description }: RoleFormValues) =>
+      putRole({ data: { org, role: id, name, description } }),
+    onSuccess: async (_, { id }) => {
       await queryClient.invalidateQueries({ queryKey: ["roles", org] });
       setOpen(false);
       if (!role) await navigate({ search: { role: id } });
@@ -402,10 +411,7 @@ function RoleDialog({
       <DialogContent>
         <form
           className="flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            save.mutate();
-          }}
+          onSubmit={handleSubmit((v) => save.mutate(v))}
         >
           <DialogHeader>
             <DialogTitle>{role ? `Edit ${role.name}` : "New role"}</DialogTitle>
@@ -417,27 +423,25 @@ function RoleDialog({
             <FieldLabel htmlFor="role-name">Name</FieldLabel>
             <Input
               id="role-name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (!role)
-                  setId(
-                    e.target.value
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]+/g, "-")
-                      .replace(/^-+|-+$/g, ""),
-                  );
-              }}
+              {...register("name", {
+                onChange: (e) => {
+                  if (!role)
+                    setValue(
+                      "id",
+                      e.target.value
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, "-")
+                        .replace(/^-+|-+$/g, ""),
+                      { shouldValidate: true },
+                    );
+                },
+              })}
             />
           </Field>
           {!role && (
             <Field>
               <FieldLabel htmlFor="role-id">Id</FieldLabel>
-              <Input
-                id="role-id"
-                value={id}
-                onChange={(e) => setId(e.target.value)}
-              />
+              <Input id="role-id" {...register("id", { required: true })} />
               <FieldDescription>
                 Lowercase letters, digits and dashes. It can't change later.
               </FieldDescription>
@@ -445,17 +449,13 @@ function RoleDialog({
           )}
           <Field>
             <FieldLabel htmlFor="role-description">Description</FieldLabel>
-            <Textarea
-              id="role-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
+            <Textarea id="role-description" {...register("description")} />
           </Field>
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" />}>
               Cancel
             </DialogClose>
-            <Button type="submit" disabled={!id || save.isPending}>
+            <Button type="submit" disabled={!isValid || save.isPending}>
               Save
             </Button>
           </DialogFooter>
