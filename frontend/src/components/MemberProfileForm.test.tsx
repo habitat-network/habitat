@@ -106,7 +106,7 @@ describe("MemberProfileForm", () => {
 
     await screen.findByText("Saved.");
     expect(saved).toMatchObject({
-      space: `at://${ORG}/space/community.opensocial.members/self`,
+      space: `at:space/${ORG}/community.opensocial.members/self`,
       repo: ME,
       collection: "community.opensocial.memberProfile",
       rkey: ME,

@@ -317,8 +317,10 @@ func (s *Store) CreateSpace(
 		); err != nil {
 			return fmt.Errorf("put access record: %w", err)
 		}
+		// New records name the space in the at:space/ form clients now write;
+		// older ones keep the at:// form until the URI migration.
 		recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialSpace{
-			Uri: spaceURI.String(),
+			Uri: spaceURI.AtSpace().String(),
 		})
 		if err != nil {
 			return fmt.Errorf("marshal space record: %w", err)

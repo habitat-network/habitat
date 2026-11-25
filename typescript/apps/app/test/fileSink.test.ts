@@ -8,7 +8,7 @@ import { FILE_COLLECTION } from "@/server/files/sink";
 import { delEvent, indexEvents, putEvent, spaceDeletedEvent } from "./events";
 
 const ORG = "did:web:org.example" as DidString;
-const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile` as SpaceRefString;
+const SPACE = `at:space/${ORG}/network.habitat.drop/3kfile` as SpaceRefString;
 const URI = `${SPACE}/${ORG}/${FILE_COLLECTION}/self`;
 const BLOB_CID = "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku";
 
@@ -89,7 +89,7 @@ describe("files indexing", () => {
   });
 
   it("only indexes files from file spaces", async () => {
-    const other = `at://${ORG}/space/network.habitat.docs/3kdoc`;
+    const other = `at:space/${ORG}/network.habitat.docs/3kdoc`;
     await indexEvents(
       putEvent(other, ORG, FILE_COLLECTION, "self", fileRecord("notes.txt")),
     );

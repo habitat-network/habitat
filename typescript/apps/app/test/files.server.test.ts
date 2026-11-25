@@ -14,7 +14,7 @@ import { deleteFileRecord } from "@/server/files/files.server";
 import { FILE_COLLECTION } from "@/server/files/sink";
 
 const ORG = "did:web:org.example" as DidString;
-const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile` as SpaceRefString;
+const SPACE = `at:space/${ORG}/network.habitat.drop/3kfile` as SpaceRefString;
 
 describe("deleteFileRecord", () => {
   it("deletes the file record from the org's repo through the group's stream", async () => {

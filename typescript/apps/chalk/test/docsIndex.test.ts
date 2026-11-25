@@ -11,7 +11,7 @@ import {
   docByUri,
 } from "../src/db";
 
-const URI = "at://did:web:alice.example/space/network.habitat.docs/abc";
+const URI = "at:space/did:web:alice.example/network.habitat.docs/abc";
 const ALICE = "did:web:alice.example";
 const BOB = "did:web:bob.example";
 
@@ -85,11 +85,11 @@ it("upserts on conflict rather than duplicating", async () => {
 });
 
 it("returns undefined for an unknown uri", async () => {
-  expect(await docByUri(getDb(env), "at://nope/space/x/y")).toBeUndefined();
+  expect(await docByUri(getDb(env), "at:space/nope/x/y")).toBeUndefined();
 });
 
 const ORG = "did:web:org.example";
-const ORG_DOC = "at://did:web:org.example/space/network.habitat.docs/abc";
+const ORG_DOC = "at:space/did:web:org.example/network.habitat.docs/abc";
 
 async function seedOrgDoc(db: ReturnType<typeof getDb>) {
   await upsertDoc(db, {
@@ -231,8 +231,7 @@ it("org mode excludes personal docs and other orgs' docs", async () => {
     subjectDid: ALICE,
     relation: "owner",
   });
-  const otherOrgDoc =
-    "at://did:web:other.example/space/network.habitat.docs/xyz";
+  const otherOrgDoc = "at:space/did:web:other.example/network.habitat.docs/xyz";
   await upsertDoc(db, {
     spaceUri: otherOrgDoc,
     docId: otherOrgDoc,

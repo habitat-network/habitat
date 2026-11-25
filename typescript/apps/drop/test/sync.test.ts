@@ -10,7 +10,7 @@ import { notifySpaceUpdate, runDueSpaces } from "@/server/sync";
 // The authority doesn't exist, so every pass here fails; what these check
 // is that the syncer is started, claims, and records its outcome in D1.
 const ORG = "did:web:org.invalid" as DidString;
-const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile` as SpaceRefString;
+const SPACE = `at:space/${ORG}/network.habitat.drop/3kfile` as SpaceRefString;
 
 describe("sync", () => {
   const store = new DrizzleSyncStore(getDb(env));

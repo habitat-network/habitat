@@ -5,7 +5,7 @@ import { Jetstream, LexIndexer } from "./api";
 import type { SpaceEvent } from "./events";
 import type { FetchHandler, Transport } from "./transport";
 
-const SPACE = "at://did:web:org.test/space/network.habitat.docs/d1";
+const SPACE = "at:space/did:web:org.test/network.habitat.docs/d1";
 const NOTE = "network.habitat.note";
 const uriOf = (rkey: string, did = "did:web:org.test") =>
   `${SPACE}/${did}/${NOTE}/${rkey}`;

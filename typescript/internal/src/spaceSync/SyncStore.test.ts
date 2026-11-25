@@ -6,7 +6,7 @@ import { describe, expect } from "vitest";
 import { SyncStore } from "./SyncStore";
 
 const space = (name: string, nextDueAt: number) => ({
-  space: `at://did:plc:a/space/com.example.board/${name}` as SpaceRefString,
+  space: `at:space/did:plc:a/com.example.board/${name}` as SpaceRefString,
   authority: "did:plc:a" as DidString,
   nextDueAt,
   failures: 0,

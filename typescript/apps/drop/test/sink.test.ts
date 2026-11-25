@@ -8,9 +8,9 @@ import { files } from "@/db/schema";
 import { FILE_COLLECTION, FileSink } from "@/server/sink";
 
 const ORG = "did:web:org.example" as DidString;
-const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile` as SpaceRefString;
+const SPACE = `at:space/${ORG}/network.habitat.drop/3kfile` as SpaceRefString;
 const OTHER_SPACE =
-  `at://${ORG}/space/network.habitat.drop/3kother` as SpaceRefString;
+  `at:space/${ORG}/network.habitat.drop/3kother` as SpaceRefString;
 const URI = `${SPACE}/${ORG}/${FILE_COLLECTION}/self`;
 const RECORD_CID =
   "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm";
