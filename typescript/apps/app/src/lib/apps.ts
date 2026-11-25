@@ -1,3 +1,5 @@
+import { parse } from "acorn";
+
 // Apps: code a member uploads, which the app runs in a sandboxed Dynamic
 // Worker at its own URL. What the browser and the server both need to know
 // about an app's bundle and its run URL lives here.
@@ -152,6 +154,25 @@ export function guessEntrypoint(paths: string[]): string | undefined {
 
 export class InvalidBundle extends Error {}
 
+// checkSyntax refuses a script that doesn't parse, so a typo is reported at
+// deploy time rather than as a 500 from the app's URL. .js and .mjs are ES
+// modules, .cjs is a CommonJS body (which may return at its top level).
+function checkSyntax(path: string, source: string): void {
+  try {
+    parse(source, {
+      ecmaVersion: "latest",
+      sourceType: /\.cjs$/i.test(path) ? "script" : "module",
+      allowReturnOutsideFunction: /\.cjs$/i.test(path),
+    });
+  } catch (e) {
+    const loc = (e as { loc?: { line: number; column: number } }).loc;
+    const message = (e as Error).message.replace(/\s*\(\d+:\d+\)$/, "");
+    throw new InvalidBundle(
+      `"${path}" has a syntax error${loc ? ` at line ${loc.line}, column ${loc.column + 1}` : ""}: ${message}`,
+    );
+  }
+}
+
 // validateBundle checks an upload before it is stored: module paths,
 // types, count and total size, and that the entrypoint is one of its ES
 // modules. Returns the bundle's size as stored.
@@ -173,6 +194,7 @@ export function validateBundle(bundle: AppBundle, entrypoint: string): number {
     if (typeof bundle.modules[path] !== "string") {
       throw new InvalidBundle(`"${path}" isn't text`);
     }
+    if (isScriptPath(path)) checkSyntax(path, bundle.modules[path]);
     if (/\.json$/i.test(path)) {
       try {
         JSON.parse(bundle.modules[path]);
