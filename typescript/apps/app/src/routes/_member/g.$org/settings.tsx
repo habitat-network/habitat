@@ -19,10 +19,6 @@ import {
   toast,
 } from "internal/components/ui";
 import { useState } from "react";
-import {
-  JoinPolicyPicker,
-  type JoinPolicy,
-} from "@/components/groups/JoinPolicyPicker";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import {
   groupLabel,
@@ -60,7 +56,6 @@ function SettingsPage() {
           initial={{
             name: group.name ?? "",
             description: group.description ?? "",
-            joinPolicy: group.joinPolicy ?? "invite",
           }}
           canEdit={group.myActions.includes("community.configure")}
         />
@@ -77,7 +72,7 @@ function GroupProfileCard({
   canEdit,
 }: {
   org: string;
-  initial: { name: string; description: string; joinPolicy: JoinPolicy };
+  initial: { name: string; description: string };
   canEdit: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -123,14 +118,6 @@ function GroupProfileCard({
             disabled={!canEdit}
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-        </Field>
-        <Field>
-          <FieldLabel>Who can join</FieldLabel>
-          <JoinPolicyPicker
-            value={form.joinPolicy}
-            disabled={!canEdit}
-            onChange={(joinPolicy) => setForm({ ...form, joinPolicy })}
           />
         </Field>
       </CardContent>
