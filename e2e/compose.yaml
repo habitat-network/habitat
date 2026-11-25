@@ -146,8 +146,16 @@ services:
   # The alpha PDS with spaces support
   # (https://atproto.com/blog/atproto-spaces-alpha). Its data lives in a named
   # volume, which the harness removes with the rest of the test bed.
+  #
+  # Pinned to a build of bluesky-social/atproto's permissioned-data-alpha
+  # branch, not the moving `pds-spaces-alpha` tag: the alpha changes its wire
+  # formats without notice, and a moved tag breaks every PR at once. This is
+  # 9bd80070 (2026-11-17). The next build, 1f510f8e (2026-11-24, "alpha-update-uri"),
+  # writes space URIs as `at:space/{did}/{type}/{skey}` and rejects the
+  # `at://{did}/space/...` form that pear and the clients still use. Move the
+  # pin forward together with the code that adopts a new alpha format.
   pds:
-    image: ${PDS_IMAGE:-ghcr.io/bluesky-social/atproto:pds-spaces-alpha}
+    image: ${PDS_IMAGE:-ghcr.io/bluesky-social/atproto:pds-9bd80070f54da18c37bdc607426be7bfaf887c53@sha256:646e3797252da981ae28f4f695034bc29548ef5adbff30c53c8d06ee2054415a}
     # The published alpha image only carries an amd64 manifest. On arm64 hosts
     # Docker must be told to pull and emulate that variant (on amd64 this is a
     # no-op).
