@@ -125,7 +125,7 @@ func mcpSearchOutput(page fedsearch.Page) habitat.NetworkHabitatMcpSearchOutput 
 		var record search.RecordData
 		if r.Kind == search.ResultKind && json.Unmarshal(r.Data, &record) == nil {
 			out.Results[i].Record = &habitat.NetworkHabitatMcpSearchRecord{
-				Space: record.Space.String(), Collection: record.Collection.String(),
+				Space: record.Space.AtSpace().String(), Collection: record.Collection.String(),
 				Value: record.Value,
 			}
 		}

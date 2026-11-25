@@ -149,7 +149,7 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 			}
 			if err := writeJSON(outboxWireMessage{
 				ID:    msg.ID,
-				URI:   msg.URI.String(),
+				URI:   msg.URI.AtSpace().String(),
 				Value: msg.Value,
 			}); err != nil {
 				slog.InfoContext(ctx, "write outbox message", "err", err)

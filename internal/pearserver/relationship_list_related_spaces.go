@@ -62,7 +62,7 @@ func (p *PearServer) ListRelatedSpaces(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if readable {
-			out = append(out, space.String())
+			out = append(out, space.AtSpace().String())
 		}
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListRelatedSpacesOutput{Spaces: out})

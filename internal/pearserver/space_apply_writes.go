@@ -96,11 +96,11 @@ func (p *PearServer) ApplyWrites(w http.ResponseWriter, r *http.Request) {
 			switch writes[i].Action {
 			case spaces.WriteCreate:
 				out.Results[i] = comatproto.ComAtprotoSpaceApplyWritesCreateResult{
-					Uri: res.URI.String(), Cid: res.Cid.String(),
+					Uri: res.URI.AtSpace().String(), Cid: res.Cid.String(),
 				}
 			case spaces.WriteUpdate:
 				out.Results[i] = comatproto.ComAtprotoSpaceApplyWritesUpdateResult{
-					Uri: res.URI.String(), Cid: res.Cid.String(),
+					Uri: res.URI.AtSpace().String(), Cid: res.Cid.String(),
 				}
 			default:
 				out.Results[i] = comatproto.ComAtprotoSpaceApplyWritesDeleteResult{}
@@ -116,11 +116,11 @@ func (p *PearServer) ApplyWrites(w http.ResponseWriter, r *http.Request) {
 		switch writes[i].Action {
 		case spaces.WriteCreate:
 			out.Results[i] = habitat.NetworkHabitatSpaceApplyWritesCreateResult{
-				Uri: res.URI.String(), Cid: res.Cid.String(),
+				Uri: res.URI.AtSpace().String(), Cid: res.Cid.String(),
 			}
 		case spaces.WriteUpdate:
 			out.Results[i] = habitat.NetworkHabitatSpaceApplyWritesUpdateResult{
-				Uri: res.URI.String(), Cid: res.Cid.String(),
+				Uri: res.URI.AtSpace().String(), Cid: res.Cid.String(),
 			}
 		default:
 			out.Results[i] = habitat.NetworkHabitatSpaceApplyWritesDeleteResult{}

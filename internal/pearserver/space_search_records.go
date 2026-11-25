@@ -137,8 +137,8 @@ func (p *PearServer) SearchRecords(w http.ResponseWriter, r *http.Request) {
 	}
 	for i, m := range page.Matches {
 		out.Records[i] = habitat.NetworkHabitatSpaceSearchRecordsRecord{
-			Uri:     m.URI.String(),
-			Space:   m.Record.Space.String(),
+			Uri:     m.URI.AtSpace().String(),
+			Space:   m.Record.Space.AtSpace().String(),
 			Cid:     m.Record.Cid.String(),
 			Value:   m.Record.Value,
 			Snippet: m.Snippet,

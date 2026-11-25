@@ -95,7 +95,7 @@ func TestCommitMACHeadersFollowRFC9421(t *testing.T) {
 	require.NoError(t, SetCommitMAC(h, c, *req, secret))
 
 	covered := `ver=1, repo="did:web:alice.example.com", ` +
-		`space="at://did:web:org.example.com/space/com.example.space/main", ` +
+		`space="at:space/did:web:org.example.com/com.example.space/main", ` +
 		`rev="3l4qjqc2cak2a", data=:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=:`
 	require.Equal(t, covered, h.Get("Atproto-Space-Commit"))
 	require.Equal(t, "mac="+refCommitParams, h.Get("Signature-Input"))

@@ -54,7 +54,8 @@ func TestServer_SearchRecords(t *testing.T) {
 			Text:       search.ExtractText(value),
 			Access:     search.Access{Principals: search.Principals{Users: readers}},
 		}))
-		return uri.String()
+		// searchRecords answers in the at:space/ form.
+		return uri.AtSpace().String()
 	}
 	putIndexed := func(
 		space habitat_syntax.SpaceURI,
@@ -96,7 +97,7 @@ func TestServer_SearchRecords(t *testing.T) {
 		require.Len(t, out.Records, 1)
 		rec := out.Records[0]
 		require.Equal(t, readableURI, rec.Uri)
-		require.Equal(t, readable.String(), rec.Space)
+		require.Equal(t, readable.AtSpace().String(), rec.Space)
 		require.NotEmpty(t, rec.Cid)
 		require.Equal(t, map[string]any{"text": "apple pie"}, rec.Value)
 		require.Contains(t, rec.Snippet, "<mark>pie</mark>")

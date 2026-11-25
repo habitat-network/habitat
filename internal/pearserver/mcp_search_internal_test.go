@@ -14,7 +14,7 @@ import (
 
 func TestMcpSearchOutputMapsPage(t *testing.T) {
 	data, err := json.Marshal(search.RecordData{
-		Space: "ats://did:plc:org/com.example.type/k", Collection: "com.example.note",
+		Space: "at:space/did:plc:org/com.example.type/k", Collection: "com.example.note",
 		Value: map[string]any{"text": "hi"},
 	})
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestMcpSearchOutputMapsPage(t *testing.T) {
 			{
 				Backend: "records", Kind: "record", Id: "ats://r", Url: "ats://r",
 				Record: &habitat.NetworkHabitatMcpSearchRecord{
-					Space: "ats://did:plc:org/com.example.type/k", Collection: "com.example.note",
+					Space: "at:space/did:plc:org/com.example.type/k", Collection: "com.example.note",
 					Value: map[string]any{"text": "hi"},
 				},
 			},

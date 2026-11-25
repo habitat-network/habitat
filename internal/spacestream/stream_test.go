@@ -344,18 +344,18 @@ func TestStreamSpaceDeletions(t *testing.T) {
 		{
 			name:   "user receives deletions of spaces it owns",
 			reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}},
-			want:   []string{"deleted 3 " + string(spaceC)},
+			want:   []string{"deleted 3 " + string(spaceC.AtSpace())},
 		},
 		{
 			name:   "user receives deletions of spaces it names",
 			reader: UserReader{DID: alice, Scope: spacescope.Unrestricted{}},
 			filter: []habitat_syntax.SpaceURI{spaceA, spaceB},
-			want:   []string{"deleted 1 " + string(spaceA), "deleted 2 " + string(spaceB)},
+			want:   []string{"deleted 1 " + string(spaceA.AtSpace()), "deleted 2 " + string(spaceB.AtSpace())},
 		},
 		{
 			name:   "space credential receives its space's deletion",
 			reader: SpaceCredentialReader{Space: spaceB},
-			want:   []string{"deleted 2 " + string(spaceB)},
+			want:   []string{"deleted 2 " + string(spaceB.AtSpace())},
 		},
 	}
 	for _, tt := range tests {
