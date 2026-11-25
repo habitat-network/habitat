@@ -343,7 +343,11 @@ func TestServer_Relationship(t *testing.T) {
 			&out,
 		)
 		require.Equal(t, http.StatusOK, code)
-		require.ElementsMatch(t, []string{mid.AtSpace().String(), leaf.AtSpace().String()}, out.Spaces)
+		require.ElementsMatch(
+			t,
+			[]string{mid.AtSpace().String(), leaf.AtSpace().String()},
+			out.Spaces,
+		)
 	})
 
 	t.Run("list related spaces", func(t *testing.T) {

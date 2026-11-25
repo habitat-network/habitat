@@ -79,5 +79,9 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("set space policy: %w", err))
 		return
 	}
-	httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceCreateSpaceOutput{Space: uri.AtSpace().String()})
+	httpx.WriteJSON(
+		ctx,
+		w,
+		comatproto.ComAtprotoSpaceCreateSpaceOutput{Space: uri.AtSpace().String()},
+	)
 }

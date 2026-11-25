@@ -80,7 +80,12 @@ func TestWebhookConsumer_DeliversAndAcks(t *testing.T) {
 
 	payload := received.Load()
 	require.Equal(t, id, payload.ID)
-	require.Equal(t, uri, payload.URI)
+	// The outbox stores at://; consumers get the at:space/ form.
+	require.Equal(
+		t,
+		"at:space/did:plc:org/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1",
+		payload.URI,
+	)
 	require.JSONEq(t, `{"text":"hello"}`, string(payload.Value))
 
 	type localOutboxRow struct {

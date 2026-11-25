@@ -59,7 +59,9 @@ func parseRepoStar(
 	if got, _ := sr.Meta["repo"].(string); got != repo.String() {
 		return recoveredRepo{}, fmt.Errorf("commit is for repo %q, want %q", got, repo)
 	}
-	if got, _ := sr.Meta["space"].(string); habitat_syntax.SpaceURI(got).Canonical() != space.Canonical() {
+	if got, _ := sr.Meta["space"].(string); habitat_syntax.SpaceURI(got).
+		Canonical() !=
+		space.Canonical() {
 		return recoveredRepo{}, fmt.Errorf("commit is for space %q, want %q", got, space)
 	}
 	commit, err := decodeCommit(sr.Meta)

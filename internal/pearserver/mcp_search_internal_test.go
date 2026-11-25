@@ -56,8 +56,9 @@ func TestMcpSearchOutputMapsPage(t *testing.T) {
 			{
 				Backend: "records", Kind: "record", Id: "ats://r", Url: "ats://r",
 				Record: &habitat.NetworkHabitatMcpSearchRecord{
-					Space: "at:space/did:plc:org/com.example.type/k", Collection: "com.example.note",
-					Value: map[string]any{"text": "hi"},
+					Space:      "at:space/did:plc:org/com.example.type/k",
+					Collection: "com.example.note",
+					Value:      map[string]any{"text": "hi"},
 				},
 			},
 			{Backend: "mcp:slack/slack-messages", Kind: "item", Id: "u", Title: "Issue", Url: "u"},
