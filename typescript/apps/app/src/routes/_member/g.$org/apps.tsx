@@ -139,6 +139,7 @@ function NewApp({
     register,
     control,
     handleSubmit,
+    reset,
     watch,
     formState: { isValid },
   } = useForm<NewAppValues>({
@@ -161,9 +162,7 @@ function NewApp({
       if (syncError) toast.add({ type: "info", title: syncError });
       // Leave the form empty: if the list hasn't caught up yet this page
       // stays on "New app", and it must not show the app just deployed.
-      setName("");
-      setDescription("");
-      setCode(null);
+      reset();
       await queryClient.invalidateQueries({ queryKey: appsKey(org) });
       onCreated(uri);
     },
