@@ -3,12 +3,14 @@ package pearserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
@@ -36,6 +38,10 @@ func (p *PearServer) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	org, err := p.opensocialStore.NewOrg(ctx, input.Handle, credInfo.Subject)
+	if errors.Is(err, hive.ErrNotCreated) {
+		writeHandleTaken(ctx, w)
+		return
+	}
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("new org: %w", err))
 		return
@@ -51,4 +57,10 @@ func parseHandle(ctx context.Context, w http.ResponseWriter, handleStr string) b
 		return false
 	}
 	return true
+}
+
+// writeHandleTaken answers a createOrg whose handle already belongs to
+// another identity, so clients can tell it apart from a server failure.
+func writeHandleTaken(ctx context.Context, w http.ResponseWriter) {
+	httpx.WriteError(ctx, w, "HandleTaken", "handle is already taken", http.StatusConflict)
 }
