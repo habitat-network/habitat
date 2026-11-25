@@ -145,3 +145,21 @@ export const AUTH_LABELS: Record<string, string> = {
   token: "Each member adds a token",
   manual: "No sign-in needed",
 };
+
+// serverUrlError says why url can't be a custom server's endpoint, or null if
+// it can: pear only takes an absolute http or https URL.
+export function serverUrlError(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    return "Enter a full URL, like https://example.com/mcp.";
+  }
+  if (
+    (parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+    !parsed.hostname
+  ) {
+    return "The URL must start with https:// or http://.";
+  }
+  return null;
+}

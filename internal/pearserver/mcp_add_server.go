@@ -49,7 +49,7 @@ func (p *PearServer) AddServer(w http.ResponseWriter, r *http.Request) {
 		ClientSecret: input.ClientSecret,
 	})
 	if mcpgateway.IsConfigError(err) {
-		httpx.WriteInvalidRequest(ctx, w, "add mcp server", err)
+		httpx.WriteInvalidRequest(ctx, w, err.Error(), err)
 		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("add mcp server: %w", err))

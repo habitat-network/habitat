@@ -25,6 +25,7 @@ import {
   AUTH_LABELS,
   MCP_CONNECTORS,
   type McpConnector,
+  serverUrlError,
 } from "@/lib/mcpConnectors";
 import { groupQuery } from "@/lib/queries/groups";
 import { addMcpServer } from "@/server/fns/mcp";
@@ -98,7 +99,7 @@ function AddServer() {
                 org,
                 name,
                 description: description || undefined,
-                url,
+                url: url.trim(),
                 authType,
                 clientId: clientId || undefined,
                 clientSecret: clientSecret || undefined,
@@ -160,6 +161,7 @@ function AddServer() {
   }
 
   const nameOk = SERVER_NAME_PATTERN.test(name);
+  const urlError = url ? serverUrlError(url) : null;
   return (
     <form
       className="flex max-w-xl flex-col gap-4"
@@ -215,7 +217,13 @@ function AddServer() {
               placeholder="https://example.com/mcp"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              aria-invalid={!!urlError}
             />
+            {urlError && (
+              <FieldDescription className="text-destructive">
+                {urlError}
+              </FieldDescription>
+            )}
           </Field>
           <Field>
             <FieldLabel>Sign-in</FieldLabel>
@@ -272,7 +280,11 @@ function AddServer() {
         </Button>
         <Button
           type="submit"
-          disabled={!nameOk || (preset === "custom" && !url) || add.isPending}
+          disabled={
+            !nameOk ||
+            (preset === "custom" && (!url || !!urlError)) ||
+            add.isPending
+          }
         >
           Add server
         </Button>
