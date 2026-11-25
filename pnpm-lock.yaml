@@ -480,6 +480,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
+      react-hook-form:
+        specifier: 'catalog:'
+        version: 7.91.0(@types/react@19.2.18)(react@19.2.8)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.5
