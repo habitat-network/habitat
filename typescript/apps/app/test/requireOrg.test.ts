@@ -29,7 +29,7 @@ function run<A>(
     xrpc: () =>
       Effect.succeed({
         spaces: opts.pearSpaces.map((org) => ({
-          uri: `at://${org}/space/community.opensocial.members/self`,
+          uri: `at:space/${org}/community.opensocial.members/self`,
         })),
       }),
     call: () => Effect.succeed({ value: { roles: ["member"] } }),

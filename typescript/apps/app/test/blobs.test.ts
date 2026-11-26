@@ -20,7 +20,7 @@ beforeAll(warmHabitat, 60_000);
 
 const ORG = "did:web:org.example" as DidString;
 const MEMBER = "did:web:alice.example" as DidString;
-const SPACE = `at://${ORG}/space/network.habitat.docs/abc`;
+const SPACE = `at:space/${ORG}/network.habitat.docs/abc`;
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));

@@ -80,7 +80,7 @@ func TestSerializeRepoStar(t *testing.T) {
 	require.Equal(t, RepoStarType, meta["$type"])
 	require.Equal(t, int64(spacecommit.Version), meta["ver"])
 	require.Equal(t, testStarRepo.String(), meta["repo"])
-	require.Equal(t, testStarSpace.String(), meta["space"])
+	require.Equal(t, testStarSpace.AtSpace().String(), meta["space"])
 	require.Equal(t, "3kabcdefghij2", meta["rev"])
 	require.Equal(t, atdata.Bytes(make([]byte, 32)), meta["data"])
 	// The metadata is exactly the profile's commit: the MAC travels in a header.

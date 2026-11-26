@@ -7,9 +7,9 @@ const message = (payload: unknown) =>
   JSON.stringify({ $type: "message", payload });
 const base = {
   seq: 4,
-  space: "at://did:web:o/space/t/k",
+  space: "at:space/did:web:o/t/k",
   did: "did:web:o",
-  uri: "at://did:web:o/space/t/k/did:web:o/c.x/r",
+  uri: "at:space/did:web:o/t/k/did:web:o/c.x/r",
   time: "2026-11-20T00:00:00.000000Z",
   rev: "3l3qo2vutsw2b",
   collection: "c.x",

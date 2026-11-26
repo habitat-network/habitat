@@ -104,13 +104,13 @@ func TestServer_SubscribeStreamsReadableSpaces(t *testing.T) {
 	f := readFrame(t, conn)
 	require.Equal(t, "message", f.Type)
 	require.Equal(t, "network.habitat.space.subscribe#commit", f.Payload.Type)
-	require.Equal(t, readable.String(), f.Payload.Space)
+	require.Equal(t, readable.AtSpace().String(), f.Payload.Space)
 	require.Equal(t, owner.String(), f.Payload.Did)
 	require.Equal(t, "1", f.Payload.Rkey)
 	require.Equal(t, "1", f.Payload.Record["text"])
 	require.NotEmpty(t, f.Payload.Cid)
 	require.Equal(t,
-		habitat_syntax.ConstructSpaceRecordURI(readable, owner, noteTp, "1").String(),
+		habitat_syntax.ConstructSpaceRecordURI(readable, owner, noteTp, "1").AtSpace().String(),
 		f.Payload.URI)
 	replayed := f.Payload.Seq
 

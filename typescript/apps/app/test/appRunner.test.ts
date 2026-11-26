@@ -9,7 +9,7 @@ import { runApp, workerName } from "@/server/apps/runner";
 // the code bundle out of pear is faked.
 
 const ORG = "did:web:org.example";
-const SPACE = `at://${ORG}/space/network.habitat.apps/3kapp`;
+const SPACE = `at:space/${ORG}/network.habitat.apps/3kapp`;
 const URI = `${SPACE}/${ORG}/network.habitat.apps.app/self`;
 const HOST = "chat-3kapp";
 const RUN = `https://${HOST}.${env.APP_RUN_DOMAIN}`;

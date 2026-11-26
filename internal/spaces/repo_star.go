@@ -41,7 +41,7 @@ func repoStarMeta(
 		"$type": RepoStarType,
 		"ver":   int64(c.Ver),
 		"repo":  repo.String(),
-		"space": space.String(),
+		"space": space.AtSpace().String(),
 		"rev":   c.Rev,
 		"data":  atdata.Bytes(c.Data),
 	}

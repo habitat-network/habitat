@@ -30,9 +30,9 @@ beforeAll(warmHabitat, 60_000);
 import { env as cfEnv } from "cloudflare:test";
 import { commentsForDoc, getDb, repliesForDoc, upsertComment } from "../src/db";
 
-const DOC = "at://did:web:alice.example/space/network.habitat.docs/abc";
+const DOC = "at:space/did:web:alice.example/network.habitat.docs/abc";
 const COMMENTS_SPACE =
-  "at://did:web:alice.example/space/network.habitat.docs.comments/abc";
+  "at:space/did:web:alice.example/network.habitat.docs.comments/abc";
 const ALICE = "did:web:alice.example";
 // Stand-ins for encoded Yjs relative positions — any bytes do.
 const ANCHOR_START = new TextEncoder().encode("start-rel-pos");
