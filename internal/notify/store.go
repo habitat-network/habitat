@@ -29,8 +29,9 @@ import (
 // distinct registrations. Registrations predating the service field carry their
 // endpoint URL as the audience; see the audience migration.
 type registration struct {
-	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
 	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo     syntax.DID              `gorm:"primaryKey"`
 	Audience string                  `gorm:"primaryKey"`
@@ -49,8 +50,9 @@ type registration struct {
 // token travels in each request body. It stays active while the credential it
 // was registered with is valid (ExpiresAt).
 type webhook struct {
-	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
 	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Endpoint string                  `gorm:"primaryKey"`
 	Token    string                  `gorm:"primaryKey"`
@@ -188,8 +190,9 @@ type Store interface {
 // RetryAt is unix milliseconds rather than a timestamp so it compares exactly
 // in the guarded updates on every dialect.
 type spaceDeletedDelivery struct {
-	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
 	SpaceRef  habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Audience  string                  `gorm:"primaryKey"`
 	Endpoint  string
@@ -234,7 +237,11 @@ func (s *store) Register(
 	// service now resolves to a different address updates in place.
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{
-			{Name: "space"}, {Name: "repo"}, {Name: "audience"},
+			{Name: "space_owner"},
+			{Name: "space_type"},
+			{Name: "space_skey"},
+			{Name: "repo"},
+			{Name: "audience"},
 		},
 		DoUpdates: clause.AssignmentColumns(
 			[]string{"endpoint", "namespace", "expires_at", "updated_at"},
@@ -328,7 +335,12 @@ func (s *store) QueueSpaceDeleted(
 		pending[i] = PendingDeletion{Registration: reg, RetryAt: retryAt}
 	}
 	err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "space"}, {Name: "audience"}},
+		Columns: []clause.Column{
+			{Name: "space_owner"},
+			{Name: "space_type"},
+			{Name: "space_skey"},
+			{Name: "audience"},
+		},
 		DoUpdates: clause.AssignmentColumns(
 			[]string{"endpoint", "namespace", "expires_at", "attempts", "retry_at"},
 		),
@@ -394,7 +406,13 @@ func (s *store) RegisterWebhook(
 	expiresAt time.Time,
 ) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "space"}, {Name: "endpoint"}, {Name: "token"}},
+		Columns: []clause.Column{
+			{Name: "space_owner"},
+			{Name: "space_type"},
+			{Name: "space_skey"},
+			{Name: "endpoint"},
+			{Name: "token"},
+		},
 		DoUpdates: clause.Assignments(map[string]any{
 			"expires_at":      expiresAt,
 			"expiry_notified": false,

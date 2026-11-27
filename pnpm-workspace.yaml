@@ -115,3 +115,6 @@ minimumReleaseAgeExclude:
   - '@atproto/lex-rpc@0.0.0-spaces-alpha-20261124235736'
   - '@atproto/oauth-resolver@0.0.0-spaces-alpha-20261124235736'
   - '@atproto/ws-client@0.0.0-spaces-alpha-20261124235736'
+
+patchedDependencies:
+  '@atproto/lex-schema@0.0.0-spaces-alpha-20261124235736': patches/@atproto__lex-schema@0.0.0-spaces-alpha-20261124235736.patch
