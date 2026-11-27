@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 	"unicode/utf8"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -62,9 +63,9 @@ type inviteRecord struct {
 
 func (inviteRecord) TableName() string { return "foreign_invite_records" }
 
-// Models returns the two tables private to this store. The collection is
+// Models returns the tables private to this store. The collection is
 // implicit: only org.atgrp.invite records can be stored.
-func Models() []any { return []any{&inviteRepo{}, &inviteRecord{}} }
+func Models() []any { return []any{&inviteRepo{}, &inviteRecord{}, &inviteDelivery{}} }
 
 // Store enforces local author custody and a foreign authority. A caller
 // must separately authorize the acting user to act as that author.
@@ -78,8 +79,8 @@ func New(db *gorm.DB, local hive.Hive, localSpaces spaces.Store) *Store {
 	return &Store{db: db, local: local, localSpaces: localSpaces}
 }
 
-// WithTx lets a future caller compose a write and a delivery outbox entry.
-// Writes themselves publish nothing.
+// WithTx lets a caller compose a write and its queued notification with
+// other changes. Writes themselves send nothing.
 func (s *Store) WithTx(tx *gorm.DB) *Store {
 	return New(tx, s.local, s.localSpaces)
 }
@@ -156,6 +157,7 @@ func (s *Store) checkCustody(ctx context.Context, tx *gorm.DB, k scope) error {
 // Apply mutates at most one invite. Create requires a fresh TID, and update
 // and delete must name the current CID. Identical updates don't advance the
 // head. Deleting the last record keeps a new, verifiable empty commit.
+// Every changed revision queues its notification in the same transaction.
 func (s *Store) Apply(
 	ctx context.Context, uri habitat_syntax.SpaceRecordURI, action spaces.WriteAction,
 	value *atgrp.OrgAtgrpInvite, swapCID string,
@@ -206,6 +208,9 @@ func (s *Store) Apply(
 			}
 		}
 		commit = spacecommit.New(k.inbox, k.author, head.Rev.String(), state.Sum())
+		if changed {
+			return enqueue(tx, k, commit, time.Now())
+		}
 		return nil
 	})
 	if err != nil {
