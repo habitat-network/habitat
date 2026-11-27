@@ -52,6 +52,7 @@
     "posthog-js": "^1.358.1",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
     "tailwindcss": "catalog:",
     "y-protocols": "^1.0.7",
     "y-websocket": "^3.1.0",

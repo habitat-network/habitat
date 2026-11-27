@@ -25,7 +25,8 @@ import {
   toast,
 } from "internal/components/ui";
 import { ArrowLeft, Trash2 } from "lucide-react";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
+import { useForm } from "react-hook-form";
 import { McpServerIcon } from "@/components/mcp/McpServerIcon";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import { AUTH_LABELS, mcpServerDisplay } from "@/lib/mcpConnectors";
@@ -55,7 +56,10 @@ function ServerPage() {
   const navigate = useNavigate();
   const { data: group } = useSuspenseQuery(groupQuery(org));
   const { data: servers } = useSuspenseQuery(mcpServersQuery(org));
-  const [token, setToken] = useState("");
+  const { register, handleSubmit, reset, watch } = useForm<{ token: string }>({
+    defaultValues: { token: "" },
+  });
+  const token = watch("token");
   const found = servers.find((s) => s.server.id === serverId);
   const canConfigure = group.myActions.includes("mcp.configure");
   const invalidate = () =>
@@ -72,7 +76,7 @@ function ServerPage() {
         window.location.href = authorizationUrl;
         return;
       }
-      setToken("");
+      reset();
       await invalidate();
     },
     onError: (e) =>
@@ -163,42 +167,47 @@ function ServerPage() {
             </CardDescription>
           </CardHeader>
           {server.authType !== "manual" && (
-            <CardContent className="flex flex-col gap-3">
-              {!connected && server.authType === "token" && (
-                <Field>
-                  <FieldLabel htmlFor="mcp-token">Access token</FieldLabel>
-                  <Input
-                    id="mcp-token"
-                    type="password"
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                  />
-                  <FieldDescription>
-                    Stored encrypted and never shown again.
-                  </FieldDescription>
-                </Field>
-              )}
-              <div className="flex gap-2">
-                {connected ? (
-                  <Button
-                    variant="outline"
-                    disabled={disconnect.isPending}
-                    onClick={() => disconnect.mutate()}
-                  >
-                    Disconnect
-                  </Button>
-                ) : (
-                  <Button
-                    disabled={
-                      connect.isPending ||
-                      (server.authType === "token" && !token)
-                    }
-                    onClick={() => connect.mutate()}
-                  >
-                    {server.authType === "token" ? "Save token" : "Connect"}
-                  </Button>
+            <CardContent>
+              <form
+                className="flex flex-col gap-3"
+                onSubmit={handleSubmit(() => connect.mutate())}
+              >
+                {!connected && server.authType === "token" && (
+                  <Field>
+                    <FieldLabel htmlFor="mcp-token">Access token</FieldLabel>
+                    <Input
+                      id="mcp-token"
+                      type="password"
+                      {...register("token")}
+                    />
+                    <FieldDescription>
+                      Stored encrypted and never shown again.
+                    </FieldDescription>
+                  </Field>
                 )}
-              </div>
+                <div className="flex gap-2">
+                  {connected ? (
+                    <Button
+                      variant="outline"
+                      disabled={disconnect.isPending}
+                      type="button"
+                      onClick={() => disconnect.mutate()}
+                    >
+                      Disconnect
+                    </Button>
+                  ) : (
+                    <Button
+                      disabled={
+                        connect.isPending ||
+                        (server.authType === "token" && !token)
+                      }
+                      type="submit"
+                    >
+                      {server.authType === "token" ? "Save token" : "Connect"}
+                    </Button>
+                  )}
+                </div>
+              </form>
             </CardContent>
           )}
         </Card>
