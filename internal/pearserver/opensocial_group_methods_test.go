@@ -117,4 +117,32 @@ func TestServer_GroupSpaceMethods(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []string{opensocial.MemberRoleRkey}, roles, "the default role")
 	})
+
+	t.Run("leaveGroup and requestJoin refuse a group that does not exist", func(t *testing.T) {
+		require.Equal(t, http.StatusNotFound, client.Procedure(aliceTS.Server.GroupLeaveGroup,
+			opensocial_api.OrgAtgrpLeaveGroupInput{Group: "did:plc:nogroup"}, &struct{}{}))
+		require.Equal(t, http.StatusNotFound, client.Procedure(aliceTS.Server.GroupRequestJoin,
+			opensocial_api.OrgAtgrpRequestJoinInput{Group: "did:plc:nogroup"},
+			&opensocial_api.OrgAtgrpRequestJoinOutput{}))
+	})
+
+	t.Run("an invitation admits its holder, and a made-up one is refused", func(t *testing.T) {
+		require.NoError(t, adminTS.OpenSocialStore.UpdateProfile(
+			t.Context(), syntax.DID(org), "acme", "", opensocial.JoinPolicyInvite,
+		))
+		require.NoError(t, adminTS.OpenSocialStore.AssignRoles(
+			t.Context(), syntax.DID(org), alice, nil,
+		))
+		var out opensocial_api.OrgAtgrpRequestJoinOutput
+		require.Equal(t, http.StatusBadRequest, client.Procedure(aliceTS.Server.GroupRequestJoin,
+			opensocial_api.OrgAtgrpRequestJoinInput{Group: org, Invite: "nosuchinvite"}, &out))
+
+		invite, err := adminTS.OpenSocialStore.CreateInvite(
+			t.Context(), syntax.DID(org), alice, []string{opensocial.MemberRoleRkey},
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, client.Procedure(aliceTS.Server.GroupRequestJoin,
+			opensocial_api.OrgAtgrpRequestJoinInput{Group: org, Invite: invite.ID}, &out))
+		require.Equal(t, "admitted", out.Status)
+	})
 }
