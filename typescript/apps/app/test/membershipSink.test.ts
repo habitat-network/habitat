@@ -17,7 +17,7 @@ const ORG = "did:web:org.example" as DidString;
 const OTHER_ORG = "did:web:other.example" as DidString;
 const ALICE = "did:plc:alice";
 const BOB = "did:plc:bob";
-const SPACE = `at://${ORG}/space/community.opensocial.members/self`;
+const SPACE = `at:space/${ORG}/community.opensocial.members/self`;
 
 const membership = (...roles: string[]) =>
   jsonToLex({
@@ -77,7 +77,7 @@ describe("roster indexing", () => {
   it("leaves rosters alone when another kind of space is deleted", async () => {
     await indexEvents(
       created(ALICE),
-      spaceDeletedEvent(`at://${ORG}/space/network.habitat.docs/3kdoc`),
+      spaceDeletedEvent(`at:space/${ORG}/network.habitat.docs/3kdoc`),
     );
     expect(await memberDidsOf(db, ORG)).toEqual([ALICE]);
   });

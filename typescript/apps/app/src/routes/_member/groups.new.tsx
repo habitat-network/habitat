@@ -17,15 +17,11 @@ import {
   toast,
 } from "internal/components/ui";
 import { useState } from "react";
-import {
-  JoinPolicyPicker,
-  type JoinPolicy,
-} from "@/components/groups/JoinPolicyPicker";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import { myGroupsQuery } from "@/lib/queries/groups";
 import { createGroup } from "@/server/fns/groups";
 
-// Create a group: its name and handle, its profile, and who can join. The
+// Create a group: its name and handle, and its profile. The
 // member becomes its admin.
 
 export const Route = createFileRoute("/_member/groups/new")({
@@ -41,10 +37,8 @@ function CreateGroupPage() {
   const [handle, setHandle] = useState("");
   const [handleEdited, setHandleEdited] = useState(false);
   const [description, setDescription] = useState("");
-  const [joinPolicy, setJoinPolicy] = useState<JoinPolicy>("invite");
   const create = useMutation({
-    mutationFn: () =>
-      createGroup({ data: { name, handle, description, joinPolicy } }),
+    mutationFn: () => createGroup({ data: { name, handle, description } }),
     onSuccess: async ({ org }) => {
       await queryClient.invalidateQueries({ queryKey: myGroupsQuery.queryKey });
       await navigate({ to: "/g/$org/files", params: { org } });
@@ -118,10 +112,6 @@ function CreateGroupPage() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
-              </Field>
-              <Field>
-                <FieldLabel>Who can join</FieldLabel>
-                <JoinPolicyPicker value={joinPolicy} onChange={setJoinPolicy} />
               </Field>
               <Field>
                 <FieldLabel>Starter roles</FieldLabel>

@@ -27,7 +27,7 @@ beforeAll(warmHabitat, 60_000);
 // nothing runs until a request asks.
 
 const ORG = "did:web:org.example";
-const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile`;
+const SPACE = `at:space/${ORG}/network.habitat.drop/3kfile`;
 const URI = `${SPACE}/${ORG}/network.habitat.drop.file/self`;
 const BLOB = {
   $type: "blob",

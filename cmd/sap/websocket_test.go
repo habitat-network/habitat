@@ -102,7 +102,12 @@ func TestServer_OutboxChannelDeliversAndAcks(t *testing.T) {
 	var msg outboxWireMessage
 	require.NoError(t, conn.ReadJSON(&msg))
 	require.Equal(t, id, msg.ID)
-	require.Equal(t, uri, msg.URI)
+	// The outbox stores at://; consumers get the at:space/ form.
+	require.Equal(
+		t,
+		"at:space/did:plc:org/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1",
+		msg.URI,
+	)
 	require.JSONEq(t, `{"text":"hello"}`, string(msg.Value))
 
 	require.NoError(t, conn.WriteJSON(outboxAck{ID: msg.ID}))

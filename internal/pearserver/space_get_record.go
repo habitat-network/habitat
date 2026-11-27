@@ -62,7 +62,9 @@ func (p *PearServer) GetRecord(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("get record: %w", err))
 		return
 	}
-	uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rec.Rkey).String()
+	uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rec.Rkey).
+		AtSpace().
+		String()
 	if err := mac.setRecord(w, uri, rec.Cid); err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return

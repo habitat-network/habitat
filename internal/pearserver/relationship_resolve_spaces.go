@@ -57,7 +57,7 @@ func (p *PearServer) ResolveSpaces(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if readable {
-			out = append(out, s.String())
+			out = append(out, s.AtSpace().String())
 		}
 	}
 	httpx.WriteJSON(

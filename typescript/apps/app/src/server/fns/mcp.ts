@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { network } from "api";
 import { Effect, Schema } from "effect";
+import { BadRequest } from "@/server/effect/errors";
 import { currentMember, requireOrg } from "@/server/effect/member";
 import { runEffect } from "@/server/effect/run";
 import { AppEnv, Habitat } from "@/server/effect/services";
@@ -189,15 +190,46 @@ export const connectMcpServer = createServerFn({ method: "POST" })
       Effect.gen(function* () {
         const { did, org } = yield* requireOrg(data.org);
         const habitat = yield* Habitat;
-        return yield* habitat.xrpc(
+        const out = yield* habitat.xrpc(
           did,
           network.habitat.mcp.startAuthorization.main,
           { body: { org, id: data.id, token: data.token } },
           viaGroup(org),
         );
+        if (data.token) {
+          // pear stores a token without trying it, so try it here: a token
+          // the server doesn't accept, or a server that can't be reached,
+          // shouldn't leave the member shown as connected.
+          const probe = yield* habitat.xrpc(
+            did,
+            network.habitat.mcp.debug.main,
+            { body: { org, id: data.id, method: "tools/list" } },
+            viaGroup(org),
+          );
+          if (!probe.ok) {
+            yield* habitat
+              .xrpc(
+                did,
+                network.habitat.mcp.disconnectServer.main,
+                { body: { org, id: data.id } },
+                viaGroup(org),
+              )
+              .pipe(Effect.ignore);
+            return yield* new BadRequest({
+              message: connectFailureMessage(probe.error),
+            });
+          }
+        }
+        return out;
       }),
     ),
   );
+
+// connectFailureMessage is what a member is told when a server turned down
+// the token they gave.
+export function connectFailureMessage(error: string | undefined): string {
+  return `Couldn't reach this server with that token${error ? `: ${error}` : ""}. Check the token and the server's URL.`;
+}
 
 export const disconnectMcpServer = createServerFn({ method: "POST" })
   .validator(Schema.decodeUnknownSync(ServerInput))

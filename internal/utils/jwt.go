@@ -78,7 +78,7 @@ func SpaceCredential(
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"iss": space.SpaceOwner(),
-		"sub": space,
+		"sub": space.AtSpace(),
 		"iat": jwt.NewNumericDate(now),
 		"exp": jwt.NewNumericDate(now.Add(DefaultSpaceCredentialTTL)),
 		// Random unique identifier, used for revocation.
@@ -108,7 +108,7 @@ func DelegationToken(
 		Method: signingMethod(privateKey),
 		Claims: jwt.MapClaims{
 			"iss": iss,
-			"sub": space.String(),
+			"sub": space.AtSpace().String(),
 			"aud": space.SpaceOwner().String() + "#atproto_pds",
 			"iat": time.Now().Unix(),
 			"exp": time.Now().Add(time.Minute).Unix(),

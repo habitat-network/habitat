@@ -41,7 +41,7 @@ func TestNotifierDeliversWriteAndRemovalToWebhooks(t *testing.T) {
 
 	d.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{1}, "3lspacerev2", "3lspacerev1")
 	w := <-got
-	require.Equal(t, space.String(), w.Space)
+	require.Equal(t, space.AtSpace().String(), w.Space)
 	require.Equal(t, "tok", w.Token)
 	require.Equal(t, "com.atproto.space.defs#repoWrite", w.Update["$type"])
 	require.Equal(t, repo.String(), w.Update["repo"])

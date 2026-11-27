@@ -26,7 +26,7 @@ beforeAll(warmHabitat, 60_000);
 const EMPTY_UPDATE = Y.encodeStateAsUpdateV2(new Y.Doc());
 
 const OWNER = "did:web:alice.example";
-const URI = `at://${OWNER}/space/network.habitat.docs/abc`;
+const URI = `at:space/${OWNER}/network.habitat.docs/abc`;
 const RECORD = `${URI}/did:web:bob.example/network.habitat.docs.crdt/self`;
 const RECORD_CID =
   "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm";
@@ -113,7 +113,7 @@ it("ignores a record in a different collection", async () => {
   expect(getBlob).not.toHaveBeenCalled();
 });
 
-const UNKNOWN_URI = `at://${OWNER}/space/network.habitat.docs/zzz`;
+const UNKNOWN_URI = `at:space/${OWNER}/network.habitat.docs/zzz`;
 const UNKNOWN_RECORD = `${UNKNOWN_URI}/did:web:bob.example/network.habitat.docs.crdt/self`;
 const CAROL = "did:web:carol.example";
 
@@ -241,8 +241,8 @@ it("ignores a userRelation record missing subject or relation", async () => {
 });
 
 const ORG = "did:web:org.example";
-const ORG_DOC = `at://${ORG}/space/network.habitat.docs/org1`;
-const MEMBERS_SPACE = `at://${ORG}/space/community.opensocial.members/self`;
+const ORG_DOC = `at:space/${ORG}/network.habitat.docs/org1`;
+const MEMBERS_SPACE = `at:space/${ORG}/community.opensocial.members/self`;
 const SPACE_RELATION_RECORD = `${ORG_DOC}/${ORG}/network.habitat.relationship.spaceRelation/rkey1`;
 const ORG_DOC_SUMMARY = {
   docId: ORG_DOC,
@@ -285,7 +285,7 @@ it("removes the org-wide grant on a delete", async () => {
 it("ignores a spaceRelation whose subject is not a members space", async () => {
   await seedOrgDoc();
   await apply(SPACE_RELATION_RECORD, {
-    subject: `at://${ORG}/space/network.habitat.group/some-group`,
+    subject: `at:space/${ORG}/network.habitat.group/some-group`,
     subjectRole: "writer",
     relation: "reader",
   });
@@ -297,7 +297,7 @@ it("ignores a spaceRelation whose subject is not a members space", async () => {
 // subject see", and docsFor joins it against the doc — so the row
 // has to be filed under the doc space, not the space the record names, or
 // the commenter never sees the doc in their own list.
-const COMMENTS_RELATION_RECORD = `at://${OWNER}/space/network.habitat.docs.comments/abc/${OWNER}/network.habitat.relationship.userRelation/rkey2`;
+const COMMENTS_RELATION_RECORD = `at:space/${OWNER}/network.habitat.docs.comments/abc/${OWNER}/network.habitat.relationship.userRelation/rkey2`;
 
 it("files a comments-space grant under the doc space", async () => {
   await apply(COMMENTS_RELATION_RECORD, { subject: BOB, relation: "writer" });
@@ -328,7 +328,7 @@ it("removes a comments-space grant on its delete", async () => {
   expect(await docsFor(getDb(env), BOB)).toEqual([]);
 });
 
-const COMMENTS_SPACE = `at://${OWNER}/space/network.habitat.docs.comments/abc`;
+const COMMENTS_SPACE = `at:space/${OWNER}/network.habitat.docs.comments/abc`;
 const COMMENT_RECORD = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.comment/3jzfcijpj2z2a`;
 
 it("mirrors a comment record, with its cid, into the comments table", async () => {
@@ -367,7 +367,7 @@ it("removes the comment on a delete (null value)", async () => {
 });
 
 it("ignores a comment on a doc this deployment doesn't know", async () => {
-  const unknownSpace = `at://${OWNER}/space/network.habitat.docs.comments/zzz`;
+  const unknownSpace = `at:space/${OWNER}/network.habitat.docs.comments/zzz`;
   const unknownRecord = `${unknownSpace}/${BOB}/network.habitat.docs.comment/1`;
   await apply(unknownRecord, {
     $type: "network.habitat.docs.comment",
@@ -379,7 +379,7 @@ it("ignores a comment on a doc this deployment doesn't know", async () => {
   expect(
     await commentsForDoc(
       getDb(env),
-      `at://${OWNER}/space/network.habitat.docs/zzz`,
+      `at:space/${OWNER}/network.habitat.docs/zzz`,
     ),
   ).toEqual([]);
 });

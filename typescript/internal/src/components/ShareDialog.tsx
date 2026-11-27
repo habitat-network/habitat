@@ -103,7 +103,7 @@ const ShareDialog = ({
             onAddPermission(newGrantees, role);
             setNewGrantees([]);
           }}
-          disabled={isAdding}
+          disabled={isAdding || newGrantees.length === 0}
         >
           {isAdding && <Spinner />}
           Add

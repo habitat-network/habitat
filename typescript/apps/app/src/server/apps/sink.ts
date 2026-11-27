@@ -9,6 +9,11 @@ import type { Db } from "@/db";
 import { apps } from "@/db/schema";
 import { hostLabel } from "@/lib/apps";
 
+// Records written before the spaces alpha moved space URIs to the at:space/
+// form still embed the older at://{did}/space/... form, which only lenient
+// validation accepts. Goes with the migration to the new form.
+const LENIENT = { strict: false };
+
 export const APP_COLLECTION = network.habitat.apps.app.$nsid;
 
 type AppRow = typeof apps.$inferInsert;
@@ -28,7 +33,7 @@ export function toAppRow(
   cid: string,
   value: LexMap,
 ): AppRow | undefined {
-  const parsed = network.habitat.apps.app.$safeParse(value);
+  const parsed = network.habitat.apps.app.$safeParse(value, LENIENT);
   if (!parsed.success) return undefined;
   const record = parsed.value;
   const at = new AtUri(uri);

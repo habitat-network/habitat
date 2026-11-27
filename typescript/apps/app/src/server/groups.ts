@@ -38,7 +38,6 @@ export const viaInstance = Effect.gen(function* () {
 export interface GroupProfile {
   name: string | null;
   description: string | null;
-  joinPolicy: "open" | "invite" | "request" | null;
 }
 
 // readGroupProfile reads a group's community.opensocial.profile record as
@@ -66,18 +65,10 @@ export const readGroupProfile = Effect.fn("readGroupProfile")(function* (
     onNone: () => ({}) as Record<string, unknown>,
     onSome: (r) => r.value,
   });
-  const policy = typeof value.joinPolicy === "string" ? value.joinPolicy : "";
   return {
     name: typeof value.name === "string" ? value.name : null,
     description:
       typeof value.description === "string" ? value.description : null,
-    joinPolicy: policy.endsWith("#open")
-      ? "open"
-      : policy.endsWith("#request")
-        ? "request"
-        : policy.endsWith("#invite")
-          ? "invite"
-          : null,
   } satisfies GroupProfile;
 });
 

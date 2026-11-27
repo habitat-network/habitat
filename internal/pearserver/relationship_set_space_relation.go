@@ -69,5 +69,5 @@ func (p *PearServer) SetSpaceRelation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(ctx, w,
-		habitat.NetworkHabitatRelationshipSetSpaceRelationOutput{Uri: uri.String()})
+		habitat.NetworkHabitatRelationshipSetSpaceRelationOutput{Uri: uri.AtSpace().String()})
 }

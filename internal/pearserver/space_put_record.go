@@ -123,7 +123,7 @@ func (p *PearServer) writeRecord(w http.ResponseWriter, r *http.Request, create 
 		return
 	}
 	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpacePutRecordOutput{
-		Uri: recordURI.String(),
+		Uri: recordURI.AtSpace().String(),
 		Cid: cid.String(),
 	})
 }

@@ -51,7 +51,7 @@ func TestServer_Space(t *testing.T) {
 			require.Contains(
 				t,
 				output.Space,
-				"at://did:plc:org/space/network.habitat.group/",
+				"at:space/did:plc:org/network.habitat.group/",
 			)
 		})
 
@@ -193,10 +193,11 @@ func TestServer_Space(t *testing.T) {
 			&createOutput,
 		)
 		require.Equal(t, http.StatusOK, createCode)
-		uri := habitat_syntax.SpaceURI(createOutput.Space)
+		uri, err := habitat_syntax.ParseSpaceURI(createOutput.Space)
+		require.NoError(t, err)
 
 		// PutRecord in the space, as the owner.
-		_, _, err := ts.SpaceStore.PutRecord(
+		_, _, err = ts.SpaceStore.PutRecord(
 			t.Context(),
 			uri,
 			owner,

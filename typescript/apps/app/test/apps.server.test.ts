@@ -20,7 +20,7 @@ import {
 import { APP_COLLECTION } from "@/server/apps/sink";
 
 const ORG = "did:web:org.example" as DidString;
-const SPACE = `at://${ORG}/space/network.habitat.apps/3kapp` as SpaceRefString;
+const SPACE = `at:space/${ORG}/network.habitat.apps/3kapp` as SpaceRefString;
 const BLOB = {
   $type: "blob",
   ref: { $link: "bafkcode" },

@@ -37,7 +37,7 @@ type Commit struct {
 
 // New builds a commit over a repo's current state digest.
 func New(space habitat_syntax.SpaceURI, repo syntax.DID, rev string, data []byte) Commit {
-	return Commit{Ver: Version, Repo: repo, Space: space.Canonical(), Rev: rev, Data: data}
+	return Commit{Ver: Version, Repo: repo, Space: space.AtSpace(), Rev: rev, Data: data}
 }
 
 // Verify authenticates a commit a syncer received for (space, repo): the

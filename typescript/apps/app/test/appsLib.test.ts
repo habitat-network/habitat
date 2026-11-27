@@ -167,4 +167,28 @@ describe("validateBundle", () => {
     expect(() => validateBundle(bundle, entrypoint)).toThrow(InvalidBundle);
     expect(() => validateBundle(bundle, entrypoint)).toThrow(message);
   });
+
+  it("refuses a script that doesn't parse, naming the file and line", () => {
+    const bad = { modules: { "index.js": "export default {\n  fetch( {" } };
+    expect(() => validateBundle(bad, "index.js")).toThrow(InvalidBundle);
+    expect(() => validateBundle(bad, "index.js")).toThrow(/index\.js.*line 2/);
+    const helper = {
+      modules: { "index.js": "export default {}", "b.mjs": "}" },
+    };
+    expect(() => validateBundle(helper, "index.js")).toThrow(/b\.mjs/);
+  });
+
+  it("parses .js as an ES module and .cjs as a script", () => {
+    expect(() =>
+      validateBundle(
+        {
+          modules: {
+            "index.js": "import a from './a.cjs'; export default a",
+            "a.cjs": "module.exports = {}; return 1",
+          },
+        },
+        "index.js",
+      ),
+    ).not.toThrow();
+  });
 });

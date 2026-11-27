@@ -101,7 +101,7 @@ func (d *Deliverer) NotifyWrite(
 	}
 
 	body, err := json.Marshal(habitat.NetworkHabitatSpaceNotifyWriteInput{
-		Space:   space.String(),
+		Space:   space.AtSpace().String(),
 		Repo:    repo.String(),
 		Rev:     rev.String(),
 		Data:    atdata.Bytes(hash),
@@ -257,7 +257,7 @@ func (d *Deliverer) attemptSpaceDeleted(
 	}
 
 	body, err := json.Marshal(habitat.NetworkHabitatSpaceNotifySpaceDeletedInput{
-		Space: p.Space.String(),
+		Space: p.Space.AtSpace().String(),
 	})
 	if err != nil {
 		log.ErrorContext(ctx, "notify: marshal notifySpaceDeleted", "err", err)

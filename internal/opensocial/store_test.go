@@ -115,7 +115,7 @@ func TestStore(t *testing.T) {
 			require.True(t, ok)
 			indexedURIs = append(indexedURIs, uri)
 		}
-		require.Contains(t, indexedURIs, spaceURI.String())
+		require.Contains(t, indexedURIs, spaceURI.AtSpace().String())
 
 		// ... and is not written into the new space itself.
 		newSpaceRecords, err := s.SpaceStore.ListRecords(t.Context(), spaceURI, org, &spaceColl)
@@ -225,6 +225,15 @@ func TestStore(t *testing.T) {
 		ok, err = s.CheckPermission(t.Context(), syntax.DID("did:plc:stranger"), membersSpace)
 		require.NoError(t, err)
 		require.False(t, ok)
+
+		// A member holding only a custom role (not member or admin) is still a
+		// member: they must be able to write their own acceptance record, or
+		// joining with a custom-role invite fails.
+		custom := syntax.DID("did:plc:custom")
+		require.NoError(t, s.AssignRoles(t.Context(), org, custom, []string{"mo-qa-role"}))
+		ok, err = s.CheckPermission(t.Context(), custom, membersSpace)
+		require.NoError(t, err)
+		require.True(t, ok)
 	})
 
 	t.Run("GetUserRoles", func(t *testing.T) {

@@ -135,7 +135,7 @@ func (c *webhookConsumer) deliver(ctx context.Context, msg outbox.Message) error
 func (c *webhookConsumer) post(ctx context.Context, msg outbox.Message) error {
 	body, err := json.Marshal(webhookPayload{
 		ID:    msg.ID,
-		URI:   msg.URI.String(),
+		URI:   msg.URI.AtSpace().String(),
 		Value: msg.Value,
 	})
 	if err != nil {

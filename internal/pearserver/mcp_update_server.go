@@ -58,7 +58,7 @@ func (p *PearServer) UpdateServer(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
 		return
 	} else if mcpgateway.IsConfigError(err) {
-		httpx.WriteInvalidRequest(ctx, w, "update mcp server", err)
+		httpx.WriteInvalidRequest(ctx, w, err.Error(), err)
 		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("update mcp server: %w", err))
