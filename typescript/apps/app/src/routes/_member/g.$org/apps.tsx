@@ -22,6 +22,7 @@ import {
 } from "internal/components/ui";
 import { AppWindow, ExternalLink, Plus, Rocket, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { CodePicker, type PickedCode } from "@/components/apps/CodePicker";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
@@ -115,6 +116,17 @@ function deployErrorToast(title: string) {
     toast.add({ type: "error", title, description: e.message });
 }
 
+type NewAppValues = {
+  name: string;
+  description: string;
+  code: PickedCode | null;
+};
+
+const isDeployable = (code: PickedCode | null) =>
+  code !== null &&
+  code.entrypoint !== "" &&
+  Object.keys(code.modules).length > 0;
+
 function NewApp({
   org,
   onCreated,
@@ -123,53 +135,51 @@ function NewApp({
   onCreated: (uri: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [code, setCode] = useState<PickedCode | null>(null);
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { isValid },
+  } = useForm<NewAppValues>({
+    mode: "onChange",
+    defaultValues: { name: "", description: "", code: null },
+  });
+  const name = watch("name");
   const deploy = useMutation({
-    mutationFn: () =>
+    mutationFn: (v: NewAppValues) =>
       deployApp({
         data: {
           org,
-          name,
-          description: description || undefined,
-          entrypoint: code?.entrypoint ?? "",
-          modules: code?.modules ?? {},
+          name: v.name,
+          description: v.description || undefined,
+          entrypoint: v.code?.entrypoint ?? "",
+          modules: v.code?.modules ?? {},
         },
       }),
     onSuccess: async ({ uri, syncError }) => {
       if (syncError) toast.add({ type: "info", title: syncError });
       // Leave the form empty: if the list hasn't caught up yet this page
       // stays on "New app", and it must not show the app just deployed.
-      setName("");
-      setDescription("");
-      setCode(null);
+      reset();
       await queryClient.invalidateQueries({ queryKey: appsKey(org) });
       onCreated(uri);
     },
     onError: deployErrorToast("Couldn't deploy the app"),
   });
-  const ready =
-    name.trim() !== "" &&
-    code !== null &&
-    code.entrypoint !== "" &&
-    Object.keys(code.modules).length > 0;
   return (
     <form
       className="mx-auto flex max-w-xl flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (ready) deploy.mutate();
-      }}
+      onSubmit={handleSubmit((v) => deploy.mutate(v))}
     >
       <h2 className="text-xl font-semibold">New app</h2>
       <Field>
         <FieldLabel htmlFor="app-name">Name</FieldLabel>
         <Input
           id="app-name"
-          value={name}
           maxLength={200}
-          onChange={(e) => setName(e.target.value)}
+          {...register("name", { validate: (v) => v.trim() !== "" })}
         />
         <FieldDescription>
           {name.trim()
@@ -181,14 +191,20 @@ function NewApp({
         <FieldLabel htmlFor="app-description">Description</FieldLabel>
         <Textarea
           id="app-description"
-          value={description}
           maxLength={2000}
-          onChange={(e) => setDescription(e.target.value)}
+          {...register("description")}
         />
       </Field>
       <Field>
         <FieldLabel>Code</FieldLabel>
-        <CodePicker value={code} onChange={setCode} />
+        <Controller
+          control={control}
+          name="code"
+          rules={{ validate: isDeployable }}
+          render={({ field }) => (
+            <CodePicker value={field.value} onChange={field.onChange} />
+          )}
+        />
         <FieldDescription>
           A Worker: the entrypoint's default export has a{" "}
           <code>fetch(request, env)</code> handler. Bundle dependencies first.
@@ -196,7 +212,7 @@ function NewApp({
         </FieldDescription>
       </Field>
       <div>
-        <Button type="submit" disabled={!ready || deploy.isPending}>
+        <Button type="submit" disabled={!isValid || deploy.isPending}>
           <Rocket data-icon="inline-start" />
           {deploy.isPending ? "Deploying…" : "Deploy"}
         </Button>
@@ -241,10 +257,7 @@ function AppDetail({ org, app }: { org: string; app: AppView }) {
     },
     onError: deployErrorToast("Couldn't delete the app"),
   });
-  const ready =
-    code !== null &&
-    code.entrypoint !== "" &&
-    Object.keys(code.modules).length > 0;
+  const ready = isDeployable(code);
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <div className="flex items-start gap-3">

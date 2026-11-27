@@ -19,6 +19,7 @@ import {
   toast,
 } from "internal/components/ui";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import {
   groupLabel,
@@ -76,14 +77,21 @@ function GroupProfileCard({
   canEdit: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState(initial);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { isValid },
+  } = useForm<typeof initial>({ mode: "onChange", defaultValues: initial });
   const save = useMutation({
-    mutationFn: () => updateGroupProfile({ data: { org, ...form } }),
-    onSuccess: async () => {
+    mutationFn: (v: typeof initial) =>
+      updateGroupProfile({ data: { org, ...v } }),
+    onSuccess: async (_, v) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["group", org] }),
         queryClient.invalidateQueries({ queryKey: myGroupsQuery.queryKey }),
       ]);
+      reset(v);
       toast.add({ type: "success", title: "Saved the group's profile" });
     },
     onError: (e) =>
@@ -94,44 +102,41 @@ function GroupProfileCard({
       }),
   });
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Profile</CardTitle>
-        <CardDescription>
-          What people see when they look the group up.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <Field>
-          <FieldLabel htmlFor="group-name">Name</FieldLabel>
-          <Input
-            id="group-name"
-            disabled={!canEdit}
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="group-description">Description</FieldLabel>
-          <Textarea
-            id="group-description"
-            disabled={!canEdit}
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-        </Field>
-      </CardContent>
-      {canEdit && (
-        <CardFooter className="justify-end">
-          <Button
-            disabled={save.isPending || !form.name.trim()}
-            onClick={() => save.mutate()}
-          >
-            Save profile
-          </Button>
-        </CardFooter>
-      )}
-    </Card>
+    <form onSubmit={handleSubmit((v) => save.mutate(v))}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Profile</CardTitle>
+          <CardDescription>
+            What people see when they look the group up.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <Field>
+            <FieldLabel htmlFor="group-name">Name</FieldLabel>
+            <Input
+              id="group-name"
+              disabled={!canEdit}
+              {...register("name", { validate: (v) => v.trim() !== "" })}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="group-description">Description</FieldLabel>
+            <Textarea
+              id="group-description"
+              disabled={!canEdit}
+              {...register("description")}
+            />
+          </Field>
+        </CardContent>
+        {canEdit && (
+          <CardFooter className="justify-end">
+            <Button type="submit" disabled={save.isPending || !isValid}>
+              Save profile
+            </Button>
+          </CardFooter>
+        )}
+      </Card>
+    </form>
   );
 }
 
@@ -139,6 +144,8 @@ function MyProfileCard({ org }: { org: string }) {
   const { data } = useSuspenseQuery(myGroupProfileQuery(org));
   return <MyProfileForm key={org} org={org} initial={data} />;
 }
+
+type MyProfileValues = { displayName: string; bio: string };
 
 function MyProfileForm({
   org,
@@ -148,11 +155,14 @@ function MyProfileForm({
   initial: { displayName: string; bio: string; handle: string | null };
 }) {
   const queryClient = useQueryClient();
-  const [displayName, setDisplayName] = useState(initial.displayName);
-  const [bio, setBio] = useState(initial.bio);
+  const { register, handleSubmit, reset } = useForm<MyProfileValues>({
+    defaultValues: { displayName: initial.displayName, bio: initial.bio },
+  });
   const save = useMutation({
-    mutationFn: () => putMyGroupProfile({ data: { org, displayName, bio } }),
-    onSuccess: async () => {
+    mutationFn: (v: MyProfileValues) =>
+      putMyGroupProfile({ data: { org, ...v } }),
+    onSuccess: async (_, v) => {
+      reset(v);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["myGroupProfile", org] }),
         queryClient.invalidateQueries({ queryKey: ["group", org] }),
@@ -168,38 +178,32 @@ function MyProfileForm({
       }),
   });
   return (
-    <Card id="profile">
-      <CardHeader>
-        <CardTitle>Your profile in this group</CardTitle>
-        <CardDescription>
-          Other members see this instead of your public profile.
-          {initial.handle && ` You're @${initial.handle}.`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <Field>
-          <FieldLabel htmlFor="my-name">Display name</FieldLabel>
-          <Input
-            id="my-name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="my-bio">Bio</FieldLabel>
-          <Textarea
-            id="my-bio"
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-          />
-        </Field>
-      </CardContent>
-      <CardFooter className="justify-end">
-        <Button disabled={save.isPending} onClick={() => save.mutate()}>
-          Save
-        </Button>
-      </CardFooter>
-    </Card>
+    <form onSubmit={handleSubmit((v) => save.mutate(v))}>
+      <Card id="profile">
+        <CardHeader>
+          <CardTitle>Your profile in this group</CardTitle>
+          <CardDescription>
+            Other members see this instead of your public profile.
+            {initial.handle && ` You're @${initial.handle}.`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <Field>
+            <FieldLabel htmlFor="my-name">Display name</FieldLabel>
+            <Input id="my-name" {...register("displayName")} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="my-bio">Bio</FieldLabel>
+            <Textarea id="my-bio" {...register("bio")} />
+          </Field>
+        </CardContent>
+        <CardFooter className="justify-end">
+          <Button type="submit" disabled={save.isPending}>
+            Save
+          </Button>
+        </CardFooter>
+      </Card>
+    </form>
   );
 }
 
