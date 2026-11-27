@@ -42,11 +42,16 @@ describe("toHabitatError", () => {
         encoding: "application/json",
         body: {
           error: "InvalidRequest",
-          message: "can't set up oauth with this mcp server: registration refused",
+          message:
+            "can't set up oauth with this mcp server: registration refused",
         },
       },
     });
-    const error = toHabitatError(MEMBER, "network.habitat.mcp.addServer", rejected);
+    const error = toHabitatError(
+      MEMBER,
+      "network.habitat.mcp.addServer",
+      rejected,
+    );
     expect(userMessage(error as HabitatError)).toBe(
       "can't set up oauth with this mcp server: registration refused",
     );
