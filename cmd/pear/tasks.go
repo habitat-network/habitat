@@ -9,6 +9,7 @@ import "github.com/urfave/cli/v3"
 func taskCommands() []*cli.Command {
 	return []*cli.Command{
 		groupPreflightCommand(),
+		groupStageCommand(),
 		reindexCommand(),
 	}
 }
