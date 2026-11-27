@@ -217,7 +217,7 @@ func (s *store) SetSpacePolicy(
 // SetGroupSpacePolicy stores and publishes the canonical policy in the same
 // transaction. This is a trusted primitive for provisioning and group space
 // management. The caller must already have authorized the change, and can
-// pass a transaction-bound store to include it in a larger operation.
+// pass a store bound to [Transaction] to include it in a larger operation.
 func SetGroupSpacePolicy(
 	ctx context.Context,
 	store Store,
@@ -253,7 +253,7 @@ func (s *store) setGroupSpacePolicy(
 	if err != nil {
 		return fmt.Errorf("marshal group policy record: %w", err)
 	}
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return Transaction(ctx, s.db, func(tx *gorm.DB) error {
 		group := s.withTx(tx)
 		// Lock the authority's repo before the space row, in the same order
 		// as PutRecord, to keep the record and private policy in step.

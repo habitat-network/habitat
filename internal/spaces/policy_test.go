@@ -132,7 +132,7 @@ func TestSetGroupSpacePolicy(t *testing.T) {
 	}
 
 	rollback := errors.New("rollback policy update")
-	err = db.Transaction(func(tx *gorm.DB) error {
+	err = spaces.Transaction(ctx, db, func(tx *gorm.DB) error {
 		s := s.WithTx(tx)
 		public := private
 		public.PublicRead = true
