@@ -58,9 +58,9 @@ type deletedSpace struct {
 }
 
 type spaceRecord struct {
-	Space habitat_syntax.SpaceURI
-	// SpaceRef holds the parts of Space and is the key. Space is the legacy
-	// URI column, still written until it is dropped.
+	Space habitat_syntax.SpaceURI `gorm:"-"`
+	// SpaceRef holds the parts of Space and is the key. Space is not a column:
+	// it is derived from SpaceRef on load, and SpaceRef from Space on save.
 	SpaceRef   habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
@@ -87,10 +87,10 @@ type spaceRecord struct {
 // PutRecord keeps it in sync by clearing a record's prior refs and
 // re-inserting the ones extracted from its new value on every write.
 type blobRef struct {
-	Cid   string `gorm:"primaryKey"`
-	Space habitat_syntax.SpaceURI
-	// SpaceRef holds the parts of Space and is the key. Space is the legacy
-	// URI column, still written until it is dropped.
+	Cid   string                  `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI `gorm:"-"`
+	// SpaceRef holds the parts of Space and is the key. Space is not a column:
+	// it is derived from SpaceRef on load, and SpaceRef from Space on save.
 	SpaceRef   habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
@@ -111,9 +111,9 @@ type blobRef struct {
 // records; only ListRepos, which just reports the repo set and its last-known
 // digest, reads Hash directly for such a row.
 type spaceRepo struct {
-	Space habitat_syntax.SpaceURI
-	// SpaceRef holds the parts of Space and is the key. Space is the legacy
-	// URI column, still written until it is dropped.
+	Space habitat_syntax.SpaceURI `gorm:"-"`
+	// SpaceRef holds the parts of Space and is the key. Space is not a column:
+	// it is derived from SpaceRef on load, and SpaceRef from Space on save.
 	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo     syntax.DID              `gorm:"primaryKey"`
 	Hash     []byte
@@ -1670,13 +1670,21 @@ func (s *store) RepoHead(
 func (s *store) ListRepoHeads(ctx context.Context) (_ []RepoHead, err error) {
 	ctx, span := tracer.Start(ctx, "spaces.ListRepoHeads")
 	defer func() { telemetry.End(span, err) }()
-	var heads []RepoHead
+	var rows []struct {
+		habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
+		Repo                    syntax.DID
+		Rev                     syntax.TID
+	}
 	// Unscoped, so deleted records' tombstones count towards the head.
 	if err := s.db.WithContext(ctx).Unscoped().Model(&spaceRecord{}).
-		Select("space, repo, MAX(rev) AS rev").
-		Group("space, repo").
-		Scan(&heads).Error; err != nil {
+		Select("space_owner, space_type, space_skey, repo, MAX(rev) AS rev").
+		Group("space_owner, space_type, space_skey, repo").
+		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list repo heads: %w", err)
+	}
+	heads := make([]RepoHead, len(rows))
+	for i, row := range rows {
+		heads[i] = RepoHead{Space: row.URI(), Repo: row.Repo, Rev: row.Rev}
 	}
 	span.SetAttributes(attribute.Int("habitat.repos", len(heads)))
 	return heads, nil

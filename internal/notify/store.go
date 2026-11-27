@@ -29,9 +29,9 @@ import (
 // distinct registrations. Registrations predating the service field carry their
 // endpoint URL as the audience; see the audience migration.
 type registration struct {
-	Space habitat_syntax.SpaceURI
-	// SpaceRef holds the parts of Space and is the key. Space is the legacy
-	// URI column, still written until it is dropped.
+	Space habitat_syntax.SpaceURI `gorm:"-"`
+	// SpaceRef holds the parts of Space and is the key. Space is not a column:
+	// it is derived from SpaceRef on load, and SpaceRef from Space on save.
 	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo     syntax.DID              `gorm:"primaryKey"`
 	Audience string                  `gorm:"primaryKey"`
@@ -50,9 +50,9 @@ type registration struct {
 // token travels in each request body. It stays active while the credential it
 // was registered with is valid (ExpiresAt).
 type webhook struct {
-	Space habitat_syntax.SpaceURI
-	// SpaceRef holds the parts of Space and is the key. Space is the legacy
-	// URI column, still written until it is dropped.
+	Space habitat_syntax.SpaceURI `gorm:"-"`
+	// SpaceRef holds the parts of Space and is the key. Space is not a column:
+	// it is derived from SpaceRef on load, and SpaceRef from Space on save.
 	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Endpoint string                  `gorm:"primaryKey"`
 	Token    string                  `gorm:"primaryKey"`
@@ -190,9 +190,9 @@ type Store interface {
 // RetryAt is unix milliseconds rather than a timestamp so it compares exactly
 // in the guarded updates on every dialect.
 type spaceDeletedDelivery struct {
-	Space habitat_syntax.SpaceURI
-	// SpaceRef holds the parts of Space and is the key. Space is the legacy
-	// URI column, still written until it is dropped.
+	Space habitat_syntax.SpaceURI `gorm:"-"`
+	// SpaceRef holds the parts of Space and is the key. Space is not a column:
+	// it is derived from SpaceRef on load, and SpaceRef from Space on save.
 	SpaceRef  habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Audience  string                  `gorm:"primaryKey"`
 	Endpoint  string
