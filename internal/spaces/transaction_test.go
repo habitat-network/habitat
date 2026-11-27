@@ -19,7 +19,11 @@ func TestTransactionNotifications(t *testing.T) {
 	ctx := t.Context()
 	db := db_testutil.NewDB(t, spaces.Models())
 	notifications := &notify_testutil.TestNotifier{}
-	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithNotifier(notifications))
+	s := spaces_testutil.NewTestStore(
+		t,
+		spaces_testutil.WithDB(db),
+		spaces_testutil.WithNotifier(notifications),
+	)
 	uri, err := s.CreateSpace(ctx, orgID, groupType, "notifications")
 	require.NoError(t, err)
 	toDelete, err := s.CreateSpace(ctx, orgID, groupType, "to-delete")
@@ -133,13 +137,16 @@ func TestTransactionRejectsUnmanagedParent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, spaces.DefaultPolicy(), policy)
 
-	require.NoError(t, spaces.Transaction(ctx, db.Session(&gorm.Session{DisableNestedTransaction: true}),
-		func(tx *gorm.DB) error {
-			err := spaces.Transaction(ctx, tx, func(*gorm.DB) error {
-				t.Fatal("nested transaction without savepoints must not run callback")
+	require.NoError(
+		t,
+		spaces.Transaction(ctx, db.Session(&gorm.Session{DisableNestedTransaction: true}),
+			func(tx *gorm.DB) error {
+				err := spaces.Transaction(ctx, tx, func(*gorm.DB) error {
+					t.Fatal("nested transaction without savepoints must not run callback")
+					return nil
+				})
+				require.ErrorIs(t, err, spaces.ErrSavepointsDisabled)
 				return nil
-			})
-			require.ErrorIs(t, err, spaces.ErrSavepointsDisabled)
-			return nil
-		}))
+			}),
+	)
 }
