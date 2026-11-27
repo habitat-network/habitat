@@ -198,7 +198,8 @@ func (s *Store) validateSubject(ctx context.Context, group syntax.DID, subject S
 	// A former member stays a subject while the queue still holds their history.
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&moderationSubjectRow{}).
-		Where("org_id = ? AND author = ?", group, subject.DID).Limit(1).Count(&count).Error; err != nil {
+		Where("org_id = ? AND author = ?", group, subject.DID).
+		Limit(1).Count(&count).Error; err != nil {
 		return fmt.Errorf("count subjects: %w", err)
 	}
 	if count == 0 {
