@@ -83,8 +83,9 @@ func TestServer_GroupSpaceMethods(t *testing.T) {
 		var first comatproto.ComAtprotoSpaceCreateSpaceOutput
 		require.Equal(t, http.StatusOK, client.Procedure(
 			groupTS.Server.CreateSpace, create("gone", policy(memberRead)), &first))
+		created := first.Space
 		require.Equal(t, http.StatusOK, client.Procedure(groupTS.Server.DeleteSpace,
-			comatproto.ComAtprotoSpaceDeleteSpaceInput{Space: first.Space}, &struct{}{}))
+			comatproto.ComAtprotoSpaceDeleteSpaceInput{Space: created}, &struct{}{}))
 		require.Equal(t, http.StatusBadRequest, client.Procedure(groupTS.Server.DeleteSpace,
 			comatproto.ComAtprotoSpaceDeleteSpaceInput{
 				Space: habitat_syntax.ConstructSpaceURI(
