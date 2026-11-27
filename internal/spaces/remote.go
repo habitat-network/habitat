@@ -117,7 +117,7 @@ func (s *store) GetRemoteRepo(
 ) (RemoteRepo, error) {
 	var row spaceRepo
 	err := s.db.WithContext(ctx).
-		Where("space = ? AND repo = ? AND remote = ?", space, repo, true).
+		Scopes(habitat_syntax.InSpace(space)).Where("repo = ? AND remote = ?", repo, true).
 		Where("removed IS NULL OR removed = ?", false).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -128,7 +128,7 @@ func (s *store) GetRemoteRepo(
 	remote := RemoteRepo{Space: space, Repo: repo, ReportedRev: row.Rev}
 	var sync spaceRemoteSync
 	err = s.db.WithContext(ctx).
-		Where("space = ? AND repo = ?", space, repo).
+		Scopes(habitat_syntax.InSpace(space)).Where("repo = ?", repo).
 		Limit(1).Find(&sync).Error
 	if err != nil {
 		return RemoteRepo{}, fmt.Errorf("load remote sync: %w", err)
@@ -141,19 +141,19 @@ func (s *store) GetRemoteRepo(
 // ListRemoteReposBehind implements [Store].
 func (s *store) ListRemoteReposBehind(ctx context.Context) ([]RemoteRepo, error) {
 	var rows []struct {
-		Space       habitat_syntax.SpaceURI
-		Repo        syntax.DID
-		ReportedRev syntax.TID
-		SyncedRev   *syntax.TID
-		State       []byte
+		habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
+		Repo                    syntax.DID
+		ReportedRev             syntax.TID
+		SyncedRev               *syntax.TID
+		State                   []byte
 	}
 	err := s.db.WithContext(ctx).Table("space_repos AS r").
-		Select("r.space, r.repo, r.rev AS reported_rev, s.rev AS synced_rev, s.state").
-		Joins("LEFT JOIN space_remote_syncs AS s ON s.space = r.space AND s.repo = r.repo").
+		Select("r.space_owner, r.space_type, r.space_skey, r.repo, r.rev AS reported_rev, s.rev AS synced_rev, s.state").
+		Joins("LEFT JOIN space_remote_syncs AS s ON s.space_owner = r.space_owner AND s.space_type = r.space_type AND s.space_skey = r.space_skey AND s.repo = r.repo").
 		Where("r.remote = ? AND r.deleted_at IS NULL", true).
 		Where("r.removed IS NULL OR r.removed = ?", false).
 		Where("s.rev IS NULL OR s.rev < r.rev").
-		Order("r.space, r.repo").
+		Order("r.space_owner, r.space_type, r.space_skey, r.repo").
 		Scan(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("list remote repos: %w", err)
@@ -161,7 +161,7 @@ func (s *store) ListRemoteReposBehind(ctx context.Context) ([]RemoteRepo, error)
 	repos := make([]RemoteRepo, len(rows))
 	for i, row := range rows {
 		repos[i] = RemoteRepo{
-			Space:       row.Space,
+			Space:       row.URI(),
 			Repo:        row.Repo,
 			ReportedRev: row.ReportedRev,
 			State:       spacecommit.Load(row.State),
@@ -222,10 +222,10 @@ func applyRemoteOp(
 	repo syntax.DID,
 	op RemoteOp,
 ) error {
-	key := "space = ? AND repo = ? AND collection = ? AND rkey = ?"
+	key := "repo = ? AND collection = ? AND rkey = ?"
 	if op.Cid == "" {
 		if err := tx.Unscoped().Model(&spaceRemoteRecord{}).
-			Where(key, space, repo, op.Collection, op.Rkey).
+			Scopes(habitat_syntax.InSpace(space)).Where(key, repo, op.Collection, op.Rkey).
 			Updates(map[string]any{
 				"deleted_at": time.Now(),
 				"rev":        op.Rev,
@@ -273,7 +273,7 @@ func deleteUntouched(
 ) error {
 	var live []spaceRemoteRecord
 	if err := tx.Select("collection", "rkey").
-		Where("space = ? AND repo = ?", space, repo).
+		Scopes(habitat_syntax.InSpace(space)).Where("repo = ?", repo).
 		Find(&live).Error; err != nil {
 		return fmt.Errorf("list remote records: %w", err)
 	}
@@ -282,8 +282,8 @@ func deleteUntouched(
 			continue
 		}
 		if err := tx.Unscoped().Model(&spaceRemoteRecord{}).
-			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-				space, repo, r.Collection, r.Rkey).
+			Scopes(habitat_syntax.InSpace(space)).
+			Where("repo = ? AND collection = ? AND rkey = ?", repo, r.Collection, r.Rkey).
 			Updates(map[string]any{"deleted_at": time.Now(), "rev": rev, "seq": 0}).
 			Error; err != nil {
 			return fmt.Errorf("delete remote record: %w", err)
@@ -307,4 +307,32 @@ func remoteCommitEvent(row spaceRemoteRecord) (CommitEvent, error) {
 		UpdatedAt:  row.UpdatedAt,
 		DeletedAt:  row.DeletedAt,
 	})
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *spaceRemoteRecord) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *spaceRemoteRecord) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *spaceRemoteSync) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *spaceRemoteSync) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
 }
