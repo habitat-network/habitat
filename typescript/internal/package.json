@@ -41,6 +41,10 @@
       "import": "./src/spaceSync/drizzle/index.ts",
       "default": "./src/spaceSync/drizzle/index.ts"
     },
+    "./groupSharingSubject": {
+      "types": "./src/groupSharingSubject.ts",
+      "import": "./src/groupSharingSubject.ts"
+    },
     "./styles.css": "./src/styles.css",
     "./oauthClient": {
       "types": "./src/oauthClient/index.ts",
