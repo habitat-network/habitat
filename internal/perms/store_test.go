@@ -216,7 +216,10 @@ func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = s.spaces.PutRecord(
 		ctx, metaSpace, org, "group.opensocial.access", "self",
-		spaces_testutil.MustMarshalRecord(t, map[string]any{"grants": []map[string]any{{"role": "member", "scopes": []string{"read"}}}}),
+		spaces_testutil.MustMarshalRecord(t, map[string]any{
+			"publicRead": true,
+			"grants":     []map[string]any{{"role": "member", "scopes": []string{"read"}}},
+		}),
 	)
 	require.NoError(t, err)
 	_, _, err = s.spaces.PutRecord(

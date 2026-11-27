@@ -2,6 +2,7 @@ package pearserver
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -32,9 +33,13 @@ func (p *PearServer) UpdatePermissions(w http.ResponseWriter, r *http.Request) {
 	if !p.requireAction(ctx, w, org, credInfo.Subject, opensocial.ActionCommunityConfigure) {
 		return
 	}
-	if err := p.opensocialStore.PutPermissions(
-		ctx, org, input.Bindings, input.Assignable,
+	if err := p.opensocialStore.UpdatePermissions(
+		ctx, org, credInfo.Subject, input.Bindings, input.Assignable,
 	); err != nil {
+		if errors.Is(err, opensocial.ErrEscalation) {
+			httpx.WriteUnauthorized(ctx, w, err.Error(), nil)
+			return
+		}
 		httpx.WriteServerError(ctx, w, fmt.Errorf("update permissions: %w", err))
 		return
 	}

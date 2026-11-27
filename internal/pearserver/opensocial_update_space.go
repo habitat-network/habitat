@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"net/http"
 
 	"go.opentelemetry.io/otel/trace"
@@ -41,7 +42,13 @@ func (p *PearServer) UpdateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 	if !p.requireMember(ctx, w, spaceURI.SpaceOwner(), credInfo.Subject) {
 		return
 	}
-	if err := p.opensocialStore.UpdateSpace(ctx, spaceURI, input.Roles); err != nil {
+	if err := p.opensocialStore.UpdateSpaceAccess(
+		ctx, spaceURI, credInfo.Subject, input.Roles,
+	); err != nil {
+		if errors.Is(err, opensocial.ErrEscalation) {
+			httpx.WriteUnauthorized(ctx, w, err.Error(), nil)
+			return
+		}
 		if errors.Is(err, spaces.ErrSpaceNotFound) {
 			httpx.WriteSpaceNotFound(ctx, w, err)
 			return

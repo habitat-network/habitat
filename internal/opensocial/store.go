@@ -31,6 +31,7 @@ const (
 
 const (
 	MembersSpaceType = "group.opensocial.members"
+	InvitesSpaceType = "group.opensocial.invites"
 	MetaSpaceType    = "group.opensocial.meta"
 )
 
@@ -206,7 +207,9 @@ func (s *Store) createOrgShell(
 		return nil, fmt.Errorf("put access record: %w", err)
 	}
 	recordBytes, err = spaces.MarshalRecord(opensocial_api.GroupOpensocialAccess{
-		Grants: readGrants([]string{MemberRoleRkey, AdminRoleRkey}),
+		// The meta space is the group's public face.
+		PublicRead: true,
+		Grants:     readGrants([]string{MemberRoleRkey, AdminRoleRkey}),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal access record: %w", err)
@@ -346,9 +349,12 @@ func (s *Store) UpdateSpace(
 		telemetry.Space(spaceURI), rolesKey.StringSlice(roles),
 	))
 	defer func() { telemetry.End(span, err) }()
-	recordBytes, err := spaces.MarshalRecord(opensocial_api.GroupOpensocialAccess{
-		Grants: readGrants(roles),
-	})
+	access, err := s.getAccess(ctx, spaceURI)
+	if err != nil {
+		return err
+	}
+	access.Grants = withReadRoles(access.Grants, roles)
+	recordBytes, err := spaces.MarshalRecord(access)
 	if err != nil {
 		return fmt.Errorf("marshal access record: %w", err)
 	}
@@ -359,6 +365,27 @@ func (s *Store) UpdateSpace(
 		return fmt.Errorf("put access record: %w", err)
 	}
 	return nil
+}
+
+// getAccess returns spaceURI's access record, or a zero value if it has none.
+func (s *Store) getAccess(
+	ctx context.Context,
+	spaceURI habitat_syntax.SpaceURI,
+) (opensocial_api.GroupOpensocialAccess, error) {
+	record, err := s.spacesStore.GetRecord(
+		ctx, spaceURI, spaceURI.SpaceOwner(), "group.opensocial.access", "self",
+	)
+	if errors.Is(err, spaces.ErrRecordNotFound) {
+		return opensocial_api.GroupOpensocialAccess{}, nil
+	}
+	if err != nil {
+		return opensocial_api.GroupOpensocialAccess{}, fmt.Errorf("get access record: %w", err)
+	}
+	var access opensocial_api.GroupOpensocialAccess
+	if err := decodeRecordValue(record.Value, &access); err != nil {
+		return opensocial_api.GroupOpensocialAccess{}, fmt.Errorf("decode access record: %w", err)
+	}
+	return access, nil
 }
 
 func (s *Store) UploadImage(
@@ -490,7 +517,8 @@ func (s *Store) CheckPermission(
 		span.SetAttributes(allowedKey.Bool(ok))
 		telemetry.End(span, err)
 	}()
-	if space.SpaceType() == MetaSpaceType {
+	// The group DID is implicitly a member that can read every group space.
+	if user == space.SpaceOwner() {
 		return true, nil
 	}
 	accessRecord, err := s.spacesStore.GetRecord(
@@ -509,6 +537,9 @@ func (s *Store) CheckPermission(
 	var access opensocial_api.GroupOpensocialAccess
 	if err := decodeRecordValue(accessRecord.Value, &access); err != nil {
 		return false, fmt.Errorf("decode access record: %w", err)
+	}
+	if access.PublicRead {
+		return true, nil
 	}
 	membershipRoles, err := s.GetUserRoles(ctx, space.SpaceOwner(), user)
 	if err != nil {

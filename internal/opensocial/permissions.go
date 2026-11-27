@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -149,23 +148,44 @@ func (s *Store) CheckAction(
 		span.SetAttributes(allowedKey.Bool(ok))
 		telemetry.End(span, err)
 	}()
+	scopes, err := s.UserScopes(ctx, orgDID, user)
+	if err != nil {
+		return false, err
+	}
+	return scopes.CanPerform(action), nil
+}
+
+// UserScopes returns the scopes user holds in orgDID: the union of the scopes
+// every role they hold is granted. The group DID is implicitly a member with
+// every scope. A group that has never written a permissions record (one
+// created before this authz layer existed) falls back to giving its admins
+// every scope, so that someone can still write the first permissions record.
+func (s *Store) UserScopes(
+	ctx context.Context,
+	orgDID syntax.DID,
+	user syntax.DID,
+) (ScopeSet, error) {
+	if user == orgDID {
+		return AllScopes(), nil
+	}
 	userRoles, err := s.GetUserRoles(ctx, orgDID, user)
 	if err != nil {
-		return false, fmt.Errorf("get user roles: %w", err)
+		return ScopeSet{}, fmt.Errorf("get user roles: %w", err)
 	}
 	if len(userRoles) == 0 {
-		return false, nil
+		return ScopeSet{}, nil
 	}
 	permissions, exists, err := s.getPermissions(ctx, orgDID)
 	if err != nil {
-		return false, fmt.Errorf("get permissions: %w", err)
+		return ScopeSet{}, fmt.Errorf("get permissions: %w", err)
 	}
 	if !exists {
-		return slices.Contains(userRoles, AdminRoleRkey), nil
+		if slices.Contains(userRoles, AdminRoleRkey) {
+			return AllScopes(), nil
+		}
+		return ScopeSet{}, nil
 	}
-	userRoleSet := xmaps.SetFromSlice(userRoles)
-	roles := actionRoles(permissions.Grants)[action]
-	return len(xmaps.Intersection(userRoleSet, xmaps.SetFromSlice(roles))) > 0, nil
+	return NewScopeSet(scopesOfRoles(permissions.Grants, userRoles)), nil
 }
 
 // AssignableRoles returns the union, across every role user holds in
@@ -186,6 +206,9 @@ func (s *Store) AssignableRoles(
 		span.SetAttributes(rolesKey.StringSlice(roles))
 		telemetry.End(span, err)
 	}()
+	if user == orgDID {
+		return s.listRoleRkeys(ctx, orgDID)
+	}
 	userRoles, err := s.GetUserRoles(ctx, orgDID, user)
 	if err != nil {
 		return nil, fmt.Errorf("get user roles: %w", err)
@@ -203,14 +226,9 @@ func (s *Store) AssignableRoles(
 		}
 		return s.listRoleRkeys(ctx, orgDID)
 	}
-	userRoleSet := xmaps.SetFromSlice(userRoles)
-	assignable := xmaps.Set[string]{}
-	for role := range userRoleSet {
-		for _, assignableRole := range assignableRoles(permissions.Grants, role) {
-			assignable[assignableRole] = struct{}{}
-		}
-	}
-	return slices.Collect(maps.Keys(assignable)), nil
+	return slices.Compact(slices.Sorted(slices.Values(
+		assignableRoles(permissions.Grants, userRoles),
+	))), nil
 }
 
 // CanAssignRoles reports whether user may move a member between their

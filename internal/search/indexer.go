@@ -585,8 +585,8 @@ func (x *Indexer) refreshAccess(
 	return x.index.SetSpaceAccess(ctx, space, access)
 }
 
-// spaceAccess resolves who may read space: anyone for an opensocial about
-// space; otherwise the users the perms store resolves as readers, and the
+// spaceAccess resolves who may read space: anyone when its access record is
+// publicRead; otherwise the users the perms store resolves as readers, and the
 // community roles its group.opensocial.access record names.
 func spaceAccess(
 	ctx context.Context,
@@ -594,9 +594,6 @@ func spaceAccess(
 	perms PermSource,
 	space habitat_syntax.SpaceURI,
 ) (Access, error) {
-	if space.SpaceType() == opensocial.MetaSpaceType {
-		return Access{Public: true}, nil
-	}
 	users, err := perms.ListUserSubjects(ctx, space, habitat_syntax.SpaceRoleReader)
 	if err != nil {
 		return Access{}, fmt.Errorf("list readers: %w", err)
@@ -617,6 +614,9 @@ func spaceAccess(
 	var record opensocial_api.GroupOpensocialAccess
 	if err := json.Unmarshal(raw, &record); err != nil {
 		return Access{}, fmt.Errorf("decode access record: %w", err)
+	}
+	if record.PublicRead {
+		return Access{Public: true}, nil
 	}
 	for _, role := range opensocial.ReadRoles(record.Grants) {
 		access.CommunityRoles = append(access.CommunityRoles,
