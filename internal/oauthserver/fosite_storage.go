@@ -42,14 +42,16 @@ type requestRecord struct {
 	ClientID string `json:"client_id"`
 	// Subject is the resolved DID this flow authenticates. Empty until the login
 	// hint is resolved (at PAR time) or the handle is resolved (at authorize time).
-	Subject             string `json:"subject"`
-	Scopes              string `json:"scopes"` // space-separated
-	CodeChallenge       string `json:"code_challenge"`
-	CodeChallengeMethod string `json:"code_challenge_method"`
-	RedirectURI         string `json:"redirect_uri"`
-	State               string `json:"state"` // the client's own OAuth state param
-	ResponseType        string `json:"response_type"`
-	ResponseMode        string `json:"response_mode"`
+	Subject string `json:"subject"`
+	// Authorizer is set on stored authorization codes, never pushed requests.
+	Authorizer          syntax.DID `json:"authorizer,omitempty"`
+	Scopes              string     `json:"scopes"` // space-separated
+	CodeChallenge       string     `json:"code_challenge"`
+	CodeChallengeMethod string     `json:"code_challenge_method"`
+	RedirectURI         string     `json:"redirect_uri"`
+	State               string     `json:"state"` // the client's own OAuth state param
+	ResponseType        string     `json:"response_type"`
+	ResponseMode        string     `json:"response_mode"`
 	// Prompt is the client's OIDC prompt param; prompt=login/select_account
 	// stops a remembered login from skipping the account prompt.
 	Prompt string `json:"prompt,omitempty"`
@@ -71,9 +73,10 @@ func (r *requestRecord) toAuthorizeRequest(client fosite.Client) *fosite.Authori
 		Request: fosite.Request{
 			Client: client,
 			Session: &session{
-				Subject:  r.Subject,
-				ClientID: r.ClientID,
-				Scopes:   scopes,
+				Subject:    r.Subject,
+				Authorizer: r.Authorizer,
+				ClientID:   r.ClientID,
+				Scopes:     scopes,
 			},
 			RequestedScope: scopes,
 			GrantedScope:   scopes,
@@ -121,10 +124,11 @@ func (r *requestRecord) pkceForm() url.Values {
 // rebuild the session the token endpoint reads back. The entry expires with the
 // token, so ExpiresAt is only echoed back to fosite.
 type refreshRecord struct {
-	ClientID  string    `json:"client_id"`
-	Subject   string    `json:"subject"`
-	Scopes    string    `json:"scopes"` // space-separated
-	ExpiresAt time.Time `json:"expires_at"`
+	ClientID   string     `json:"client_id"`
+	Subject    string     `json:"subject"`
+	Authorizer syntax.DID `json:"authorizer,omitempty"`
+	Scopes     string     `json:"scopes"` // space-separated
+	ExpiresAt  time.Time  `json:"expires_at"`
 }
 
 // refreshKey namespaces refresh token signatures among the other entries in the
@@ -394,10 +398,12 @@ func (s *store) CreateAuthorizeCodeSession(
 	ctx, span := tracer.Start(ctx, "CreateAuthorizeCodeSession")
 	defer span.End()
 	span.SetAttributes(attribute.String("auth_signature", signature))
+	record := requestRecordFrom(requester)
+	record.Authorizer = requester.GetSession().(*session).Authorizer
 	return s.kv.Put(
 		ctx,
 		signature,
-		requestRecordFrom(requester),
+		record,
 		time.Until(requester.GetSession().GetExpiresAt(fosite.AuthorizeCode)),
 	)
 }
@@ -518,10 +524,11 @@ func (s *store) CreateRefreshTokenSession(
 
 	sess := request.GetSession().(*session)
 	oauthSession := refreshRecord{
-		ClientID:  request.GetClient().GetID(),
-		Subject:   sess.Subject,
-		Scopes:    strings.Join(sess.Scopes, " "),
-		ExpiresAt: sess.GetExpiresAt(fosite.RefreshToken),
+		ClientID:   request.GetClient().GetID(),
+		Subject:    sess.Subject,
+		Authorizer: sess.Authorizer,
+		Scopes:     strings.Join(sess.Scopes, " "),
+		ExpiresAt:  sess.GetExpiresAt(fosite.RefreshToken),
 	}
 
 	err := s.kv.Put(
@@ -580,6 +587,7 @@ func (s *store) GetRefreshTokenSession(
 		Client: client,
 		Session: &session{
 			Subject:               oauthSession.Subject,
+			Authorizer:            oauthSession.Authorizer,
 			ClientID:              oauthSession.ClientID,
 			Scopes:                scopes,
 			RefreshTokenExpiresAt: oauthSession.ExpiresAt,

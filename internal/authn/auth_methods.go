@@ -11,7 +11,10 @@ import (
 
 type CredentialInfo struct {
 	Subject syntax.DID
-	Space   habitat_syntax.SpaceURI
+	// Authorizer is the separately verified personal DID that authorized an
+	// OAuth credential on behalf of its subject. Empty when not asserted.
+	Authorizer syntax.DID
+	Space      habitat_syntax.SpaceURI
 	// Audience is the verified Atproto-Space-Audience of a key-bound space
 	// credential request; empty for unbound credentials.
 	Audience string
