@@ -242,7 +242,12 @@ func applyRemoteOp(
 	now := time.Now()
 	if err := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
-			{Name: "space_owner"}, {Name: "space_type"}, {Name: "space_skey"}, {Name: "repo"}, {Name: "collection"}, {Name: "rkey"},
+			{Name: "space_owner"},
+			{Name: "space_type"},
+			{Name: "space_skey"},
+			{Name: "repo"},
+			{Name: "collection"},
+			{Name: "rkey"},
 		},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"value", "cid", "prev_cid", "rev", "seq", "updated_at", "deleted_at",
