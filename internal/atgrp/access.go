@@ -154,25 +154,27 @@ func (a Access) spacePermissions(space habitat_syntax.SpaceURI, policy spaces.Po
 		return nil
 	}
 	var out []permission
-	selector := spacePermission(space, "")
 	for _, grant := range policy.Grants {
 		if !slices.Contains(a.Roles, grant.Role) {
 			continue
 		}
 		parsed := ParsePermissions(a.group, grant.Permissions)
 		for _, perm := range parsed.grants {
-			if perm.resource != "space" || perm.operation == "manage:create" {
-				continue
-			}
-			bound := selector
-			bound.operation = perm.operation
-			bound.collection = perm.collection
-			if perm.covers(bound) {
+			if bound, ok := bindPolicyPermission(space, perm); ok {
 				out = append(out, bound)
 			}
 		}
 	}
 	return out
+}
+
+func bindPolicyPermission(space habitat_syntax.SpaceURI, perm permission) (permission, bool) {
+	if perm.resource != "space" || perm.operation == "manage:create" {
+		return permission{}, false
+	}
+	bound := spacePermission(space, perm.operation)
+	bound.collection = perm.collection
+	return bound, perm.covers(bound)
 }
 
 // AuthorizeGroupScopes returns the intersection of the requested scopes and
