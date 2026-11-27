@@ -110,6 +110,8 @@ func TestSap(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
+	// indigo's default client refuses non-public IPs; tests run on loopback.
+	oauthApp.Client = &http.Client{}
 
 	s, err := New(Config{
 		DB:          db,
@@ -323,6 +325,8 @@ func TestSapTrackSpace(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
+	// indigo's default client refuses non-public IPs; tests run on loopback.
+	oauthApp.Client = &http.Client{}
 
 	s, err := New(Config{
 		DB:          db,
@@ -417,6 +421,8 @@ func TestSapSpaceCredential(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
+	// indigo's default client refuses non-public IPs; tests run on loopback.
+	oauthApp.Client = &http.Client{}
 
 	s, err := New(Config{
 		DB:          db,
@@ -498,6 +504,8 @@ func TestSapRecrawl(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
+	// indigo's default client refuses non-public IPs; tests run on loopback.
+	oauthApp.Client = &http.Client{}
 
 	s, err := New(Config{
 		DB:          db,

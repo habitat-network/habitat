@@ -83,14 +83,15 @@ func ParseSpaceURI(raw string) (SpaceURI, error) {
 	return spaceURIFromRef(ref), nil
 }
 
-// ref parses the URI with indigo. ok is false if it isn't a valid space URI.
+// ref views the URI as an indigo space ref without validating it: indigo's
+// accessors parse each part on its own, so an invalid part empties only that
+// accessor. ok is false if the URI isn't shaped like a space URI.
 func (s SpaceURI) ref() (ref syntax.SpaceRef, ok bool) {
 	atSpace, ok := toAtSpace(string(s))
-	if !ok {
+	if !ok || strings.Count(atSpace, "/") != 3 {
 		return "", false
 	}
-	ref, err := syntax.ParseSpaceRef(atSpace)
-	return ref, err == nil
+	return syntax.SpaceRef(atSpace), true
 }
 
 // SpaceOwner returns the space authority's DID, or "" if the URI is invalid.
@@ -209,11 +210,14 @@ func (s SpaceRecordURI) String() string {
 	return string(s)
 }
 
-// indigo parses the URI with indigo. ok is false if it isn't a valid space
-// record URI.
+// indigo views the URI as an indigo space URI without validating its parts
+// (see [SpaceURI.ref]). ok is false if it isn't shaped like a space record URI.
 func (s SpaceRecordURI) indigo() (syntax.SpaceURI, bool) {
-	uri, err := parseRecordURI(string(s))
-	return uri, err == nil
+	atSpace, ok := toAtSpace(string(s))
+	if !ok || strings.Count(atSpace, "/") != 6 {
+		return "", false
+	}
+	return syntax.SpaceURI(atSpace), true
 }
 
 // AtSpace returns the URI in the "at:space/..." form that spaces alpha PDSes
@@ -242,7 +246,11 @@ func (s SpaceRecordURI) SpaceURI() SpaceURI {
 	if !ok {
 		return ""
 	}
-	return spaceURIFromRef(uri.SpaceRef())
+	ref, err := syntax.ParseSpaceRef(string(uri.SpaceRef()))
+	if err != nil {
+		return ""
+	}
+	return spaceURIFromRef(ref)
 }
 
 // SpaceOwner extracts the DID of the owning space's owner from a

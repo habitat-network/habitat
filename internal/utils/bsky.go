@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/bluesky-social/indigo/api/bsky"
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/bradenaw/juniper/xslices"
 )
 
@@ -14,9 +14,7 @@ const (
 )
 
 func FetchFollowers(ctx context.Context, did syntax.DID) ([]syntax.DID, error) {
-	client := &xrpc.Client{
-		Host: host,
-	}
+	client := atclient.NewAPIClient(host)
 
 	output, err := bsky.GraphGetFollowers(ctx, client, did.String(), "", 0, "")
 	if err != nil {
@@ -44,9 +42,7 @@ func FetchProfiles(
 	if len(dids) == 0 {
 		return nil, nil
 	}
-	client := &xrpc.Client{
-		Host: host,
-	}
+	client := atclient.NewAPIClient(host)
 
 	var profiles []*bsky.ActorDefs_ProfileViewDetailed
 	for chunkStart := 0; chunkStart < len(dids); chunkStart += maxBskyProfilesPerCall {

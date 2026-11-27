@@ -38,6 +38,8 @@ func openOutboxTestServer(
 		[]string{"atproto"},
 	)
 	oauthApp := oauth.NewClientApp(&cfg, store)
+	// indigo's default client refuses non-public IPs; tests run on loopback.
+	oauthApp.Client = &http.Client{}
 
 	s, err := sap.New(sap.Config{
 		DB:          db,
