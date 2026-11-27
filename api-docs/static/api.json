@@ -17,1339 +17,6 @@
     }
   ],
   "paths": {
-    "/group.opensocial.cancelJoinRequest": {
-      "post": {
-        "tags": [
-          "group.opensocial.cancelJoinRequest"
-        ],
-        "summary": "group.opensocial.cancelJoinRequest",
-        "description": "Withdraw the caller's pending join request. Requires service auth.",
-        "operationId": "group.opensocial.cancelJoinRequest",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "group"
-                ],
-                "properties": {
-                  "group": {
-                    "type": "string",
-                    "format": "did"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "GroupNotFound"
-                        },
-                        {
-                          "const": "JoinRequestNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.createReport": {
-      "post": {
-        "tags": [
-          "group.opensocial.createReport"
-        ],
-        "summary": "group.opensocial.createReport",
-        "description": "Report an account or record in a group. Requires service auth.",
-        "operationId": "group.opensocial.createReport",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "group",
-                  "subject",
-                  "reasonType"
-                ],
-                "properties": {
-                  "group": {
-                    "type": "string",
-                    "format": "did"
-                  },
-                  "subject": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/group.opensocial.defs.accountSubject"
-                      },
-                      {
-                        "$ref": "#/components/schemas/group.opensocial.defs.recordSubject"
-                      }
-                    ]
-                  },
-                  "reasonType": {
-                    "type": "string"
-                  },
-                  "reason": {
-                    "type": "string",
-                    "maxLength": 20000
-                  },
-                  "rule": {
-                    "type": "string",
-                    "format": "at-uri"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "id",
-                    "createdAt"
-                  ],
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 512
-                    },
-                    "createdAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "GroupNotFound"
-                        },
-                        {
-                          "const": "InvalidSubject"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.createSpace": {
-      "post": {
-        "tags": [
-          "group.opensocial.createSpace"
-        ],
-        "summary": "group.opensocial.createSpace",
-        "description": "Create a group space with its access record and, unless index is false, an index entry. Requires auth as the group.",
-        "operationId": "group.opensocial.createSpace",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "spaceType",
-                  "access"
-                ],
-                "properties": {
-                  "spaceType": {
-                    "type": "string",
-                    "format": "nsid"
-                  },
-                  "skey": {
-                    "type": "string",
-                    "description": "Generated as a TID if not provided.",
-                    "format": "record-key"
-                  },
-                  "access": {
-                    "$ref": "#/components/schemas/group.opensocial.defs.accessConfig"
-                  },
-                  "index": {
-                    "type": "boolean",
-                    "description": "Add the space to the group's index.",
-                    "default": true
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "space",
-                    "access"
-                  ],
-                  "properties": {
-                    "space": {
-                      "type": "string",
-                      "format": "space-ref"
-                    },
-                    "access": {
-                      "$ref": "#/components/schemas/com.atproto.repo.strongRef"
-                    },
-                    "index": {
-                      "$ref": "#/components/schemas/com.atproto.repo.strongRef"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "SpaceAlreadyExists"
-                        },
-                        {
-                          "const": "ReservedSpace"
-                        },
-                        {
-                          "const": "UnknownRole"
-                        },
-                        {
-                          "const": "InvalidScope"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.deleteSpace": {
-      "post": {
-        "tags": [
-          "group.opensocial.deleteSpace"
-        ],
-        "summary": "group.opensocial.deleteSpace",
-        "description": "Delete a group space and its index entry. Requires auth as the group.",
-        "operationId": "group.opensocial.deleteSpace",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "space"
-                ],
-                "properties": {
-                  "space": {
-                    "type": "string",
-                    "format": "space-ref"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "SpaceNotFound"
-                        },
-                        {
-                          "const": "ReservedSpace"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.denyJoinRequest": {
-      "post": {
-        "tags": [
-          "group.opensocial.denyJoinRequest"
-        ],
-        "summary": "group.opensocial.denyJoinRequest",
-        "description": "Deny a pending join request. Requires auth as the group.",
-        "operationId": "group.opensocial.denyJoinRequest",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "member"
-                ],
-                "properties": {
-                  "member": {
-                    "type": "string",
-                    "format": "did"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "JoinRequestNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.getSubjectHistory": {
-      "get": {
-        "tags": [
-          "group.opensocial.getSubjectHistory"
-        ],
-        "summary": "group.opensocial.getSubjectHistory",
-        "description": "Get a subject's moderation history, oldest first. Requires auth as the group.",
-        "operationId": "group.opensocial.getSubjectHistory",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "subject",
-            "in": "query",
-            "description": "An account DID or record URI.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "An account DID or record URI.",
-              "format": "uri"
-            }
-          },
-          {
-            "name": "cid",
-            "in": "query",
-            "description": "If set, only this version of the record.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "If set, only this version of the record.",
-              "format": "cid"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 50
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "events"
-                  ],
-                  "properties": {
-                    "cursor": {
-                      "type": "string"
-                    },
-                    "events": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/group.opensocial.defs.moderationEvent"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "InvalidSubject"
-                        },
-                        {
-                          "const": "InvalidCursor"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.leaveGroup": {
-      "post": {
-        "tags": [
-          "group.opensocial.leaveGroup"
-        ],
-        "summary": "group.opensocial.leaveGroup",
-        "description": "Leave a group, deleting the caller's membership. Requires service auth.",
-        "operationId": "group.opensocial.leaveGroup",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "group"
-                ],
-                "properties": {
-                  "group": {
-                    "type": "string",
-                    "format": "did"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "GroupNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.listJoinRequests": {
-      "get": {
-        "tags": [
-          "group.opensocial.listJoinRequests"
-        ],
-        "summary": "group.opensocial.listJoinRequests",
-        "description": "List pending join requests. Requires auth as the group.",
-        "operationId": "group.opensocial.listJoinRequests",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 50
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "requests"
-                  ],
-                  "properties": {
-                    "cursor": {
-                      "type": "string"
-                    },
-                    "requests": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/group.opensocial.defs.joinRequest"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "InvalidCursor"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.listSubjects": {
-      "get": {
-        "tags": [
-          "group.opensocial.listSubjects"
-        ],
-        "summary": "group.opensocial.listSubjects",
-        "description": "List subjects in the moderation queue. Requires auth as the group.",
-        "operationId": "group.opensocial.listSubjects",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "open"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 50
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "subjects"
-                  ],
-                  "properties": {
-                    "cursor": {
-                      "type": "string"
-                    },
-                    "subjects": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/group.opensocial.defs.subjectView"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "InvalidCursor"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.requestJoin": {
-      "post": {
-        "tags": [
-          "group.opensocial.requestJoin"
-        ],
-        "summary": "group.opensocial.requestJoin",
-        "description": "Request to join a group, optionally redeeming an invite. Requires service auth.",
-        "operationId": "group.opensocial.requestJoin",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "group"
-                ],
-                "properties": {
-                  "group": {
-                    "type": "string",
-                    "format": "did"
-                  },
-                  "invite": {
-                    "type": "string",
-                    "format": "at-uri"
-                  },
-                  "message": {
-                    "type": "string",
-                    "maxLength": 20000
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "status"
-                  ],
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "pending",
-                        "admitted"
-                      ]
-                    },
-                    "request": {
-                      "$ref": "#/components/schemas/group.opensocial.defs.joinRequest"
-                    },
-                    "membership": {
-                      "$ref": "#/components/schemas/com.atproto.repo.strongRef"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "GroupNotFound"
-                        },
-                        {
-                          "const": "InvalidInvite"
-                        },
-                        {
-                          "const": "JoinClosed"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/group.opensocial.resolveSubject": {
-      "post": {
-        "tags": [
-          "group.opensocial.resolveSubject"
-        ],
-        "summary": "group.opensocial.resolveSubject",
-        "description": "Resolve or escalate a subject. Setting the current status again just adds the note. Requires auth as the group.",
-        "operationId": "group.opensocial.resolveSubject",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "subject",
-                  "status"
-                ],
-                "properties": {
-                  "subject": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/group.opensocial.defs.accountSubject"
-                      },
-                      {
-                        "$ref": "#/components/schemas/group.opensocial.defs.recordSubject"
-                      }
-                    ]
-                  },
-                  "status": {
-                    "type": "string"
-                  },
-                  "note": {
-                    "type": "string",
-                    "maxLength": 20000
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/group.opensocial.defs.subjectView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "InvalidSubject"
-                        },
-                        {
-                          "const": "SubjectNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.admin.getSettings": {
       "get": {
         "tags": [
@@ -4155,7 +2822,7 @@
           "network.habitat.opensocial"
         ],
         "summary": "network.habitat.opensocial.createSpace",
-        "description": "Create a modality-specific space under the community DID and index it with a group.opensocial.space record. Requires service auth as a member of the community, or an OAuth credential for the community DID itself. Requires the `space.create` action.",
+        "description": "Create a modality-specific space under the community DID and index it with a org.atgrp.space record. Requires service auth as a member of the community, or an OAuth credential for the community DID itself. Requires the `space.create` action.",
         "operationId": "network.habitat.opensocial.createSpace",
         "security": [
           {
@@ -4187,13 +2854,6 @@
                     "type": "string",
                     "description": "The space key. If not provided, one will be auto-generated (TID).",
                     "maxLength": 512
-                  },
-                  "policy": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/network.habitat.relationspace.policy"
-                      }
-                    ]
                   },
                   "roles": {
                     "type": "array",
@@ -4981,7 +3641,7 @@
           "network.habitat.opensocial"
         ],
         "summary": "network.habitat.opensocial.requestJoin",
-        "description": "Accept the calling user's pending invite to this community. Removes the invite from the org's invite table and writes a group.opensocial.membership record (in the org repo) and a group.opensocial.acceptance record (in the user's repo, members space). Requires service-auth.",
+        "description": "Accept the calling user's pending invite to this community. Removes the invite from the org's invite table and writes a org.atgrp.membership record (in the org repo) and a org.atgrp.confirmation record (in the user's repo, members space). Requires service-auth.",
         "operationId": "network.habitat.opensocial.requestJoin",
         "security": [
           {
@@ -5342,10 +4002,11 @@
                   },
                   "joinPolicy": {
                     "type": "string",
+                    "description": "How people join: open admits anyone who asks, approval queues requests for an admin, invite admits only invitees.",
                     "enum": [
-                      "group.opensocial.profile#open",
-                      "group.opensocial.profile#invite",
-                      "group.opensocial.profile#request"
+                      "open",
+                      "approval",
+                      "invite"
                     ]
                   }
                 }
@@ -5421,7 +4082,7 @@
           "network.habitat.opensocial"
         ],
         "summary": "network.habitat.opensocial.updateSpace",
-        "description": "Replace the roles that may read a space, written into its group.opensocial.access record. Requires service-auth. Requires the `space.configure` action.",
+        "description": "Replace the roles granted read and write in a space, written into its org.atgrp.policy. Requires service-auth. Requires the `space.configure` action.",
         "operationId": "network.habitat.opensocial.updateSpace",
         "security": [
           {
@@ -9996,6 +8657,1455 @@
           }
         }
       }
+    },
+    "/org.atgrp.cancelJoinRequest": {
+      "post": {
+        "tags": [
+          "org.atgrp.cancelJoinRequest"
+        ],
+        "summary": "org.atgrp.cancelJoinRequest",
+        "description": "Withdraw the caller's pending join request. Requires service auth.",
+        "operationId": "org.atgrp.cancelJoinRequest",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        },
+                        {
+                          "const": "JoinRequestNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.denyJoinRequest": {
+      "post": {
+        "tags": [
+          "org.atgrp.denyJoinRequest"
+        ],
+        "summary": "org.atgrp.denyJoinRequest",
+        "description": "Deny a pending join request, deleting it. To approve one, write the requester's membership instead. Requires auth as the group.",
+        "operationId": "org.atgrp.denyJoinRequest",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "member"
+                ],
+                "properties": {
+                  "member": {
+                    "type": "string",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "JoinRequestNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.leaveGroup": {
+      "post": {
+        "tags": [
+          "org.atgrp.leaveGroup"
+        ],
+        "summary": "org.atgrp.leaveGroup",
+        "description": "Leave a group, deleting the caller's membership, which the group authored. The caller should also delete their confirmation. Requires service auth.",
+        "operationId": "org.atgrp.leaveGroup",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.listJoinRequests": {
+      "get": {
+        "tags": [
+          "org.atgrp.listJoinRequests"
+        ],
+        "summary": "org.atgrp.listJoinRequests",
+        "description": "List pending join requests, which the host stores privately. Approve one by writing the requester's membership record. Deny requests with 'denyJoinRequest'. Requires auth as the group.",
+        "operationId": "org.atgrp.listJoinRequests",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "requests"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "requests": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/org.atgrp.defs.joinRequest"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidCursor"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.mod.querySelfHistory": {
+      "get": {
+        "tags": [
+          "org.atgrp.mod"
+        ],
+        "summary": "org.atgrp.mod.querySelfHistory",
+        "description": "Get moderation history for the caller's account and records. Omits reports, notes, tags, and who acted. Works for former members. Requires service auth.",
+        "operationId": "org.atgrp.mod.querySelfHistory",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "did"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "description": "The caller's DID or one of their record URIs. Omit for all.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "The caller's DID or one of their record URIs. Omit for all.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "newest",
+              "enum": [
+                "newest",
+                "oldest"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "events"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/org.atgrp.mod.defs.eventView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        },
+                        {
+                          "const": "InvalidSubject"
+                        },
+                        {
+                          "const": "InvalidCursor"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.mod.querySubjectHistory": {
+      "get": {
+        "tags": [
+          "org.atgrp.mod"
+        ],
+        "summary": "org.atgrp.mod.querySubjectHistory",
+        "description": "Get a subject's moderation history. Requires auth as the group.",
+        "operationId": "org.atgrp.mod.querySubjectHistory",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "description": "An account DID or record URI.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "An account DID or record URI.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "cid",
+            "in": "query",
+            "description": "If set, only this version of the record.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "If set, only this version of the record.",
+              "format": "cid"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "newest",
+              "enum": [
+                "newest",
+                "oldest"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "events"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/org.atgrp.mod.defs.eventView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidSubject"
+                        },
+                        {
+                          "const": "InvalidCursor"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.mod.querySubjects": {
+      "get": {
+        "tags": [
+          "org.atgrp.mod"
+        ],
+        "summary": "org.atgrp.mod.querySubjects",
+        "description": "List subjects in the moderation queue. Requires auth as the group.",
+        "operationId": "org.atgrp.mod.querySubjects",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Omit for all.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Omit for all."
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Only subjects with any of these tags.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "maxItems": 25
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "oldest and newest go by createdAt. updated puts the latest updatedAt first.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "oldest and newest go by createdAt. updated puts the latest updatedAt first.",
+              "default": "oldest",
+              "enum": [
+                "oldest",
+                "newest",
+                "updated"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "subjects"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "subjects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/org.atgrp.mod.defs.subjectView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidCursor"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.mod.submitAppeal": {
+      "post": {
+        "tags": [
+          "org.atgrp.mod"
+        ],
+        "summary": "org.atgrp.mod.submitAppeal",
+        "description": "Appeal a label or ejection on the caller's account or one of their records, reopening it in the moderation queue. Works for former members. Requires service auth.",
+        "operationId": "org.atgrp.mod.submitAppeal",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group",
+                  "subject"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "format": "did"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "The caller's DID or one of their record URIs.",
+                    "format": "uri"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 20000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "eventId",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "eventId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        },
+                        {
+                          "const": "InvalidSubject"
+                        },
+                        {
+                          "const": "NotAppealable"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.mod.submitReport": {
+      "post": {
+        "tags": [
+          "org.atgrp.mod"
+        ],
+        "summary": "org.atgrp.mod.submitReport",
+        "description": "Report an account or record in a group, opening or reopening it in the moderation queue. The caller must be able to read the subject's space. Requires service auth.",
+        "operationId": "org.atgrp.mod.submitReport",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group",
+                  "subject",
+                  "reasonType"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "format": "did"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "An account DID or record URI.",
+                    "format": "uri"
+                  },
+                  "cid": {
+                    "type": "string",
+                    "description": "If set, a specific version of the record.",
+                    "format": "cid"
+                  },
+                  "reasonType": {
+                    "$ref": "#/components/schemas/org.atgrp.mod.defs.reasonType"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  "rule": {
+                    "type": "string",
+                    "description": "The group rule the subject breaks.",
+                    "format": "at-uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "eventId",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "eventId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        },
+                        {
+                          "const": "InvalidSubject"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.mod.updateSubject": {
+      "post": {
+        "tags": [
+          "org.atgrp.mod"
+        ],
+        "summary": "org.atgrp.mod.updateSubject",
+        "description": "Change a subject's status or tags, or add a note. Omitted fields are left as they are. Requires auth as the group.",
+        "operationId": "org.atgrp.mod.updateSubject",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subject"
+                ],
+                "properties": {
+                  "subject": {
+                    "type": "string",
+                    "description": "An account DID or record URI.",
+                    "format": "uri"
+                  },
+                  "cid": {
+                    "type": "string",
+                    "description": "If set, a specific version of the record.",
+                    "format": "cid"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  "addTags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "maxItems": 25
+                  },
+                  "removeTags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "maxItems": 25
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/org.atgrp.mod.defs.subjectView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidSubject"
+                        },
+                        {
+                          "const": "SubjectNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org.atgrp.requestJoin": {
+      "post": {
+        "tags": [
+          "org.atgrp.requestJoin"
+        ],
+        "summary": "org.atgrp.requestJoin",
+        "description": "Request to join a group, optionally redeeming an invite. Admits the caller right away when the join policy is open or with a valid invite, and otherwise queues a request. Returns the caller's existing request or membership if they have one. Requires service auth.",
+        "operationId": "org.atgrp.requestJoin",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "format": "did"
+                  },
+                  "invite": {
+                    "type": "string",
+                    "description": "An invite in the caller's inbox space.",
+                    "format": "at-uri"
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "Shown to the group with the request.",
+                    "maxLength": 20000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "admitted"
+                      ]
+                    },
+                    "request": {
+                      "$ref": "#/components/schemas/org.atgrp.defs.joinRequest"
+                    },
+                    "membership": {
+                      "$ref": "#/components/schemas/com.atproto.repo.strongRef"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        },
+                        {
+                          "const": "InvalidInvite"
+                        },
+                        {
+                          "const": "JoinClosed"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -10192,529 +10302,6 @@
           "cid": {
             "type": "string",
             "format": "cid"
-          }
-        }
-      },
-      "group.opensocial.acceptance": {
-        "type": "object",
-        "required": [
-          "createdAt"
-        ],
-        "properties": {
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "group.opensocial.access": {
-        "type": "object",
-        "required": [
-          "grants"
-        ],
-        "properties": {
-          "publicRead": {
-            "type": "boolean",
-            "description": "If true, anyone may read the space."
-          },
-          "grants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/group.opensocial.defs.spaceGrant"
-            },
-            "maxItems": 100
-          }
-        }
-      },
-      "group.opensocial.declaration": {
-        "type": "object",
-        "required": [
-          "meta"
-        ],
-        "properties": {
-          "meta": {
-            "type": "string",
-            "format": "space-ref"
-          }
-        }
-      },
-      "group.opensocial.defs.roleId": {
-        "type": "string",
-        "description": "The rkey of a role record.",
-        "format": "record-key",
-        "maxLength": 512
-      },
-      "group.opensocial.defs.joinPolicy": {
-        "type": "string",
-        "description": "open admits anyone; approval queues a join request; invite requires an invitation. An invitation admits its recipient under any policy.",
-        "enum": [
-          "open",
-          "approval",
-          "invite"
-        ]
-      },
-      "group.opensocial.defs.spaceGrant": {
-        "type": "object",
-        "description": "A role's scopes in one space.",
-        "required": [
-          "role",
-          "scopes"
-        ],
-        "properties": {
-          "role": {
-            "$ref": "#/components/schemas/group.opensocial.defs.roleId"
-          },
-          "scopes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 2000
-            },
-            "maxItems": 100
-          }
-        }
-      },
-      "group.opensocial.defs.groupGrant": {
-        "type": "object",
-        "description": "A role's group-wide scopes, and the roles it may assign.",
-        "required": [
-          "role",
-          "scopes",
-          "assignable"
-        ],
-        "properties": {
-          "role": {
-            "$ref": "#/components/schemas/group.opensocial.defs.roleId"
-          },
-          "scopes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 2000
-            },
-            "maxItems": 100
-          },
-          "assignable": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/group.opensocial.defs.roleId"
-            },
-            "maxItems": 100
-          }
-        }
-      },
-      "group.opensocial.defs.accessConfig": {
-        "type": "object",
-        "description": "The contents of an access record.",
-        "required": [
-          "grants"
-        ],
-        "properties": {
-          "publicRead": {
-            "type": "boolean",
-            "description": "If true, anyone may read the space."
-          },
-          "grants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/group.opensocial.defs.spaceGrant"
-            },
-            "maxItems": 100
-          }
-        }
-      },
-      "group.opensocial.defs.labelerPolicies": {
-        "type": "object",
-        "required": [
-          "labelValues"
-        ],
-        "properties": {
-          "labelValues": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/com.atproto.label.defs.labelValue"
-            }
-          },
-          "labelValueDefinitions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/com.atproto.label.defs.labelValueDefinition"
-            }
-          }
-        }
-      },
-      "group.opensocial.defs.accountSubject": {
-        "type": "object",
-        "required": [
-          "did"
-        ],
-        "properties": {
-          "did": {
-            "type": "string",
-            "format": "did"
-          }
-        }
-      },
-      "group.opensocial.defs.recordSubject": {
-        "type": "object",
-        "required": [
-          "uri"
-        ],
-        "properties": {
-          "uri": {
-            "type": "string",
-            "format": "at-uri"
-          },
-          "cid": {
-            "type": "string",
-            "description": "If set, a specific version of the record.",
-            "format": "cid"
-          }
-        }
-      },
-      "group.opensocial.defs.subjectStatus": {
-        "type": "string"
-      },
-      "group.opensocial.defs.subjectView": {
-        "type": "object",
-        "description": "A subject in the moderation queue.",
-        "required": [
-          "subject",
-          "status",
-          "createdAt",
-          "updatedAt",
-          "reportCount"
-        ],
-        "properties": {
-          "subject": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/group.opensocial.defs.accountSubject"
-              },
-              {
-                "$ref": "#/components/schemas/group.opensocial.defs.recordSubject"
-              }
-            ]
-          },
-          "status": {
-            "$ref": "#/components/schemas/group.opensocial.defs.subjectStatus"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "reportCount": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
-      },
-      "group.opensocial.defs.moderationEvent": {
-        "type": "object",
-        "description": "An event in a subject's moderation history.",
-        "required": [
-          "id",
-          "createdAt",
-          "event"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 512
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "createdBy": {
-            "type": "string",
-            "description": "May be withheld to protect reporters and moderators.",
-            "format": "did"
-          },
-          "event": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/group.opensocial.defs.reportEvent"
-              },
-              {
-                "$ref": "#/components/schemas/group.opensocial.defs.statusEvent"
-              },
-              {
-                "$ref": "#/components/schemas/group.opensocial.defs.labelEvent"
-              },
-              {
-                "$ref": "#/components/schemas/group.opensocial.defs.ejectEvent"
-              }
-            ]
-          }
-        }
-      },
-      "group.opensocial.defs.reportEvent": {
-        "type": "object",
-        "required": [
-          "reasonType"
-        ],
-        "properties": {
-          "reasonType": {
-            "type": "string"
-          },
-          "reason": {
-            "type": "string",
-            "maxLength": 20000
-          },
-          "rule": {
-            "type": "string",
-            "format": "at-uri"
-          }
-        }
-      },
-      "group.opensocial.defs.statusEvent": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/group.opensocial.defs.subjectStatus"
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 20000
-          }
-        }
-      },
-      "group.opensocial.defs.labelEvent": {
-        "type": "object",
-        "description": "A label record was written or deleted.",
-        "required": [
-          "uri",
-          "val"
-        ],
-        "properties": {
-          "uri": {
-            "type": "string",
-            "description": "The label record.",
-            "format": "at-uri"
-          },
-          "val": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          },
-          "deleted": {
-            "type": "boolean"
-          }
-        }
-      },
-      "group.opensocial.defs.ejectEvent": {
-        "type": "object",
-        "description": "The subject was ejected from the group.",
-        "properties": {}
-      },
-      "group.opensocial.defs.joinRequest": {
-        "type": "object",
-        "description": "A pending join request.",
-        "required": [
-          "member",
-          "createdAt"
-        ],
-        "properties": {
-          "member": {
-            "type": "string",
-            "format": "did"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "message": {
-            "type": "string",
-            "maxLength": 20000
-          }
-        }
-      },
-      "group.opensocial.invite": {
-        "type": "object",
-        "required": [
-          "createdAt"
-        ],
-        "properties": {
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "message": {
-            "type": "string",
-            "maxLength": 20000
-          }
-        }
-      },
-      "group.opensocial.labeler": {
-        "type": "object",
-        "required": [
-          "policies"
-        ],
-        "properties": {
-          "policies": {
-            "$ref": "#/components/schemas/group.opensocial.defs.labelerPolicies"
-          },
-          "reasonTypes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "subjectTypes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "subjectCollections": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "nsid"
-            }
-          }
-        }
-      },
-      "group.opensocial.membership": {
-        "type": "object",
-        "required": [
-          "roles",
-          "createdAt"
-        ],
-        "properties": {
-          "roles": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/group.opensocial.defs.roleId"
-            },
-            "maxItems": 100
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "group.opensocial.permissions": {
-        "type": "object",
-        "required": [
-          "grants"
-        ],
-        "properties": {
-          "grants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/group.opensocial.defs.groupGrant"
-            },
-            "maxItems": 100
-          }
-        }
-      },
-      "group.opensocial.profile": {
-        "type": "object",
-        "required": [
-          "displayName",
-          "joinPolicy"
-        ],
-        "properties": {
-          "displayName": {
-            "type": "string",
-            "maxLength": 640
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 20000
-          },
-          "avatar": {
-            "type": "string",
-            "format": "binary",
-            "maxLength": 2000000
-          },
-          "banner": {
-            "type": "string",
-            "format": "binary",
-            "maxLength": 2000000
-          },
-          "joinPolicy": {
-            "$ref": "#/components/schemas/group.opensocial.defs.joinPolicy"
-          },
-          "url": {
-            "type": "string",
-            "description": "Group website. Must be http or https.",
-            "format": "uri"
-          }
-        }
-      },
-      "group.opensocial.role": {
-        "type": "object",
-        "required": [
-          "displayName"
-        ],
-        "properties": {
-          "displayName": {
-            "type": "string",
-            "maxLength": 640
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 20000
-          },
-          "default": {
-            "type": "boolean",
-            "description": "If true, granted to members admitted through requestJoin."
-          }
-        }
-      },
-      "group.opensocial.rule": {
-        "type": "object",
-        "required": [
-          "title",
-          "text"
-        ],
-        "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 640
-          },
-          "text": {
-            "type": "string",
-            "maxLength": 20000
-          },
-          "order": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
-      },
-      "group.opensocial.space": {
-        "type": "object",
-        "required": [
-          "space",
-          "createdAt"
-        ],
-        "properties": {
-          "space": {
-            "type": "string",
-            "format": "space-ref"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
           }
         }
       },
@@ -12067,6 +11654,555 @@
             "type": "string"
           }
         }
+      },
+      "org.atgrp.about": {
+        "type": "object",
+        "required": [
+          "displayName"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "maxLength": 640
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "avatar": {
+            "type": "string",
+            "format": "binary",
+            "maxLength": 2000000
+          },
+          "website": {
+            "type": "string",
+            "description": "Group website. Must be http or https.",
+            "format": "uri"
+          }
+        }
+      },
+      "org.atgrp.config": {
+        "type": "object",
+        "required": [
+          "joinPolicy"
+        ],
+        "properties": {
+          "joinPolicy": {
+            "type": "string",
+            "description": "open admits anyone; approval queues a join request; invite requires an invitation. An invitation admits its recipient under any policy.",
+            "enum": [
+              "open",
+              "approval",
+              "invite"
+            ]
+          }
+        }
+      },
+      "org.atgrp.confirmation": {
+        "type": "object",
+        "required": [
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "org.atgrp.declaration": {
+        "type": "object",
+        "properties": {}
+      },
+      "org.atgrp.defs.joinRequest": {
+        "type": "object",
+        "description": "A pending join request.",
+        "required": [
+          "member",
+          "createdAt"
+        ],
+        "properties": {
+          "member": {
+            "type": "string",
+            "format": "did"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "org.atgrp.invite": {
+        "type": "object",
+        "required": [
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "org.atgrp.labeler": {
+        "type": "object",
+        "required": [
+          "policies"
+        ],
+        "properties": {
+          "policies": {
+            "$ref": "#/components/schemas/org.atgrp.labeler.policies"
+          },
+          "reasonTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/org.atgrp.mod.defs.reasonType"
+            }
+          },
+          "subjectTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "account",
+                "record"
+              ]
+            }
+          },
+          "subjectCollections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "nsid"
+            }
+          }
+        }
+      },
+      "org.atgrp.labeler.policies": {
+        "type": "object",
+        "description": "The group's label values and their definitions.",
+        "required": [
+          "labelValues"
+        ],
+        "properties": {
+          "labelValues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/com.atproto.label.defs.labelValue"
+            }
+          },
+          "labelValueDefinitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/com.atproto.label.defs.labelValueDefinition"
+            }
+          }
+        }
+      },
+      "org.atgrp.membership": {
+        "type": "object",
+        "required": [
+          "roles",
+          "createdAt"
+        ],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Role definition record key.",
+              "format": "record-key"
+            },
+            "maxItems": 100
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "org.atgrp.mod.defs.reasonType": {
+        "type": "string",
+        "enum": [
+          "org.atgrp.mod.defs#reasonSpam",
+          "org.atgrp.mod.defs#reasonViolation",
+          "org.atgrp.mod.defs#reasonMisleading",
+          "org.atgrp.mod.defs#reasonNsfw",
+          "org.atgrp.mod.defs#reasonRude",
+          "org.atgrp.mod.defs#reasonOther"
+        ]
+      },
+      "org.atgrp.mod.defs.reasonSpam": {
+        "type": "string",
+        "format": "token",
+        "description": "Spam or unwanted promotion."
+      },
+      "org.atgrp.mod.defs.reasonViolation": {
+        "type": "string",
+        "format": "token",
+        "description": "Breaks a group rule."
+      },
+      "org.atgrp.mod.defs.reasonMisleading": {
+        "type": "string",
+        "format": "token",
+        "description": "Misleading content, impersonation, or scams."
+      },
+      "org.atgrp.mod.defs.reasonNsfw": {
+        "type": "string",
+        "format": "token",
+        "description": "Unwanted or unlabeled NSFW content."
+      },
+      "org.atgrp.mod.defs.reasonRude": {
+        "type": "string",
+        "format": "token",
+        "description": "Rude, harassing, or hateful content."
+      },
+      "org.atgrp.mod.defs.reasonOther": {
+        "type": "string",
+        "format": "token",
+        "description": "Anything else."
+      },
+      "org.atgrp.mod.defs.subjectView": {
+        "type": "object",
+        "description": "A subject in the moderation queue.",
+        "required": [
+          "subject",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description": "An account DID or record URI.",
+            "format": "uri"
+          },
+          "cid": {
+            "type": "string",
+            "description": "If set, a specific version of the record.",
+            "format": "cid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reportCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        }
+      },
+      "org.atgrp.mod.defs.eventView": {
+        "type": "object",
+        "description": "An event in a subject's moderation history.",
+        "required": [
+          "eventId",
+          "createdAt",
+          "subject",
+          "event"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "subject": {
+            "type": "string",
+            "description": "An account DID or record URI.",
+            "format": "uri"
+          },
+          "cid": {
+            "type": "string",
+            "description": "If set, a specific version of the record.",
+            "format": "cid"
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "May be withheld to protect reporters and moderators.",
+            "format": "did"
+          },
+          "event": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/org.atgrp.mod.defs.reportEvent"
+              },
+              {
+                "$ref": "#/components/schemas/org.atgrp.mod.defs.appealEvent"
+              },
+              {
+                "$ref": "#/components/schemas/org.atgrp.mod.defs.statusEvent"
+              },
+              {
+                "$ref": "#/components/schemas/org.atgrp.mod.defs.tagEvent"
+              },
+              {
+                "$ref": "#/components/schemas/org.atgrp.mod.defs.labelEvent"
+              },
+              {
+                "$ref": "#/components/schemas/org.atgrp.mod.defs.ejectEvent"
+              }
+            ]
+          }
+        }
+      },
+      "org.atgrp.mod.defs.reportEvent": {
+        "type": "object",
+        "description": "A report was filed.",
+        "required": [
+          "reasonType"
+        ],
+        "properties": {
+          "reasonType": {
+            "$ref": "#/components/schemas/org.atgrp.mod.defs.reasonType"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "rule": {
+            "type": "string",
+            "format": "at-uri"
+          }
+        }
+      },
+      "org.atgrp.mod.defs.appealEvent": {
+        "type": "object",
+        "description": "An appeal was filed.",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "org.atgrp.mod.defs.statusEvent": {
+        "type": "object",
+        "description": "A moderator changed the subject's status or added a note.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "The status after this event."
+          },
+          "note": {
+            "type": "string",
+            "description": "Only visible to moderators.",
+            "maxLength": 20000
+          }
+        }
+      },
+      "org.atgrp.mod.defs.tagEvent": {
+        "type": "object",
+        "description": "A moderator added or removed tags.",
+        "properties": {
+          "add": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "remove": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        }
+      },
+      "org.atgrp.mod.defs.labelEvent": {
+        "type": "object",
+        "description": "A label record was written or deleted.",
+        "required": [
+          "uri",
+          "val"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "The label record.",
+            "format": "at-uri"
+          },
+          "val": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "deleted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "org.atgrp.mod.defs.ejectEvent": {
+        "type": "object",
+        "description": "The subject was ejected from the group.",
+        "properties": {}
+      },
+      "org.atgrp.policy": {
+        "type": "object",
+        "description": "Space policy for group spaces: each role's access and permissions in the space, whether it is public, and whether it is listed in the space index. The host always publishes it in the space as a com.atproto.space.policy record.",
+        "required": [
+          "grants"
+        ],
+        "properties": {
+          "publicRead": {
+            "type": "boolean",
+            "description": "If true, anyone may read the space."
+          },
+          "unlisted": {
+            "type": "boolean",
+            "description": "If true, the host leaves the space out of the group's space index. Ignored for the meta and members spaces."
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/org.atgrp.policy.grant"
+            },
+            "maxItems": 100
+          }
+        }
+      },
+      "org.atgrp.policy.grant": {
+        "type": "object",
+        "description": "A role's grants in one space. read and write apply to members acting as themselves; permissions apply to acting as the group.",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "A role record's key.",
+            "format": "record-key"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "If true, members with this role may read the space."
+          },
+          "write": {
+            "type": "boolean",
+            "description": "If true, members with this role are in the space's writer set, so their own records sync to readers."
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "maxItems": 100
+          }
+        }
+      },
+      "org.atgrp.role": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "Defaults to the role ID.",
+            "maxLength": 640
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "default": {
+            "type": "boolean",
+            "description": "If true, granted to members admitted through requestJoin."
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "maxItems": 100
+          },
+          "canAssign": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "maxItems": 100
+          }
+        }
+      },
+      "org.atgrp.rule": {
+        "type": "object",
+        "required": [
+          "title",
+          "text"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 640
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "org.atgrp.space": {
+        "type": "object",
+        "required": [
+          "space",
+          "createdAt"
+        ],
+        "properties": {
+          "space": {
+            "type": "string",
+            "format": "space-ref"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -12082,99 +12218,6 @@
     },
     {
       "name": "com.atproto.repo"
-    },
-    {
-      "name": "group.opensocial.acceptance"
-    },
-    {
-      "name": "group.opensocial.access"
-    },
-    {
-      "name": "group.opensocial.cancelJoinRequest"
-    },
-    {
-      "name": "group.opensocial.configure"
-    },
-    {
-      "name": "group.opensocial.createReport"
-    },
-    {
-      "name": "group.opensocial.createSpace"
-    },
-    {
-      "name": "group.opensocial.declaration"
-    },
-    {
-      "name": "group.opensocial.defs"
-    },
-    {
-      "name": "group.opensocial.deleteSpace"
-    },
-    {
-      "name": "group.opensocial.denyJoinRequest"
-    },
-    {
-      "name": "group.opensocial.getSubjectHistory"
-    },
-    {
-      "name": "group.opensocial.invite"
-    },
-    {
-      "name": "group.opensocial.invites"
-    },
-    {
-      "name": "group.opensocial.labeler"
-    },
-    {
-      "name": "group.opensocial.leaveGroup"
-    },
-    {
-      "name": "group.opensocial.listJoinRequests"
-    },
-    {
-      "name": "group.opensocial.listSubjects"
-    },
-    {
-      "name": "group.opensocial.manageMembers"
-    },
-    {
-      "name": "group.opensocial.manageSpaces"
-    },
-    {
-      "name": "group.opensocial.members"
-    },
-    {
-      "name": "group.opensocial.membership"
-    },
-    {
-      "name": "group.opensocial.meta"
-    },
-    {
-      "name": "group.opensocial.moderate"
-    },
-    {
-      "name": "group.opensocial.participate"
-    },
-    {
-      "name": "group.opensocial.permissions"
-    },
-    {
-      "name": "group.opensocial.profile"
-    },
-    {
-      "name": "group.opensocial.requestJoin"
-    },
-    {
-      "name": "group.opensocial.resolveSubject"
-    },
-    {
-      "name": "group.opensocial.role"
-    },
-    {
-      "name": "group.opensocial.rule"
-    },
-    {
-      "name": "group.opensocial.space"
     },
     {
       "name": "network.habitat.admin"
@@ -12226,6 +12269,84 @@
     },
     {
       "name": "network.habitat.space"
+    },
+    {
+      "name": "org.atgrp.about"
+    },
+    {
+      "name": "org.atgrp.authManageAdmin"
+    },
+    {
+      "name": "org.atgrp.authManageBasic"
+    },
+    {
+      "name": "org.atgrp.authManageMembers"
+    },
+    {
+      "name": "org.atgrp.authModerate"
+    },
+    {
+      "name": "org.atgrp.authParticipate"
+    },
+    {
+      "name": "org.atgrp.cancelJoinRequest"
+    },
+    {
+      "name": "org.atgrp.config"
+    },
+    {
+      "name": "org.atgrp.confirmation"
+    },
+    {
+      "name": "org.atgrp.declaration"
+    },
+    {
+      "name": "org.atgrp.defs"
+    },
+    {
+      "name": "org.atgrp.denyJoinRequest"
+    },
+    {
+      "name": "org.atgrp.inbox"
+    },
+    {
+      "name": "org.atgrp.invite"
+    },
+    {
+      "name": "org.atgrp.labeler"
+    },
+    {
+      "name": "org.atgrp.leaveGroup"
+    },
+    {
+      "name": "org.atgrp.listJoinRequests"
+    },
+    {
+      "name": "org.atgrp.members"
+    },
+    {
+      "name": "org.atgrp.membership"
+    },
+    {
+      "name": "org.atgrp.meta"
+    },
+    {
+      "name": "org.atgrp.mod"
+    },
+    {
+      "name": "org.atgrp.policy"
+    },
+    {
+      "name": "org.atgrp.requestJoin"
+    },
+    {
+      "name": "org.atgrp.role"
+    },
+    {
+      "name": "org.atgrp.rule"
+    },
+    {
+      "name": "org.atgrp.space"
     }
   ]
 }
