@@ -24,9 +24,15 @@ func TestServer_GroupModerationMethods(t *testing.T) {
 	subject := map[string]any{"$type": "group.opensocial.defs#accountSubject", "did": string(admin)}
 
 	var report opensocial_api.GroupOpensocialCreateReportOutput
-	require.Equal(t, http.StatusOK, client.Procedure(aliceTS.Server.GroupCreateReport, map[string]any{
-		"group": org, "subject": subject, "reasonType": "com.atproto.moderation.defs#reasonSpam",
-	}, &report))
+	require.Equal(
+		t,
+		http.StatusOK,
+		client.Procedure(aliceTS.Server.GroupCreateReport, map[string]any{
+			"group":      org,
+			"subject":    subject,
+			"reasonType": "com.atproto.moderation.defs#reasonSpam",
+		}, &report),
+	)
 	require.NotEmpty(t, report.Id)
 
 	t.Run("a member cannot read the queue but an admin can", func(t *testing.T) {
@@ -41,9 +47,13 @@ func TestServer_GroupModerationMethods(t *testing.T) {
 
 	t.Run("an admin resolves the subject and reads its history", func(t *testing.T) {
 		var resolved opensocial_api.GroupOpensocialDefsSubjectView
-		require.Equal(t, http.StatusOK, client.Procedure(adminTS.Server.GroupResolveSubject, map[string]any{
-			"group": org, "subject": subject, "status": "resolved", "note": "done",
-		}, &resolved))
+		require.Equal(
+			t,
+			http.StatusOK,
+			client.Procedure(adminTS.Server.GroupResolveSubject, map[string]any{
+				"group": org, "subject": subject, "status": "resolved", "note": "done",
+			}, &resolved),
+		)
 		require.Equal(t, "resolved", resolved.Status)
 		var out opensocial_api.GroupOpensocialGetSubjectHistoryOutput
 		require.Equal(t, http.StatusOK, client.Query(adminTS.Server.GroupGetSubjectHistory,
