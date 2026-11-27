@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/comatproto"
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
@@ -18,29 +17,6 @@ import (
 
 func strongRefOutput(ref opensocial.StrongRef) comatproto.ComAtprotoRepoStrongRefMain {
 	return comatproto.ComAtprotoRepoStrongRefMain{Uri: ref.URI, Cid: ref.CID}
-}
-
-// groupActor validates the caller of a group-DID method. The group acts
-// through an OAuth credential for its own DID; a member acts through service
-// auth. The store decides, from the caller's scopes, what they may do.
-func (p *PearServer) groupActor(
-	w http.ResponseWriter,
-	r *http.Request,
-	group *syntax.DID,
-) (syntax.DID, bool) {
-	credInfo, ok := p.validator.Request(
-		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-	).Validate(w, r)
-	if !ok {
-		return "", false
-	}
-	if credInfo.Method == authn.ValidatorMethodOAuth && group != nil && credInfo.Subject != *group {
-		httpx.WriteUnauthorized(
-			r.Context(), w, "only the group's own OAuth credential may do this", nil,
-		)
-		return "", false
-	}
-	return credInfo.Subject, true
 }
 
 // GroupLeaveGroup implements org.atgrp.leaveGroup.
