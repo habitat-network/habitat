@@ -56,7 +56,9 @@ func TestSchemaMigrationsProduceAudienceKey(t *testing.T) {
 	db := pear_testutil.NewPearDB(t)
 
 	require.Equal(
-		t, []string{"space", "repo", "audience"}, primaryKeyColumns(t, db),
+		t,
+		[]string{"space_owner", "space_type", "space_skey", "repo", "audience"},
+		primaryKeyColumns(t, db),
 		"registrations should be keyed on audience",
 	)
 
@@ -64,7 +66,8 @@ func TestSchemaMigrationsProduceAudienceKey(t *testing.T) {
 	space := habitat_syntax.SpaceURI(audienceSpace)
 	now := time.Now().Add(time.Hour)
 	require.NoError(t, db.Table("registrations").Create(map[string]any{
-		"space":      space,
+		"space":       space,
+		"space_owner": space.SpaceOwner(), "space_type": space.SpaceType(), "space_skey": space.Skey(),
 		"repo":       "",
 		"audience":   syncerRef,
 		"endpoint":   legacyURL,
@@ -86,7 +89,8 @@ func TestSchemaMigrationsKeepDistinctAudiencesAtOneEndpoint(t *testing.T) {
 	other := "did:web:other.example.com#habitat_space_syncer"
 	for _, ref := range []string{syncerRef, other} {
 		require.NoError(t, db.Table("registrations").Create(map[string]any{
-			"space": space, "repo": "", "audience": ref,
+			"space": space, "space_owner": space.SpaceOwner(), "space_type": space.SpaceType(),
+			"space_skey": space.Skey(), "repo": "", "audience": ref,
 			"endpoint": legacyURL, "expires_at": now,
 		}).Error)
 	}
@@ -107,13 +111,15 @@ func TestSchemaMigrationsRejectDuplicateAudience(t *testing.T) {
 	space := habitat_syntax.SpaceURI(audienceSpace)
 
 	row := map[string]any{
-		"space": space, "repo": "", "audience": syncerRef,
+		"space": space, "space_owner": space.SpaceOwner(), "space_type": space.SpaceType(),
+		"space_skey": space.Skey(), "repo": "", "audience": syncerRef,
 		"endpoint": legacyURL, "expires_at": time.Now().Add(time.Hour),
 	}
 	require.NoError(t, db.Table("registrations").Create(row).Error)
 
 	dup := map[string]any{
-		"space": space, "repo": "", "audience": syncerRef,
+		"space": space, "space_owner": space.SpaceOwner(), "space_type": space.SpaceType(),
+		"space_skey": space.Skey(), "repo": "", "audience": syncerRef,
 		"endpoint": "https://other.example", "expires_at": time.Now().Add(time.Hour),
 	}
 	require.Error(t, db.Table("registrations").Create(dup).Error, "audience must be unique")
@@ -127,7 +133,8 @@ func TestSchemaMigrationsAcceptLegacyBackfillShape(t *testing.T) {
 	space := habitat_syntax.SpaceURI(audienceSpace)
 
 	require.NoError(t, db.Table("registrations").Create(map[string]any{
-		"space": space, "repo": "", "audience": legacyURL,
+		"space": space, "space_owner": space.SpaceOwner(), "space_type": space.SpaceType(),
+		"space_skey": space.Skey(), "repo": "", "audience": legacyURL,
 		"endpoint": legacyURL, "expires_at": time.Now().Add(time.Hour),
 	}).Error)
 

@@ -58,8 +58,9 @@ type deletedSpace struct {
 }
 
 type spaceRecord struct {
-	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
 	SpaceRef   habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
@@ -86,9 +87,10 @@ type spaceRecord struct {
 // PutRecord keeps it in sync by clearing a record's prior refs and
 // re-inserting the ones extracted from its new value on every write.
 type blobRef struct {
-	Cid   string                  `gorm:"primaryKey"`
-	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	Cid   string `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
 	SpaceRef   habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
@@ -109,8 +111,9 @@ type blobRef struct {
 // records; only ListRepos, which just reports the repo set and its last-known
 // digest, reads Hash directly for such a row.
 type spaceRepo struct {
-	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
 	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo     syntax.DID              `gorm:"primaryKey"`
 	Hash     []byte
@@ -742,6 +745,7 @@ func saveRepoHash(
 ) error {
 	return tx.Save(&spaceRepo{
 		Space:    space,
+		SpaceRef: space.Ref(),
 		Repo:     repo,
 		Hash:     h.State(),
 		Rev:      rev,
@@ -762,6 +766,7 @@ func saveRemoteRepoHash(
 ) error {
 	return tx.Save(&spaceRepo{
 		Space:    space,
+		SpaceRef: space.Ref(),
 		Repo:     repo,
 		Hash:     digest,
 		Rev:      rev,
@@ -1148,6 +1153,7 @@ func (s *store) PutRecord(
 		return tx.Save(&spaceRecord{
 			Repo:       repo,
 			Space:      spaceURI,
+			SpaceRef:   spaceURI.Ref(),
 			Collection: collection,
 			Rkey:       rkey,
 			Value:      value,
@@ -1865,6 +1871,7 @@ func (s *store) ApplyWrites(
 				if err := tx.Save(&spaceRecord{
 					Repo:       repo,
 					Space:      spaceURI,
+					SpaceRef:   spaceURI.Ref(),
 					Collection: w.Collection,
 					Rkey:       rkey,
 					Value:      w.Value,
