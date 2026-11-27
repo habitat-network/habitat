@@ -6,6 +6,7 @@ import {
   type LexValue,
 } from "@atproto/lex";
 import { network } from "api";
+import { parseGroupSharingSubject } from "internal/groupSharingSubject";
 import type { PromiseRepoBatch, PromiseSyncSink } from "internal/spaceSync";
 import {
   deleteComment,
@@ -40,10 +41,6 @@ const CRDT_COLLECTION = "network.habitat.docs.crdt";
 const MARKDOWN_COLLECTION = "network.habitat.docs.markdown";
 const USER_RELATION_COLLECTION = "network.habitat.relationship.userRelation";
 const SPACE_RELATION_COLLECTION = "network.habitat.relationship.spaceRelation";
-// The space type whose role-holders are "everyone in the org" — a
-// spaceRelation naming one of these as its subject is an org-wide grant.
-const MEMBERS_SPACE_TYPE = "community.opensocial.members";
-
 // SinkDeps is what the sink needs from the syncer driving it: reading a
 // record's blob back out of its space (see sync.ts, which wires this to the
 // same syncer's getBlob).
@@ -428,17 +425,14 @@ async function handleSpaceRelation(
   }
   const record = relationFields(value);
   if (!record) return;
-  let subject: SpaceRef;
-  try {
-    subject = SpaceRef.parse(record.subject);
-  } catch {
-    return; // subject isn't a space ref at all
-  }
-  if (subject.spaceType !== MEMBERS_SPACE_TYPE) return;
+  const subject = parseGroupSharingSubject(record.subject);
+  // Keep canonical candidates inert until the host identifies the effective
+  // relation and protects against replay across the namespace cutover.
+  if (subject?.kind !== "legacy") return;
   await upsertDocOrgAccess(db, {
     uri,
     spaceUri,
-    orgDid: subject.spaceDid,
+    orgDid: subject.orgDid,
     relation: record.relation,
   });
 }

@@ -282,6 +282,36 @@ it("removes the org-wide grant on a delete", async () => {
   expect(await docsFor(getDb(env), BOB, ORG)).toEqual([]);
 });
 
+it("keeps canonical candidates inert across legacy grant and revoke replays", async () => {
+  await seedOrgDoc();
+  const canonicalRecord = `${SPACE_RELATION_RECORD}-canonical`;
+  const canonicalGrant = {
+    subject: `at:space/${ORG}/org.atgrp.members/self`,
+    subjectRole: "reader",
+    relation: "writer",
+  };
+  const legacyGrant = {
+    subject: MEMBERS_SPACE,
+    subjectRole: "reader",
+    relation: "reader",
+  };
+  const visible = () => docsFor(getDb(env), BOB, ORG);
+
+  await apply(canonicalRecord, canonicalGrant);
+  expect(await visible()).toEqual([]);
+
+  await apply(SPACE_RELATION_RECORD, legacyGrant);
+  await apply(canonicalRecord, canonicalGrant);
+  await apply(canonicalRecord, null);
+  expect(await visible()).toEqual([ORG_DOC_SUMMARY]);
+
+  await apply(SPACE_RELATION_RECORD, legacyGrant);
+  await apply(canonicalRecord, canonicalGrant);
+  await apply(SPACE_RELATION_RECORD, null);
+  await apply(canonicalRecord, canonicalGrant);
+  expect(await visible()).toEqual([]);
+});
+
 it("ignores a spaceRelation whose subject is not a members space", async () => {
   await seedOrgDoc();
   await apply(SPACE_RELATION_RECORD, {
