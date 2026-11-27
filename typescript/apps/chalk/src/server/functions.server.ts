@@ -75,11 +75,7 @@ export async function fetchOrgName(
   client: HabitatClient,
   orgDid: DidString,
 ): Promise<string | null> {
-  const metaSpace = new SpaceRef(
-    orgDid,
-    "org.atgrp.meta",
-    "self",
-  ).toString();
+  const metaSpace = new SpaceRef(orgDid, "org.atgrp.meta", "self").toString();
   try {
     const { value } = await client.call<{ value: { displayName: string } }>(
       "network.habitat.space.getRecord",
