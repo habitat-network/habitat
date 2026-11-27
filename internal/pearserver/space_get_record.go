@@ -8,7 +8,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -26,17 +25,6 @@ func (p *PearServer) GetRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	cred, ok := p.validator.Request(
-		authn.WithMethods(
-			authn.ValidatorMethodOAuth,
-			authn.ValidatorMethodServiceAuth,
-			authn.ValidatorMethodSpaceCredential,
-		),
-		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
 	collection, ok := httpx.ParseNSIDInput(ctx, w, params.Collection, "collection")
 	if !ok {
 		return
@@ -47,6 +35,10 @@ func (p *PearServer) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repo, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	cred, ok := p.validateRecordReader(w, r, spaceURI, repo, collection)
 	if !ok {
 		return
 	}

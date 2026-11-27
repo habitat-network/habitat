@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/atgrp"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/httpsig"
@@ -95,7 +96,8 @@ func (p *PearServer) issueCredential(
 	// every other space gates on the user, so a request without a delegation
 	// token answers SpaceNotFound, which doesn't reveal whether the space
 	// exists.
-	publicRead := policy.Type == spaces.PolicyMemberSpace && policy.PublicRead
+	publicRead := policy.Type == spaces.PolicyMemberSpace && policy.PublicRead &&
+		spaceURI.SpaceType() != atgrp.InboxSpaceType
 	if req.delegationToken == "" && !publicRead {
 		httpx.WriteSpaceNotFound(ctx, w, errors.New("delegation token required"))
 		return "", false

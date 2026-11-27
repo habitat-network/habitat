@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/atgrp"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -42,32 +44,34 @@ func (p *PearServer) ApplyWrites(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	credInfo, ok := p.validator.Request(
-		authn.WithMethods(
-			authn.ValidatorMethodOAuth,
-			authn.ValidatorMethodServiceAuth,
-			authn.ValidatorMethodSpaceCredential,
-		),
-		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleWriter),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
 	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
 	if !ok {
 		return
 	}
-	if credInfo.Subject != repo {
-		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
+	if !p.validateRecordWriter(w, r, spaceURI, repo) {
 		return
 	}
+	inbox := spaceURI.SpaceType() == atgrp.InboxSpaceType
 
 	writes := make([]spaces.Write, len(input.Writes))
+	now := time.Now()
 	for i, raw := range input.Writes {
 		write, err := parseApplyWritesOp(raw)
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, fmt.Sprintf("writes[%d]: %v", i, err), err)
 			return
+		}
+		if inbox {
+			if !validateInboxRecordKey(w, r, write.Collection, write.Rkey) {
+				return
+			}
+			if write.Action != spaces.WriteDelete {
+				value, err := atdata.UnmarshalCBOR(write.Value)
+				if err != nil || atgrp.ValidateInviteRecord(value, now) != nil {
+					httpx.WriteInvalidRequest(ctx, w, "invalid invite record", err)
+					return
+				}
+			}
 		}
 		writes[i] = write
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/comatproto"
+	"github.com/habitat-network/habitat/internal/atgrp"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -93,6 +94,19 @@ func (p *PearServer) ImportRepo(w http.ResponseWriter, r *http.Request) {
 			"the repo does not belong to the authenticated account", http.StatusBadRequest,
 		)
 		return
+	}
+	if archive.Commit.Space.SpaceType() == atgrp.InboxSpaceType {
+		// Remote inbox repo migration requires the space authority's
+		// participation. Do not create a local copy through the generic
+		// archive importer.
+		for _, rec := range archive.Records {
+			if !validateInboxRecordKey(w, r, rec.Collection, rec.Rkey) {
+				return
+			}
+		}
+		if !p.requireLocalInboxAccount(w, r, credInfo.Subject) {
+			return
+		}
 	}
 	err = spaces.ImportRepo(
 		ctx, p.spacesStore, archive.Commit.Space, credInfo.Subject, archive.Records,
@@ -208,6 +222,16 @@ func (p *PearServer) ImportSpaceMeta(w http.ResponseWriter, r *http.Request) {
 		return
 	case err != nil:
 		httpx.WriteServerError(ctx, w, fmt.Errorf("read space meta: %w", err))
+		return
+	}
+
+	if meta.Space.SpaceType() == atgrp.InboxSpaceType &&
+		(meta.Space.Skey() != "self" || !atgrp.IsInboxPolicy(meta.Policy) || len(meta.Members) != 0) {
+		httpx.WriteInvalidRequest(ctx, w, "invalid inbox metadata", nil)
+		return
+	}
+	if meta.Space.SpaceType() == atgrp.InboxSpaceType &&
+		!p.requireLocalInboxAccount(w, r, meta.Space.SpaceOwner()) {
 		return
 	}
 

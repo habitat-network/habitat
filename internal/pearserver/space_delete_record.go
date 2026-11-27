@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/atgrp"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -39,6 +42,11 @@ func (p *PearServer) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
 	if !ok {
 		return
+	}
+	if spaceURI.SpaceType() == atgrp.InboxSpaceType {
+		if !validateInboxRecordKey(w, r, collection, syntax.RecordKey(input.Rkey)) {
+			return
+		}
 	}
 	if habitat_syntax.ReservedCollections.Contains(collection) {
 		httpx.WriteInvalidRequest(

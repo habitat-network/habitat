@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/atgrp"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -46,25 +47,14 @@ func (p *PearServer) writeRecord(w http.ResponseWriter, r *http.Request, create 
 	if !ok {
 		return
 	}
-	credInfo, ok := p.validator.Request(
-		authn.WithMethods(
-			authn.ValidatorMethodOAuth,
-			authn.ValidatorMethodServiceAuth,
-			authn.ValidatorMethodSpaceCredential,
-		),
-		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleWriter),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
 	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
 	if !ok {
 		return
 	}
-	if credInfo.Subject != repo {
-		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
+	if !p.validateRecordWriter(w, r, spaceURI, repo) {
 		return
 	}
+	inbox := spaceURI.SpaceType() == atgrp.InboxSpaceType
 	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
 	if !ok {
 		return
@@ -82,7 +72,7 @@ func (p *PearServer) writeRecord(w http.ResponseWriter, r *http.Request, create 
 			return
 		}
 		rkey = parsedRkey
-		if create {
+		if create && !inbox {
 			// Not atomic with the write below; a concurrent put can still win.
 			_, err := p.spacesStore.GetRecord(ctx, spaceURI, repo, collection, rkey)
 			if err == nil {
@@ -99,12 +89,39 @@ func (p *PearServer) writeRecord(w http.ResponseWriter, r *http.Request, create 
 		httpx.WriteInvalidRequest(ctx, w, "record must be a JSON object", nil)
 		return
 	}
+	if inbox {
+		if !validateInboxRecordKey(w, r, collection, rkey) {
+			return
+		}
+		if err := atgrp.ValidateInviteRecord(value, time.Now()); err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "invalid invite record", err)
+			return
+		}
+	}
 	recordBytes, err := spaces.MarshalRecord(value)
 	if errors.Is(err, spaces.ErrInvalidRecord) {
 		httpx.WriteInvalidRequest(ctx, w, fmt.Sprintf("invalid record: %v", err), err)
 		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("marshal record: %w", err))
+		return
+	}
+	if create && inbox {
+		results, err := p.spacesStore.ApplyWrites(ctx, spaceURI, repo, []spaces.Write{{
+			Action: spaces.WriteCreate, Collection: collection, Rkey: rkey, Value: recordBytes,
+		}})
+		switch {
+		case errors.Is(err, spaces.ErrSpaceNotFound):
+			httpx.WriteSpaceNotFound(ctx, w, err)
+		case errors.Is(err, spaces.ErrRecordAlreadyExists):
+			httpx.WriteRecordAlreadyExists(ctx, w, err)
+		case err != nil:
+			httpx.WriteServerError(ctx, w, fmt.Errorf("create invite: %w", err))
+		default:
+			httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpacePutRecordOutput{
+				Uri: results[0].URI.AtSpace().String(), Cid: results[0].Cid.String(),
+			})
+		}
 		return
 	}
 	recordURI, cid, err := p.spacesStore.PutRecord(
