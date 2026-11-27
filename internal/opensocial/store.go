@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ipfs/go-cid"
 	"log/slog"
 	"time"
 
@@ -249,24 +250,36 @@ func putMembership(
 	orgDID, member syntax.DID,
 	roles []string,
 ) error {
+	_, err := putMembershipRef(ctx, spacesStore, orgDID, member, roles)
+	return err
+}
+
+// putMembershipRef is putMembership returning a reference to the record.
+func putMembershipRef(
+	ctx context.Context,
+	spacesStore spaces.Store,
+	orgDID, member syntax.DID,
+	roles []string,
+) (StrongRef, error) {
 	recordBytes, err := spaces.MarshalRecord(opensocial_api.GroupOpensocialMembership{
 		Roles:     roles,
 		CreatedAt: time.Now().Format(time.RFC3339),
 	})
 	if err != nil {
-		return fmt.Errorf("marshal membership record: %w", err)
+		return StrongRef{}, fmt.Errorf("marshal membership record: %w", err)
 	}
-	if _, _, err = spacesStore.PutRecord(
+	uri, c, err := spacesStore.PutRecord(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
 		orgDID,
 		MembershipCollection,
 		syntax.RecordKey(member),
 		recordBytes,
-	); err != nil {
-		return fmt.Errorf("put membership record: %w", err)
+	)
+	if err != nil {
+		return StrongRef{}, fmt.Errorf("put membership record: %w", err)
 	}
-	return nil
+	return strongRef(uri, c), nil
 }
 
 func (s *Store) CreateSpace(
@@ -283,27 +296,64 @@ func (s *Store) CreateSpace(
 		attribute.String("habitat.space.type", spaceType.String()),
 	))
 	defer func() { telemetry.End(span, err) }()
-	var spaceURI habitat_syntax.SpaceURI
+	created, err := s.createSpace(ctx, orgDID, spaceType, skey, policy, opensocial_api.GroupOpensocialAccess{
+		Grants: readGrants(roles),
+	}, true)
+	if err != nil {
+		return "", err
+	}
+	return created.Space, nil
+}
+
+// createdSpace is a space written by createSpace, with the access and index
+// records that describe it.
+type createdSpace struct {
+	Space  habitat_syntax.SpaceURI
+	Access StrongRef
+	// Index is nil when the space was not added to the group's index.
+	Index *StrongRef
+}
+
+// StrongRef names a record at a particular version.
+type StrongRef struct {
+	URI string
+	CID string
+}
+
+func (s *Store) createSpace(
+	ctx context.Context,
+	orgDID syntax.DID,
+	spaceType syntax.NSID,
+	skey habitat_syntax.SpaceKey,
+	policy spaces.Policy,
+	access opensocial_api.GroupOpensocialAccess,
+	index bool,
+) (createdSpace, error) {
+	var created createdSpace
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
-		spaceURI, err = spacesStoreTx.CreateSpace(ctx, orgDID, spaceType, skey)
+		spaceURI, err := spacesStoreTx.CreateSpace(ctx, orgDID, spaceType, skey)
 		if err != nil {
 			return fmt.Errorf("space store create: %w", err)
 		}
+		created.Space = spaceURI
 		if err := spacesStoreTx.SetSpacePolicy(ctx, spaceURI, policy); err != nil {
 			return fmt.Errorf("set space policy: %w", err)
 		}
-		recordBytes, err := spaces.MarshalRecord(opensocial_api.GroupOpensocialAccess{
-			Grants: readGrants(roles),
-		})
+		recordBytes, err := spaces.MarshalRecord(access)
 		if err != nil {
 			return fmt.Errorf("marshal access record: %w", err)
 		}
-		if _, _, err = spacesStoreTx.PutRecord(
+		accessURI, accessCID, err := spacesStoreTx.PutRecord(
 			ctx, spaceURI, orgDID, "group.opensocial.access", "self",
 			recordBytes,
-		); err != nil {
+		)
+		if err != nil {
 			return fmt.Errorf("put access record: %w", err)
+		}
+		created.Access = strongRef(accessURI, accessCID)
+		if !index {
+			return nil
 		}
 		// New records name the space in the at:space/ form clients now write;
 		// older ones keep the at:// form until the URI migration.
@@ -314,19 +364,30 @@ func (s *Store) CreateSpace(
 		if err != nil {
 			return fmt.Errorf("marshal space record: %w", err)
 		}
-		if _, _, err = spacesStoreTx.PutRecord(
+		indexURI, indexCID, err := spacesStoreTx.PutRecord(
 			ctx,
 			habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
 			orgDID, "group.opensocial.space", "",
 			recordBytes,
-		); err != nil {
+		)
+		if err != nil {
 			return fmt.Errorf("put space record: %w", err)
 		}
+		ref := strongRef(indexURI, indexCID)
+		created.Index = &ref
 		return nil
 	}); err != nil {
-		return "", fmt.Errorf("create space: %w", err)
+		return createdSpace{}, fmt.Errorf("create space: %w", err)
 	}
-	return spaceURI, nil
+	return created, nil
+}
+
+func strongRef(uri habitat_syntax.SpaceRecordURI, c *cid.Cid) StrongRef {
+	ref := StrongRef{URI: string(uri)}
+	if c != nil {
+		ref.CID = c.String()
+	}
+	return ref
 }
 
 // UpdateSpace replaces the roles that may read a space by rewriting its
