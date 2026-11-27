@@ -78,3 +78,52 @@ func TestSpacePolicy_RoundTrip(t *testing.T) {
 	_, err = s.GetSpacePolicy(t.Context(), other)
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
+
+func TestParsePolicyGroupSpace(t *testing.T) {
+	t.Run(
+		"grants keep their roles and the policy reports who may read and write",
+		func(t *testing.T) {
+			p, err := spaces.ParsePolicy(json.RawMessage(`{
+			"$type": "org.atgrp.policy", "publicRead": true, "unlisted": true,
+			"grants": [
+				{"role": "member", "read": true},
+				{"role": "editor", "read": true, "write": true},
+				{"role": "auditor", "permissions": ["include:org.atgrp.authModerate"]}
+			]}`))
+			require.NoError(t, err)
+			require.True(t, p.PublicRead)
+			require.True(t, p.Unlisted)
+			require.Equal(t, []string{"member", "editor"}, p.ReadRoles())
+			require.Equal(t, []string{"editor"}, p.WriteRoles())
+		},
+	)
+
+	t.Run("a role may appear in one grant only", func(t *testing.T) {
+		_, err := spaces.ParsePolicy(json.RawMessage(
+			`{"$type":"org.atgrp.policy","grants":[{"role":"a"},{"role":"a"}]}`))
+		require.ErrorIs(t, err, spaces.ErrInvalidPolicy)
+		_, err = spaces.ParsePolicy(json.RawMessage(
+			`{"$type":"org.atgrp.policy","grants":[{"read":true}]}`))
+		require.ErrorIs(t, err, spaces.ErrInvalidPolicy)
+	})
+
+	t.Run("other policies are validated by type", func(t *testing.T) {
+		_, err := spaces.ParsePolicy(json.RawMessage(`{}`))
+		require.ErrorIs(t, err, spaces.ErrInvalidPolicy)
+		_, err = spaces.ParsePolicy(json.RawMessage(`not json`))
+		require.ErrorIs(t, err, spaces.ErrInvalidPolicy)
+		_, err = spaces.ParsePolicy(json.RawMessage(`{"$type":"com.atproto.managedspace.policy"}`))
+		require.ErrorIs(t, err, spaces.ErrUnsupportedPolicy)
+		_, err = spaces.ParsePolicy(json.RawMessage(`{"$type":"x.y.z"}`))
+		require.ErrorIs(t, err, spaces.ErrUnsupportedPolicy)
+		p, err := spaces.ParsePolicy(json.RawMessage(
+			`{"$type":"com.atproto.personalspace.policy","publicRead":true}`))
+		require.NoError(t, err)
+		require.Equal(t, spaces.Policy{Type: spaces.PolicyPersonalSpace}, p)
+		p, err = spaces.ParsePolicy(
+			json.RawMessage(`{"$type":"network.habitat.relationspace.policy"}`),
+		)
+		require.NoError(t, err)
+		require.Equal(t, spaces.Policy{Type: spaces.PolicyRelationSpace}, p)
+	})
+}
