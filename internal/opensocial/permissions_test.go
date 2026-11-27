@@ -364,3 +364,53 @@ func TestUpdateSpaceKeepsOtherScopesAndPublicRead(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok, "publicRead survives an UpdateSpace")
 }
+
+func TestNewOrgBootstrapsSpecRecords(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	creator := syntax.DID("did:plc:boot-creator")
+	orgDIDStr, err := s.NewOrg(t.Context(), "boot-acme", creator)
+	require.NoError(t, err)
+	org := syntax.DID(orgDIDStr)
+	members := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
+
+	t.Run("member is the default role", func(t *testing.T) {
+		member, err := s.SpaceStore.GetRecord(
+			t.Context(), members, org, opensocial.RoleCollection, opensocial.MemberRoleRkey,
+		)
+		require.NoError(t, err)
+		require.Equal(t, true, member.Value["default"])
+		admin, err := s.SpaceStore.GetRecord(
+			t.Context(), members, org, opensocial.RoleCollection, opensocial.AdminRoleRkey,
+		)
+		require.NoError(t, err)
+		require.Nil(t, admin.Value["default"])
+	})
+
+	t.Run("the creator holds every scope and may assign every role", func(t *testing.T) {
+		scopes, err := s.UserScopes(t.Context(), org, creator)
+		require.NoError(t, err)
+		for _, set := range []string{
+			"configure", "manageSpaces", "manageMembers", "moderate", "participate",
+		} {
+			require.Truef(t, scopes.Covers("include:group.opensocial."+set), set)
+		}
+		assignable, err := s.AssignableRoles(t.Context(), org, creator)
+		require.NoError(t, err)
+		require.ElementsMatch(
+			t, []string{opensocial.AdminRoleRkey, opensocial.MemberRoleRkey}, assignable,
+		)
+	})
+
+	t.Run("a member can participate but manage nothing", func(t *testing.T) {
+		member := syntax.DID("did:plc:boot-member")
+		require.NoError(
+			t, s.AssignRoles(t.Context(), org, member, []string{opensocial.MemberRoleRkey}),
+		)
+		scopes, err := s.UserScopes(t.Context(), org, member)
+		require.NoError(t, err)
+		require.True(t, scopes.Covers("include:group.opensocial.participate"))
+		for _, action := range opensocial.AllActions {
+			require.Falsef(t, scopes.CanPerform(action), "member should not %s", action)
+		}
+	})
+}

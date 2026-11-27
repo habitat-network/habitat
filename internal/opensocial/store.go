@@ -183,6 +183,8 @@ func (s *Store) createOrgShell(
 	}
 	recordBytes, err = spaces.MarshalRecord(opensocial_api.GroupOpensocialRole{
 		DisplayName: "Member",
+		// Members admitted through requestJoin get this role.
+		Default: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal role record: %w", err)
@@ -220,23 +222,12 @@ func (s *Store) createOrgShell(
 	); err != nil {
 		return nil, fmt.Errorf("put access record: %w", err)
 	}
-	// The admin role starts out bound to every standardized action, and
-	// able to assign/eject either built-in role; the member role starts
-	// with no actions bound. Communities can rebind both via
-	// updatePermissions once they hold the community.configure action.
+	// The admin role starts out holding every scope and able to assign either
+	// built-in role; the member role holds what a member needs to take part.
+	// Groups can change both via the permissions record once they hold the
+	// configure permission set.
 	permissionsBytes, err := spaces.MarshalRecord(opensocial_api.GroupOpensocialPermissions{
-		Grants: permissionGrants([]habitat.NetworkHabitatOpensocialDefsActionBinding{
-			{Action: string(ActionInvite), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionEject), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionRoleAssign), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionSpaceCreate), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionSpaceConfigure), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionSpaceDelete), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionCommunityConfigure), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionMcpConfigure), Roles: []string{AdminRoleRkey}},
-		}, []habitat.NetworkHabitatOpensocialDefsAssignableBinding{
-			{Role: AdminRoleRkey, Roles: []string{AdminRoleRkey, MemberRoleRkey}},
-		}),
+		Grants: bootstrapGrants(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal permissions record: %w", err)
