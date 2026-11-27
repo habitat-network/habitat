@@ -9,9 +9,9 @@ type ComAtprotoPersonalspacePolicyMain struct {
 	LexiconTypeID string `json:"$type"`
 }
 
-// MarshalJSON sets $type to "com.atproto.personalspace.policy#main" before encoding.
+// MarshalJSON sets $type to "com.atproto.personalspace.policy" before encoding.
 func (t ComAtprotoPersonalspacePolicyMain) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "com.atproto.personalspace.policy#main"
+	t.LexiconTypeID = "com.atproto.personalspace.policy"
 	type alias ComAtprotoPersonalspacePolicyMain
 	return json.Marshal(alias(t))
 }

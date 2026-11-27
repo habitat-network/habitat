@@ -9,9 +9,9 @@ type NetworkHabitatRelationspacePolicyMain struct {
 	LexiconTypeID string `json:"$type"`
 }
 
-// MarshalJSON sets $type to "network.habitat.relationspace.policy#main" before encoding.
+// MarshalJSON sets $type to "network.habitat.relationspace.policy" before encoding.
 func (t NetworkHabitatRelationspacePolicyMain) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "network.habitat.relationspace.policy#main"
+	t.LexiconTypeID = "network.habitat.relationspace.policy"
 	type alias NetworkHabitatRelationspacePolicyMain
 	return json.Marshal(alias(t))
 }

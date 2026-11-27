@@ -11,9 +11,9 @@ type ComAtprotoManagedspacePolicyMain struct {
 	PublishPolicy bool   `json:"publishPolicy,omitempty"`
 }
 
-// MarshalJSON sets $type to "com.atproto.managedspace.policy#main" before encoding.
+// MarshalJSON sets $type to "com.atproto.managedspace.policy" before encoding.
 func (t ComAtprotoManagedspacePolicyMain) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "com.atproto.managedspace.policy#main"
+	t.LexiconTypeID = "com.atproto.managedspace.policy"
 	type alias ComAtprotoManagedspacePolicyMain
 	return json.Marshal(alias(t))
 }
