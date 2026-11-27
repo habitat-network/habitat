@@ -9,7 +9,7 @@ import {
 } from "@atproto/lex";
 import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { com, group, network, permissionsFromRecord } from "api";
+import { com, network, permissionsFromRecord } from "api";
 import { fetchClientMetadata } from "@/lib/oauthScopes";
 import { pearAgent } from "./pearAgent";
 import {

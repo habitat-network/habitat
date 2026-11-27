@@ -21,6 +21,9 @@ const lexiconPaths = (
   await fg(
     [
       "../../lexicons/{network,group/opensocial}/**/*.json",
+      // Shared atproto definitions that group.opensocial methods reference.
+      "../../lexicons/com/atproto/repo/strongRef.json",
+      "../../lexicons/com/atproto/label/defs.json",
       "!../../lexicons/network/habitat/collections/**/*.json",
       "!../../lexicons/network/habitat/clique.json",
       "!../../lexicons/network/habitat/clique/**/*.json",
