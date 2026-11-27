@@ -31,8 +31,6 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", p.UploadBlob)
 
 	// Opensocial
-	p.router.HandleFunc("/xrpc/org.atgrp.createSpace", p.GroupCreateSpace)
-	p.router.HandleFunc("/xrpc/org.atgrp.deleteSpace", p.GroupDeleteSpace)
 	p.router.HandleFunc("/xrpc/org.atgrp.leaveGroup", p.GroupLeaveGroup)
 	p.router.HandleFunc("/xrpc/org.atgrp.requestJoin", p.GroupRequestJoin)
 	p.router.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", p.CreateOrg)

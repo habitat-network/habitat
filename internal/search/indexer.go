@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -66,8 +65,9 @@ const (
 	sweepInterval = 5 * time.Minute
 	// opsPageSize is how many ops the indexer pulls per ListRepoOps call.
 	opsPageSize = 100
-	// accessCollection holds a space's org.atgrp.access record.
-	accessCollection = syntax.NSID("org.atgrp.access")
+	// accessCollection holds the copy of a space's policy the group host
+	// publishes in the space, which names the roles that may read a group space.
+	accessCollection = syntax.NSID(opensocial.SpacePolicyCollection)
 	// maxJobLinks caps how many queueing spans one job links to, when many
 	// notifications collapse into it.
 	maxJobLinks = 32
@@ -587,7 +587,7 @@ func (x *Indexer) refreshAccess(
 
 // spaceAccess resolves who may read space: anyone when its access record is
 // publicRead; otherwise the users the perms store resolves as readers, and the
-// community roles its org.atgrp.access record names.
+// community roles its published space policy names.
 func spaceAccess(
 	ctx context.Context,
 	source RepoSource,
@@ -611,14 +611,16 @@ func spaceAccess(
 	if err != nil {
 		return Access{}, fmt.Errorf("encode access record: %w", err)
 	}
-	var record opensocial_api.OrgAtgrpAccess
-	if err := json.Unmarshal(raw, &record); err != nil {
-		return Access{}, fmt.Errorf("decode access record: %w", err)
+	var record struct {
+		Policy spaces.Policy `json:"policy"`
 	}
-	if record.PublicRead {
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return Access{}, fmt.Errorf("decode space policy record: %w", err)
+	}
+	if record.Policy.PublicRead {
 		return Access{Public: true}, nil
 	}
-	for _, role := range opensocial.ReadRoles(record.Grants) {
+	for _, role := range record.Policy.ReadRoles() {
 		access.CommunityRoles = append(access.CommunityRoles,
 			CommunityRole{Community: space.SpaceOwner(), Role: role})
 	}

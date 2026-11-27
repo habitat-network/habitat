@@ -61,14 +61,33 @@ func (p *PearServer) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "policy is required", err)
 		return
 	}
-	if _, ok := p.validator.Request(
+	credInfo, ok := p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleOwner),
-	).Validate(w, r); !ok {
+	).Validate(w, r)
+	if !ok {
 		return
 	}
 	policy, err := spaces.ParsePolicy(rawPolicy)
 	if !writePolicyError(ctx, w, err) {
+		return
+	}
+	group, ok := p.isGroup(ctx, w, spaceURI.SpaceOwner())
+	if !ok {
+		return
+	}
+	if group || policy.Type == spaces.PolicyGroupSpace {
+		if !group || policy.Type != spaces.PolicyGroupSpace {
+			httpx.WriteError(
+				ctx, w, "UnsupportedPolicy",
+				"a group's spaces use org.atgrp.policy, and only groups may",
+				http.StatusBadRequest,
+			)
+			return
+		}
+		writeGroupSpaceError(
+			ctx, w, p.opensocialStore.UpdatePolicy(ctx, spaceURI, credInfo.Subject, policy),
+		)
 		return
 	}
 	err = p.spacesStore.SetSpacePolicy(ctx, spaceURI, policy)

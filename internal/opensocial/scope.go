@@ -54,6 +54,15 @@ func parseQuery(rest string) (string, url.Values) {
 // expand turns scope into the permissions it stands for.
 func expand(scope string) []permission {
 	switch {
+	case strings.HasPrefix(scope, HabitatActionScopePrefix):
+		// A Habitat action stands for the scopes it requires.
+		var out []permission
+		for _, required := range ActionScopes(
+			Action(strings.TrimPrefix(scope, HabitatActionScopePrefix)),
+		) {
+			out = append(out, expand(required)...)
+		}
+		return out
 	case strings.HasPrefix(scope, includePrefix):
 		return permissionSets[strings.TrimPrefix(scope, includePrefix)]
 	case strings.HasPrefix(scope, spacePrefix):
@@ -153,77 +162,92 @@ func (s ScopeSet) Covers(scope string) bool {
 }
 
 // permissionSets mirrors the org.atgrp permission-set lexicons
-// (configure, manageSpaces, manageMembers, moderate, participate).
+// (authManageBasic, authManageMembers, authModerate, authManageAdmin,
+// authParticipate).
 var permissionSets = map[string][]permission{
-	"org.atgrp.configure": {
+	"org.atgrp.authManageBasic": {
 		{
 			kind: "space", spaceType: MetaSpaceType, authority: "self", skey: "self",
-			collections: []string{
-				"org.atgrp.profile", "org.atgrp.rule", "org.atgrp.labeler",
+			collections: []string{AboutCollection}, actions: allActions,
+		},
+		{
+			kind: "space", spaceType: MembersSpaceType, authority: "self", skey: "self",
+			collections: []string{RuleCollection}, actions: allActions,
+		},
+	},
+	"org.atgrp.authManageMembers": manageMembersPermissions,
+	"org.atgrp.authModerate":      moderatePermissions,
+	"org.atgrp.authManageAdmin": slices.Concat(
+		[]permission{
+			{
+				kind: "space", spaceType: MetaSpaceType, authority: "self", skey: "self",
+				collections: []string{AboutCollection, ConfigCollection, LabelCollection},
+				actions:     allActions, manage: []string{"update"},
 			},
-			actions: allActions,
+			{
+				kind: "space", spaceType: MembersSpaceType, authority: "self", skey: "self",
+				collections: []string{
+					RuleCollection, LabelerCollection, RoleCollection, MembershipCollection,
+					LabelCollection,
+				},
+				actions: allActions, manage: []string{"update"},
+			},
 		},
-		{
-			kind: "space", spaceType: MembersSpaceType, authority: "self", skey: "self",
-			collections: []string{"org.atgrp.role", "org.atgrp.permissions"},
-			actions:     allActions,
-		},
-	},
-	"org.atgrp.manageSpaces": {
-		{
-			kind: "space", spaceType: MetaSpaceType, authority: "self", skey: "self",
-			collections: []string{"org.atgrp.access"}, actions: allActions,
-		},
-		{
-			kind: "space", spaceType: MembersSpaceType, authority: "self", skey: "self",
-			collections: []string{"org.atgrp.space", "org.atgrp.access"},
-			actions:     allActions,
-		},
-	},
-	"org.atgrp.manageMembers": {
-		{
-			kind: "space", spaceType: MembersSpaceType, authority: "self", skey: "self",
-			collections: []string{"org.atgrp.membership"}, actions: allActions,
-		},
-		{
-			kind: "space", spaceType: InvitesSpaceType, authority: wildcard, skey: "self",
-			collections: []string{"org.atgrp.invite"},
-			actions:     []string{"read_self", "create", "update", "delete"},
-		},
-		{kind: "rpc", lxm: "org.atgrp.listJoinRequests", aud: wildcard},
-		{kind: "rpc", lxm: "org.atgrp.denyJoinRequest", aud: wildcard},
-	},
-	"org.atgrp.moderate": {
-		{
-			kind: "space", spaceType: MetaSpaceType, authority: "self", skey: "self",
-			collections: []string{"com.atproto.label.record"}, actions: allActions,
-		},
-		{
-			kind: "space", spaceType: MembersSpaceType, authority: "self", skey: "self",
-			collections: []string{"com.atproto.label.record"}, actions: allActions,
-		},
-		{kind: "rpc", lxm: "org.atgrp.listSubjects", aud: wildcard},
-		{kind: "rpc", lxm: "org.atgrp.getSubjectHistory", aud: wildcard},
-		{kind: "rpc", lxm: "org.atgrp.resolveSubject", aud: wildcard},
-	},
-	"org.atgrp.participate": {
+		manageMembersPermissions[1:],
+		moderatePermissions[len(moderatePermissions)-3:],
+	),
+	"org.atgrp.authParticipate": {
 		{
 			kind: "space", spaceType: MetaSpaceType, authority: wildcard, skey: "self",
 			actions: []string{"read"},
 		},
 		{
 			kind: "space", spaceType: MembersSpaceType, authority: wildcard, skey: "self",
-			collections: []string{"org.atgrp.acceptance"}, actions: allActions,
+			collections: []string{ConfirmationCollection}, actions: allActions,
 		},
 		{
-			kind: "space", spaceType: InvitesSpaceType, authority: "self", skey: "self",
+			kind: "space", spaceType: InboxSpaceType, authority: "self", skey: "self",
 			actions: []string{"read"}, manage: []string{"create"},
 		},
 		{kind: "rpc", lxm: "org.atgrp.requestJoin", aud: wildcard},
 		{kind: "rpc", lxm: "org.atgrp.cancelJoinRequest", aud: wildcard},
 		{kind: "rpc", lxm: "org.atgrp.leaveGroup", aud: wildcard},
-		{kind: "rpc", lxm: "org.atgrp.createReport", aud: wildcard},
+		{kind: "rpc", lxm: "org.atgrp.mod.submitReport", aud: wildcard},
+		{kind: "rpc", lxm: "org.atgrp.mod.submitAppeal", aud: wildcard},
+		{kind: "rpc", lxm: "org.atgrp.mod.querySelfHistory", aud: wildcard},
 	},
+}
+
+var manageMembersPermissions = []permission{
+	{
+		kind: "space", spaceType: MembersSpaceType, authority: "self", skey: "self",
+		collections: []string{MembershipCollection}, actions: allActions,
+	},
+	{
+		kind: "space", spaceType: InboxSpaceType, authority: wildcard, skey: "self",
+		collections: []string{InviteCollection},
+		actions:     []string{"read_self", "create", "update", "delete"},
+	},
+	{kind: "rpc", lxm: "org.atgrp.listJoinRequests", aud: wildcard},
+	{kind: "rpc", lxm: "org.atgrp.denyJoinRequest", aud: wildcard},
+}
+
+var moderatePermissions = []permission{
+	{
+		kind: "space", spaceType: MetaSpaceType, authority: "self", skey: "self",
+		collections: []string{LabelCollection}, actions: allActions,
+	},
+	{
+		kind: "space", spaceType: MembersSpaceType, authority: "self", skey: "self",
+		collections: []string{LabelCollection}, actions: allActions,
+	},
+	{
+		kind: "space", spaceType: MembersSpaceType, authority: "self", skey: "self",
+		collections: []string{MembershipCollection}, actions: []string{"read", "delete"},
+	},
+	{kind: "rpc", lxm: "org.atgrp.mod.querySubjects", aud: wildcard},
+	{kind: "rpc", lxm: "org.atgrp.mod.querySubjectHistory", aud: wildcard},
+	{kind: "rpc", lxm: "org.atgrp.mod.updateSubject", aud: wildcard},
 }
 
 var allActions = []string{"read", "create", "update", "delete"}

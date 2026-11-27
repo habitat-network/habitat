@@ -25,11 +25,21 @@ func (p *PearServer) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_, ok = p.validator.Request(
+	credInfo, ok := p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleOwner),
 	).Validate(w, r)
 	if !ok {
+		return
+	}
+	group, ok := p.isGroup(ctx, w, spaceURI.SpaceOwner())
+	if !ok {
+		return
+	}
+	if group {
+		writeGroupSpaceError(ctx, w, p.opensocialStore.DeleteGroupSpace(
+			ctx, spaceURI.SpaceOwner(), credInfo.Subject, spaceURI,
+		))
 		return
 	}
 	err := p.simpleStore.DeleteSpace(ctx, spaceURI)

@@ -2,6 +2,7 @@ package pearserver
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -41,10 +42,15 @@ func (p *PearServer) PutRole(w http.ResponseWriter, r *http.Request) {
 	if !p.requireAction(ctx, w, org, credInfo.Subject, opensocial.ActionCommunityConfigure) {
 		return
 	}
-	if err := p.opensocialStore.PutRole(
-		ctx, org, syntax.RecordKey(input.Role), input.Name, input.Description,
-	); err != nil {
+	err := p.opensocialStore.SetRoleProfile(
+		ctx, org, credInfo.Subject, syntax.RecordKey(input.Role), input.Name, input.Description,
+	)
+	switch {
+	case errors.Is(err, opensocial.ErrInvalidRoleID):
+		httpx.WriteInvalidRequest(ctx, w, err.Error(), err)
+	case errors.Is(err, opensocial.ErrEscalation):
+		httpx.WriteUnauthorized(ctx, w, err.Error(), nil)
+	case err != nil:
 		httpx.WriteServerError(ctx, w, fmt.Errorf("put role: %w", err))
-		return
 	}
 }

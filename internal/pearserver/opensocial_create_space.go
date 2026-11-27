@@ -47,19 +47,7 @@ func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	policy := spaces.Policy{Type: spaces.PolicyRelationSpace}
-	if input.Policy != nil {
-		rawPolicy, err := marshalPolicyInput(input.Policy)
-		if err != nil {
-			httpx.WriteInvalidRequest(ctx, w, "invalid policy", err)
-			return
-		}
-		policy, err = spaces.ParsePolicy(rawPolicy)
-		if !writePolicyError(ctx, w, err) {
-			return
-		}
-	}
-	uri, err := p.opensocialStore.CreateSpace(ctx, org, input.Roles, spaceType, skey, policy)
+	uri, err := p.opensocialStore.CreateSpace(ctx, org, input.Roles, spaceType, skey)
 	if errors.Is(err, spaces.ErrSpaceAlreadyExists) {
 		httpx.WriteError(ctx, w, "SpaceAlreadyExists", "", http.StatusBadRequest)
 		return

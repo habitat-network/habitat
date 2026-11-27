@@ -67,6 +67,23 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	group, ok := p.isGroup(ctx, w, credInfo.Subject)
+	if !ok {
+		return
+	}
+	switch {
+	case group && policy.Type == spaces.PolicyGroupSpace:
+		p.createGroupSpace(ctx, w, credInfo.Subject, spaceType, skey, policy)
+		return
+	case group || policy.Type == spaces.PolicyGroupSpace:
+		// Group spaces use the group policy, and only groups may use it.
+		httpx.WriteError(
+			ctx, w, "UnsupportedPolicy",
+			"a group's spaces use org.atgrp.policy, and only groups may", http.StatusBadRequest,
+		)
+		return
+	}
+
 	uri, err := p.simpleStore.CreateSpace(ctx, credInfo.Subject, spaceType, skey)
 	if errors.Is(err, simplespace.ErrSpaceAlreadyExists) {
 		httpx.WriteError(ctx, w, "SpaceAlreadyExists", "" /* msg */, http.StatusBadRequest)

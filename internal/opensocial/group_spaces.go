@@ -9,15 +9,14 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 var (
-	// ErrReservedSpace is returned for the meta, members and invites spaces,
+	// ErrReservedSpace is returned for the meta, members and inbox spaces,
 	// which a group cannot create or delete through createSpace/deleteSpace.
-	ErrReservedSpace = errors.New("the meta, members and invites spaces are reserved")
+	ErrReservedSpace = errors.New("the meta, members and inbox spaces are reserved")
 	// ErrUnknownRole is returned when an access grant names a role the group
 	// has not declared.
 	ErrUnknownRole = errors.New("access names a role the group has not declared")
@@ -35,22 +34,17 @@ var (
 
 func isReservedSpaceType(spaceType syntax.NSID) bool {
 	switch spaceType.String() {
-	case MetaSpaceType, MembersSpaceType, InvitesSpaceType:
+	case MetaSpaceType, MembersSpaceType, InboxSpaceType:
 		return true
 	}
 	return false
 }
 
-// spaceActions are the bare action scopes an access record may grant a role
-// in its own space.
-var spaceActions = []string{"read", "read_self", "create", "update", "delete"}
-
-func validScope(scope string) bool {
-	if slices.Contains(spaceActions, scope) {
-		return true
-	}
+// validPermission reports whether permission is a scope a policy or role may
+// grant.
+func validPermission(permission string) bool {
 	for _, prefix := range []string{includePrefix, spacePrefix, rpcPrefix, "habitat:"} {
-		if strings.HasPrefix(scope, prefix) && len(scope) > len(prefix) {
+		if strings.HasPrefix(permission, prefix) && len(permission) > len(prefix) {
 			return true
 		}
 	}
@@ -58,51 +52,53 @@ func validScope(scope string) bool {
 }
 
 // CreateGroupSpace creates a modality space under the group with the given
-// access record and, when index is true, an entry in the group's space index.
-// It implements org.atgrp.createSpace: the caller needs the manage=create
-// scope, every role in the grants must be declared, and the scopes granted
-// must be valid and held by the caller (a bare action scope may be granted by
-// anyone who can create the space).
+// policy and, unless the policy is unlisted, an entry in the group's space
+// index. It implements com.atproto.space.createSpace for a group authority:
+// the caller needs `space:*?manage=create`, every role in the policy must be
+// declared, and the permissions it grants must be valid and held by the caller.
 func (s *Store) CreateGroupSpace(
 	ctx context.Context,
 	orgDID, actor syntax.DID,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
 	policy spaces.Policy,
-	access opensocial_api.OrgAtgrpDefsAccessConfig,
-	index bool,
-) (createdSpace, error) {
+) (habitat_syntax.SpaceURI, error) {
 	if isReservedSpaceType(spaceType) {
-		return createdSpace{}, ErrReservedSpace
+		return "", ErrReservedSpace
 	}
 	scopes, err := s.UserScopes(ctx, orgDID, actor)
 	if err != nil {
-		return createdSpace{}, err
+		return "", err
 	}
 	if !scopes.Covers("space:*?manage=create") {
-		return createdSpace{}, fmt.Errorf("%w: missing manage=create", ErrEscalation)
+		return "", fmt.Errorf("%w: missing manage=create", ErrEscalation)
 	}
 	declared, err := s.listRoleRkeys(ctx, orgDID)
 	if err != nil {
-		return createdSpace{}, err
+		return "", err
 	}
-	for _, grant := range access.Grants {
+	assign, err := s.AssignableRoles(ctx, orgDID, actor)
+	if err != nil {
+		return "", err
+	}
+	for _, grant := range policy.Grants {
 		if !slices.Contains(declared, grant.Role) {
-			return createdSpace{}, fmt.Errorf("%w: %q", ErrUnknownRole, grant.Role)
+			return "", fmt.Errorf("%w: %q", ErrUnknownRole, grant.Role)
 		}
-		for _, scope := range grant.Scopes {
-			if !validScope(scope) {
-				return createdSpace{}, fmt.Errorf("%w: %q", ErrInvalidScope, scope)
+		for _, permission := range grant.Permissions {
+			if !validPermission(permission) {
+				return "", fmt.Errorf("%w: %q", ErrInvalidScope, permission)
 			}
-			if !slices.Contains(spaceActions, scope) && !scopes.Covers(scope) {
-				return createdSpace{}, fmt.Errorf("%w: scope %q", ErrEscalation, scope)
+		}
+		if actor != orgDID {
+			if err := checkGrants(
+				scopes, assign, grant.Role, nil, grant.Permissions, nil, nil,
+			); err != nil {
+				return "", err
 			}
 		}
 	}
-	return s.createSpace(ctx, orgDID, spaceType, skey, policy,
-		opensocial_api.OrgAtgrpAccess{
-			Grants: access.Grants, PublicRead: access.PublicRead,
-		}, index)
+	return s.createSpace(ctx, orgDID, spaceType, skey, policy)
 }
 
 // DeleteGroupSpace deletes a modality space and its index entry. The meta and
@@ -128,23 +124,8 @@ func (s *Store) DeleteGroupSpace(
 	if _, err := s.spacesStore.GetSpacePolicy(ctx, spaceURI); err != nil {
 		return err
 	}
-	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")
-	collection := syntax.NSID("org.atgrp.space")
-	entries, err := s.spacesStore.ListRecords(ctx, membersSpace, orgDID, &collection)
-	if err != nil {
-		return fmt.Errorf("list space index: %w", err)
-	}
-	for _, entry := range entries {
-		indexed, _ := entry.Value["space"].(string)
-		// Index entries use either URI form; compare them canonically.
-		if habitat_syntax.SpaceURI(indexed).Canonical() != spaceURI.Canonical() {
-			continue
-		}
-		if err := s.spacesStore.DeleteRecord(
-			ctx, membersSpace, orgDID, collection, string(entry.Rkey),
-		); err != nil {
-			return fmt.Errorf("delete space index entry: %w", err)
-		}
+	if err := s.dropIndex(ctx, spaceURI); err != nil {
+		return err
 	}
 	if err := s.spacesStore.DeleteSpace(ctx, spaceURI); err != nil {
 		return fmt.Errorf("delete space: %w", err)

@@ -38,9 +38,15 @@ func (p *PearServer) DeleteRole(w http.ResponseWriter, r *http.Request) {
 	if !p.requireAction(ctx, w, org, credInfo.Subject, opensocial.ActionCommunityConfigure) {
 		return
 	}
-	err := p.opensocialStore.DeleteRole(ctx, org, syntax.RecordKey(input.Role))
+	err := p.opensocialStore.RemoveRole(
+		ctx, org, credInfo.Subject, syntax.RecordKey(input.Role),
+	)
 	if errors.Is(err, opensocial.ErrRoleNotFound) {
 		httpx.WriteError(ctx, w, "RoleNotFound", "", http.StatusBadRequest)
+		return
+	}
+	if errors.Is(err, opensocial.ErrEscalation) {
+		httpx.WriteUnauthorized(ctx, w, err.Error(), nil)
 		return
 	}
 	if errors.Is(err, opensocial.ErrCannotDeleteBuiltinRole) {

@@ -42,12 +42,9 @@ type inviteRow struct {
 	CreatedAt time.Time  `gorm:"not null"`
 }
 
-// InviteCollection is the collection invites are written to.
-const InviteCollection = "org.atgrp.invite"
-
 // invitesSpace returns the space holding invitee's invites.
 func invitesSpace(invitee syntax.DID) habitat_syntax.SpaceURI {
-	return habitat_syntax.ConstructSpaceURI(invitee, InvitesSpaceType, "self")
+	return habitat_syntax.ConstructSpaceURI(invitee, InboxSpaceType, "self")
 }
 
 // inviteFromRecord reads an invite record written by org into invitee's
@@ -115,7 +112,7 @@ func (s *Store) CreateInvite(
 		if _, err := s.spacesStore.CreateSpace(
 			ctx,
 			invitee,
-			InvitesSpaceType,
+			InboxSpaceType,
 			"self",
 		); err != nil &&
 			!errors.Is(err, spaces.ErrSpaceAlreadyExists) {
@@ -188,7 +185,7 @@ func (s *Store) ListPendingInvites(ctx context.Context, orgDID syntax.DID) (_ []
 	))
 	defer func() { telemetry.End(span, err) }()
 	records, err := s.spacesStore.ListRepoCollection(
-		ctx, orgDID, InvitesSpaceType, InviteCollection,
+		ctx, orgDID, InboxSpaceType, InviteCollection,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list pending invites: %w", err)
@@ -214,7 +211,7 @@ func (s *Store) RevokeInvite(ctx context.Context, orgDID syntax.DID, id string) 
 	))
 	defer func() { telemetry.End(span, err) }()
 	records, err := s.spacesStore.ListRepoCollection(
-		ctx, orgDID, InvitesSpaceType, InviteCollection,
+		ctx, orgDID, InboxSpaceType, InviteCollection,
 	)
 	if err != nil {
 		return fmt.Errorf("list invites: %w", err)

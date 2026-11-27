@@ -17,12 +17,12 @@ import (
 )
 
 // ProvisionMember adds memberDID to orgDID by writing its membership record
-// (authored by the org) and its own acceptance record (authored by the
+// (authored by the org) and its own confirmation record (authored by the
 // member) in a single transaction. Unlike RequestJoin, no prior invite is
 // required — used when the caller has independent authority to enroll the
 // member (e.g. the email-domain auto-provisioning flow, see
 // identity.EmailResolver) and there's no invitee session to author the
-// acceptance record under, so the backend authors both records directly.
+// confirmation record under, so the backend authors both records directly.
 //
 // memberDID is granted the admin and member roles if it is the org's first member
 // (i.e. the org was created via NewOrgWithoutCreator and nobody has joined
@@ -53,7 +53,7 @@ func (s *Store) ProvisionMember(ctx context.Context, orgDID, memberDID syntax.DI
 		// Granting membership is first-sign-in only: the email-domain flow
 		// calls this on every sign-in, and re-writing the record would revert
 		// any roles an admin has assigned since. A member who already has one
-		// keeps it untouched; only their acceptance record is refreshed below.
+		// keeps it untouched; only their confirmation record is refreshed below.
 		alreadyProvisioned := slices.ContainsFunc(existing, func(r spaces.Record) bool {
 			return r.Rkey == syntax.RecordKey(memberDID)
 		})
@@ -62,18 +62,18 @@ func (s *Store) ProvisionMember(ctx context.Context, orgDID, memberDID syntax.DI
 				return err
 			}
 		}
-		recordBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpAcceptance{
+		recordBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpConfirmation{
 			CreatedAt: time.Now().Format(time.RFC3339),
 		})
 		if err != nil {
-			return fmt.Errorf("marshal acceptance record: %w", err)
+			return fmt.Errorf("marshal confirmation record: %w", err)
 		}
 		// repo only selects whose record namespace this lands in; it isn't a
 		// credential check, so the backend can author it under memberDID.
 		if _, _, err := spacesStoreTx.PutRecord(
-			ctx, membersSpace, memberDID, AcceptanceCollection, "self", recordBytes,
+			ctx, membersSpace, memberDID, ConfirmationCollection, "self", recordBytes,
 		); err != nil {
-			return fmt.Errorf("put acceptance record: %w", err)
+			return fmt.Errorf("put confirmation record: %w", err)
 		}
 		return nil
 	}); err != nil {

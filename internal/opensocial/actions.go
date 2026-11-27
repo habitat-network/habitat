@@ -24,6 +24,16 @@ var AllActions = []Action{
 	ActionMcpConfigure,
 }
 
+// HabitatActionScopePrefix namespaces scopes that stand for one of Habitat's
+// actions, e.g. "habitat:action=invite": a role bound to the action holds
+// every scope the action requires.
+const HabitatActionScopePrefix = "habitat:action="
+
+// ActionScope returns the scope that stands for action.
+func ActionScope(action Action) string {
+	return HabitatActionScopePrefix + string(action)
+}
+
 // McpConfigureScope is the Habitat-only scope for configuring MCP servers; the
 // spec has no equivalent.
 const McpConfigureScope = "habitat:mcp=configure"
@@ -32,22 +42,23 @@ const McpConfigureScope = "habitat:mcp=configure"
 func ActionScopes(action Action) []string {
 	switch action {
 	case ActionInvite:
-		return []string{"space:" + InvitesSpaceType +
-			"?authority=*&skey=self&collection=org.atgrp.invite&action=create"}
+		return []string{"space:" + InboxSpaceType +
+			"?authority=*&skey=self&collection=" + InviteCollection + "&action=create"}
 	case ActionEject:
 		return []string{"space:" + MembersSpaceType +
-			"?authority=self&skey=self&collection=org.atgrp.membership&action=delete"}
+			"?authority=self&skey=self&collection=" + MembershipCollection + "&action=delete"}
 	case ActionRoleAssign:
 		return []string{"space:" + MembersSpaceType +
-			"?authority=self&skey=self&collection=org.atgrp.membership&action=create&action=update"}
+			"?authority=self&skey=self&collection=" + MembershipCollection +
+			"&action=create&action=update"}
 	case ActionSpaceCreate:
 		return []string{"space:*?manage=create"}
 	case ActionSpaceDelete:
 		return []string{"space:*?manage=delete"}
 	case ActionSpaceConfigure:
-		return []string{"include:org.atgrp.manageSpaces"}
+		return []string{"space:*?manage=update"}
 	case ActionCommunityConfigure:
-		return []string{"include:org.atgrp.configure"}
+		return []string{"include:org.atgrp.authManageAdmin"}
 	case ActionMcpConfigure:
 		return []string{McpConfigureScope}
 	}
