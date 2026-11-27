@@ -710,7 +710,11 @@ func loadRepoHash(
 	repo syntax.DID,
 ) (spacecommit.LtHash, syntax.TID, bool, error) {
 	var row spaceRepo
-	err := tx.Unscoped().Scopes(habitat_syntax.InSpace(space)).Where("repo = ?", repo).First(&row).Error
+	err := tx.Unscoped().
+		Scopes(habitat_syntax.InSpace(space)).
+		Where("repo = ?", repo).
+		First(&row).
+		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) || row.DeletedAt.Valid {
 		return spacecommit.LtHash{}, "", false, nil
 	}
@@ -1016,7 +1020,10 @@ func (s *store) ImportWriters(
 				return err
 			}
 			var current spaceRepo
-			err := tx.Scopes(habitat_syntax.InSpace(uri)).Where("repo = ?", w.DID).First(&current).Error
+			err := tx.Scopes(habitat_syntax.InSpace(uri)).
+				Where("repo = ?", w.DID).
+				First(&current).
+				Error
 			if err == nil {
 				continue
 			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1106,7 +1113,9 @@ func (s *store) PutRecord(
 		// it already existed) and fold in the new one, then advance the rev.
 		var existing spaceRecord
 		err = tx.
-			Scopes(habitat_syntax.InSpace(spaceURI)).Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
+			Scopes(
+				habitat_syntax.InSpace(spaceURI),
+			).Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 			First(&existing).Error
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("failed to get existing record: %w", err)
@@ -1182,7 +1191,8 @@ func (s *store) GetRecord(
 	}()
 	var row spaceRecord
 	err = s.db.WithContext(ctx).
-		Scopes(habitat_syntax.InSpace(uri)).Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
+		Scopes(habitat_syntax.InSpace(uri)).
+		Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// A missing record is an expected outcome (e.g. putRecord checking
@@ -1501,7 +1511,10 @@ func (s *store) ListRepoOps(
 			return ErrRevTooFar
 		}
 
-		query := tx.Unscoped().Model(&spaceRecord{}).Scopes(habitat_syntax.InSpace(uri)).Where("repo = ?", repo)
+		query := tx.Unscoped().
+			Model(&spaceRecord{}).
+			Scopes(habitat_syntax.InSpace(uri)).
+			Where("repo = ?", repo)
 		if since != "" {
 			query = query.Where("rev > ?", since)
 		}
@@ -1661,7 +1674,10 @@ func (s *store) DeleteRecord(
 			return err
 		}
 		if remaining == 0 {
-			return tx.Scopes(habitat_syntax.InSpace(uri)).Where("repo = ?", repo).Delete(&spaceRepo{}).Error
+			return tx.Scopes(habitat_syntax.InSpace(uri)).
+				Where("repo = ?", repo).
+				Delete(&spaceRepo{}).
+				Error
 		}
 		return saveRepoHash(tx, uri, repo, h, rev, spaceRev)
 	})
@@ -1805,7 +1821,9 @@ func (s *store) ApplyWrites(
 			uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, w.Collection, rkey)
 			var existing spaceRecord
 			err := tx.
-				Scopes(habitat_syntax.InSpace(spaceURI)).Where("repo = ? AND collection = ? AND rkey = ?", repo, w.Collection, rkey).
+				Scopes(
+					habitat_syntax.InSpace(spaceURI),
+				).Where("repo = ? AND collection = ? AND rkey = ?", repo, w.Collection, rkey).
 				First(&existing).Error
 			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return fmt.Errorf("failed to get existing record: %w", err)
@@ -1900,7 +1918,10 @@ func (s *store) ApplyWrites(
 			return err
 		}
 		if remaining == 0 {
-			return tx.Scopes(habitat_syntax.InSpace(spaceURI)).Where("repo = ?", repo).Delete(&spaceRepo{}).Error
+			return tx.Scopes(habitat_syntax.InSpace(spaceURI)).
+				Where("repo = ?", repo).
+				Delete(&spaceRepo{}).
+				Error
 		}
 		return saveRepoHash(tx, spaceURI, repo, h, headRev, spaceRev)
 	})

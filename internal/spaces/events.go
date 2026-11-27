@@ -269,7 +269,10 @@ func (s *store) ListEvents(
 
 	recordQuery := db.Unscoped().Model(&spaceRecord{}).Where("seq >= ?", cursor)
 	if len(filter.Spaces) > 0 {
-		recordQuery = recordQuery.Where("(space_owner, space_type, space_skey) IN ?", spaceRefTuples(filter.Spaces))
+		recordQuery = recordQuery.Where(
+			"(space_owner, space_type, space_skey) IN ?",
+			spaceRefTuples(filter.Spaces),
+		)
 	}
 	if len(filter.Repos) > 0 {
 		recordQuery = recordQuery.Where("repo IN ?", filter.Repos)
@@ -285,7 +288,10 @@ func (s *store) ListEvents(
 	// Records external repos hold on their own PDSes, as fetched from there.
 	remoteQuery := db.Unscoped().Model(&spaceRemoteRecord{}).Where("seq >= ?", cursor)
 	if len(filter.Spaces) > 0 {
-		remoteQuery = remoteQuery.Where("(space_owner, space_type, space_skey) IN ?", spaceRefTuples(filter.Spaces))
+		remoteQuery = remoteQuery.Where(
+			"(space_owner, space_type, space_skey) IN ?",
+			spaceRefTuples(filter.Spaces),
+		)
 	}
 	if len(filter.Repos) > 0 {
 		remoteQuery = remoteQuery.Where("repo IN ?", filter.Repos)

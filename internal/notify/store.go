@@ -428,7 +428,8 @@ func (s *store) ListWebhooks(
 
 func (s *store) MarkWebhookExpiryNotified(ctx context.Context, w Webhook) error {
 	err := s.db.WithContext(ctx).Model(&webhook{}).
-		Scopes(habitat_syntax.InSpace(w.Space)).Where("endpoint = ? AND token = ?", w.Endpoint, w.Token).
+		Scopes(habitat_syntax.InSpace(w.Space)).
+		Where("endpoint = ? AND token = ?", w.Endpoint, w.Token).
 		Update("expiry_notified", true).Error
 	if err != nil {
 		return fmt.Errorf("mark webhook expiry notified: %w", err)
@@ -449,7 +450,8 @@ func (s *store) ClearSpaceDeleted(ctx context.Context, p PendingDeletion) error 
 func (s *store) pendingDeletion(ctx context.Context, p PendingDeletion) *gorm.DB {
 	return s.db.WithContext(ctx).
 		Model(&spaceDeletedDelivery{}).
-		Scopes(habitat_syntax.InSpace(p.Space)).Where("audience = ? AND retry_at = ?", p.Audience, p.RetryAt)
+		Scopes(habitat_syntax.InSpace(p.Space)).
+		Where("audience = ? AND retry_at = ?", p.Audience, p.RetryAt)
 }
 
 // Models returns the GORM models this package persists. Their tables are
