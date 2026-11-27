@@ -606,7 +606,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261122.2)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       effect:
         specifier: ^4.0.2
-        version: 4.1.5
+        version: 4.1.6
       internal:
         specifier: workspace:*
         version: link:../../internal
@@ -754,7 +754,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261122.2)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       effect:
         specifier: ^4.0.2
-        version: 4.1.5
+        version: 4.1.6
       internal:
         specifier: workspace:*
         version: link:../../internal
@@ -884,7 +884,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261122.2)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       effect:
         specifier: ^4.0.2
-        version: 4.1.5
+        version: 4.1.6
       internal:
         specifier: workspace:*
         version: link:../../internal
@@ -1108,7 +1108,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261122.2)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       effect:
         specifier: ^4.0.2
-        version: 4.1.5
+        version: 4.1.6
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
@@ -1142,7 +1142,7 @@ importers:
     devDependencies:
       '@effect/vitest':
         specifier: ^4.0.2
-        version: 4.1.5(effect@4.1.5)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
+        version: 4.1.5(effect@4.1.6)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
       '@tailwindcss/typography':
         specifier: 'catalog:'
         version: 0.5.20(tailwindcss@4.3.5)
@@ -7659,6 +7659,9 @@ packages:
 
   effect@4.1.5:
     resolution: {integrity: sha512-xyR20KhQI0vg2gD8ILUSQRTTESEYJ0JKdP+QD8J37xbwPTqXRxFM/l0+vUVD9fuSvoYruoTqyt33C4FZv1s4TQ==}
+
+  effect@4.1.6:
+    resolution: {integrity: sha512-P3CxMsdcSCle/7/FnPILd9GJkNqGtduKam2LX9Xsb8LoOjmeQ9Kmsuh16JwtIthaxLyiTCOzUUt+PZsXIohl+A==}
 
   ejs@3.1.10:
     resolution: {integrity: sha512-UeJmFfOrAQS8OJWPZ4qtgHyWExa088/MtK5UEyoJGFH67cDEXkZSviOiKRCZ4Xij0zxI3JECgYs3oKx+AizQBA==}
@@ -15113,9 +15116,9 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@effect/vitest@4.1.5(effect@4.1.5)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
+  '@effect/vitest@4.1.5(effect@4.1.6)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
     dependencies:
-      effect: 4.1.5
+      effect: 4.1.6
       vitest: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
 
   '@emnapi/core@1.11.2':
@@ -19712,6 +19715,8 @@ snapshots:
   ee-first@1.1.1: {}
 
   effect@4.1.5: {}
+
+  effect@4.1.6: {}
 
   ejs@3.1.10:
     dependencies:
