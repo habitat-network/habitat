@@ -27,9 +27,6 @@ var (
 	// ErrJoinClosed is returned when a group is invite-only and the caller has
 	// no invitation.
 	ErrJoinClosed = errors.New("the group is invite-only")
-	// ErrJoinNeedsApproval is returned for groups that approve joins, which
-	// this host does not yet queue.
-	ErrJoinNeedsApproval = errors.New("join requests are not supported yet")
 )
 
 func isReservedSpaceType(spaceType syntax.NSID) bool {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -111,6 +112,16 @@ func (p *PearServer) GroupRequestJoin(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(ctx, w, "InvalidInvite", "no such invite", http.StatusBadRequest)
 		return
 	}
+	// A member, or a requester already waiting, gets their standing back.
+	if roles, err := p.opensocialStore.GetUserRoles(ctx, group, credInfo.Subject); err == nil &&
+		len(roles) > 0 {
+		httpx.WriteJSON(ctx, w, opensocial_api.OrgAtgrpRequestJoinOutput{Status: "admitted"})
+		return
+	}
+	if existing, err := p.opensocialStore.GetJoinRequest(ctx, group, credInfo.Subject); err == nil {
+		httpx.WriteJSON(ctx, w, pendingJoinOutput(existing))
+		return
+	}
 	switch policy {
 	case "open":
 		ref, _, err := p.opensocialStore.Admit(ctx, group, credInfo.Subject)
@@ -125,17 +136,30 @@ func (p *PearServer) GroupRequestJoin(w http.ResponseWriter, r *http.Request) {
 		}
 		httpx.WriteJSON(ctx, w, out)
 	case "approval":
-		httpx.WriteError(
-			ctx, w, "NotImplemented",
-			opensocial.ErrJoinNeedsApproval.Error(), http.StatusNotImplemented,
+		request, err := p.opensocialStore.QueueJoinRequest(
+			ctx, group, credInfo.Subject, input.Message,
 		)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("queue join request: %w", err))
+			return
+		}
+		httpx.WriteJSON(ctx, w, pendingJoinOutput(request))
 	default:
 		httpx.WriteError(
-			ctx,
-			w,
-			"JoinClosed",
-			opensocial.ErrJoinClosed.Error(),
-			http.StatusForbidden,
+			ctx, w, "JoinClosed", opensocial.ErrJoinClosed.Error(), http.StatusForbidden,
 		)
 	}
+}
+
+func joinRequestView(request opensocial.JoinRequest) opensocial_api.OrgAtgrpDefsJoinRequest {
+	return opensocial_api.OrgAtgrpDefsJoinRequest{
+		Member:    request.Member.String(),
+		Message:   request.Message,
+		CreatedAt: request.CreatedAt.Format(time.RFC3339),
+	}
+}
+
+func pendingJoinOutput(request opensocial.JoinRequest) opensocial_api.OrgAtgrpRequestJoinOutput {
+	view := joinRequestView(request)
+	return opensocial_api.OrgAtgrpRequestJoinOutput{Status: "pending", Request: &view}
 }
