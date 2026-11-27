@@ -145,7 +145,9 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 		code := client.Procedure(
 			ts.Server.CreateOpensocialSpace,
 			habitat.NetworkHabitatOpensocialCreateSpaceInput{
-				Org: orgDID, Type: "network.habitat.docs", Roles: []string{opensocial.AdminRoleRkey},
+				Org:   orgDID,
+				Type:  "network.habitat.docs",
+				Roles: []string{opensocial.AdminRoleRkey},
 			},
 			&out,
 		)

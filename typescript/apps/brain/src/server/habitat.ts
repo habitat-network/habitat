@@ -140,11 +140,7 @@ export async function getConfigAccess(
   org: DidString,
   member: DidString,
 ): Promise<ConfigAccess> {
-  const space = new SpaceRef(
-    org,
-    "org.atgrp.members",
-    "self",
-  ).toString();
+  const space = new SpaceRef(org, "org.atgrp.members", "self").toString();
   const read = async (collection: NsidString, rkey: string) => {
     try {
       const { body } = await xrpc(agent, network.habitat.space.getRecord.main, {
