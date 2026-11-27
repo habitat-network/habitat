@@ -114,7 +114,10 @@ func ParsePolicy(raw json.RawMessage) (Policy, error) {
 			return Policy{}, fmt.Errorf("%w: %w", ErrInvalidPolicy, err)
 		}
 		if group.Grants == nil || len(group.Grants) > 100 {
-			return Policy{}, fmt.Errorf("%w: grants must be an array with at most 100 entries", ErrInvalidPolicy)
+			return Policy{}, fmt.Errorf(
+				"%w: grants must be an array with at most 100 entries",
+				ErrInvalidPolicy,
+			)
 		}
 		seen := make(map[string]bool, len(group.Grants))
 		for _, grant := range group.Grants {
@@ -122,20 +125,33 @@ func ParsePolicy(raw json.RawMessage) (Policy, error) {
 				return Policy{}, fmt.Errorf("%w: invalid grant role: %w", ErrInvalidPolicy, err)
 			}
 			if seen[grant.Role] {
-				return Policy{}, fmt.Errorf("%w: duplicate grant for role %q", ErrInvalidPolicy, grant.Role)
+				return Policy{}, fmt.Errorf(
+					"%w: duplicate grant for role %q",
+					ErrInvalidPolicy,
+					grant.Role,
+				)
 			}
 			seen[grant.Role] = true
 			if len(grant.Permissions) > 100 {
-				return Policy{}, fmt.Errorf("%w: grant has more than 100 permissions", ErrInvalidPolicy)
+				return Policy{}, fmt.Errorf(
+					"%w: grant has more than 100 permissions",
+					ErrInvalidPolicy,
+				)
 			}
 			for _, permission := range grant.Permissions {
-				if len(permission) == 0 || len(permission) > 2000 {
-					return Policy{}, fmt.Errorf("%w: invalid grant permission length", ErrInvalidPolicy)
+				if permission == "" || len(permission) > 2000 {
+					return Policy{}, fmt.Errorf(
+						"%w: invalid grant permission length",
+						ErrInvalidPolicy,
+					)
 				}
 			}
 		}
 		return Policy{
-			Type: group.Type, PublicRead: group.PublicRead, Unlisted: group.Unlisted, Grants: group.Grants,
+			Type:       group.Type,
+			PublicRead: group.PublicRead,
+			Unlisted:   group.Unlisted,
+			Grants:     group.Grants,
 		}, nil
 	case PolicyManagedSpace:
 		return Policy{}, fmt.Errorf("%w: %s", ErrUnsupportedPolicy, p.Type)
@@ -154,7 +170,11 @@ func (s *store) GetSpacePolicy(
 	return s.getSpacePolicy(ctx, uri, false)
 }
 
-func (s *store) getSpacePolicy(ctx context.Context, uri habitat_syntax.SpaceURI, lock bool) (Policy, error) {
+func (s *store) getSpacePolicy(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	lock bool,
+) (Policy, error) {
 	var row space
 	query := s.spacePolicyRow(ctx, uri)
 	if lock {
@@ -185,7 +205,10 @@ func (s *store) SetSpacePolicy(
 			return err
 		}
 		if current.Type == PolicyAtgrp {
-			return fmt.Errorf("%w: group policy requires group space management", ErrUnsupportedPolicy)
+			return fmt.Errorf(
+				"%w: group policy requires group space management",
+				ErrUnsupportedPolicy,
+			)
 		}
 		return group.saveSpacePolicy(ctx, uri, policy)
 	})
@@ -195,11 +218,20 @@ func (s *store) SetSpacePolicy(
 // transaction. This is a trusted primitive for provisioning and group space
 // management. The caller must already have authorized the change, and can
 // pass a transaction-bound store to include it in a larger operation.
-func SetGroupSpacePolicy(ctx context.Context, store Store, uri habitat_syntax.SpaceURI, policy Policy) error {
+func SetGroupSpacePolicy(
+	ctx context.Context,
+	store Store,
+	uri habitat_syntax.SpaceURI,
+	policy Policy,
+) error {
 	return store.setGroupSpacePolicy(ctx, uri, policy)
 }
 
-func (s *store) setGroupSpacePolicy(ctx context.Context, uri habitat_syntax.SpaceURI, policy Policy) error {
+func (s *store) setGroupSpacePolicy(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	policy Policy,
+) error {
 	if policy.Type != PolicyAtgrp {
 		return fmt.Errorf("%w: expected a group policy", ErrUnsupportedPolicy)
 	}
@@ -231,12 +263,23 @@ func (s *store) setGroupSpacePolicy(ctx context.Context, uri habitat_syntax.Spac
 		if err := group.saveSpacePolicy(ctx, uri, policy); err != nil {
 			return err
 		}
-		_, _, err := group.PutRecord(ctx, uri, uri.SpaceOwner(), habitat_syntax.SpacePolicyCollection, "self", value)
+		_, _, err := group.PutRecord(
+			ctx,
+			uri,
+			uri.SpaceOwner(),
+			habitat_syntax.SpacePolicyCollection,
+			"self",
+			value,
+		)
 		return err
 	})
 }
 
-func (s *store) saveSpacePolicy(ctx context.Context, uri habitat_syntax.SpaceURI, policy Policy) error {
+func (s *store) saveSpacePolicy(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	policy Policy,
+) error {
 	raw, err := json.Marshal(policy)
 	if err != nil {
 		return err

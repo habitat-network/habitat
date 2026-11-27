@@ -116,7 +116,11 @@ func TestSetGroupSpacePolicy(t *testing.T) {
 		policy, err := s.GetSpacePolicy(ctx, space)
 		require.NoError(t, err)
 		require.Equal(t, space == modality, policy.Unlisted)
-		require.ErrorIs(t, s.SetSpacePolicy(ctx, space, spaces.DefaultPolicy()), spaces.ErrUnsupportedPolicy)
+		require.ErrorIs(
+			t,
+			s.SetSpacePolicy(ctx, space, spaces.DefaultPolicy()),
+			spaces.ErrUnsupportedPolicy,
+		)
 		record, err := s.GetRecord(ctx, space, orgID, habitat_syntax.SpacePolicyCollection, "self")
 		require.NoError(t, err)
 		require.Equal(t, "com.atproto.space.policy", record.Value["$type"])
