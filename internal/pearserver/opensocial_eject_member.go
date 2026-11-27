@@ -72,4 +72,7 @@ func (p *PearServer) EjectMember(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("eject member: %w", err))
 		return
 	}
+	if err := p.opensocialStore.RecordEject(ctx, org, credInfo.Subject, member); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("record ejection: %w", err))
+	}
 }

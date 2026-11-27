@@ -800,5 +800,5 @@ func (s *Store) SeedMemberProfile(
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&inviteRow{}, &joinRequestRow{}}
+	return []any{&inviteRow{}, &joinRequestRow{}, &moderationSubjectRow{}, &moderationEventRow{}}
 }
