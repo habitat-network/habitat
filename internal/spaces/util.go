@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 	"gorm.io/datatypes"
 )
 
@@ -48,4 +50,31 @@ func cborToJSON(value []byte) (datatypes.JSON, error) {
 		return nil, fmt.Errorf("encode record json: %w", err)
 	}
 	return datatypes.JSON(out), nil
+}
+
+// decode returns the record's value, read from the JSON column.
+func (r spaceRecord) decode() (map[string]any, error) {
+	return atdata.UnmarshalJSON(r.ValueJSON)
+}
+
+// cbor returns the record's DAG-CBOR block bytes. When they are rebuilt from
+// the JSON column the result must hash to the record's stored CID, since the
+// CID commits to those exact bytes.
+func (r spaceRecord) cbor() ([]byte, error) {
+	record, err := atdata.UnmarshalJSON(r.ValueJSON)
+	if err != nil {
+		return nil, fmt.Errorf("decode record json: %w", err)
+	}
+	raw, err := atdata.MarshalCBOR(record)
+	if err != nil {
+		return nil, fmt.Errorf("encode record cbor: %w", err)
+	}
+	got, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(raw)
+	if err != nil {
+		return nil, err
+	}
+	if got.String() != r.Cid {
+		return nil, fmt.Errorf("record json re-encodes to cid %s, want %s", got, r.Cid)
+	}
+	return raw, nil
 }
