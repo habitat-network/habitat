@@ -210,11 +210,18 @@ func (p *PearServer) ImportSpaceMeta(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("read space meta: %w", err))
 		return
 	}
+	if meta.Policy.Type == spaces.PolicyAtgrp ||
+		habitat_syntax.IsAtgrpConfigurationSpaceType(meta.Space.SpaceType()) {
+		writePolicyError(ctx, w, spaces.ErrUnsupportedPolicy)
+		return
+	}
 
 	if err := p.importSpaceMeta(r, credInfo.Subject, meta); err != nil {
 		switch {
 		case errors.Is(err, errNotSpaceAuthority):
 			httpx.WriteError(ctx, w, "NotAuthorized", err.Error(), http.StatusForbidden)
+		case errors.Is(err, spaces.ErrUnsupportedPolicy):
+			writePolicyError(ctx, w, err)
 		default:
 			httpx.WriteServerError(ctx, w, fmt.Errorf("import space meta: %w", err))
 		}

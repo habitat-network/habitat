@@ -357,6 +357,27 @@ func TestServer_SpacePolicy(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, code)
 	})
 
+	t.Run("canonical policy and configuration spaces are not externally creatable", func(t *testing.T) {
+		atgrp := map[string]any{"$type": "org.atgrp.policy", "grants": []any{}}
+		code, body := call(t, ts.Server.CreateSpace, "com.atproto.space.createSpace",
+			map[string]any{"spaceType": groupTp, "skey": "self", "policy": atgrp})
+		require.Equal(t, http.StatusBadRequest, code, string(body))
+		require.Contains(t, string(body), "UnsupportedPolicy")
+		member := map[string]any{"$type": "com.atproto.memberspace.policy"}
+		for _, tp := range []string{"org.atgrp.meta", "org.atgrp.members"} {
+			code, body = call(t, ts.Server.CreateSpace, "com.atproto.space.createSpace",
+				map[string]any{"spaceType": tp, "skey": "self", "policy": member})
+			require.Equal(t, http.StatusBadRequest, code, string(body))
+			require.Contains(t, string(body), spaces.ErrReservedSpace.Error())
+		}
+		code, uri := create(t, member)
+		require.Equal(t, http.StatusOK, code)
+		code, body = call(t, ts.Server.UpdateSpace, "com.atproto.space.updateSpace",
+			map[string]any{"space": uri, "policy": atgrp})
+		require.Equal(t, http.StatusBadRequest, code, string(body))
+		require.Contains(t, string(body), "UnsupportedPolicy")
+	})
+
 	t.Run("update replaces the policy and getSpace returns it", func(t *testing.T) {
 		code, uri := create(t, map[string]any{"$type": "com.atproto.memberspace.policy"})
 		require.Equal(t, http.StatusOK, code)

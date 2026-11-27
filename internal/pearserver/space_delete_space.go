@@ -33,6 +33,10 @@ func (p *PearServer) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := p.simpleStore.DeleteSpace(ctx, spaceURI)
+	if errors.Is(err, spaces.ErrReservedSpace) {
+		httpx.WriteError(ctx, w, "NotAuthorized", err.Error(), http.StatusForbidden)
+		return
+	}
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(r.Context(), w, err)
 		return
