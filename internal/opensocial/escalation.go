@@ -216,7 +216,13 @@ func (s *Store) UpdateSpaceAccess(
 	updated := current
 	updated.Grants = nil
 	for _, grant := range current.Grants {
-		grant.Read, grant.Write = slices.Contains(roles, grant.Role), slices.Contains(roles, grant.Role)
+		grant.Read, grant.Write = slices.Contains(
+			roles,
+			grant.Role,
+		), slices.Contains(
+			roles,
+			grant.Role,
+		)
 		if grant.Read || len(grant.Permissions) > 0 {
 			updated.Grants = append(updated.Grants, grant)
 		}

@@ -43,12 +43,20 @@ func TestServer_GroupSpaceMethods(t *testing.T) {
 	}
 
 	t.Run("a user cannot use the group policy", func(t *testing.T) {
-		code := client.Procedure(aliceTS.Server.CreateSpace, create("u", policy(memberRead)), &created)
+		code := client.Procedure(
+			aliceTS.Server.CreateSpace,
+			create("u", policy(memberRead)),
+			&created,
+		)
 		require.Equal(t, http.StatusBadRequest, code)
 	})
 
 	t.Run("a group creates a space whose policy grants a role read", func(t *testing.T) {
-		code := client.Procedure(groupTS.Server.CreateSpace, create("", policy(memberRead)), &created)
+		code := client.Procedure(
+			groupTS.Server.CreateSpace,
+			create("", policy(memberRead)),
+			&created,
+		)
 		require.Equal(t, http.StatusOK, code)
 		require.NotEmpty(t, created.Space)
 		spaceURI, err := habitat_syntax.ParseSpaceURI(created.Space)

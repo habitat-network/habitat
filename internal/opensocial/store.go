@@ -288,7 +288,10 @@ func (s *Store) CreateSpace(
 	defer func() { telemetry.End(span, err) }()
 	policy := spaces.Policy{Type: spaces.PolicyGroupSpace}
 	for _, role := range roles {
-		policy.Grants = append(policy.Grants, spaces.GroupGrant{Role: role, Read: true, Write: true})
+		policy.Grants = append(
+			policy.Grants,
+			spaces.GroupGrant{Role: role, Read: true, Write: true},
+		)
 	}
 	return s.createSpace(ctx, orgDID, spaceType, skey, policy)
 }

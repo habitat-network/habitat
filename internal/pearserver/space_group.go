@@ -16,7 +16,11 @@ import (
 )
 
 // isGroup reports whether did is a group on this host.
-func (p *PearServer) isGroup(ctx context.Context, w http.ResponseWriter, did syntax.DID) (bool, bool) {
+func (p *PearServer) isGroup(
+	ctx context.Context,
+	w http.ResponseWriter,
+	did syntax.DID,
+) (bool, bool) {
 	ok, err := p.opensocialStore.IsOrg(ctx, did)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check group: %w", err))

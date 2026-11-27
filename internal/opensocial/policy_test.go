@@ -42,7 +42,14 @@ func TestCreateAndDeleteGroupSpace(t *testing.T) {
 	s, org := newRolesOrg(t)
 	policy := groupPolicy(spaces.GroupGrant{Role: "member", Read: true, Write: true})
 
-	uri, err := s.CreateGroupSpace(t.Context(), org, rolesAdmin, "network.habitat.docs", "main", policy)
+	uri, err := s.CreateGroupSpace(
+		t.Context(),
+		org,
+		rolesAdmin,
+		"network.habitat.docs",
+		"main",
+		policy,
+	)
 	require.NoError(t, err)
 	require.Contains(t, indexedSpaces(t, s, org), uri.AtSpace().String())
 	stored, err := s.GetPolicy(t.Context(), uri)
@@ -59,26 +66,29 @@ func TestCreateAndDeleteGroupSpace(t *testing.T) {
 		require.NotContains(t, indexedSpaces(t, s, org), hidden.AtSpace().String())
 	})
 
-	t.Run("callers need manage=create and reserved or malformed policies are refused", func(t *testing.T) {
-		_, err := s.CreateGroupSpace(
-			t.Context(), org, rolesMember, "network.habitat.docs", "no", policy,
-		)
-		require.ErrorIs(t, err, opensocial.ErrEscalation)
-		_, err = s.CreateGroupSpace(
-			t.Context(), org, rolesAdmin, opensocial.MembersSpaceType, "x", policy,
-		)
-		require.ErrorIs(t, err, opensocial.ErrReservedSpace)
-		_, err = s.CreateGroupSpace(
-			t.Context(), org, rolesAdmin, "network.habitat.docs", "ghost",
-			groupPolicy(spaces.GroupGrant{Role: "ghost", Read: true}),
-		)
-		require.ErrorIs(t, err, opensocial.ErrUnknownRole)
-		_, err = s.CreateGroupSpace(
-			t.Context(), org, rolesAdmin, "network.habitat.docs", "bad",
-			groupPolicy(spaces.GroupGrant{Role: "member", Permissions: []string{"nonsense"}}),
-		)
-		require.ErrorIs(t, err, opensocial.ErrInvalidScope)
-	})
+	t.Run(
+		"callers need manage=create and reserved or malformed policies are refused",
+		func(t *testing.T) {
+			_, err := s.CreateGroupSpace(
+				t.Context(), org, rolesMember, "network.habitat.docs", "no", policy,
+			)
+			require.ErrorIs(t, err, opensocial.ErrEscalation)
+			_, err = s.CreateGroupSpace(
+				t.Context(), org, rolesAdmin, opensocial.MembersSpaceType, "x", policy,
+			)
+			require.ErrorIs(t, err, opensocial.ErrReservedSpace)
+			_, err = s.CreateGroupSpace(
+				t.Context(), org, rolesAdmin, "network.habitat.docs", "ghost",
+				groupPolicy(spaces.GroupGrant{Role: "ghost", Read: true}),
+			)
+			require.ErrorIs(t, err, opensocial.ErrUnknownRole)
+			_, err = s.CreateGroupSpace(
+				t.Context(), org, rolesAdmin, "network.habitat.docs", "bad",
+				groupPolicy(spaces.GroupGrant{Role: "member", Permissions: []string{"nonsense"}}),
+			)
+			require.ErrorIs(t, err, opensocial.ErrInvalidScope)
+		},
+	)
 
 	t.Run("an editor cannot grant permissions they lack", func(t *testing.T) {
 		require.NoError(t, s.PutRole(t.Context(), org, "maker", opensocial.Role{
@@ -118,11 +128,15 @@ func TestCreateAndDeleteGroupSpace(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.ErrorIs(
-			t, s.DeleteGroupSpace(t.Context(), org, rolesAdmin, otherSpace), spaces.ErrSpaceNotFound,
+			t,
+			s.DeleteGroupSpace(t.Context(), org, rolesAdmin, otherSpace),
+			spaces.ErrSpaceNotFound,
 		)
 		members := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
 		require.ErrorIs(
-			t, s.DeleteGroupSpace(t.Context(), org, rolesAdmin, members), opensocial.ErrReservedSpace,
+			t,
+			s.DeleteGroupSpace(t.Context(), org, rolesAdmin, members),
+			opensocial.ErrReservedSpace,
 		)
 	})
 }
@@ -190,7 +204,9 @@ func TestUpdatePolicy(t *testing.T) {
 	t.Run("an unknown space is reported", func(t *testing.T) {
 		missing := habitat_syntax.ConstructSpaceURI(org, "network.habitat.docs", "missing")
 		require.ErrorIs(
-			t, s.UpdatePolicy(t.Context(), missing, rolesAdmin, groupPolicy()), spaces.ErrSpaceNotFound,
+			t,
+			s.UpdatePolicy(t.Context(), missing, rolesAdmin, groupPolicy()),
+			spaces.ErrSpaceNotFound,
 		)
 	})
 }
@@ -259,10 +275,16 @@ func TestSpaceAccessChecks(t *testing.T) {
 	t.Run("space scopes add the policy's permissions to the role's own", func(t *testing.T) {
 		scopes, err := s.SpaceScopes(t.Context(), rolesEditor, uri)
 		require.NoError(t, err)
-		require.True(t, scopes.Covers("space:network.habitat.docs?collection=app.comment&action=create"))
+		require.True(
+			t,
+			scopes.Covers("space:network.habitat.docs?collection=app.comment&action=create"),
+		)
 		plain, err := s.UserScopes(t.Context(), org, rolesEditor)
 		require.NoError(t, err)
-		require.False(t, plain.Covers("space:network.habitat.docs?collection=app.comment&action=create"))
+		require.False(
+			t,
+			plain.Covers("space:network.habitat.docs?collection=app.comment&action=create"),
+		)
 		groupScopes, err := s.SpaceScopes(t.Context(), org, uri)
 		require.NoError(t, err)
 		require.True(t, groupScopes.Covers("rpc:anything"))

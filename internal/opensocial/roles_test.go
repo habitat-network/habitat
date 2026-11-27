@@ -25,7 +25,10 @@ func newRolesOrg(t *testing.T) (*opensocial_testutil.TestStore, syntax.DID) {
 	orgStr, err := s.NewOrg(t.Context(), "roles", rolesAdmin)
 	require.NoError(t, err)
 	org := syntax.DID(orgStr)
-	require.NoError(t, s.PutRole(t.Context(), org, "viewer", opensocial.Role{DisplayName: "Viewer"}))
+	require.NoError(
+		t,
+		s.PutRole(t.Context(), org, "viewer", opensocial.Role{DisplayName: "Viewer"}),
+	)
 	require.NoError(t, s.PutRole(t.Context(), org, "editor", opensocial.Role{
 		DisplayName: "Editor",
 		Permissions: []string{opensocial.ActionScope(opensocial.ActionInvite)},
@@ -151,7 +154,10 @@ func TestUpdateRoleEscalation(t *testing.T) {
 func TestRoleProfileAndRemoval(t *testing.T) {
 	s, org := newRolesOrg(t)
 
-	require.NoError(t, s.SetRoleProfile(t.Context(), org, rolesEditor, "viewer", "Watcher", "reads"))
+	require.NoError(
+		t,
+		s.SetRoleProfile(t.Context(), org, rolesEditor, "viewer", "Watcher", "reads"),
+	)
 	roles, err := s.GetRoles(t.Context(), org)
 	require.NoError(t, err)
 	require.Equal(t, "Watcher", roles["viewer"].DisplayName)
@@ -159,13 +165,19 @@ func TestRoleProfileAndRemoval(t *testing.T) {
 	require.NoError(t, s.SetRoleProfile(t.Context(), org, rolesAdmin, "editor", "Writer", ""))
 	roles, err = s.GetRoles(t.Context(), org)
 	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.ActionScope(opensocial.ActionInvite)}, roles["editor"].Permissions)
+	require.Equal(
+		t,
+		[]string{opensocial.ActionScope(opensocial.ActionInvite)},
+		roles["editor"].Permissions,
+	)
 
 	require.ErrorIs(
 		t, s.RemoveRole(t.Context(), org, rolesEditor, "editor"), opensocial.ErrEscalation,
 	)
 	require.ErrorIs(
-		t, s.RemoveRole(t.Context(), org, rolesAdmin, "admin"), opensocial.ErrCannotDeleteBuiltinRole,
+		t,
+		s.RemoveRole(t.Context(), org, rolesAdmin, "admin"),
+		opensocial.ErrCannotDeleteBuiltinRole,
 	)
 	require.ErrorIs(
 		t, s.RemoveRole(t.Context(), org, rolesAdmin, "ghost"), opensocial.ErrRoleNotFound,
