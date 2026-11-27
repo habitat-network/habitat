@@ -150,3 +150,58 @@ func TestServer_JoinRequestsPagination(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, client.Query(
 		groupTS.Server.GroupListJoinRequests, url.Values{"limit": {"500"}}, &out))
 }
+
+func TestServer_RequestJoinByPolicy(t *testing.T) {
+	adminTS, aliceTS, _ := newSharedOpenSocialServers(t)
+	client := httpx_testutil.NewTestXRPCClient(t)
+	newGroup := func(t *testing.T, handle, policy string) string {
+		t.Helper()
+		org, err := adminTS.OpenSocialStore.NewOrg(t.Context(), handle, admin)
+		require.NoError(t, err)
+		require.NoError(t, adminTS.OpenSocialStore.UpdateProfile(
+			t.Context(), syntax.DID(org), handle, "", policy,
+		))
+		return org
+	}
+	join := func(org string, invite string) (int, opensocial_api.OrgAtgrpRequestJoinOutput) {
+		var out opensocial_api.OrgAtgrpRequestJoinOutput
+		code := client.Procedure(aliceTS.Server.GroupRequestJoin,
+			opensocial_api.OrgAtgrpRequestJoinInput{Group: org, Invite: invite}, &out)
+		return code, out
+	}
+
+	t.Run("an open group admits anyone, and asking again keeps them in", func(t *testing.T) {
+		org := newGroup(t, "open-group", opensocial.JoinPolicyOpen)
+		code, out := join(org, "")
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, "admitted", out.Status)
+		require.NotNil(t, out.Membership)
+		roles, err := adminTS.OpenSocialStore.GetUserRoles(t.Context(), syntax.DID(org), alice)
+		require.NoError(t, err)
+		require.NotEmpty(t, roles)
+		code, out = join(org, "")
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, "admitted", out.Status)
+	})
+
+	t.Run("an invitation admits its holder to an invite-only group", func(t *testing.T) {
+		org := newGroup(t, "closed-group", opensocial.JoinPolicyInvite)
+		code, _ := join(org, "")
+		require.Equal(t, http.StatusForbidden, code)
+		code, _ = join(org, "nosuchinvite")
+		require.Equal(t, http.StatusBadRequest, code)
+
+		invite, err := adminTS.OpenSocialStore.CreateInvite(
+			t.Context(), syntax.DID(org), alice, []string{opensocial.MemberRoleRkey},
+		)
+		require.NoError(t, err)
+		code, out := join(org, invite.ID)
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, "admitted", out.Status)
+	})
+
+	t.Run("a group that does not exist is not found", func(t *testing.T) {
+		code, _ := join("did:plc:nogroup", "")
+		require.Equal(t, http.StatusNotFound, code)
+	})
+}
