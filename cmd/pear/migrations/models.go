@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"github.com/habitat-network/habitat/internal/emaildomain"
+	"github.com/habitat-network/habitat/internal/foreignrepo"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/llmgateway"
@@ -23,6 +24,7 @@ func Models() []any {
 	models := make([]any, 0)
 	for _, set := range [][]any{
 		emaildomain.Models(),
+		foreignrepo.Models(),
 		hive.Models(),
 		keyval.Models(),
 		llmgateway.Models(),
