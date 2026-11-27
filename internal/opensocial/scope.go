@@ -131,10 +131,14 @@ func NewScopeSet(scopes ...[]string) ScopeSet {
 	return ScopeSet{scopes: slices.Concat(scopes...)}
 }
 
-// IsPermissionScope reports whether scope is one the group permission model
-// governs, as opposed to a base OAuth scope such as "atproto".
+// IsPermissionScope reports whether scope is one of the scopes that manage the
+// group itself (permission sets, group methods, Habitat-only grants), as
+// opposed to a base OAuth scope such as "atproto" or a space data-access scope
+// such as "space:...?action=read". An admin approving an app grants data access
+// to the group's spaces as the group owner; that access is still bounded by
+// each space's access record, so only the management surface is capped.
 func IsPermissionScope(scope string) bool {
-	for _, prefix := range []string{includePrefix, spacePrefix, rpcPrefix, "habitat:"} {
+	for _, prefix := range []string{includePrefix, rpcPrefix, "habitat:"} {
 		if strings.HasPrefix(scope, prefix) {
 			return true
 		}

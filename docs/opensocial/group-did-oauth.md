@@ -18,10 +18,12 @@ provides that and where it stops.
 ## What this change adds
 
 1. **Granting is capped by the approving admin.** `HandleOpensocial` refuses the
-   flow when a requested scope (`include:`, `space:`, `rpc:`, `habitat:`) is
+   flow when a requested management scope (`include:`, `rpc:`, `habitat:`) is
    not covered by the admin's own scopes. This is the spec's escalation rule
    applied to OAuth: a session for the group can't hold more than the person who
-   approved it.
+   approved it. `space:` data-access scopes are not capped, because the default
+   admin role holds only `manage=` space scopes and apps need data access;
+   that access stays bounded by each space's access record.
 2. **The token's scopes bound the session.** The group DID holds every scope,
    but an OAuth session for it holds only what the token was granted.
    `requireGroupRPC` checks the granted scopes for the method (`rpc:<lxm>`), so
