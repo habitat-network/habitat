@@ -100,7 +100,8 @@ func (s *Store) migrateLegacyGroupTx(ctx context.Context, org syntax.DID) error 
 		if err != nil {
 			return fmt.Errorf("marshal %s: %w", name, err)
 		}
-		if _, _, err := store.PutRecord(ctx, space, repo, syntax.NSID(name), rkey, raw); err != nil {
+		_, _, err = store.PutRecord(ctx, space, repo, syntax.NSID(name), rkey, raw)
+		if err != nil {
 			return fmt.Errorf("put %s: %w", name, err)
 		}
 		return nil
@@ -292,8 +293,8 @@ func (s *Store) migrateLegacyInvites(ctx context.Context, org syntax.DID) error 
 			return fmt.Errorf("decode roles of invite %s: %w", row.ID, err)
 		}
 		inbox := invitesSpace(row.Invitee)
-		if _, err := s.spacesStore.CreateSpace(ctx, row.Invitee, InboxSpaceType, "self"); err != nil &&
-			!errors.Is(err, spaces.ErrSpaceAlreadyExists) {
+		_, err := s.spacesStore.CreateSpace(ctx, row.Invitee, InboxSpaceType, "self")
+		if err != nil && !errors.Is(err, spaces.ErrSpaceAlreadyExists) {
 			return fmt.Errorf("create inbox of %s: %w", row.Invitee, err)
 		}
 		raw, err := spaces.MarshalRecord(map[string]any{
