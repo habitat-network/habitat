@@ -64,8 +64,7 @@ type spaceRecord struct {
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 	Value      []byte
 	// ValueJSON is the same record as JSON in the native JSON column, written
-	// alongside Value. Reads use it; Value is only the fallback for a row whose
-	// ValueJSON is NULL.
+	// alongside Value. Reads use it; the backfill filled it for older rows.
 	ValueJSON datatypes.JSON
 	Rev       syntax.TID `gorm:"uniqueIndex"`
 	Cid       string
