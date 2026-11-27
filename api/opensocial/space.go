@@ -4,16 +4,16 @@ package opensocial
 
 import "encoding/json"
 
-// CommunityOpensocialSpace represents a community.opensocial.space record
-type CommunityOpensocialSpace struct {
+// OrgAtgrpSpace represents a org.atgrp.space record
+type OrgAtgrpSpace struct {
 	LexiconTypeID string `json:"$type"`
-	UpdatedAt     string `json:"updatedAt,omitempty"`
-	Uri           string `json:"uri"`
+	CreatedAt     string `json:"createdAt"`
+	Space         string `json:"space"`
 }
 
-// MarshalJSON sets $type to "community.opensocial.space" before encoding.
-func (t CommunityOpensocialSpace) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "community.opensocial.space"
-	type alias CommunityOpensocialSpace
+// MarshalJSON sets $type to "org.atgrp.space" before encoding.
+func (t OrgAtgrpSpace) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "org.atgrp.space"
+	type alias OrgAtgrpSpace
 	return json.Marshal(alias(t))
 }

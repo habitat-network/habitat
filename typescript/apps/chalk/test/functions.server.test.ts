@@ -108,12 +108,12 @@ describe("createDocSpace", () => {
     });
   });
 
-  it("creates an org space via community.opensocial.createSpace, proxied to the org", async () => {
+  it("creates an org space via network.habitat.opensocial.createSpace, proxied to the org", async () => {
     let body: unknown;
     let proxyHeader: string | null = null;
     server.use(
       http.post(
-        "http://pds.test/xrpc/community.opensocial.createSpace",
+        "http://pds.test/xrpc/network.habitat.opensocial.createSpace",
         async ({ request }) => {
           body = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");
@@ -160,7 +160,7 @@ describe("fetchOrgName", () => {
         ({ request }) => {
           params = new URL(request.url).searchParams;
           proxyHeader = request.headers.get("Atproto-Proxy");
-          return HttpResponse.json({ value: { name: "Acme Corp" } });
+          return HttpResponse.json({ value: { displayName: "Acme Corp" } });
         },
       ),
     );
@@ -169,15 +169,15 @@ describe("fetchOrgName", () => {
     const client = new HabitatClient(testEnv, "did:plc:member1");
     const name = await fetchOrgName(client, "did:web:org.example");
     expect(name).toBe("Acme Corp");
-    // No Atproto-Proxy: the about space's own community.opensocial.access
+    // No Atproto-Proxy: the about space's own org.atgrp.access
     // record already admits any member/admin role, so pear's
     // CheckUserHasSpaceRole grants the read directly — see functions.server.ts.
     expect(proxyHeader).toBeNull();
     expect(params?.get("repo")).toBe("did:web:org.example");
-    expect(params?.get("collection")).toBe("community.opensocial.profile");
+    expect(params?.get("collection")).toBe("org.atgrp.profile");
     expect(params?.get("rkey")).toBe("self");
     expect(params?.get("space")).toBe(
-      "at:space/did:web:org.example/community.opensocial.about/self",
+      "at:space/did:web:org.example/org.atgrp.meta/self",
     );
   });
 
@@ -203,21 +203,21 @@ describe("listMyOrgIds", () => {
     server.close();
   });
 
-  it("returns the owner DID of every community.opensocial.members space", async () => {
+  it("returns the owner DID of every org.atgrp.members space", async () => {
     server.use(
       http.get(
         "http://pds.test/xrpc/network.habitat.space.listSpaces",
         ({ request }) => {
           expect(new URL(request.url).searchParams.get("spaceType")).toBe(
-            "community.opensocial.members",
+            "org.atgrp.members",
           );
           return HttpResponse.json({
             spaces: [
               {
-                uri: "at:space/did:web:org1.example/community.opensocial.members/self",
+                uri: "at:space/did:web:org1.example/org.atgrp.members/self",
               },
               {
-                uri: "at:space/did:web:org2.example/community.opensocial.members/self",
+                uri: "at:space/did:web:org2.example/org.atgrp.members/self",
               },
             ],
           });

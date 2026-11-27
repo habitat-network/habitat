@@ -95,7 +95,8 @@ func (p *PearServer) issueCredential(
 	// every other space gates on the user, so a request without a delegation
 	// token answers SpaceNotFound, which doesn't reveal whether the space
 	// exists.
-	publicRead := policy.Type == spaces.PolicyMemberSpace && policy.PublicRead
+	publicRead := (policy.Type == spaces.PolicyMemberSpace ||
+		policy.Type == spaces.PolicyGroupSpace) && policy.PublicRead
 	if req.delegationToken == "" && !publicRead {
 		httpx.WriteSpaceNotFound(ctx, w, errors.New("delegation token required"))
 		return "", false

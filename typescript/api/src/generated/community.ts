@@ -3,4 +3,3 @@
  */
 
 export * as lexicon from './community/lexicon.js'
-export * as opensocial from './community/opensocial.js'

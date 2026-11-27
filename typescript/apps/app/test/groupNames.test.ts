@@ -19,7 +19,7 @@ function habitatWith(profileName: string | null): HabitatService {
     call: () =>
       profileName === null
         ? Effect.die("profile unreadable")
-        : Effect.succeed({ value: { name: profileName } }),
+        : Effect.succeed({ value: { displayName: profileName } }),
   } as unknown as HabitatService;
 }
 

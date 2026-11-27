@@ -57,7 +57,7 @@ export const docAccess = sqliteTable(
 
 // docOrgAccess mirrors the network.habitat.relationship.spaceRelation
 // records that grant a whole org access to a doc — the ones whose subject is
-// that org's own community.opensocial.members space (see orgMembersSpaceUri),
+// that org's own org.atgrp.members space (see orgMembersSpaceUri),
 // which is how "share with everyone at <org>" is expressed. One row per
 // (orgDid, spaceUri): an org holds at most one relation on a given doc.
 // Like doc_access, the relation record's own URI is kept as an indexed

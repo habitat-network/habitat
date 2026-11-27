@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ipfs/go-cid"
 	"log/slog"
 	"time"
 
@@ -30,16 +31,17 @@ const (
 )
 
 const (
-	MembersSpaceType = "community.opensocial.members"
-	AboutSpaceType   = "community.opensocial.about"
+	MembersSpaceType = "org.atgrp.members"
+	InvitesSpaceType = "org.atgrp.invites"
+	MetaSpaceType    = "org.atgrp.meta"
 )
 
 const (
-	AcceptanceCollection    = "community.opensocial.acceptance"
-	InvitesCollection       = "community.opensocial.invites"
-	MembershipCollection    = "community.opensocial.membership"
-	ProfileCollection       = "community.opensocial.profile"
-	MemberProfileCollection = "community.opensocial.memberProfile"
+	AcceptanceCollection    = "org.atgrp.acceptance"
+	InvitesCollection       = "org.atgrp.invites"
+	MembershipCollection    = "org.atgrp.membership"
+	ProfileCollection       = "org.atgrp.profile"
+	MemberProfileCollection = "network.habitat.opensocial.memberProfile"
 )
 
 // Store manages opensocial communities: their profile/role/membership repo
@@ -142,20 +144,21 @@ func (s *Store) createOrgShell(
 		return nil, fmt.Errorf("mint org identity: %w", err)
 	}
 	spacesStoreTx := s.spacesStore.WithTx(tx)
-	aboutSpace, err := spacesStoreTx.
-		CreateSpace(ctx, orgID.DID, AboutSpaceType, "self")
+	metaSpace, err := spacesStoreTx.
+		CreateSpace(ctx, orgID.DID, MetaSpaceType, "self")
 	if err != nil {
 		return nil, fmt.Errorf("create profile space: %w", err)
 	}
-	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialProfile{
-		Name:      handle,
-		UpdatedAt: time.Now().Format(time.RFC3339),
+	recordBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpProfile{
+		DisplayName: handle,
+		// Orgs have always been invite-only.
+		JoinPolicy: "invite",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal profile record: %w", err)
 	}
 	if _, _, err = spacesStoreTx.PutRecord(
-		ctx, aboutSpace, orgID.DID, "community.opensocial.profile", "self",
+		ctx, metaSpace, orgID.DID, "org.atgrp.profile", "self",
 		recordBytes,
 	); err != nil {
 		return nil, fmt.Errorf("put profile record: %w", err)
@@ -166,79 +169,66 @@ func (s *Store) createOrgShell(
 	if err != nil {
 		return nil, fmt.Errorf("create members space: %w", err)
 	}
-	recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialRole{
-		Name:      "Admin",
-		UpdatedAt: time.Now().Format(time.RFC3339),
+	recordBytes, err = spaces.MarshalRecord(opensocial_api.OrgAtgrpRole{
+		DisplayName: "Admin",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal role record: %w", err)
 	}
 	if _, _, err = spacesStoreTx.PutRecord(
-		ctx, membersSpace, orgID.DID, "community.opensocial.role",
+		ctx, membersSpace, orgID.DID, "org.atgrp.role",
 		AdminRoleRkey,
 		recordBytes,
 	); err != nil {
 		return nil, fmt.Errorf("put role record: %w", err)
 	}
-	recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialRole{
-		Name:      "Member",
-		UpdatedAt: time.Now().Format(time.RFC3339),
+	recordBytes, err = spaces.MarshalRecord(opensocial_api.OrgAtgrpRole{
+		DisplayName: "Member",
+		// Members admitted through requestJoin get this role.
+		Default: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal role record: %w", err)
 	}
 	if _, _, err = spacesStoreTx.PutRecord(
-		ctx, membersSpace, orgID.DID, "community.opensocial.role",
+		ctx, membersSpace, orgID.DID, "org.atgrp.role",
 		MemberRoleRkey,
 		recordBytes,
 	); err != nil {
 		return nil, fmt.Errorf("put role record: %w", err)
 	}
-	recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
-		Roles:     []string{MemberRoleRkey, AdminRoleRkey},
-		UpdatedAt: time.Now().Format(time.RFC3339),
+	recordBytes, err = spaces.MarshalRecord(opensocial_api.OrgAtgrpAccess{
+		Grants: readGrants([]string{MemberRoleRkey, AdminRoleRkey}),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal access record: %w", err)
 	}
 	if _, _, err = spacesStoreTx.PutRecord(
-		ctx, membersSpace, orgID.DID, "community.opensocial.access", "self",
+		ctx, membersSpace, orgID.DID, "org.atgrp.access", "self",
 		recordBytes,
 	); err != nil {
 		return nil, fmt.Errorf("put access record: %w", err)
 	}
-	recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
-		Roles:     []string{MemberRoleRkey, AdminRoleRkey},
-		UpdatedAt: time.Now().Format(time.RFC3339),
+	recordBytes, err = spaces.MarshalRecord(opensocial_api.OrgAtgrpAccess{
+		// The meta space is the group's public face.
+		PublicRead: true,
+		Grants:     readGrants([]string{MemberRoleRkey, AdminRoleRkey}),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal access record: %w", err)
 	}
 	if _, _, err = spacesStoreTx.PutRecord(
-		ctx, aboutSpace, orgID.DID, "community.opensocial.access", "self",
+		ctx, metaSpace, orgID.DID, "org.atgrp.access", "self",
 		recordBytes,
 	); err != nil {
 		return nil, fmt.Errorf("put access record: %w", err)
 	}
-	// The admin role starts out bound to every standardized action, and
-	// able to assign/eject either built-in role; the member role starts
-	// with no actions bound. Communities can rebind both via
-	// updatePermissions once they hold the community.configure action.
-	permissionsBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialPermissions{
-		Bindings: []opensocial_api.CommunityOpensocialPermissionsActionBinding{
-			{Action: string(ActionInvite), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionEject), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionRoleAssign), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionSpaceCreate), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionSpaceConfigure), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionSpaceDelete), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionCommunityConfigure), Roles: []string{AdminRoleRkey}},
-			{Action: string(ActionMcpConfigure), Roles: []string{AdminRoleRkey}},
-		},
-		Assignable: []opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
-			{Role: AdminRoleRkey, Roles: []string{AdminRoleRkey, MemberRoleRkey}},
-		},
-		UpdatedAt: time.Now().Format(time.RFC3339),
+	// The admin role starts out holding every scope and able to assign either
+	// built-in role; the member role holds what a member needs to take part.
+	// Groups can change both via the permissions record once they hold the
+	// configure permission set.
+	permissionsBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpPermissions{
+		Grants: bootstrapGrants(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal permissions record: %w", err)
@@ -252,7 +242,7 @@ func (s *Store) createOrgShell(
 	return orgID, nil
 }
 
-// putMembership writes member's community.opensocial.membership record,
+// putMembership writes member's org.atgrp.membership record,
 // authored by the org, into the org's members space.
 func putMembership(
 	ctx context.Context,
@@ -260,24 +250,36 @@ func putMembership(
 	orgDID, member syntax.DID,
 	roles []string,
 ) error {
-	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMembership{
+	_, err := putMembershipRef(ctx, spacesStore, orgDID, member, roles)
+	return err
+}
+
+// putMembershipRef is putMembership returning a reference to the record.
+func putMembershipRef(
+	ctx context.Context,
+	spacesStore spaces.Store,
+	orgDID, member syntax.DID,
+	roles []string,
+) (StrongRef, error) {
+	recordBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpMembership{
 		Roles:     roles,
-		UpdatedAt: time.Now().Format(time.RFC3339),
+		CreatedAt: time.Now().Format(time.RFC3339),
 	})
 	if err != nil {
-		return fmt.Errorf("marshal membership record: %w", err)
+		return StrongRef{}, fmt.Errorf("marshal membership record: %w", err)
 	}
-	if _, _, err = spacesStore.PutRecord(
+	uri, c, err := spacesStore.PutRecord(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
 		orgDID,
 		MembershipCollection,
 		syntax.RecordKey(member),
 		recordBytes,
-	); err != nil {
-		return fmt.Errorf("put membership record: %w", err)
+	)
+	if err != nil {
+		return StrongRef{}, fmt.Errorf("put membership record: %w", err)
 	}
-	return nil
+	return strongRef(uri, c), nil
 }
 
 func (s *Store) CreateSpace(
@@ -294,54 +296,110 @@ func (s *Store) CreateSpace(
 		attribute.String("habitat.space.type", spaceType.String()),
 	))
 	defer func() { telemetry.End(span, err) }()
-	var spaceURI habitat_syntax.SpaceURI
+	created, err := s.createSpace(
+		ctx,
+		orgDID,
+		spaceType,
+		skey,
+		policy,
+		opensocial_api.OrgAtgrpAccess{
+			Grants: readGrants(roles),
+		},
+		true,
+	)
+	if err != nil {
+		return "", err
+	}
+	return created.Space, nil
+}
+
+// createdSpace is a space written by createSpace, with the access and index
+// records that describe it.
+type createdSpace struct {
+	Space  habitat_syntax.SpaceURI
+	Access StrongRef
+	// Index is nil when the space was not added to the group's index.
+	Index *StrongRef
+}
+
+// StrongRef names a record at a particular version.
+type StrongRef struct {
+	URI string
+	CID string
+}
+
+func (s *Store) createSpace(
+	ctx context.Context,
+	orgDID syntax.DID,
+	spaceType syntax.NSID,
+	skey habitat_syntax.SpaceKey,
+	policy spaces.Policy,
+	access opensocial_api.OrgAtgrpAccess,
+	index bool,
+) (createdSpace, error) {
+	var created createdSpace
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
-		spaceURI, err = spacesStoreTx.CreateSpace(ctx, orgDID, spaceType, skey)
+		spaceURI, err := spacesStoreTx.CreateSpace(ctx, orgDID, spaceType, skey)
 		if err != nil {
 			return fmt.Errorf("space store create: %w", err)
 		}
+		created.Space = spaceURI
 		if err := spacesStoreTx.SetSpacePolicy(ctx, spaceURI, policy); err != nil {
 			return fmt.Errorf("set space policy: %w", err)
 		}
-		recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
-			Roles:     roles,
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		})
+		recordBytes, err := spaces.MarshalRecord(access)
 		if err != nil {
 			return fmt.Errorf("marshal access record: %w", err)
 		}
-		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, spaceURI, orgDID, "community.opensocial.access", "self",
+		accessURI, accessCID, err := spacesStoreTx.PutRecord(
+			ctx, spaceURI, orgDID, "org.atgrp.access", "self",
 			recordBytes,
-		); err != nil {
+		)
+		if err != nil {
 			return fmt.Errorf("put access record: %w", err)
+		}
+		created.Access = strongRef(accessURI, accessCID)
+		if !index {
+			return nil
 		}
 		// New records name the space in the at:space/ form clients now write;
 		// older ones keep the at:// form until the URI migration.
-		recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialSpace{
-			Uri: spaceURI.AtSpace().String(),
+		recordBytes, err = spaces.MarshalRecord(opensocial_api.OrgAtgrpSpace{
+			Space:     spaceURI.AtSpace().String(),
+			CreatedAt: time.Now().Format(time.RFC3339),
 		})
 		if err != nil {
 			return fmt.Errorf("marshal space record: %w", err)
 		}
-		if _, _, err = spacesStoreTx.PutRecord(
+		indexURI, indexCID, err := spacesStoreTx.PutRecord(
 			ctx,
 			habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
-			orgDID, "community.opensocial.space", "",
+			orgDID, "org.atgrp.space", "",
 			recordBytes,
-		); err != nil {
+		)
+		if err != nil {
 			return fmt.Errorf("put space record: %w", err)
 		}
+		ref := strongRef(indexURI, indexCID)
+		created.Index = &ref
 		return nil
 	}); err != nil {
-		return "", fmt.Errorf("create space: %w", err)
+		return createdSpace{}, fmt.Errorf("create space: %w", err)
 	}
-	return spaceURI, nil
+	return created, nil
+}
+
+func strongRef(uri habitat_syntax.SpaceRecordURI, c *cid.Cid) StrongRef {
+	ref := StrongRef{URI: string(uri)}
+	if c != nil {
+		ref.CID = c.String()
+	}
+	return ref
 }
 
 // UpdateSpace replaces the roles that may read a space by rewriting its
-// community.opensocial.access record.
+// org.atgrp.access record.
 func (s *Store) UpdateSpace(
 	ctx context.Context,
 	spaceURI habitat_syntax.SpaceURI,
@@ -351,20 +409,43 @@ func (s *Store) UpdateSpace(
 		telemetry.Space(spaceURI), rolesKey.StringSlice(roles),
 	))
 	defer func() { telemetry.End(span, err) }()
-	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
-		Roles:     roles,
-		UpdatedAt: time.Now().Format(time.RFC3339),
-	})
+	access, err := s.getAccess(ctx, spaceURI)
+	if err != nil {
+		return err
+	}
+	access.Grants = withReadRoles(access.Grants, roles)
+	recordBytes, err := spaces.MarshalRecord(access)
 	if err != nil {
 		return fmt.Errorf("marshal access record: %w", err)
 	}
 	if _, _, err := s.spacesStore.PutRecord(
-		ctx, spaceURI, spaceURI.SpaceOwner(), "community.opensocial.access", "self",
+		ctx, spaceURI, spaceURI.SpaceOwner(), "org.atgrp.access", "self",
 		recordBytes,
 	); err != nil {
 		return fmt.Errorf("put access record: %w", err)
 	}
 	return nil
+}
+
+// getAccess returns spaceURI's access record, or a zero value if it has none.
+func (s *Store) getAccess(
+	ctx context.Context,
+	spaceURI habitat_syntax.SpaceURI,
+) (opensocial_api.OrgAtgrpAccess, error) {
+	record, err := s.spacesStore.GetRecord(
+		ctx, spaceURI, spaceURI.SpaceOwner(), "org.atgrp.access", "self",
+	)
+	if errors.Is(err, spaces.ErrRecordNotFound) {
+		return opensocial_api.OrgAtgrpAccess{}, nil
+	}
+	if err != nil {
+		return opensocial_api.OrgAtgrpAccess{}, fmt.Errorf("get access record: %w", err)
+	}
+	var access opensocial_api.OrgAtgrpAccess
+	if err := decodeRecordValue(record.Value, &access); err != nil {
+		return opensocial_api.OrgAtgrpAccess{}, fmt.Errorf("decode access record: %w", err)
+	}
+	return access, nil
 }
 
 func (s *Store) UploadImage(
@@ -384,9 +465,9 @@ func (s *Store) UploadImage(
 	var blob atdata.Blob
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
-		aboutSpace := habitat_syntax.ConstructSpaceURI(orgDID, AboutSpaceType, "self")
+		metaSpace := habitat_syntax.ConstructSpaceURI(orgDID, MetaSpaceType, "self")
 		existingRecord, err := spacesStoreTx.GetRecord(
-			ctx, aboutSpace, orgDID, "community.opensocial.profile", "self",
+			ctx, metaSpace, orgDID, "org.atgrp.profile", "self",
 		)
 		if err != nil {
 			return fmt.Errorf("get existing profile record: %w", err)
@@ -406,7 +487,7 @@ func (s *Store) UploadImage(
 			return fmt.Errorf("marshal profile record: %w", err)
 		}
 		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, aboutSpace, orgDID, "community.opensocial.profile", "self", recordBytes,
+			ctx, metaSpace, orgDID, "org.atgrp.profile", "self", recordBytes,
 		); err != nil {
 			return fmt.Errorf("put profile record: %w", err)
 		}
@@ -428,14 +509,14 @@ func (s *Store) UpdateProfile(
 		telemetry.Org(orgDID),
 	))
 	defer func() { telemetry.End(span, err) }()
-	aboutSpace := habitat_syntax.ConstructSpaceURI(orgDID, AboutSpaceType, "self")
+	metaSpace := habitat_syntax.ConstructSpaceURI(orgDID, MetaSpaceType, "self")
 	existingRecord, err := s.spacesStore.GetRecord(
-		ctx, aboutSpace, orgDID, "community.opensocial.profile", "self",
+		ctx, metaSpace, orgDID, "org.atgrp.profile", "self",
 	)
 	if err != nil {
 		return fmt.Errorf("get existing profile record: %w", err)
 	}
-	existingRecord.Value["name"] = name
+	existingRecord.Value["displayName"] = name
 	if description == "" {
 		delete(existingRecord.Value, "description")
 	} else {
@@ -444,13 +525,12 @@ func (s *Store) UpdateProfile(
 	if joinPolicy != "" {
 		existingRecord.Value["joinPolicy"] = joinPolicy
 	}
-	existingRecord.Value["updatedAt"] = time.Now().Format(time.RFC3339)
 	recordBytes, err := spaces.MarshalRecord(existingRecord.Value)
 	if err != nil {
 		return fmt.Errorf("marshal profile record: %w", err)
 	}
 	if _, _, err = s.spacesStore.PutRecord(
-		ctx, aboutSpace, orgDID, "community.opensocial.profile", "self", recordBytes,
+		ctx, metaSpace, orgDID, "org.atgrp.profile", "self", recordBytes,
 	); err != nil {
 		return fmt.Errorf("put profile record: %w", err)
 	}
@@ -467,9 +547,9 @@ func (s *Store) AssignRoles(
 		telemetry.Org(orgDID), memberAttr(user), rolesKey.StringSlice(roles),
 	))
 	defer func() { telemetry.End(span, err) }()
-	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMembership{
+	recordBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpMembership{
 		Roles:     roles,
-		UpdatedAt: time.Now().Format(time.RFC3339),
+		CreatedAt: time.Now().Format(time.RFC3339),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal membership record: %w", err)
@@ -478,7 +558,7 @@ func (s *Store) AssignRoles(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
 		orgDID,
-		"community.opensocial.membership",
+		"org.atgrp.membership",
 		syntax.RecordKey(user),
 		recordBytes,
 	)
@@ -497,14 +577,15 @@ func (s *Store) CheckPermission(
 		span.SetAttributes(allowedKey.Bool(ok))
 		telemetry.End(span, err)
 	}()
-	if space.SpaceType() == AboutSpaceType {
+	// The group DID is implicitly a member that can read every group space.
+	if user == space.SpaceOwner() {
 		return true, nil
 	}
 	accessRecord, err := s.spacesStore.GetRecord(
 		ctx,
 		space,
 		space.SpaceOwner(),
-		"community.opensocial.access",
+		"org.atgrp.access",
 		"self",
 	)
 	if errors.Is(err, spaces.ErrRecordNotFound) {
@@ -513,9 +594,12 @@ func (s *Store) CheckPermission(
 	if err != nil {
 		return false, fmt.Errorf("get access record: %w", err)
 	}
-	var access opensocial_api.CommunityOpensocialAccess
+	var access opensocial_api.OrgAtgrpAccess
 	if err := decodeRecordValue(accessRecord.Value, &access); err != nil {
 		return false, fmt.Errorf("decode access record: %w", err)
+	}
+	if access.PublicRead {
+		return true, nil
 	}
 	membershipRoles, err := s.GetUserRoles(ctx, space.SpaceOwner(), user)
 	if err != nil {
@@ -529,16 +613,16 @@ func (s *Store) CheckPermission(
 		return len(membershipRoles) > 0, nil
 	}
 	intersection := xmaps.Intersection(
-		xmaps.SetFromSlice(access.Roles),
+		xmaps.SetFromSlice(ReadRoles(access.Grants)),
 		xmaps.SetFromSlice(membershipRoles),
 	)
 	return len(intersection) > 0, nil
 }
 
-// ListMemberSpaces returns the community.opensocial.members spaces `user`
+// ListMemberSpaces returns the org.atgrp.members spaces `user`
 // belongs to — every org whose members space it holds a permissioned repo
 // in (i.e. has written its own record into, such as a
-// community.opensocial.acceptance record when joining).
+// org.atgrp.acceptance record when joining).
 func (s *Store) ListMemberSpaces(
 	ctx context.Context,
 	user syntax.DID,
@@ -566,7 +650,7 @@ func (s *Store) GetUserRoles(
 	membershipRecord, err := s.spacesStore.GetRecord(
 		ctx, habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
 		orgDID,
-		"community.opensocial.membership",
+		"org.atgrp.membership",
 		syntax.RecordKey(user),
 	)
 	if errors.Is(err, spaces.ErrRecordNotFound) {
@@ -575,7 +659,7 @@ func (s *Store) GetUserRoles(
 	if err != nil {
 		return nil, fmt.Errorf("get membership record: %w", err)
 	}
-	var membership opensocial_api.CommunityOpensocialMembership
+	var membership opensocial_api.OrgAtgrpMembership
 	if err := decodeRecordValue(membershipRecord.Value, &membership); err != nil {
 		return nil, fmt.Errorf("decode membership record: %w", err)
 	}
@@ -609,7 +693,7 @@ func (s *Store) CheckAppAccess(
 	}()
 	orgDID := spaceURI.SpaceOwner()
 	// any app can access the members and about spaces
-	if spaceURI.SpaceType() == MembersSpaceType || spaceURI.SpaceType() == AboutSpaceType {
+	if spaceURI.SpaceType() == MembersSpaceType || spaceURI.SpaceType() == MetaSpaceType {
 		return true, nil
 	}
 	rkey, err := habitat_syntax.AppAccessRkey(clientID)
@@ -698,30 +782,30 @@ func (s *Store) GrantAppAccess(
 func (s *Store) GetProfile(
 	ctx context.Context,
 	orgDID syntax.DID,
-) (_ opensocial_api.CommunityOpensocialProfile, err error) {
+) (_ opensocial_api.OrgAtgrpProfile, err error) {
 	ctx, span := tracer.Start(ctx, "opensocial.GetProfile", trace.WithAttributes(
 		telemetry.Org(orgDID),
 	))
 	defer func() { telemetry.End(span, err) }()
 	profileRecord, err := s.spacesStore.GetRecord(
 		ctx,
-		habitat_syntax.ConstructSpaceURI(orgDID, AboutSpaceType, "self"),
+		habitat_syntax.ConstructSpaceURI(orgDID, MetaSpaceType, "self"),
 		orgDID,
 		ProfileCollection,
 		"self",
 	)
 	if errors.Is(err, spaces.ErrRecordNotFound) {
-		return opensocial_api.CommunityOpensocialProfile{}, nil
+		return opensocial_api.OrgAtgrpProfile{}, nil
 	}
 	if err != nil {
-		return opensocial_api.CommunityOpensocialProfile{}, fmt.Errorf(
+		return opensocial_api.OrgAtgrpProfile{}, fmt.Errorf(
 			"get profile record: %w",
 			err,
 		)
 	}
-	var profile opensocial_api.CommunityOpensocialProfile
+	var profile opensocial_api.OrgAtgrpProfile
 	if err := decodeRecordValue(profileRecord.Value, &profile); err != nil {
-		return opensocial_api.CommunityOpensocialProfile{}, fmt.Errorf(
+		return opensocial_api.OrgAtgrpProfile{}, fmt.Errorf(
 			"decode profile record: %w",
 			err,
 		)
@@ -729,13 +813,13 @@ func (s *Store) GetProfile(
 	return profile, nil
 }
 
-// GetMemberProfile returns memberDID's community.opensocial.memberProfile
+// GetMemberProfile returns memberDID's network.habitat.opensocial.memberProfile
 // record within orgDID's members space. Returns the zero value, no error, if
 // the member hasn't set a profile.
 func (s *Store) GetMemberProfile(
 	ctx context.Context,
 	orgDID, memberDID syntax.DID,
-) (_ opensocial_api.CommunityOpensocialMemberProfile, err error) {
+) (_ habitat.NetworkHabitatOpensocialMemberProfile, err error) {
 	ctx, span := tracer.Start(ctx, "opensocial.GetMemberProfile", trace.WithAttributes(
 		telemetry.Org(orgDID), memberAttr(memberDID),
 	))
@@ -748,17 +832,17 @@ func (s *Store) GetMemberProfile(
 		syntax.RecordKey(memberDID),
 	)
 	if errors.Is(err, spaces.ErrRecordNotFound) {
-		return opensocial_api.CommunityOpensocialMemberProfile{}, nil
+		return habitat.NetworkHabitatOpensocialMemberProfile{}, nil
 	}
 	if err != nil {
-		return opensocial_api.CommunityOpensocialMemberProfile{}, fmt.Errorf(
+		return habitat.NetworkHabitatOpensocialMemberProfile{}, fmt.Errorf(
 			"get member profile record: %w",
 			err,
 		)
 	}
-	var profile opensocial_api.CommunityOpensocialMemberProfile
+	var profile habitat.NetworkHabitatOpensocialMemberProfile
 	if err := decodeRecordValue(profileRecord.Value, &profile); err != nil {
-		return opensocial_api.CommunityOpensocialMemberProfile{}, fmt.Errorf(
+		return habitat.NetworkHabitatOpensocialMemberProfile{}, fmt.Errorf(
 			"decode member profile record: %w",
 			err,
 		)
@@ -766,7 +850,7 @@ func (s *Store) GetMemberProfile(
 	return profile, nil
 }
 
-// GetMemberProfiles batch-fetches the community.opensocial.memberProfile
+// GetMemberProfiles batch-fetches the network.habitat.opensocial.memberProfile
 // records for memberDIDs within orgDID's members space, in a single query
 // (see spaces.Store.GetRecords), keyed by DID. Members with no profile record
 // are simply absent from the result.
@@ -774,7 +858,7 @@ func (s *Store) GetMemberProfiles(
 	ctx context.Context,
 	orgDID syntax.DID,
 	memberDIDs []syntax.DID,
-) (_ map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile, err error) {
+) (_ map[syntax.DID]habitat.NetworkHabitatOpensocialMemberProfile, err error) {
 	ctx, span := tracer.Start(ctx, "opensocial.GetMemberProfiles", trace.WithAttributes(
 		telemetry.Org(orgDID), attribute.Int("habitat.opensocial.members", len(memberDIDs)),
 	))
@@ -791,11 +875,11 @@ func (s *Store) GetMemberProfiles(
 		return nil, fmt.Errorf("get member profile records: %w", err)
 	}
 	profiles := make(
-		map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile,
+		map[syntax.DID]habitat.NetworkHabitatOpensocialMemberProfile,
 		len(records),
 	)
 	for _, record := range records {
-		var profile opensocial_api.CommunityOpensocialMemberProfile
+		var profile habitat.NetworkHabitatOpensocialMemberProfile
 		if err := decodeRecordValue(record.Value, &profile); err != nil {
 			return nil, fmt.Errorf("decode member profile record for %s: %w", record.Owner, err)
 		}
@@ -804,7 +888,7 @@ func (s *Store) GetMemberProfiles(
 	return profiles, nil
 }
 
-// SeedMemberProfile writes memberDID's initial community.opensocial.memberProfile
+// SeedMemberProfile writes memberDID's initial network.habitat.opensocial.memberProfile
 // record within orgDID's members space, authored by the member, if one
 // doesn't already exist. Used to pre-fill a profile from login-provider
 // account metadata (e.g. Google name/picture) on first join; it never
@@ -840,7 +924,7 @@ func (s *Store) SeedMemberProfile(
 		if !errors.Is(err, spaces.ErrRecordNotFound) {
 			return fmt.Errorf("get existing member profile record: %w", err)
 		}
-		recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMemberProfile{
+		recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatOpensocialMemberProfile{
 			DisplayName: displayName,
 			AvatarUrl:   avatarUrl,
 			UpdatedAt:   time.Now().Format(time.RFC3339),

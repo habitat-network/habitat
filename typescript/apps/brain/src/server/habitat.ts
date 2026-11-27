@@ -1,21 +1,21 @@
 import { type Agent, xrpc } from "@atproto/lex";
 import { type DidString, type NsidString, SpaceRef } from "@atproto/syntax";
-import { network } from "api";
+import { network, permissionsFromRecord } from "api";
 
 // Calls Brain makes against the Habitat instance, each as the signed-in
 // member (an OAuthSession is an @atproto/lex Agent).
 
 // listMyOrgIds lists every opensocial org the agent's subject belongs to:
-// every community.opensocial.members space it holds a membership in (same
+// every org.atgrp.members space it holds a membership in (same
 // query as chalk's and drop's listMyOrgIds).
 export async function listMyOrgIds(agent: Agent): Promise<DidString[]> {
   const { body } = await xrpc(agent, network.habitat.space.listSpaces.main, {
-    params: { spaceType: "community.opensocial.members" },
+    params: { spaceType: "org.atgrp.members" },
   });
   return body.spaces.map((s) => SpaceRef.parse(s.uri).spaceDid);
 }
 
-// fetchOrgName reads an org's display name off its community.opensocial
+// fetchOrgName reads an org's display name off its org.atgrp
 // profile record. Any member can read the org's about space, so the
 // member's own agent works. Null when the read fails, so callers can fall
 // back to the DID.
@@ -26,17 +26,13 @@ export async function fetchOrgName(
   try {
     const { body } = await xrpc(agent, network.habitat.space.getRecord.main, {
       params: {
-        space: new SpaceRef(
-          orgDid,
-          "community.opensocial.about",
-          "self",
-        ).toString(),
+        space: new SpaceRef(orgDid, "org.atgrp.meta", "self").toString(),
         repo: orgDid,
-        collection: "community.opensocial.profile",
+        collection: "org.atgrp.profile",
         rkey: "self",
       },
     });
-    const name = (body.value as { name?: unknown }).name;
+    const name = (body.value as { displayName?: unknown }).displayName;
     return typeof name === "string" ? name : null;
   } catch {
     return null;
@@ -128,7 +124,7 @@ export type LlmConnection = network.habitat.llm.defs.Connection;
 export type McpServer = network.habitat.mcp.defs.Server;
 
 // What the member may configure in an org, from the org's
-// community.opensocial permissions record and their own membership roles
+// org.atgrp permissions record and their own membership roles
 // (mirrors Store.CheckAction in Go: a community without a permissions record
 // falls back to authorizing its admins).
 export interface ConfigAccess {
@@ -146,7 +142,7 @@ export async function getConfigAccess(
 ): Promise<ConfigAccess> {
   const space = new SpaceRef(
     org,
-    "community.opensocial.members",
+    "org.atgrp.members",
     "self",
   ).toString();
   const read = async (collection: NsidString, rkey: string) => {
@@ -160,12 +156,11 @@ export async function getConfigAccess(
     }
   };
   const [membership, permissions] = await Promise.all([
-    read("community.opensocial.membership" as NsidString, member),
-    read("community.opensocial.permissions" as NsidString, "self"),
+    read("org.atgrp.membership" as NsidString, member),
+    read("org.atgrp.permissions" as NsidString, "self"),
   ]);
   const roles = (membership?.roles as string[] | undefined) ?? [];
-  const bindings =
-    (permissions?.bindings as { action: string; roles: string[] }[]) ?? [];
+  const { bindings } = permissionsFromRecord(permissions);
   const allowed = (action: string) =>
     bindings.length === 0
       ? roles.includes("admin")

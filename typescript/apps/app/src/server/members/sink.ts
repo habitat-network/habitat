@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { LexMap } from "@atproto/lex";
-import { community } from "api";
+import { group } from "api";
 import { AtUri, type DidString } from "@atproto/syntax";
 import { Effect } from "effect";
 import type { Domain } from "../stream/domain";
@@ -10,8 +10,8 @@ import { memberships } from "@/db/schema";
 
 // The space each group keeps its roster in, and the record in it that says a
 // member belongs: keyed by the member's DID, written by the group itself.
-export const MEMBERS_SPACE_TYPE = "community.opensocial.members";
-export const MEMBERSHIP_COLLECTION = community.opensocial.membership.$nsid;
+export const MEMBERS_SPACE_TYPE = "org.atgrp.members";
+export const MEMBERSHIP_COLLECTION = org.atgrp.membership.$nsid;
 
 function rolesOf(value: LexMap): string[] {
   const roles = (value as { roles?: unknown }).roles;
@@ -21,7 +21,7 @@ function rolesOf(value: LexMap): string[] {
 }
 
 // membersDomain keeps the memberships table equal to each group's
-// community.opensocial.membership records. Only records in the group's own
+// org.atgrp.membership records. Only records in the group's own
 // repo count (the group is the space authority and the only writer of its
 // roster); members' own records in the space, such as their acceptance and
 // profile, are ignored. Upserts and deletes are keyed by (group, member), so

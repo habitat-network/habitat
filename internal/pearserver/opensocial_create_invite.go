@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net/http"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
-// CreateInvite implements community.opensocial.createInvite.
+// CreateInvite implements network.habitat.opensocial.createInvite.
 func (p *PearServer) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -21,7 +21,7 @@ func (p *PearServer) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var input opensocial_api.CommunityOpensocialCreateInviteInput
+	var input habitat.NetworkHabitatOpensocialCreateInviteInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
@@ -55,7 +55,7 @@ func (p *PearServer) CreateInvite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("create invite: %w", err))
 		return
 	}
-	httpx.WriteJSON(ctx, w, opensocial_api.CommunityOpensocialCreateInviteOutput{
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatOpensocialCreateInviteOutput{
 		Invite: inviteToView(invite),
 	})
 }

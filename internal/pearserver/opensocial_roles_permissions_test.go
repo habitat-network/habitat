@@ -8,7 +8,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
@@ -24,7 +24,7 @@ func TestServer_PutRole(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.PutRole,
-			opensocial_api.CommunityOpensocialPutRoleInput{
+			habitat.NetworkHabitatOpensocialPutRoleInput{
 				Org: orgDID, Role: "moderator", Name: "Moderator",
 			},
 			&out,
@@ -40,7 +40,7 @@ func TestServer_PutRole(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.PutRole,
-			opensocial_api.CommunityOpensocialPutRoleInput{
+			habitat.NetworkHabitatOpensocialPutRoleInput{
 				Org: orgDID, Role: "moderator", Name: "Moderator",
 			},
 			&out,
@@ -60,7 +60,7 @@ func TestServer_DeleteRole(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.DeleteRole,
-			opensocial_api.CommunityOpensocialDeleteRoleInput{
+			habitat.NetworkHabitatOpensocialDeleteRoleInput{
 				Org: orgDID, Role: opensocial.AdminRoleRkey,
 			},
 			&out,
@@ -86,7 +86,7 @@ func TestServer_DeleteRole(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.DeleteRole,
-			opensocial_api.CommunityOpensocialDeleteRoleInput{
+			habitat.NetworkHabitatOpensocialDeleteRoleInput{
 				Org: orgDID, Role: "moderator",
 			},
 			&out,
@@ -106,7 +106,7 @@ func TestServer_UpdatePermissions(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.UpdatePermissions,
-			opensocial_api.CommunityOpensocialUpdatePermissionsInput{Org: orgDID},
+			habitat.NetworkHabitatOpensocialUpdatePermissionsInput{Org: orgDID},
 			&out,
 		)
 		require.Equal(t, http.StatusUnauthorized, code)
@@ -120,15 +120,15 @@ func TestServer_UpdatePermissions(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.UpdatePermissions,
-			opensocial_api.CommunityOpensocialUpdatePermissionsInput{
+			habitat.NetworkHabitatOpensocialUpdatePermissionsInput{
 				Org: orgDID,
-				Bindings: []opensocial_api.CommunityOpensocialPermissionsActionBinding{
+				Bindings: []habitat.NetworkHabitatOpensocialDefsActionBinding{
 					{
 						Action: string(opensocial.ActionCommunityConfigure),
 						Roles:  []string{opensocial.AdminRoleRkey},
 					},
 				},
-				Assignable: []opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
+				Assignable: []habitat.NetworkHabitatOpensocialDefsAssignableBinding{
 					{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},
 				},
 			},
@@ -141,6 +141,73 @@ func TestServer_UpdatePermissions(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.True(t, ok)
+	})
+}
+
+func TestServer_UpdatePermissionsEscalationAndBadInput(t *testing.T) {
+	client := httpx_testutil.NewTestXRPCClient(t)
+
+	t.Run("a delegate cannot bind a scope it does not hold", func(t *testing.T) {
+		ts := newOpenSocialServer(t, alice)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+		org := syntax.DID(orgDID)
+		require.NoError(t, ts.OpenSocialStore.AssignRoles(
+			t.Context(), org, alice, []string{opensocial.MemberRoleRkey},
+		))
+		// alice may reconfigure the group but holds no other action's scopes.
+		require.NoError(t, ts.OpenSocialStore.PutPermissions(
+			t.Context(), org,
+			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
+				{
+					Action: string(opensocial.ActionCommunityConfigure),
+					Roles:  []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
+				},
+				{
+					Action: string(opensocial.ActionMcpConfigure),
+					Roles:  []string{opensocial.AdminRoleRkey},
+				},
+			},
+			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
+				{Role: opensocial.MemberRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},
+				{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.AdminRoleRkey}},
+			},
+		))
+
+		var out struct{}
+		code := client.Procedure(
+			ts.Server.UpdatePermissions,
+			habitat.NetworkHabitatOpensocialUpdatePermissionsInput{
+				Org: orgDID,
+				Bindings: []habitat.NetworkHabitatOpensocialDefsActionBinding{
+					{
+						Action: string(opensocial.ActionCommunityConfigure),
+						Roles:  []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
+					},
+					{
+						Action: string(opensocial.ActionMcpConfigure),
+						Roles:  []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
+					},
+				},
+				Assignable: []habitat.NetworkHabitatOpensocialDefsAssignableBinding{
+					{Role: opensocial.MemberRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},
+					{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.AdminRoleRkey}},
+				},
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusUnauthorized, code)
+	})
+
+	t.Run("an invalid org is refused", func(t *testing.T) {
+		ts := newOpenSocialServer(t, admin)
+		var out struct{}
+		code := client.Procedure(
+			ts.Server.UpdatePermissions,
+			habitat.NetworkHabitatOpensocialUpdatePermissionsInput{Org: "not-a-did"},
+			&out,
+		)
+		require.Equal(t, http.StatusBadRequest, code)
 	})
 }
 
@@ -159,13 +226,13 @@ func TestServer_AssignRoles(t *testing.T) {
 		// Narrow the admin's assignable set to exclude the admin role itself.
 		require.NoError(t, ts.OpenSocialStore.PutPermissions(
 			t.Context(), syntax.DID(orgDID),
-			[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
+			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 				{
 					Action: string(opensocial.ActionRoleAssign),
 					Roles:  []string{opensocial.AdminRoleRkey},
 				},
 			},
-			[]opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
+			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
 				{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},
 			},
 		))
@@ -173,7 +240,7 @@ func TestServer_AssignRoles(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.AssignRoles,
-			opensocial_api.CommunityOpensocialAssignRolesInput{
+			habitat.NetworkHabitatOpensocialAssignRolesInput{
 				Org: orgDID, Member: alice.String(),
 				Roles: []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
 			},
@@ -195,7 +262,7 @@ func TestServer_AssignRoles(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.AssignRoles,
-			opensocial_api.CommunityOpensocialAssignRolesInput{
+			habitat.NetworkHabitatOpensocialAssignRolesInput{
 				Org: orgDID, Member: alice.String(), Roles: []string{opensocial.AdminRoleRkey},
 			},
 			&out,
@@ -220,7 +287,7 @@ func TestServer_AssignRoles(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.AssignRoles,
-			opensocial_api.CommunityOpensocialAssignRolesInput{
+			habitat.NetworkHabitatOpensocialAssignRolesInput{
 				Org: orgDID, Member: alice.String(),
 				Roles: []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
 			},
@@ -250,7 +317,7 @@ func TestServer_EjectMember(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.EjectMember,
-			opensocial_api.CommunityOpensocialEjectMemberInput{
+			habitat.NetworkHabitatOpensocialEjectMemberInput{
 				Org: orgDID, Member: alice.String(),
 			},
 			&out,
@@ -270,7 +337,7 @@ func TestServer_EjectMember(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.EjectMember,
-			opensocial_api.CommunityOpensocialEjectMemberInput{
+			habitat.NetworkHabitatOpensocialEjectMemberInput{
 				Org: orgDID, Member: admin.String(),
 			},
 			&out,

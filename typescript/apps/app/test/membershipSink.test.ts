@@ -17,7 +17,7 @@ const ORG = "did:web:org.example" as DidString;
 const OTHER_ORG = "did:web:other.example" as DidString;
 const ALICE = "did:plc:alice";
 const BOB = "did:plc:bob";
-const SPACE = `at:space/${ORG}/community.opensocial.members/self`;
+const SPACE = `at:space/${ORG}/org.atgrp.members/self`;
 
 const membership = (...roles: string[]) =>
   jsonToLex({
@@ -57,13 +57,7 @@ describe("roster indexing", () => {
 
   it("ignores other collections and records not in the group's own repo", async () => {
     await indexEvents(
-      putEvent(
-        SPACE,
-        ORG,
-        "community.opensocial.acceptance",
-        ALICE,
-        membership(),
-      ),
+      putEvent(SPACE, ORG, "org.atgrp.acceptance", ALICE, membership()),
       created(BOB, [], ALICE),
     );
     expect(await memberDidsOf(db, ORG)).toEqual([]);

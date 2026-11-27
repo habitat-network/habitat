@@ -7,7 +7,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -32,7 +32,7 @@ func TestServer_UpdateOpensocialSpace(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			aliceTS.Server.UpdateOpensocialSpace,
-			opensocial_api.CommunityOpensocialUpdateSpaceInput{
+			habitat.NetworkHabitatOpensocialUpdateSpaceInput{
 				Space: spaceURI.String(),
 				Roles: []string{"admin"},
 			},
@@ -65,7 +65,7 @@ func TestServer_UpdateOpensocialSpace(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			adminTS.Server.UpdateOpensocialSpace,
-			opensocial_api.CommunityOpensocialUpdateSpaceInput{
+			habitat.NetworkHabitatOpensocialUpdateSpaceInput{
 				Space: spaceURI.String(),
 				Roles: []string{"admin"},
 			},
@@ -91,9 +91,9 @@ func TestServer_UpdateOpensocialSpace(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.UpdateOpensocialSpace,
-			opensocial_api.CommunityOpensocialUpdateSpaceInput{
+			habitat.NetworkHabitatOpensocialUpdateSpaceInput{
 				Space: habitat_syntax.ConstructSpaceURI(
-					org, "community.opensocial.channel", "nonexistent",
+					org, "org.atgrp.channel", "nonexistent",
 				).String(),
 				Roles: []string{"admin"},
 			},

@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -29,8 +29,8 @@ func annotateAuthz(ctx context.Context, org syntax.DID, required string, authori
 	)
 }
 
-func inviteToView(invite opensocial.Invite) opensocial_api.CommunityOpensocialDefsInviteView {
-	return opensocial_api.CommunityOpensocialDefsInviteView{
+func inviteToView(invite opensocial.Invite) habitat.NetworkHabitatOpensocialDefsInviteView {
+	return habitat.NetworkHabitatOpensocialDefsInviteView{
 		Id:        invite.ID,
 		Org:       invite.Org.String(),
 		Invitee:   invite.Invitee.String(),
@@ -110,7 +110,7 @@ func (p *PearServer) requireSpaceAuthority(
 
 // requireAction validates that caller is authorized to perform action in
 // org — i.e. holds a role bound to it in the community's
-// community.opensocial.permissions record — writing an appropriate error
+// org.atgrp.permissions record — writing an appropriate error
 // response and returning false if not.
 func (p *PearServer) requireAction(
 	ctx context.Context,

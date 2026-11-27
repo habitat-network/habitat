@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
-// ListInvites implements community.opensocial.listInvites.
+// ListInvites implements network.habitat.opensocial.listInvites.
 func (p *PearServer) ListInvites(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -23,9 +23,9 @@ func (p *PearServer) ListInvites(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list my invites: %w", err))
 		return
 	}
-	views := make([]opensocial_api.CommunityOpensocialDefsInviteView, len(invites))
+	views := make([]habitat.NetworkHabitatOpensocialDefsInviteView, len(invites))
 	for i, invite := range invites {
 		views[i] = inviteToView(invite)
 	}
-	httpx.WriteJSON(ctx, w, opensocial_api.CommunityOpensocialListInvitesOutput{Invites: views})
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatOpensocialListInvitesOutput{Invites: views})
 }

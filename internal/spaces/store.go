@@ -315,6 +315,21 @@ type Store interface {
 		ctx context.Context,
 		uris []habitat_syntax.SpaceRecordURI,
 	) ([]Record, error)
+	// ListCollection returns every record of collection in space, written by
+	// any repo, with Owner set to the writing repo.
+	ListCollection(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		collection syntax.NSID,
+	) ([]Record, error)
+	// ListRepoCollection returns repo's records of collection across every
+	// space of spaceType, with Space set on each.
+	ListRepoCollection(
+		ctx context.Context,
+		repo syntax.DID,
+		spaceType syntax.NSID,
+		collection syntax.NSID,
+	) ([]Record, error)
 	ListRecords(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -1331,6 +1346,68 @@ func (s *store) ListRecords(
 	}
 
 	return records, nil
+}
+
+func (s *store) ListCollection(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	collection syntax.NSID,
+) ([]Record, error) {
+	var rows []spaceRecord
+	if err := s.db.WithContext(ctx).
+		Where("space = ? AND collection = ?", space, collection).
+		Order("rkey ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return recordsFromRows(ctx, rows), nil
+}
+
+func (s *store) ListRepoCollection(
+	ctx context.Context,
+	repo syntax.DID,
+	spaceType syntax.NSID,
+	collection syntax.NSID,
+) ([]Record, error) {
+	var rows []spaceRecord
+	if err := s.db.WithContext(ctx).
+		Where("repo = ? AND collection = ?", repo, collection).
+		Order("space ASC, rkey ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	var matching []spaceRecord
+	for _, row := range rows {
+		if row.Space.SpaceType() == spaceType {
+			matching = append(matching, row)
+		}
+	}
+	return recordsFromRows(ctx, matching), nil
+}
+
+// recordsFromRows decodes rows, skipping any that can no longer be decoded.
+func recordsFromRows(ctx context.Context, rows []spaceRecord) []Record {
+	records := make([]Record, 0, len(rows))
+	for _, row := range rows {
+		value, err := atdata.UnmarshalCBOR(row.Value)
+		if err != nil {
+			slog.WarnContext(
+				ctx, "skipping undecodable record in list",
+				"space", row.Space, "repo", row.Repo,
+				"collection", row.Collection, "rkey", row.Rkey, "err", err,
+			)
+			continue
+		}
+		records = append(records, Record{
+			Space:      row.Space,
+			Owner:      row.Repo,
+			Collection: row.Collection,
+			Rkey:       row.Rkey,
+			Value:      value,
+			Rev:        string(row.Rev),
+			UpdatedAt:  row.UpdatedAt,
+			Cid:        cid.MustParse(row.Cid),
+		})
+	}
+	return records
 }
 
 func (s *store) RepoSnapshot(

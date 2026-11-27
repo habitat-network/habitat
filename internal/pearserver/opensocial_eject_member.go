@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net/http"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
-// EjectMember implements community.opensocial.ejectMember, bounded by the
+// EjectMember implements network.habitat.opensocial.ejectMember, bounded by the
 // roles credInfo.Subject may assign: it may only eject a member all of
 // whose current roles it's permitted to assign.
 func (p *PearServer) EjectMember(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +23,7 @@ func (p *PearServer) EjectMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var input opensocial_api.CommunityOpensocialEjectMemberInput
+	var input habitat.NetworkHabitatOpensocialEjectMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return

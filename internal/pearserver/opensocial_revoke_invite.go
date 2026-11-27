@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net/http"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
-// RevokeInvite implements community.opensocial.revokeInvite.
+// RevokeInvite implements network.habitat.opensocial.revokeInvite.
 func (p *PearServer) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -21,7 +21,7 @@ func (p *PearServer) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var input opensocial_api.CommunityOpensocialRevokeInviteInput
+	var input habitat.NetworkHabitatOpensocialRevokeInviteInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return

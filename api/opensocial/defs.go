@@ -4,19 +4,17 @@ package opensocial
 
 import "encoding/json"
 
-// CommunityOpensocialDefsInviteView represents a inviteView object
-type CommunityOpensocialDefsInviteView struct {
-	LexiconTypeID string   `json:"$type"`
-	CreatedAt     string   `json:"createdAt"`
-	Id            string   `json:"id"`
-	Invitee       string   `json:"invitee"`
-	Org           string   `json:"org"`
-	Roles         []string `json:"roles"`
+// OrgAtgrpDefsJoinRequest represents a joinRequest object
+type OrgAtgrpDefsJoinRequest struct {
+	LexiconTypeID string `json:"$type"`
+	CreatedAt     string `json:"createdAt"`
+	Member        string `json:"member"`
+	Message       string `json:"message,omitempty"`
 }
 
-// MarshalJSON sets $type to "community.opensocial.defs#inviteView" before encoding.
-func (t CommunityOpensocialDefsInviteView) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "community.opensocial.defs#inviteView"
-	type alias CommunityOpensocialDefsInviteView
+// MarshalJSON sets $type to "org.atgrp.defs#joinRequest" before encoding.
+func (t OrgAtgrpDefsJoinRequest) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "org.atgrp.defs#joinRequest"
+	type alias OrgAtgrpDefsJoinRequest
 	return json.Marshal(alias(t))
 }

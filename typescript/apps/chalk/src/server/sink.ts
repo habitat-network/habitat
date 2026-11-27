@@ -42,7 +42,7 @@ const USER_RELATION_COLLECTION = "network.habitat.relationship.userRelation";
 const SPACE_RELATION_COLLECTION = "network.habitat.relationship.spaceRelation";
 // The space type whose role-holders are "everyone in the org" — a
 // spaceRelation naming one of these as its subject is an org-wide grant.
-const MEMBERS_SPACE_TYPE = "community.opensocial.members";
+const MEMBERS_SPACE_TYPE = "org.atgrp.members";
 
 // SinkDeps is what the sink needs from the syncer driving it: reading a
 // record's blob back out of its space (see sync.ts, which wires this to the

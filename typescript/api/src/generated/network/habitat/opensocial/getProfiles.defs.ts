@@ -31,7 +31,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Get the profiles of members within an opensocial org. For a member with no community.opensocial.memberProfile record, falls back to their public Bluesky profile. Callable by any member of the org. */
+/** Get the profiles of members within an opensocial org. For a member with no network.habitat.opensocial.memberProfile record, falls back to their public Bluesky profile. Callable by any member of the org. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output)
 
 export { main }

@@ -50,7 +50,7 @@ export class OAuth extends Context.Service<OAuth, OAuthClient>()("app/OAuth") {
 // CallOptions tune one call to the Habitat instance.
 export interface CallOptions {
   // proxy names the DID whose `#habitat` service should handle the call
-  // (sent as Atproto-Proxy). community.opensocial.* and other
+  // (sent as Atproto-Proxy). org.atgrp.* and other
   // management-plane methods are served by the group's own Habitat
   // instance, which a member's session doesn't necessarily talk to directly.
   readonly proxy?: string;

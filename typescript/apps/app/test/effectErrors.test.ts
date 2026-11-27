@@ -26,7 +26,7 @@ describe("toHabitatError", () => {
       error: "AuthenticationRequired",
       message: "Upstream server responded with a 401 error",
     });
-    const nsid = "community.opensocial.ejectMember";
+    const nsid = "network.habitat.opensocial.ejectMember";
     expect(toHabitatError(MEMBER, nsid, denied)).toBeInstanceOf(SessionExpired);
     const proxied = toHabitatError(MEMBER, nsid, denied, true);
     expect(proxied).toBeInstanceOf(HabitatError);

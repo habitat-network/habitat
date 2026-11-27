@@ -37,19 +37,19 @@ func TestStore(t *testing.T) {
 	// The about space carries the org's profile.
 	_, err = s.SpaceStore.GetRecord(
 		t.Context(),
-		habitat_syntax.ConstructSpaceURI(org, "community.opensocial.about", "self"),
-		org, "community.opensocial.profile", "self",
+		habitat_syntax.ConstructSpaceURI(org, "org.atgrp.meta", "self"),
+		org, "org.atgrp.profile", "self",
 	)
 	require.NoError(t, err)
 
 	// The members space carries both bootstrap roles.
-	membersSpace := habitat_syntax.ConstructSpaceURI(org, "community.opensocial.members", "self")
+	membersSpace := habitat_syntax.ConstructSpaceURI(org, "org.atgrp.members", "self")
 	_, err = s.SpaceStore.GetRecord(
-		t.Context(), membersSpace, org, "community.opensocial.role", opensocial.AdminRoleRkey,
+		t.Context(), membersSpace, org, "org.atgrp.role", opensocial.AdminRoleRkey,
 	)
 	require.NoError(t, err)
 	_, err = s.SpaceStore.GetRecord(
-		t.Context(), membersSpace, org, "community.opensocial.role", opensocial.MemberRoleRkey,
+		t.Context(), membersSpace, org, "org.atgrp.role", opensocial.MemberRoleRkey,
 	)
 	require.NoError(t, err)
 
@@ -60,22 +60,22 @@ func TestStore(t *testing.T) {
 	require.NoError(t, s.AssignRoles(t.Context(), org, member, []string{opensocial.MemberRoleRkey}))
 
 	t.Run("UpdateProfile", func(t *testing.T) {
-		aboutSpace := habitat_syntax.ConstructSpaceURI(org, "community.opensocial.about", "self")
+		metaSpace := habitat_syntax.ConstructSpaceURI(org, "org.atgrp.meta", "self")
 
 		require.NoError(t, s.UpdateProfile(t.Context(), org, "Acme Corp", "We make widgets", ""))
 
 		record, err := s.SpaceStore.GetRecord(
-			t.Context(), aboutSpace, org, "community.opensocial.profile", "self",
+			t.Context(), metaSpace, org, "org.atgrp.profile", "self",
 		)
 		require.NoError(t, err)
-		require.Equal(t, "Acme Corp", record.Value["name"])
+		require.Equal(t, "Acme Corp", record.Value["displayName"])
 		require.Equal(t, "We make widgets", record.Value["description"])
 
 		// Clearing the description removes the field rather than leaving an
 		// empty string.
 		require.NoError(t, s.UpdateProfile(t.Context(), org, "Acme Corp", "", ""))
 		record, err = s.SpaceStore.GetRecord(
-			t.Context(), aboutSpace, org, "community.opensocial.profile", "self",
+			t.Context(), metaSpace, org, "org.atgrp.profile", "self",
 		)
 		require.NoError(t, err)
 		require.NotContains(t, record.Value, "description")
@@ -86,7 +86,7 @@ func TestStore(t *testing.T) {
 			t.Context(),
 			org,
 			[]string{opensocial.MemberRoleRkey},
-			syntax.NSID("community.opensocial.channel"),
+			syntax.NSID("org.atgrp.channel"),
 			"general",
 			spaces.Policy{Type: spaces.PolicyRelationSpace},
 		)
@@ -99,19 +99,19 @@ func TestStore(t *testing.T) {
 
 		// The space carries an access record with the requested roles.
 		record, err := s.SpaceStore.GetRecord(
-			t.Context(), spaceURI, org, "community.opensocial.access", "self",
+			t.Context(), spaceURI, org, "org.atgrp.access", "self",
 		)
 		require.NoError(t, err)
-		require.Equal(t, []any{opensocial.MemberRoleRkey}, record.Value["roles"])
+		require.Equal(t, []string{opensocial.MemberRoleRkey}, grantedReadRoles(t, record.Value))
 
 		// The space record indexing the new space lives in the members space.
 		membersSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
-		spaceColl := syntax.NSID("community.opensocial.space")
+		spaceColl := syntax.NSID("org.atgrp.space")
 		spaceRecords, err := s.SpaceStore.ListRecords(t.Context(), membersSpace, org, &spaceColl)
 		require.NoError(t, err)
 		var indexedURIs []string
 		for _, rec := range spaceRecords {
-			uri, ok := rec.Value["uri"].(string)
+			uri, ok := rec.Value["space"].(string)
 			require.True(t, ok)
 			indexedURIs = append(indexedURIs, uri)
 		}
@@ -128,7 +128,7 @@ func TestStore(t *testing.T) {
 			t.Context(),
 			org,
 			[]string{opensocial.MemberRoleRkey},
-			syntax.NSID("community.opensocial.channel"),
+			syntax.NSID("org.atgrp.channel"),
 			"announcements",
 			spaces.Policy{Type: spaces.PolicyRelationSpace},
 		)
@@ -138,10 +138,10 @@ func TestStore(t *testing.T) {
 
 		// The access record now grants only the admin role.
 		record, err := s.SpaceStore.GetRecord(
-			t.Context(), spaceURI, org, "community.opensocial.access", "self",
+			t.Context(), spaceURI, org, "org.atgrp.access", "self",
 		)
 		require.NoError(t, err)
-		require.Equal(t, []any{opensocial.AdminRoleRkey}, record.Value["roles"])
+		require.Equal(t, []string{opensocial.AdminRoleRkey}, grantedReadRoles(t, record.Value))
 
 		// A member who previously held the member role can no longer read.
 		ok, err := s.CheckPermission(t.Context(), member, spaceURI)
@@ -169,18 +169,18 @@ func TestStore(t *testing.T) {
 
 		// The avatar is attached to the org's profile record, preserving the
 		// rest of the record (here the name set by UpdateProfile above).
-		aboutSpace := habitat_syntax.ConstructSpaceURI(org, "community.opensocial.about", "self")
+		metaSpace := habitat_syntax.ConstructSpaceURI(org, "org.atgrp.meta", "self")
 		record, err := s.SpaceStore.GetRecord(
-			t.Context(), aboutSpace, org, "community.opensocial.profile", "self",
+			t.Context(), metaSpace, org, "org.atgrp.profile", "self",
 		)
 		require.NoError(t, err)
 		require.Contains(t, record.Value, "avatar")
 
-		var profile opensocial_api.CommunityOpensocialProfile
+		var profile opensocial_api.OrgAtgrpProfile
 		raw, err := json.Marshal(record.Value)
 		require.NoError(t, err)
 		require.NoError(t, json.Unmarshal(raw, &profile))
-		require.Equal(t, "Brand New", profile.Name)
+		require.Equal(t, "Brand New", profile.DisplayName)
 		require.NotNil(t, profile.Avatar)
 		require.Equal(t, "image/png", profile.Avatar.MimeType)
 		require.Equal(t, int64(len(png)), profile.Avatar.Size)
@@ -199,15 +199,15 @@ func TestStore(t *testing.T) {
 	})
 
 	t.Run("CheckPermission", func(t *testing.T) {
-		aboutSpace := habitat_syntax.ConstructSpaceURI(org, "community.opensocial.about", "self")
+		metaSpace := habitat_syntax.ConstructSpaceURI(org, "org.atgrp.meta", "self")
 
-		ok, err := s.CheckPermission(t.Context(), member, aboutSpace)
+		ok, err := s.CheckPermission(t.Context(), member, metaSpace)
 		require.NoError(t, err)
 		require.True(t, ok)
 
 		// The about space (profile) is always readable, even by a stranger
 		// holding no roles.
-		ok, err = s.CheckPermission(t.Context(), syntax.DID("did:plc:stranger"), aboutSpace)
+		ok, err = s.CheckPermission(t.Context(), syntax.DID("did:plc:stranger"), metaSpace)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
@@ -252,12 +252,12 @@ func TestStore(t *testing.T) {
 		// the members space (e.g. accepting the invite) — AssignRoles alone
 		// writes under the org's own repo, not the member's.
 		membersSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
-		recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAcceptance{
-			UpdatedAt: "2024-01-01T00:00:00Z",
+		recordBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpAcceptance{
+			CreatedAt: "2024-01-01T00:00:00Z",
 		})
 		require.NoError(t, err)
 		_, _, err = s.SpaceStore.PutRecord(
-			t.Context(), membersSpace, member, "community.opensocial.acceptance", "self",
+			t.Context(), membersSpace, member, "org.atgrp.acceptance", "self",
 			recordBytes,
 		)
 		require.NoError(t, err)
@@ -278,14 +278,14 @@ func TestStore(t *testing.T) {
 		// mutated by the earlier UpdateProfile/UploadImage subtests).
 		profile, err := s.GetProfile(t.Context(), org)
 		require.NoError(t, err)
-		require.NotEmpty(t, profile.Name)
+		require.NotEmpty(t, profile.DisplayName)
 
 		// An org with no profile record returns a zero value rather than an
 		// error.
 		empty := syntax.DID("did:plc:no-profile")
 		profile, err = s.GetProfile(t.Context(), empty)
 		require.NoError(t, err)
-		require.Empty(t, profile.Name)
+		require.Empty(t, profile.DisplayName)
 	})
 
 	t.Run("IsOrg", func(t *testing.T) {
@@ -356,10 +356,10 @@ func TestStoreNewOrgWithoutCreator(t *testing.T) {
 	require.True(t, isOrg)
 
 	// Same bootstrap records as NewOrg...
-	aboutSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.AboutSpaceType, "self")
+	metaSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MetaSpaceType, "self")
 	_, err = s.SpaceStore.GetRecord(
 		t.Context(),
-		aboutSpace,
+		metaSpace,
 		org,
 		opensocial.ProfileCollection,
 		"self",
@@ -371,7 +371,7 @@ func TestStoreNewOrgWithoutCreator(t *testing.T) {
 			t.Context(),
 			membersSpace,
 			org,
-			"community.opensocial.role",
+			"org.atgrp.role",
 			rkey,
 		)
 		require.NoError(t, err)
@@ -446,4 +446,14 @@ func TestStoreWithTxRollsBack(t *testing.T) {
 	isOrg, err := s.IsOrg(t.Context(), syntax.DID(orgDIDStr))
 	require.NoError(t, err)
 	require.False(t, isOrg)
+}
+
+// grantedReadRoles returns the roles an access record value grants read to.
+func grantedReadRoles(t *testing.T, value map[string]any) []string {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	require.NoError(t, err)
+	var access opensocial_api.OrgAtgrpAccess
+	require.NoError(t, json.Unmarshal(raw, &access))
+	return opensocial.ReadRoles(access.Grants)
 }

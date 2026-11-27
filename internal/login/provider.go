@@ -7,7 +7,7 @@ import (
 
 // Profile carries account metadata a login provider learned while completing
 // Exchange (e.g. Google's account name/picture). Used to seed a first-time
-// member's community.opensocial.memberProfile record. The zero value means
+// member's network.habitat.opensocial.memberProfile record. The zero value means
 // the provider has nothing to offer.
 type Profile struct {
 	Name    string

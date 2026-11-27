@@ -20,7 +20,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const lexiconPaths = (
   await fg(
     [
-      "../../lexicons/{network,community/opensocial}/**/*.json",
+      "../../lexicons/{network,org/atgrp}/**/*.json",
+      // Shared atproto definitions that org.atgrp methods reference.
+      "../../lexicons/com/atproto/repo/strongRef.json",
+      "../../lexicons/com/atproto/label/defs.json",
       "!../../lexicons/network/habitat/collections/**/*.json",
       "!../../lexicons/network/habitat/clique.json",
       "!../../lexicons/network/habitat/clique/**/*.json",
@@ -97,6 +100,10 @@ for (const lexiconPath of lexiconPaths) {
         break;
       case "subscription":
         // No way to represent this in OpenAPI
+        break;
+      case "permission-set":
+      case "space":
+        // OAuth permission sets and space types have no OpenAPI form
         break;
       case "token":
         components.schemas![identifier] = convertToken(id, name, def);

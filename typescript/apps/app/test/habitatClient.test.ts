@@ -125,7 +125,7 @@ describe("createHabitatClient", () => {
     let proxy: string | null = null;
     server.use(
       http.post(
-        "http://pds.test/xrpc/community.opensocial.createSpace",
+        "http://pds.test/xrpc/network.habitat.opensocial.createSpace",
         async ({ request }) => {
           body = await request.json();
           proxy = request.headers.get("Atproto-Proxy");
@@ -136,7 +136,7 @@ describe("createHabitatClient", () => {
     const out = await createHabitatClient(testEnv, "did:plc:member1").call<{
       uri: string;
     }>(
-      "community.opensocial.createSpace",
+      "network.habitat.opensocial.createSpace",
       "POST",
       { org: "did:web:org.example" },
       { proxy: "did:web:org.example" },

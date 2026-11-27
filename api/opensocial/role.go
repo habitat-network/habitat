@@ -4,17 +4,19 @@ package opensocial
 
 import "encoding/json"
 
-// CommunityOpensocialRole represents a community.opensocial.role record
-type CommunityOpensocialRole struct {
-	LexiconTypeID string `json:"$type"`
-	Description   string `json:"description,omitempty"`
-	Name          string `json:"name"`
-	UpdatedAt     string `json:"updatedAt,omitempty"`
+// OrgAtgrpRole represents a org.atgrp.role record
+type OrgAtgrpRole struct {
+	LexiconTypeID string   `json:"$type"`
+	CanAssign     []string `json:"canAssign,omitempty"`
+	Default       bool     `json:"default,omitempty"`
+	Description   string   `json:"description,omitempty"`
+	DisplayName   string   `json:"displayName,omitempty"`
+	Permissions   []string `json:"permissions,omitempty"`
 }
 
-// MarshalJSON sets $type to "community.opensocial.role" before encoding.
-func (t CommunityOpensocialRole) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "community.opensocial.role"
-	type alias CommunityOpensocialRole
+// MarshalJSON sets $type to "org.atgrp.role" before encoding.
+func (t OrgAtgrpRole) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "org.atgrp.role"
+	type alias OrgAtgrpRole
 	return json.Marshal(alias(t))
 }

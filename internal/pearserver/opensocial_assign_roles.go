@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"slices"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
-// AssignRoles implements community.opensocial.assignRoles: sets member's
+// AssignRoles implements network.habitat.opensocial.assignRoles: sets member's
 // full role set, bounded by the roles credInfo.Subject may assign per the
 // community's permissions record.
 func (p *PearServer) AssignRoles(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +23,7 @@ func (p *PearServer) AssignRoles(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var input opensocial_api.CommunityOpensocialAssignRolesInput
+	var input habitat.NetworkHabitatOpensocialAssignRolesInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return

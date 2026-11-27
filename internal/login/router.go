@@ -169,7 +169,7 @@ func (r *Router) Exchange(
 	return nil
 }
 
-// seedMemberProfile best-effort seeds did's community.opensocial.memberProfile
+// seedMemberProfile best-effort seeds did's network.habitat.opensocial.memberProfile
 // record from profile once its email-domain sign-in has been verified by
 // Exchange, if the org has such a store configured and profile carries
 // anything usable. It never overwrites a profile the member has since

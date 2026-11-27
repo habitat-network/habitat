@@ -7,7 +7,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -21,10 +21,10 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 		require.NoError(t, err)
 
 		client := httpx_testutil.NewTestXRPCClient(t)
-		var out opensocial_api.CommunityOpensocialCreateSpaceOutput
+		var out habitat.NetworkHabitatOpensocialCreateSpaceOutput
 		code := client.Procedure(
 			ts.Server.CreateOpensocialSpace,
-			opensocial_api.CommunityOpensocialCreateSpaceInput{
+			habitat.NetworkHabitatOpensocialCreateSpaceInput{
 				Org:  orgDID,
 				Type: "network.habitat.docs",
 			},
@@ -39,10 +39,10 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 		require.NoError(t, err)
 
 		client := httpx_testutil.NewTestXRPCClient(t)
-		var out opensocial_api.CommunityOpensocialCreateSpaceOutput
+		var out habitat.NetworkHabitatOpensocialCreateSpaceOutput
 		code := client.Procedure(
 			ts.Server.CreateOpensocialSpace,
-			opensocial_api.CommunityOpensocialCreateSpaceInput{
+			habitat.NetworkHabitatOpensocialCreateSpaceInput{
 				Org:   orgDID,
 				Type:  "network.habitat.docs",
 				Roles: []string{"admin", "member"},
@@ -73,12 +73,12 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 		require.NoError(t, err)
 
 		client := httpx_testutil.NewTestXRPCClient(t)
-		input := opensocial_api.CommunityOpensocialCreateSpaceInput{
+		input := habitat.NetworkHabitatOpensocialCreateSpaceInput{
 			Org:  orgDID,
 			Type: "network.habitat.docs",
 			Skey: "fixed",
 		}
-		var out opensocial_api.CommunityOpensocialCreateSpaceOutput
+		var out habitat.NetworkHabitatOpensocialCreateSpaceOutput
 		code := client.Procedure(ts.Server.CreateOpensocialSpace, input, &out)
 		require.Equal(t, http.StatusOK, code)
 
@@ -98,10 +98,10 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 		)
 
 		client := httpx_testutil.NewTestXRPCClient(t)
-		var out opensocial_api.CommunityOpensocialCreateSpaceOutput
+		var out habitat.NetworkHabitatOpensocialCreateSpaceOutput
 		code := client.Procedure(
 			orgTS.Server.CreateOpensocialSpace,
-			opensocial_api.CommunityOpensocialCreateSpaceInput{
+			habitat.NetworkHabitatOpensocialCreateSpaceInput{
 				Org:  orgDID,
 				Type: "network.habitat.docs",
 			},
@@ -122,10 +122,10 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 		aliceTS := newOpenSocialServerAs(t, ts, admin, authn.ValidatorMethodOAuth)
 
 		client := httpx_testutil.NewTestXRPCClient(t)
-		var out opensocial_api.CommunityOpensocialCreateSpaceOutput
+		var out habitat.NetworkHabitatOpensocialCreateSpaceOutput
 		code := client.Procedure(
 			aliceTS.Server.CreateOpensocialSpace,
-			opensocial_api.CommunityOpensocialCreateSpaceInput{
+			habitat.NetworkHabitatOpensocialCreateSpaceInput{
 				Org:  orgDID,
 				Type: "network.habitat.docs",
 			},
@@ -141,10 +141,10 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 		client := httpx_testutil.NewTestXRPCClient(t)
 
 		create := func(policy any) (int, habitat_syntax.SpaceURI) {
-			var out opensocial_api.CommunityOpensocialCreateSpaceOutput
+			var out habitat.NetworkHabitatOpensocialCreateSpaceOutput
 			code := client.Procedure(
 				ts.Server.CreateOpensocialSpace,
-				opensocial_api.CommunityOpensocialCreateSpaceInput{
+				habitat.NetworkHabitatOpensocialCreateSpaceInput{
 					Org: orgDID, Type: "network.habitat.docs", Policy: policy,
 				},
 				&out,
@@ -175,10 +175,10 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
 		require.NoError(t, err)
 		client := httpx_testutil.NewTestXRPCClient(t)
-		var out opensocial_api.CommunityOpensocialCreateSpaceOutput
+		var out habitat.NetworkHabitatOpensocialCreateSpaceOutput
 		code := client.Procedure(
 			ts.Server.CreateOpensocialSpace,
-			opensocial_api.CommunityOpensocialCreateSpaceInput{
+			habitat.NetworkHabitatOpensocialCreateSpaceInput{
 				Org: orgDID, Type: "network.habitat.docs", Skey: "bad/key",
 			},
 			&out,

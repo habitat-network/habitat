@@ -34,7 +34,7 @@ func bootstrapMembersSpace(
 	org syntax.DID,
 ) {
 	t.Helper()
-	_, err := spacesStore.CreateSpace(t.Context(), org, "community.opensocial.members", "self")
+	_, err := spacesStore.CreateSpace(t.Context(), org, "org.atgrp.members", "self")
 	require.NoError(t, err)
 }
 
@@ -74,17 +74,17 @@ func TestCreateInvite_ListInvites_RequestJoin(t *testing.T) {
 func TestCreateInvite_AlreadyMember(t *testing.T) {
 	s := newTestStore(t)
 	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
-	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self")
+	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "org.atgrp.members", "self")
 
 	_, _, err := s.SpaceStore.PutRecord(
 		t.Context(),
 		membersSpace,
 		orgDID,
-		"community.opensocial.membership",
+		"org.atgrp.membership",
 		syntax.RecordKey(alice),
 		spaces_testutil.MustMarshalRecord(
 			t,
-			opensocial_api.CommunityOpensocialMembership{
+			opensocial_api.OrgAtgrpMembership{
 				Roles: []string{opensocial.MemberRoleRkey},
 			},
 		),
@@ -138,17 +138,17 @@ func TestRequestJoin_NotFound(t *testing.T) {
 func TestRequestJoin_AlreadyMemberNoInvite(t *testing.T) {
 	s := newTestStore(t)
 	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
-	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self")
+	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "org.atgrp.members", "self")
 
 	_, _, err := s.SpaceStore.PutRecord(
 		t.Context(),
 		membersSpace,
 		orgDID,
-		"community.opensocial.membership",
+		"org.atgrp.membership",
 		syntax.RecordKey(alice),
 		spaces_testutil.MustMarshalRecord(
 			t,
-			opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
+			opensocial_api.OrgAtgrpMembership{Roles: []string{opensocial.AdminRoleRkey}},
 		),
 	)
 	require.NoError(t, err)
@@ -183,4 +183,41 @@ func TestListPendingInvitesAndListInvites_ScopedByOrgAndInvitee(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bobAllOrgs, 1)
 	require.Equal(t, orgDID, bobAllOrgs[0].Org)
+}
+
+func TestInviteIsARecordInTheInviteesInvitesSpace(t *testing.T) {
+	s := newTestStore(t)
+	org, err := s.NewOrg(t.Context(), "invite-acme", alice)
+	require.NoError(t, err)
+	group := syntax.DID(org)
+
+	invite, err := s.CreateInvite(t.Context(), group, bob, nil)
+	require.NoError(t, err)
+
+	collection := syntax.NSID(opensocial.InviteCollection)
+	records, err := s.SpaceStore.ListRecords(
+		t.Context(),
+		habitat_syntax.ConstructSpaceURI(bob, opensocial.InvitesSpaceType, "self"),
+		group, &collection,
+	)
+	require.NoError(t, err)
+	require.Len(t, records, 1, "the group wrote the invite into bob's own invites space")
+	require.Equal(t, invite.ID, string(records[0].Rkey))
+	require.NotEmpty(t, records[0].Value["createdAt"])
+
+	pending, err := s.ListPendingInvites(t.Context(), group)
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
+	require.Equal(t, bob, pending[0].Invitee)
+
+	_, err = s.CreateInvite(t.Context(), group, bob, nil)
+	require.ErrorIs(t, err, opensocial.ErrInviteAlreadyExists)
+
+	// An invite without roles admits its recipient as the default role.
+	roles, err := s.RequestJoin(t.Context(), group, bob)
+	require.NoError(t, err)
+	require.Equal(t, []string{opensocial.MemberRoleRkey}, roles)
+	remaining, err := s.ListInvites(t.Context(), bob)
+	require.NoError(t, err)
+	require.Empty(t, remaining, "redeeming deletes the invite")
 }

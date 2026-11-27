@@ -188,14 +188,14 @@ describe("ensureCommentsSpace", () => {
     ]);
   });
 
-  it("creates an org comments space via community.opensocial.createSpace, proxied to the org", async () => {
+  it("creates an org comments space via network.habitat.opensocial.createSpace, proxied to the org", async () => {
     let proxyHeader: string | null = null;
     let createCaller: string | null = null;
     const relationCallers: (string | null)[] = [];
     let createBody: unknown;
     server.use(
       http.post(
-        "http://pds.test/xrpc/community.opensocial.createSpace",
+        "http://pds.test/xrpc/network.habitat.opensocial.createSpace",
         async ({ request }) => {
           createBody = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");

@@ -19,6 +19,12 @@ const (
 	PolicyManagedSpace  = "com.atproto.managedspace.policy"
 )
 
+// PolicyGroupSpace is the Atmosphere Groups space policy (org.atgrp.policy):
+// each role's access and permissions in the space, whether it is public, and
+// whether it is left out of the group's space index. Only group hosts honour
+// it, and only for spaces owned by a group.
+const PolicyGroupSpace = "org.atgrp.policy"
+
 // PolicyRelationSpace is habitat's own policy: access is decided by the
 // space's userRelation and spaceRelation records (the perms store) rather than
 // a memberspace member list. It carries no configuration.
@@ -42,6 +48,42 @@ type Policy struct {
 	AllowedApps    []string `json:"allowedApps,omitempty"`
 	PublishPolicy  bool     `json:"publishPolicy,omitempty"`
 	PublishMembers bool     `json:"publishMembers,omitempty"`
+
+	// Unlisted and Grants configure the group policy and are zero otherwise.
+	Unlisted bool         `json:"unlisted,omitempty"`
+	Grants   []GroupGrant `json:"grants,omitempty"`
+}
+
+// GroupGrant is a role's grants in one space under the group policy. Read and
+// Write apply to members acting as themselves, Permissions to acting as the
+// group in the space.
+type GroupGrant struct {
+	Role        string   `json:"role"`
+	Read        bool     `json:"read,omitempty"`
+	Write       bool     `json:"write,omitempty"`
+	Permissions []string `json:"permissions,omitempty"`
+}
+
+// ReadRoles returns the roles the group policy lets read the space.
+func (p Policy) ReadRoles() []string {
+	var roles []string
+	for _, grant := range p.Grants {
+		if grant.Read {
+			roles = append(roles, grant.Role)
+		}
+	}
+	return roles
+}
+
+// WriteRoles returns the roles the group policy lets write to the space.
+func (p Policy) WriteRoles() []string {
+	var roles []string
+	for _, grant := range p.Grants {
+		if grant.Write {
+			roles = append(roles, grant.Role)
+		}
+	}
+	return roles
 }
 
 // DefaultPolicy is the policy of a space with none stored: a memberspace with
@@ -66,6 +108,18 @@ func ParsePolicy(raw json.RawMessage) (Policy, error) {
 		return Policy{Type: PolicyRelationSpace}, nil
 	case PolicyMemberSpace:
 		return p, nil
+	case PolicyGroupSpace:
+		seen := map[string]bool{}
+		for _, grant := range p.Grants {
+			if grant.Role == "" || seen[grant.Role] {
+				return Policy{}, fmt.Errorf("%w: grants need one entry per role", ErrInvalidPolicy)
+			}
+			seen[grant.Role] = true
+		}
+		return Policy{
+			Type: PolicyGroupSpace, PublicRead: p.PublicRead, Unlisted: p.Unlisted,
+			Grants: p.Grants,
+		}, nil
 	case PolicyManagedSpace:
 		return Policy{}, fmt.Errorf("%w: %s", ErrUnsupportedPolicy, p.Type)
 	case "":

@@ -66,8 +66,8 @@ const (
 	sweepInterval = 5 * time.Minute
 	// opsPageSize is how many ops the indexer pulls per ListRepoOps call.
 	opsPageSize = 100
-	// accessCollection holds a space's community.opensocial.access record.
-	accessCollection = syntax.NSID("community.opensocial.access")
+	// accessCollection holds a space's org.atgrp.access record.
+	accessCollection = syntax.NSID("org.atgrp.access")
 	// maxJobLinks caps how many queueing spans one job links to, when many
 	// notifications collapse into it.
 	maxJobLinks = 32
@@ -585,18 +585,15 @@ func (x *Indexer) refreshAccess(
 	return x.index.SetSpaceAccess(ctx, space, access)
 }
 
-// spaceAccess resolves who may read space: anyone for an opensocial about
-// space; otherwise the users the perms store resolves as readers, and the
-// community roles its community.opensocial.access record names.
+// spaceAccess resolves who may read space: anyone when its access record is
+// publicRead; otherwise the users the perms store resolves as readers, and the
+// community roles its org.atgrp.access record names.
 func spaceAccess(
 	ctx context.Context,
 	source RepoSource,
 	perms PermSource,
 	space habitat_syntax.SpaceURI,
 ) (Access, error) {
-	if space.SpaceType() == opensocial.AboutSpaceType {
-		return Access{Public: true}, nil
-	}
 	users, err := perms.ListUserSubjects(ctx, space, habitat_syntax.SpaceRoleReader)
 	if err != nil {
 		return Access{}, fmt.Errorf("list readers: %w", err)
@@ -614,11 +611,14 @@ func spaceAccess(
 	if err != nil {
 		return Access{}, fmt.Errorf("encode access record: %w", err)
 	}
-	var record opensocial_api.CommunityOpensocialAccess
+	var record opensocial_api.OrgAtgrpAccess
 	if err := json.Unmarshal(raw, &record); err != nil {
 		return Access{}, fmt.Errorf("decode access record: %w", err)
 	}
-	for _, role := range record.Roles {
+	if record.PublicRead {
+		return Access{Public: true}, nil
+	}
+	for _, role := range opensocial.ReadRoles(record.Grants) {
 		access.CommunityRoles = append(access.CommunityRoles,
 			CommunityRole{Community: space.SpaceOwner(), Role: role})
 	}

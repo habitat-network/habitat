@@ -19,7 +19,7 @@ interface FormValues {
 }
 
 // MemberProfileForm edits the signed-in user's own profile within an org
-// (display name, bio, avatar URL): the community.opensocial.memberProfile
+// (display name, bio, avatar URL): the network.habitat.opensocial.memberProfile
 // record that getProfiles serves to the org's other members.
 export function MemberProfileForm({
   org,

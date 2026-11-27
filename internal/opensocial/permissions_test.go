@@ -6,7 +6,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -67,14 +67,14 @@ func TestPermissions(t *testing.T) {
 
 		require.NoError(t, s.PutPermissions(
 			t.Context(), org,
-			[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
+			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 				{Action: string(opensocial.ActionEject), Roles: []string{opensocial.AdminRoleRkey}},
 				{
 					Action: string(opensocial.ActionSpaceConfigure),
 					Roles:  []string{"moderator", opensocial.AdminRoleRkey},
 				},
 			},
-			[]opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
+			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
 				{
 					Role:  opensocial.AdminRoleRkey,
 					Roles: []string{opensocial.MemberRoleRkey, "moderator"},
@@ -96,13 +96,13 @@ func TestPermissions(t *testing.T) {
 	t.Run("AssignableRolesAndCanAssignRoles", func(t *testing.T) {
 		require.NoError(t, s.PutPermissions(
 			t.Context(), org,
-			[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
+			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 				{
 					Action: string(opensocial.ActionRoleAssign),
 					Roles:  []string{opensocial.AdminRoleRkey},
 				},
 			},
-			[]opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
+			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
 				{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},
 			},
 		))
@@ -151,16 +151,16 @@ func TestPermissions(t *testing.T) {
 		record, err := s.SpaceStore.GetRecord(
 			t.Context(),
 			habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self"),
-			org, "community.opensocial.role", "vip",
+			org, "org.atgrp.role", "vip",
 		)
 		require.NoError(t, err)
-		require.Equal(t, "VIP", record.Value["name"])
+		require.Equal(t, "VIP", record.Value["displayName"])
 
 		require.NoError(t, s.DeleteRole(t.Context(), org, "vip"))
 		_, err = s.SpaceStore.GetRecord(
 			t.Context(),
 			habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self"),
-			org, "community.opensocial.role", "vip",
+			org, "org.atgrp.role", "vip",
 		)
 		require.Error(t, err)
 
@@ -244,7 +244,7 @@ func TestPermissionsLegacyOrgFallback(t *testing.T) {
 	// fallback.
 	require.NoError(t, s.PutPermissions(
 		t.Context(), org,
-		[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
+		[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 			{
 				Action: string(opensocial.ActionCommunityConfigure),
 				Roles:  []string{opensocial.AdminRoleRkey},
@@ -255,4 +255,176 @@ func TestPermissionsLegacyOrgFallback(t *testing.T) {
 	assignable, err = s.AssignableRoles(t.Context(), org, creator)
 	require.NoError(t, err)
 	require.Empty(t, assignable, "the fallback no longer applies once permissions are configured")
+}
+
+func TestPermissionsGroupDIDAndEscalation(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	creator := syntax.DID("did:plc:esc-creator")
+	orgDIDStr, err := s.NewOrg(t.Context(), "esc-acme", creator)
+	require.NoError(t, err)
+	org := syntax.DID(orgDIDStr)
+
+	t.Run("the group DID is implicitly authorized and may assign any role", func(t *testing.T) {
+		ok, err := s.CheckAction(t.Context(), org, org, opensocial.ActionMcpConfigure)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assignable, err := s.AssignableRoles(t.Context(), org, org)
+		require.NoError(t, err)
+		require.ElementsMatch(
+			t, []string{opensocial.AdminRoleRkey, opensocial.MemberRoleRkey}, assignable,
+		)
+	})
+
+	// delegate may reconfigure the group and assign only the member role, and
+	// holds only the scopes of those two actions.
+	require.NoError(t, s.PutRole(t.Context(), org, "delegate", "Delegate", ""))
+	delegate := syntax.DID("did:plc:delegate")
+	require.NoError(t, s.AssignRoles(t.Context(), org, delegate, []string{"delegate"}))
+	require.NoError(t, s.PutPermissions(
+		t.Context(), org,
+		[]habitat.NetworkHabitatOpensocialDefsActionBinding{
+			{Action: string(opensocial.ActionCommunityConfigure), Roles: []string{"delegate"}},
+			{
+				Action: string(opensocial.ActionCommunityConfigure),
+				Roles:  []string{opensocial.AdminRoleRkey},
+			},
+			{
+				Action: string(opensocial.ActionMcpConfigure),
+				Roles:  []string{opensocial.AdminRoleRkey},
+			},
+		},
+		[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
+			{Role: "delegate", Roles: []string{opensocial.MemberRoleRkey}},
+			{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.AdminRoleRkey, "delegate"}},
+		},
+	))
+
+	t.Run("a delegate cannot grant a scope it does not hold", func(t *testing.T) {
+		err := s.UpdatePermissions(
+			t.Context(), org, delegate,
+			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
+				{
+					Action: string(opensocial.ActionMcpConfigure),
+					Roles:  []string{opensocial.MemberRoleRkey},
+				},
+			},
+			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
+				{Role: "delegate", Roles: []string{opensocial.MemberRoleRkey}},
+			},
+		)
+		require.ErrorIs(t, err, opensocial.ErrEscalation)
+	})
+
+	t.Run("a delegate cannot change a role it may not assign", func(t *testing.T) {
+		err := s.UpdatePermissions(
+			t.Context(), org, delegate,
+			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
+				{Action: string(opensocial.ActionCommunityConfigure), Roles: []string{"delegate"}},
+			},
+			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
+				{Role: "delegate", Roles: []string{opensocial.MemberRoleRkey}},
+			},
+		)
+		require.ErrorIs(
+			t,
+			err,
+			opensocial.ErrEscalation,
+			"dropping the admin role's grants changes admin",
+		)
+	})
+
+	t.Run("an admin may rewrite permissions it already holds", func(t *testing.T) {
+		current, err := s.GetPermissions(t.Context(), org)
+		require.NoError(t, err)
+		bindings, assignable := opensocial.ActionBindings(current.Grants)
+		require.NoError(t, s.UpdatePermissions(t.Context(), org, creator, bindings, assignable))
+	})
+}
+
+func TestCheckPermissionPublicReadAndGroupDID(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	creator := syntax.DID("did:plc:pub-creator")
+	orgDIDStr, err := s.NewOrg(t.Context(), "pub-acme", creator)
+	require.NoError(t, err)
+	org := syntax.DID(orgDIDStr)
+	stranger := syntax.DID("did:plc:pub-stranger")
+	meta := habitat_syntax.ConstructSpaceURI(org, opensocial.MetaSpaceType, "self")
+	members := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
+
+	ok, err := s.CheckPermission(t.Context(), stranger, meta)
+	require.NoError(t, err)
+	require.True(t, ok, "the meta space's access record is publicRead")
+
+	ok, err = s.CheckPermission(t.Context(), stranger, members)
+	require.NoError(t, err)
+	require.False(t, ok, "the members space is not public")
+
+	ok, err = s.CheckPermission(t.Context(), org, members)
+	require.NoError(t, err)
+	require.True(t, ok, "the group DID can read its own spaces")
+}
+
+func TestUpdateSpaceKeepsOtherScopesAndPublicRead(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	creator := syntax.DID("did:plc:keep-creator")
+	orgDIDStr, err := s.NewOrg(t.Context(), "keep-acme", creator)
+	require.NoError(t, err)
+	org := syntax.DID(orgDIDStr)
+	meta := habitat_syntax.ConstructSpaceURI(org, opensocial.MetaSpaceType, "self")
+
+	// UpdateSpace changes who can read, not what else the access record says.
+	require.NoError(t, s.UpdateSpace(t.Context(), meta, []string{opensocial.AdminRoleRkey}))
+	ok, err := s.CheckPermission(t.Context(), syntax.DID("did:plc:keep-stranger"), meta)
+	require.NoError(t, err)
+	require.True(t, ok, "publicRead survives an UpdateSpace")
+}
+
+func TestNewOrgBootstrapsSpecRecords(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	creator := syntax.DID("did:plc:boot-creator")
+	orgDIDStr, err := s.NewOrg(t.Context(), "boot-acme", creator)
+	require.NoError(t, err)
+	org := syntax.DID(orgDIDStr)
+	members := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
+
+	t.Run("member is the default role", func(t *testing.T) {
+		member, err := s.SpaceStore.GetRecord(
+			t.Context(), members, org, opensocial.RoleCollection, opensocial.MemberRoleRkey,
+		)
+		require.NoError(t, err)
+		require.Equal(t, true, member.Value["default"])
+		admin, err := s.SpaceStore.GetRecord(
+			t.Context(), members, org, opensocial.RoleCollection, opensocial.AdminRoleRkey,
+		)
+		require.NoError(t, err)
+		require.Nil(t, admin.Value["default"])
+	})
+
+	t.Run("the creator holds every scope and may assign every role", func(t *testing.T) {
+		scopes, err := s.UserScopes(t.Context(), org, creator)
+		require.NoError(t, err)
+		for _, set := range []string{
+			"configure", "manageSpaces", "manageMembers", "moderate", "participate",
+		} {
+			require.Truef(t, scopes.Covers("include:org.atgrp."+set), set)
+		}
+		assignable, err := s.AssignableRoles(t.Context(), org, creator)
+		require.NoError(t, err)
+		require.ElementsMatch(
+			t, []string{opensocial.AdminRoleRkey, opensocial.MemberRoleRkey}, assignable,
+		)
+	})
+
+	t.Run("a member can participate but manage nothing", func(t *testing.T) {
+		member := syntax.DID("did:plc:boot-member")
+		require.NoError(
+			t, s.AssignRoles(t.Context(), org, member, []string{opensocial.MemberRoleRkey}),
+		)
+		scopes, err := s.UserScopes(t.Context(), org, member)
+		require.NoError(t, err)
+		require.True(t, scopes.Covers("include:org.atgrp.participate"))
+		for _, action := range opensocial.AllActions {
+			require.Falsef(t, scopes.CanPerform(action), "member should not %s", action)
+		}
+	})
 }

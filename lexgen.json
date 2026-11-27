@@ -7,7 +7,7 @@
   },
   {
     "package": "opensocial",
-    "prefix": "community.opensocial",
+    "prefix": "org.atgrp",
     "outdir": "api/opensocial",
     "import": "github.com/habitat-network/habitat/api/opensocial"
   },

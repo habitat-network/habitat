@@ -30,7 +30,7 @@ type OpenSocialStore interface {
 		did syntax.DID,
 		space habitat_syntax.SpaceURI,
 	) (bool, error)
-	// ListMemberSpaces returns the community.opensocial.members spaces did
+	// ListMemberSpaces returns the org.atgrp.members spaces did
 	// belongs to (every org it holds a permissioned repo in).
 	ListMemberSpaces(
 		ctx context.Context,
@@ -424,13 +424,13 @@ func (s *store) UnsafeRevokeAllSpaceRoles(
 // an implicit habitat_syntax.SpaceRoleOwner, and members of belongsToOrg (the caller's own
 // org) as implicit habitat_syntax.SpaceRoleReaders, without either needing a stored tuple.
 //
-// For a reader or writer check, an opensocial community.opensocial.access
+// For a reader or writer check, an opensocial org.atgrp.access
 // grant is also accepted: opensocial spaces are never given FGA tuples
 // (their access is governed entirely by their own access/role records), so
 // without this an opensocial member could never pass an FGA-backed check at
-// all — including writing their own community.opensocial.acceptance record
+// all — including writing their own org.atgrp.acceptance record
 // into the org's members space, which is a member's own responsibility
-// (see community.opensocial.acceptance's lexicon description).
+// (see org.atgrp.acceptance's lexicon description).
 func (s *store) CheckUserHasSpaceRole(
 	ctx context.Context,
 	did syntax.DID,

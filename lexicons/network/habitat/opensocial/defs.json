@@ -1,0 +1,94 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.opensocial.defs",
+    "defs": {
+        "inviteView": {
+            "type": "object",
+            "description": "A pending invite to join the community, tracked in the org's invite table (not yet a repo record).",
+            "required": [
+                "id",
+                "org",
+                "invitee",
+                "roles",
+                "createdAt"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Opaque id of the invite, used to revoke it."
+                },
+                "org": {
+                    "type": "string",
+                    "format": "did",
+                    "description": "DID of the community the invite is for."
+                },
+                "invitee": {
+                    "type": "string",
+                    "format": "did",
+                    "description": "DID of the invited user."
+                },
+                "roles": {
+                    "type": "array",
+                    "description": "Record keys of the org.atgrp.role records the invitee will hold once they accept.",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "datetime"
+                }
+            }
+        },
+        "actionBinding": {
+            "type": "object",
+            "required": [
+                "action",
+                "roles"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "knownValues": [
+                        "invite",
+                        "eject",
+                        "role.assign",
+                        "space.create",
+                        "space.configure",
+                        "space.delete",
+                        "community.configure",
+                        "mcp.configure"
+                    ],
+                    "description": "The action this binding authorizes."
+                },
+                "roles": {
+                    "type": "array",
+                    "description": "Record keys of the org.atgrp.role records authorized to perform this action.",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "assignableBinding": {
+            "type": "object",
+            "required": [
+                "role",
+                "roles"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "description": "Record key of the role this binding applies to."
+                },
+                "roles": {
+                    "type": "array",
+                    "description": "Record keys of the roles a holder of `role` may assign to, or eject a holder of, via role.assign/eject.",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,5 +1,5 @@
 import { SpaceRef, type DidString, type NsidString } from "@atproto/syntax";
-import { community, network } from "api";
+import { group, network, permissionsFromRecord } from "api";
 import { Effect, Option } from "effect";
 import { connectedOrgNames, isConnectedOrg } from "@/db";
 import { HabitatError, OrgNotConnected } from "./effect/errors";
@@ -12,14 +12,14 @@ import { AppEnv, Database, Habitat, type CallOptions } from "./effect/services";
 // group's own Habitat instance, so pear's opensocial permission checks
 // decide what each member may do; the app only shapes the results.
 
-export const ABOUT_SPACE_TYPE = "community.opensocial.about";
+export const META_SPACE_TYPE = "org.atgrp.meta";
 
 export function membersSpace(org: string): string {
   return new SpaceRef(org as DidString, MEMBERS_SPACE_TYPE, "self").toString();
 }
 
-export function aboutSpace(org: string): string {
-  return new SpaceRef(org as DidString, ABOUT_SPACE_TYPE, "self").toString();
+export function metaSpace(org: string): string {
+  return new SpaceRef(org as DidString, META_SPACE_TYPE, "self").toString();
 }
 
 // viaGroup proxies a call to the group's own Habitat instance.
@@ -40,7 +40,7 @@ export interface GroupProfile {
   description: string | null;
 }
 
-// readGroupProfile reads a group's community.opensocial.profile record as
+// readGroupProfile reads a group's org.atgrp.profile record as
 // the member. Any member can read the group's about space. A profile that
 // can't be read comes back empty rather than failing the page around it.
 export const readGroupProfile = Effect.fn("readGroupProfile")(function* (
@@ -54,9 +54,9 @@ export const readGroupProfile = Effect.fn("readGroupProfile")(function* (
       "network.habitat.space.getRecord",
       "GET",
       {
-        space: aboutSpace(org),
+        space: metaSpace(org),
         repo: org,
-        collection: "community.opensocial.profile",
+        collection: "org.atgrp.profile",
         rkey: "self",
       },
     )
@@ -66,7 +66,7 @@ export const readGroupProfile = Effect.fn("readGroupProfile")(function* (
     onSome: (r) => r.value,
   });
   return {
-    name: typeof value.name === "string" ? value.name : null,
+    name: typeof value.displayName === "string" ? value.displayName : null,
     description:
       typeof value.description === "string" ? value.description : null,
   } satisfies GroupProfile;
@@ -112,7 +112,7 @@ export const listMembers = Effect.fn("listMembers")(function* (
   const memberships = yield* listGroupRecords(
     did,
     org,
-    "community.opensocial.membership",
+    "org.atgrp.membership",
   );
   const profiles = yield* getProfiles(
     did,
@@ -128,7 +128,7 @@ export const listMembers = Effect.fn("listMembers")(function* (
       displayName: profile?.displayName ?? null,
       avatarUrl: profile?.avatarUrl ?? null,
       updatedAt:
-        typeof m.value.updatedAt === "string" ? m.value.updatedAt : null,
+        typeof m.value.createdAt === "string" ? m.value.createdAt : null,
     };
   });
 });
@@ -175,14 +175,11 @@ export const listRoles = Effect.fn("listRoles")(function* (
   did: string,
   org: string,
 ) {
-  const records = yield* listGroupRecords(
-    did,
-    org,
-    "community.opensocial.role",
-  );
+  const records = yield* listGroupRecords(did, org, "org.atgrp.role");
   return records.map((r): RoleView => ({
     id: r.rkey,
-    name: typeof r.value.name === "string" ? r.value.name : r.rkey,
+    name:
+      typeof r.value.displayName === "string" ? r.value.displayName : r.rkey,
     description:
       typeof r.value.description === "string" ? r.value.description : null,
   }));
@@ -214,9 +211,8 @@ export function assignableWith(
   return changed ? next : null;
 }
 
-export type ActionBinding = community.opensocial.permissions.ActionBinding;
-export type AssignableBinding =
-  community.opensocial.permissions.AssignableBinding;
+export type ActionBinding = org.atgrp.permissions.ActionBinding;
+export type AssignableBinding = org.atgrp.permissions.AssignableBinding;
 
 export interface PermissionsView {
   // Whether the group has a permissions record at all. Without one, pear
@@ -242,7 +238,7 @@ export const readPermissions = Effect.fn("readPermissions")(function* (
       {
         space: membersSpace(org),
         repo: org,
-        collection: "community.opensocial.permissions",
+        collection: "org.atgrp.permissions",
         rkey: "self",
       },
     )
@@ -255,8 +251,7 @@ export const readPermissions = Effect.fn("readPermissions")(function* (
     );
   return {
     exists: record.value !== undefined,
-    bindings: record.value?.bindings ?? [],
-    assignable: record.value?.assignable ?? [],
+    ...permissionsFromRecord(record.value),
   } satisfies PermissionsView;
 });
 

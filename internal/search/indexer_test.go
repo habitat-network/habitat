@@ -373,7 +373,10 @@ func TestIndexerIndexesAccess(t *testing.T) {
 		_, _, err := it.store.PutRecord(ctx, space, testOrg, accessCollection, "self",
 			spaces_testutil.MustMarshalRecord(t, map[string]any{
 				"$type": accessCollection.String(),
-				"roles": []any{"staff", "board"},
+				"grants": []any{
+					map[string]any{"role": "staff", "scopes": []any{"read"}},
+					map[string]any{"role": "board", "scopes": []any{"read"}},
+				},
 			}))
 		require.NoError(t, err)
 		it.drain(ctx)
@@ -382,8 +385,15 @@ func TestIndexerIndexesAccess(t *testing.T) {
 		}, it.idx.access(t, doc).CommunityRoles)
 	})
 
-	t.Run("an about space is public", func(t *testing.T) {
-		about, err := it.store.CreateSpace(ctx, testOrg, opensocial.AboutSpaceType, "self")
+	t.Run("a publicRead space is public", func(t *testing.T) {
+		about, err := it.store.CreateSpace(ctx, testOrg, opensocial.MetaSpaceType, "self")
+		require.NoError(t, err)
+		_, _, err = it.store.PutRecord(ctx, about, testOrg, accessCollection, "self",
+			spaces_testutil.MustMarshalRecord(t, map[string]any{
+				"$type":      accessCollection.String(),
+				"publicRead": true,
+				"grants":     []any{},
+			}))
 		require.NoError(t, err)
 		put(t, it.store, about, "k1", "hello")
 		it.drain(ctx)
