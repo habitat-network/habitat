@@ -40,6 +40,8 @@ func (p *PearServer) GroupLeaveGroup(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, opensocial.ErrGroupNotFound):
 		httpx.WriteError(ctx, w, "GroupNotFound", "", http.StatusNotFound)
+	case errors.Is(err, opensocial.ErrLastAdmin):
+		httpx.WriteError(ctx, w, "LastAdmin", err.Error(), http.StatusBadRequest)
 	case err != nil:
 		httpx.WriteServerError(ctx, w, fmt.Errorf("leave group: %w", err))
 	}

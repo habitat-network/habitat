@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/comatproto"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -75,4 +76,52 @@ func (p *PearServer) createGroupSpace(
 	httpx.WriteJSON(
 		ctx, w, comatproto.ComAtprotoSpaceCreateSpaceOutput{Space: uri.AtSpace().String()},
 	)
+}
+
+// guardGroupWrite applies the group rules to a record write when credInfo is
+// a session acting as the group that owns space, writing the response and
+// returning false when the write is refused. Writes by members into their
+// own repos are not affected. A nil value is a delete.
+func (p *PearServer) guardGroupWrite(
+	ctx context.Context,
+	w http.ResponseWriter,
+	credInfo *authn.CredentialInfo,
+	space habitat_syntax.SpaceURI,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	value map[string]any,
+) bool {
+	if credInfo.Method != authn.ValidatorMethodOAuth || credInfo.Subject != space.SpaceOwner() {
+		return true
+	}
+	group, ok := p.isGroup(ctx, w, credInfo.Subject)
+	if !ok {
+		return false
+	}
+	if !group {
+		return true
+	}
+	caller, ok := p.callerFor(ctx, w, credInfo, credInfo.Subject)
+	if !ok {
+		return false
+	}
+	err := p.opensocialStore.AuthorizeGroupWrite(ctx, opensocial.GroupWrite{
+		Group: caller.Group, Actor: caller.Actor, Scopes: caller.Scopes,
+		Space: space, Collection: collection, Rkey: rkey, Value: value,
+	})
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, opensocial.ErrHostMaintained):
+		httpx.WriteError(ctx, w, "HostMaintainedRecord", err.Error(), http.StatusForbidden)
+	case errors.Is(err, opensocial.ErrLastAdmin),
+		errors.Is(err, opensocial.ErrCannotDeleteBuiltinRole),
+		errors.Is(err, opensocial.ErrInvalidRoleID):
+		httpx.WriteInvalidRequest(ctx, w, err.Error(), err)
+	case errors.Is(err, opensocial.ErrEscalation):
+		httpx.WriteUnauthorized(ctx, w, err.Error(), nil)
+	default:
+		httpx.WriteServerError(ctx, w, fmt.Errorf("authorize group write: %w", err))
+	}
+	return false
 }

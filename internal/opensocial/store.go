@@ -447,6 +447,9 @@ func (s *Store) AssignRoles(
 		telemetry.Org(orgDID), memberAttr(user), rolesKey.StringSlice(roles),
 	))
 	defer func() { telemetry.End(span, err) }()
+	if err := s.keepsAdmin(ctx, orgDID, user, roles); err != nil {
+		return err
+	}
 	recordBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpMembership{
 		Roles:     roles,
 		CreatedAt: time.Now().Format(time.RFC3339),

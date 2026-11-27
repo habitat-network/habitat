@@ -72,6 +72,18 @@ func (p *PearServer) ApplyWrites(w http.ResponseWriter, r *http.Request) {
 		writes[i] = write
 	}
 
+	for i, write := range writes {
+		var value map[string]any
+		if write.Action != spaces.WriteDelete {
+			if op, ok := input.Writes[i].(map[string]any); ok {
+				value, _ = op["value"].(map[string]any)
+			}
+		}
+		if !p.guardGroupWrite(ctx, w, credInfo, spaceURI, write.Collection, write.Rkey, value) {
+			return
+		}
+	}
+
 	results, err := p.spacesStore.ApplyWrites(ctx, spaceURI, repo, writes)
 	switch {
 	case errors.Is(err, spaces.ErrSpaceNotFound):

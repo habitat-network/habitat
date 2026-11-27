@@ -3,6 +3,7 @@ package pearserver
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"net/http"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -47,6 +48,17 @@ func (p *PearServer) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 			"relationship collections must be managed by network.habitat.relationship.* lexicons",
 			nil,
 		)
+		return
+	}
+	if !p.guardGroupWrite(
+		ctx,
+		w,
+		credInfo,
+		spaceURI,
+		collection,
+		syntax.RecordKey(input.Rkey),
+		nil,
+	) {
 		return
 	}
 	if err := p.spacesStore.DeleteRecord(ctx, spaceURI, repo, collection, input.Rkey); err != nil {

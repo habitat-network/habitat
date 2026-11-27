@@ -68,6 +68,10 @@ func (p *PearServer) EjectMember(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(ctx, w, "MemberNotFound", "", http.StatusBadRequest)
 		return
 	}
+	if errors.Is(err, opensocial.ErrLastAdmin) {
+		httpx.WriteError(ctx, w, "LastAdmin", err.Error(), http.StatusBadRequest)
+		return
+	}
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("eject member: %w", err))
 		return

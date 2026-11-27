@@ -2,6 +2,7 @@ package pearserver
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -73,7 +74,12 @@ func (p *PearServer) AssignRoles(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	if err := p.opensocialStore.AssignRoles(ctx, org, member, input.Roles); err != nil {
+	err = p.opensocialStore.AssignRoles(ctx, org, member, input.Roles)
+	if errors.Is(err, opensocial.ErrLastAdmin) {
+		httpx.WriteError(ctx, w, "LastAdmin", err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("assign roles: %w", err))
 		return
 	}

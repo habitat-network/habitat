@@ -254,9 +254,15 @@ func (p *PearServer) ModUpdateSubject(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "status must be open or resolved", nil)
 		return
 	}
-	_, err := p.opensocialStore.UpdateSubject(ctx, group, caller.Actor, subject, opensocial.SubjectUpdate{
-		Status: status, Note: input.Note, AddTags: input.AddTags, RemoveTags: input.RemoveTags,
-	})
+	_, err := p.opensocialStore.UpdateSubject(
+		ctx,
+		group,
+		caller.Actor,
+		subject,
+		opensocial.SubjectUpdate{
+			Status: status, Note: input.Note, AddTags: input.AddTags, RemoveTags: input.RemoveTags,
+		},
+	)
 	if writeSubjectError(ctx, w, err) {
 		return
 	}

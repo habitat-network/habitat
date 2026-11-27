@@ -333,6 +333,9 @@ func (s *Store) EjectMember(
 	} else if err != nil {
 		return fmt.Errorf("get membership record: %w", err)
 	}
+	if err := s.keepsAdmin(ctx, orgDID, member, nil); err != nil {
+		return err
+	}
 	if err := s.spacesStore.DeleteRecord(
 		ctx, membersSpaceOf(orgDID), orgDID, MembershipCollection, string(member),
 	); err != nil {

@@ -145,6 +145,9 @@ func (s *Store) LeaveGroup(ctx context.Context, orgDID, member syntax.DID) error
 	} else if err != nil {
 		return err
 	}
+	if err := s.keepsAdmin(ctx, orgDID, member, nil); err != nil {
+		return err
+	}
 	err := s.spacesStore.DeleteRecord(
 		ctx, membersSpace, orgDID, MembershipCollection, string(member),
 	)

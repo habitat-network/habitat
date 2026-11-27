@@ -99,6 +99,9 @@ func (p *PearServer) writeRecord(w http.ResponseWriter, r *http.Request, create 
 		httpx.WriteInvalidRequest(ctx, w, "record must be a JSON object", nil)
 		return
 	}
+	if !p.guardGroupWrite(ctx, w, credInfo, spaceURI, collection, rkey, value) {
+		return
+	}
 	recordBytes, err := spaces.MarshalRecord(value)
 	if errors.Is(err, spaces.ErrInvalidRecord) {
 		httpx.WriteInvalidRequest(ctx, w, fmt.Sprintf("invalid record: %v", err), err)
