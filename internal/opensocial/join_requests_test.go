@@ -41,7 +41,10 @@ func TestStoreJoinRequests(t *testing.T) {
 			_, err := s.QueueJoinRequest(ctx, group, person, "")
 			require.NoError(t, err)
 		}
-		require.NoError(t, s.AssignRoles(ctx, group, people[1], []string{opensocial.MemberRoleRkey}))
+		require.NoError(
+			t,
+			s.AssignRoles(ctx, group, people[1], []string{opensocial.MemberRoleRkey}),
+		)
 
 		var seen []syntax.DID
 		cursor := ""
