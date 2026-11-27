@@ -358,3 +358,28 @@ func (s SpaceRecordURI) Rkey() syntax.RecordKey {
 	}
 	return rkey
 }
+
+// SpaceRef is a space URI split into its parts, for storing in a table's
+// columns instead of the URI string. Embed it in a GORM model with
+// `gorm:"embedded;embeddedPrefix:space_"` for the columns space_owner,
+// space_type and space_skey.
+type SpaceRef struct {
+	Owner syntax.DID
+	Type  syntax.NSID
+	Skey  SpaceKey
+}
+
+// Ref splits the URI into its parts. A URI that matches no accepted format
+// gives the zero SpaceRef.
+func (s SpaceURI) Ref() SpaceRef {
+	return SpaceRef{Owner: s.SpaceOwner(), Type: s.SpaceType(), Skey: s.Skey()}
+}
+
+// URI joins the parts back into a space URI in the current format. The zero
+// SpaceRef gives the empty URI.
+func (r SpaceRef) URI() SpaceURI {
+	if r == (SpaceRef{}) {
+		return ""
+	}
+	return ConstructSpaceURI(r.Owner, r.Type, r.Skey)
+}

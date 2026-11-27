@@ -29,7 +29,9 @@ import (
 // distinct registrations. Registrations predating the service field carry their
 // endpoint URL as the audience; see the audience migration.
 type registration struct {
-	Space    habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo     syntax.DID              `gorm:"primaryKey"`
 	Audience string                  `gorm:"primaryKey"`
 	Endpoint string
@@ -47,7 +49,9 @@ type registration struct {
 // token travels in each request body. It stays active while the credential it
 // was registered with is valid (ExpiresAt).
 type webhook struct {
-	Space    habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Endpoint string                  `gorm:"primaryKey"`
 	Token    string                  `gorm:"primaryKey"`
 	// ExpiresAt is when the credential the registration was made with expires.
@@ -184,7 +188,9 @@ type Store interface {
 // RetryAt is unix milliseconds rather than a timestamp so it compares exactly
 // in the guarded updates on every dialect.
 type spaceDeletedDelivery struct {
-	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	SpaceRef  habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Audience  string                  `gorm:"primaryKey"`
 	Endpoint  string
 	Namespace Namespace
