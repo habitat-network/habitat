@@ -11,9 +11,9 @@ type ComAtprotoRepoStrongRefMain struct {
 	Uri           string `json:"uri"`
 }
 
-// MarshalJSON sets $type to "com.atproto.repo.strongRef#main" before encoding.
+// MarshalJSON sets $type to "com.atproto.repo.strongRef" before encoding.
 func (t ComAtprotoRepoStrongRefMain) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "com.atproto.repo.strongRef#main"
+	t.LexiconTypeID = "com.atproto.repo.strongRef"
 	type alias ComAtprotoRepoStrongRefMain
 	return json.Marshal(alias(t))
 }

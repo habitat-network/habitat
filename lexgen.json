@@ -16,5 +16,25 @@
     "prefix": "com.atproto",
     "outdir": "api/comatproto",
     "import": "github.com/habitat-network/habitat/api/comatproto"
+  },
+  {
+    "package": "atgrp",
+    "prefix": "org.atgrp",
+    "outdir": "api/atgrp",
+    "import": "github.com/habitat-network/habitat/api/atgrp",
+    "lexicons": [
+      "org.atgrp.about",
+      "org.atgrp.config",
+      "org.atgrp.confirmation",
+      "org.atgrp.declaration",
+      "org.atgrp.defs",
+      "org.atgrp.invite",
+      "org.atgrp.leaveGroup",
+      "org.atgrp.membership",
+      "org.atgrp.policy",
+      "org.atgrp.requestJoin",
+      "org.atgrp.role",
+      "org.atgrp.space"
+    ]
   }
 ]

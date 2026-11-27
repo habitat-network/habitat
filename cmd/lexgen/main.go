@@ -16,6 +16,11 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+type packageConfig struct {
+	lex.Package
+	Lexicons []string `json:"lexicons,omitempty"`
+}
+
 func main() {
 	app := &cli.App{
 		Name:  "lexgen",
@@ -52,14 +57,14 @@ func run(configPath, lexiconsDir string) error {
 		return fmt.Errorf("failed to read config: %w", err)
 	}
 
-	var configs []lex.Package
+	var configs []packageConfig
 	if err := json.Unmarshal(configData, &configs); err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
 
 	// Process each configuration
 	for _, config := range configs {
-		if err := processConfig(config, lexiconsDir); err != nil {
+		if err := processConfig(config, configs, lexiconsDir); err != nil {
 			return fmt.Errorf("failed to process config %s: %w", config.GoPackage, err)
 		}
 	}
@@ -67,7 +72,7 @@ func run(configPath, lexiconsDir string) error {
 	return nil
 }
 
-func processConfig(config lex.Package, lexiconsDir string) error {
+func processConfig(config packageConfig, packages []packageConfig, lexiconsDir string) error {
 	// Find all lexicon files matching the prefix
 	var lexiconFiles []string
 	prefixPath := filepath.Join(lexiconsDir, strings.ReplaceAll(config.Prefix, ".", "/"))
@@ -88,12 +93,15 @@ func processConfig(config lex.Package, lexiconsDir string) error {
 	// Parse and generate code for each lexicon file
 	var generatedFiles []GeneratedFile
 	for _, file := range lexiconFiles {
-		lex, err := parseLexicon(file)
+		schema, err := parseLexicon(file)
 		if err != nil {
 			return fmt.Errorf("failed to parse lexicon %s: %w", file, err)
 		}
 
-		genFile, err := generateCode(lex, config)
+		if len(config.Lexicons) != 0 && !slices.Contains(config.Lexicons, schema.ID) {
+			continue
+		}
+		genFile, err := generateCode(schema, config, packages)
 		if err != nil {
 			return fmt.Errorf("failed to generate code for %s: %w", file, err)
 		}
@@ -163,38 +171,43 @@ type GeneratedFile struct {
 	Content string
 }
 
-func generateCode(lex *lex.Schema, config lex.Package) (GeneratedFile, error) {
+func generateCode(
+	schema *lex.Schema,
+	config packageConfig,
+	packages []packageConfig,
+) (GeneratedFile, error) {
 	// Use the full ID path for the filename to avoid collisions
 	// Remove the prefix to avoid redundancy, then replace dots with underscores
-	name := strings.TrimPrefix(lex.ID, config.Prefix+".")
+	name := strings.TrimPrefix(schema.ID, config.Prefix+".")
 	name = strings.ReplaceAll(name, ".", "_")
 
 	var body strings.Builder
+	g := typeGenerator{config: config, packages: packages, imports: make(map[string]string)}
 
 	// Process each definition
-	names := slices.Collect(maps.Keys(lex.Defs))
+	names := slices.Collect(maps.Keys(schema.Defs))
 	sort.Strings(names)
 
 	for _, defName := range names {
-		defData := lex.Defs[defName]
+		defData := schema.Defs[defName]
 		defType := defData.Type
 		switch defType {
 		case "query":
-			code, err := generateQueryCode(lex.ID, defName, defData, lex)
+			code, err := g.generateQueryCode(schema.ID, defName, defData)
 			if err != nil {
 				return GeneratedFile{}, err
 			}
 			body.WriteString(code)
 
 		case "procedure":
-			code, err := generateProcedureCode(lex.ID, defName, defData, lex)
+			code, err := g.generateProcedureCode(schema.ID, defName, defData)
 			if err != nil {
 				return GeneratedFile{}, err
 			}
 			body.WriteString(code)
 
 		case "record":
-			code, err := generateRecordCode(lex.ID, defName, defData)
+			code, err := g.generateRecordCode(schema.ID, defName, defData)
 			if err != nil {
 				return GeneratedFile{}, err
 			}
@@ -202,7 +215,7 @@ func generateCode(lex *lex.Schema, config lex.Package) (GeneratedFile, error) {
 
 		case "object":
 			// Generate nested object types
-			code, err := generateObjectCode(lex.ID, defName, defData)
+			code, err := g.generateObjectCode(schema.ID, defName, defData)
 			if err != nil {
 				return GeneratedFile{}, err
 			}
@@ -217,6 +230,7 @@ func generateCode(lex *lex.Schema, config lex.Package) (GeneratedFile, error) {
 	if strings.Contains(body.String(), "atdata.") {
 		imports = append(imports, "github.com/bluesky-social/indigo/atproto/atdata")
 	}
+	imports = append(imports, slices.Sorted(maps.Values(g.imports))...)
 
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "package %s\n\n", config.GoPackage)
@@ -239,11 +253,16 @@ func generateCode(lex *lex.Schema, config lex.Package) (GeneratedFile, error) {
 	}, nil
 }
 
-func generateQueryCode(
+type typeGenerator struct {
+	config   packageConfig
+	packages []packageConfig
+	imports  map[string]string
+}
+
+func (g typeGenerator) generateQueryCode(
 	id string,
 	defName string,
 	defData *lex.TypeSchema,
-	schema *lex.Schema,
 ) (string, error) {
 	var builder strings.Builder
 
@@ -252,7 +271,7 @@ func generateQueryCode(
 		typeName += toFieldName(defName)
 	}
 
-	generateParamsCode(&builder, typeName, id, defData, schema)
+	g.generateParamsCode(&builder, typeName, id, defData)
 
 	// Generate output struct
 	if defData.Output != nil && defData.Output.Schema != nil {
@@ -271,7 +290,7 @@ func generateQueryCode(
 				propSchema := defData.Output.Schema.Properties[propName]
 				isRequired := slices.Contains(defData.Output.Schema.Required, propName)
 				isNullable := slices.Contains(defData.Output.Schema.Nullable, propName)
-				writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, schema)
+				g.writeStructField(&builder, propName, propSchema, isRequired, isNullable, id)
 			}
 		}
 
@@ -284,12 +303,11 @@ func generateQueryCode(
 // generateParamsCode emits a <TypeName>Params struct from defData.Parameters,
 // shared by queries and procedures — both support a `parameters` field per
 // https://atproto.com/specs/lexicon.
-func generateParamsCode(
+func (g typeGenerator) generateParamsCode(
 	builder *strings.Builder,
 	typeName string,
 	id string,
 	defData *lex.TypeSchema,
-	schema *lex.Schema,
 ) {
 	if defData.Parameters == nil {
 		return
@@ -309,18 +327,17 @@ func generateParamsCode(
 			propSchema := defData.Parameters.Properties[propName]
 			isRequired := slices.Contains(defData.Parameters.Required, propName)
 			isNullable := slices.Contains(defData.Parameters.Nullable, propName)
-			writeStructField(builder, propName, propSchema, isRequired, isNullable, id, schema)
+			g.writeStructField(builder, propName, propSchema, isRequired, isNullable, id)
 		}
 	}
 
 	builder.WriteString("}\n\n")
 }
 
-func generateProcedureCode(
+func (g typeGenerator) generateProcedureCode(
 	id string,
 	defName string,
 	defData *lex.TypeSchema,
-	schema *lex.Schema,
 ) (string, error) {
 	var builder strings.Builder
 
@@ -329,7 +346,7 @@ func generateProcedureCode(
 		typeName += toFieldName(defName)
 	}
 
-	generateParamsCode(&builder, typeName, id, defData, schema)
+	g.generateParamsCode(&builder, typeName, id, defData)
 
 	// Generate input struct
 	if defData.Input != nil && defData.Input.Schema != nil {
@@ -348,7 +365,7 @@ func generateProcedureCode(
 				propSchema := defData.Input.Schema.Properties[propName]
 				isRequired := slices.Contains(defData.Input.Schema.Required, propName)
 				isNullable := slices.Contains(defData.Input.Schema.Nullable, propName)
-				writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, schema)
+				g.writeStructField(&builder, propName, propSchema, isRequired, isNullable, id)
 			}
 		}
 
@@ -372,7 +389,7 @@ func generateProcedureCode(
 				propSchema := defData.Output.Schema.Properties[propName]
 				isRequired := slices.Contains(defData.Output.Schema.Required, propName)
 				isNullable := slices.Contains(defData.Output.Schema.Nullable, propName)
-				writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, schema)
+				g.writeStructField(&builder, propName, propSchema, isRequired, isNullable, id)
 			}
 		}
 
@@ -382,7 +399,11 @@ func generateProcedureCode(
 	return builder.String(), nil
 }
 
-func generateRecordCode(id string, defName string, defData *lex.TypeSchema) (string, error) {
+func (g typeGenerator) generateRecordCode(
+	id string,
+	defName string,
+	defData *lex.TypeSchema,
+) (string, error) {
 	var builder strings.Builder
 
 	typeName := toTypeName(id)
@@ -412,7 +433,7 @@ func generateRecordCode(id string, defName string, defData *lex.TypeSchema) (str
 				propSchema := defData.Record.Properties[propName]
 				isRequired := slices.Contains(defData.Record.Required, propName)
 				isNullable := slices.Contains(defData.Record.Nullable, propName)
-				writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, nil)
+				g.writeStructField(&builder, propName, propSchema, isRequired, isNullable, id)
 			}
 		}
 
@@ -434,11 +455,19 @@ func writeMarshalJSON(builder *strings.Builder, typeName, lexiconTypeID string) 
 	builder.WriteString("}\n\n")
 }
 
-func generateObjectCode(id string, defName string, defData *lex.TypeSchema) (string, error) {
+func (g typeGenerator) generateObjectCode(
+	id string,
+	defName string,
+	defData *lex.TypeSchema,
+) (string, error) {
 	var builder strings.Builder
 
 	typeName := toTypeName(id) + toFieldName(defName)
-	lexiconTypeID := id + "#" + defName
+	// A reference may spell out #main, but the corresponding $type omits it.
+	lexiconTypeID := id
+	if defName != "main" {
+		lexiconTypeID += "#" + defName
+	}
 
 	fmt.Fprintf(&builder, "// %s represents a %s object\n", typeName, defName)
 	fmt.Fprintf(&builder, "type %s struct {\n", typeName)
@@ -456,7 +485,7 @@ func generateObjectCode(id string, defName string, defData *lex.TypeSchema) (str
 			propSchema := defData.Properties[propName]
 			isRequired := slices.Contains(defData.Required, propName)
 			isNullable := slices.Contains(defData.Nullable, propName)
-			writeStructField(&builder, propName, propSchema, isRequired, isNullable, id, nil)
+			g.writeStructField(&builder, propName, propSchema, isRequired, isNullable, id)
 		}
 	}
 
@@ -474,16 +503,15 @@ func generateObjectCode(id string, defName string, defData *lex.TypeSchema) (str
 // only treats pointers, slices, maps, and basic types as "empty", so a
 // zero-value struct still gets marshaled — and atdata.Blob's custom
 // MarshalJSON errors on a zero-value (nil CID) blob rather than encoding it.
-func writeStructField(
+func (g typeGenerator) writeStructField(
 	builder *strings.Builder,
 	propName string,
 	propSchema *lex.TypeSchema,
 	isRequired bool,
 	isNullable bool,
 	lexiconID string,
-	lexSchema *lex.Schema,
 ) {
-	goType := schemaToGoType(propSchema, lexiconID, lexSchema)
+	goType := g.schemaToGoType(propSchema, lexiconID)
 	switch {
 	case !isRequired && propSchema != nil &&
 		(propSchema.Type == "ref" || propSchema.Type == "blob"):
@@ -503,7 +531,7 @@ func writeStructField(
 	fmt.Fprintf(builder, "\t%s %s `json:\"%s\"`\n", fieldName, goType, jsonTag)
 }
 
-func schemaToGoType(schema *lex.TypeSchema, lexiconID string, lexSchema *lex.Schema) string {
+func (g typeGenerator) schemaToGoType(schema *lex.TypeSchema, lexiconID string) string {
 	if schema == nil {
 		return "interface{}"
 	}
@@ -525,7 +553,7 @@ func schemaToGoType(schema *lex.TypeSchema, lexiconID string, lexSchema *lex.Sch
 		return "atdata.Bytes"
 	case "array":
 		if schema.Items != nil {
-			itemType := schemaToGoType(schema.Items, lexiconID, lexSchema)
+			itemType := g.schemaToGoType(schema.Items, lexiconID)
 			return "[]" + itemType
 		}
 		return "[]interface{}"
@@ -536,7 +564,7 @@ func schemaToGoType(schema *lex.TypeSchema, lexiconID string, lexSchema *lex.Sch
 	case "ref":
 		// Handle references - resolve to proper types
 		if schema.Ref != "" {
-			return resolveRef(schema.Ref, lexiconID, lexSchema)
+			return g.resolveRef(schema.Ref, lexiconID)
 		}
 		return "interface{}"
 	default:
@@ -544,29 +572,24 @@ func schemaToGoType(schema *lex.TypeSchema, lexiconID string, lexSchema *lex.Sch
 	}
 }
 
-func resolveRef(ref string, lexiconID string, lexSchema *lex.Schema) string {
-	// Ref can be either:
-	// 1. Local ref starting with # (e.g., "#record")
-	// 2. External ref to another lexicon (e.g., "com.atproto.repo.strongRef")
-	if strings.HasPrefix(ref, "#") {
-		// Local reference - extract the def name
-		defName := strings.TrimPrefix(ref, "#")
-		return toTypeName(lexiconID) + toFieldName(defName)
+func (g typeGenerator) resolveRef(ref string, lexiconID string) string {
+	target, def, _ := strings.Cut(ref, "#")
+	if target == "" {
+		target = lexiconID
 	}
-
-	// Handle refs that include a fragment (e.g. "some.lexicon#def")
-	if strings.Contains(ref, "#") {
-		parts := strings.SplitN(ref, "#", 2)
-		base := parts[0]
-		frag := parts[1]
-		if base == "" {
-			return toTypeName(lexiconID) + toFieldName(frag)
+	typeName := toTypeName(target) + toFieldName(def)
+	var owner *packageConfig
+	for _, pkg := range g.packages {
+		if strings.HasPrefix(target, pkg.Prefix+".") &&
+			(owner == nil || len(pkg.Prefix) > len(owner.Prefix)) {
+			owner = &pkg
 		}
-		return toTypeName(base) + toFieldName(frag)
 	}
-
-	// External reference - convert to type name
-	return toTypeName(ref)
+	if owner == nil || owner.GoPackage == g.config.GoPackage {
+		return typeName
+	}
+	g.imports[owner.GoPackage] = owner.Import
+	return owner.GoPackage + "." + typeName
 }
 
 func toTypeName(id string) string {
