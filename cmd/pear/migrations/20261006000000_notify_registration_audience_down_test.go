@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 )
 
 // downSection returns the statements under a migration's "-- +goose Down"
@@ -44,8 +44,13 @@ func downSection(t *testing.T, path string) []string {
 // so it is read from the file rather than retyped, and applied the way goose
 // applies a migration: in one transaction.
 func TestAudienceDownRestoresEndpointKeyOnSQLite(t *testing.T) {
-	// Forward direction, through the same path pear uses at startup.
-	db := pear_testutil.NewPearDB(t)
+	// The table as the audience migration left it. It is built by hand rather
+	// than by running every migration: later migrations changed the keys again
+	// (space_ref_primary_key), and this Down only knows the audience-era shape.
+	db := db_testutil.NewDB(t)
+	require.NoError(t, db.Exec("CREATE TABLE registrations ("+
+		"space text, repo text, audience text, endpoint text, expires_at datetime, "+
+		"created_at datetime, updated_at datetime, PRIMARY KEY (space, repo, audience))").Error)
 	require.NoError(t, db.Exec(
 		"INSERT INTO registrations (space, repo, audience, endpoint) VALUES (?,?,?,?)",
 		"at://did:plc:org/space/network.habitat.group/s1", "",
