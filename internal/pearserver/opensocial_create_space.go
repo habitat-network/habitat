@@ -69,6 +69,6 @@ func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	httpx.WriteJSON(ctx, w, opensocial_api.CommunityOpensocialCreateSpaceOutput{
-		Uri: uri.String(),
+		Uri: uri.AtSpace().String(),
 	})
 }

@@ -20,27 +20,27 @@ packages:
   - website
 
 overrides:
-  '@atproto/lex-builder': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex-cbor': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex-client': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex-data': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex-document': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex-installer': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex-json': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex-resolver': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex-schema': 0.0.0-spaces-alpha-20261029171913
+  '@atproto/lex-builder': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/lex-client': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/lex-document': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/lex-installer': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/lex-resolver': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
 
 catalog:
-  '@atproto/api': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/common-web': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/crypto': 0.0.0-spaces-alpha-20261029171913
+  '@atproto/api': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/common-web': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/crypto': 0.0.0-spaces-alpha-20261124235736
+  # Kept on the 1029 alpha: later builds resolve through @atproto-labs/fetch-node
+  # (undici), which doesn't load in Workers. It only resolves DIDs, so it
+  # doesn't need the newer space URI syntax.
   '@atproto/identity': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lex-server': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/lexicon': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/oauth-types': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/syntax': 0.0.0-spaces-alpha-20261029171913
-  '@atproto/xrpc': 0.0.0-spaces-alpha-20261029171913
+  '@atproto/lex': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/lex-server': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/lexicon': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/oauth-types': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/syntax': 0.0.0-spaces-alpha-20261124235736
+  '@atproto/xrpc': 0.0.0-spaces-alpha-20261124235736
   '@tailwindcss/typography': ^0.5.20
   '@tailwindcss/vite': ^4.3.3
   '@tanstack/devtools-vite': ^0.8.5
@@ -74,34 +74,44 @@ catalog:
   zustand: ^5.0.15
 
 minimumReleaseAgeExclude:
-  - '@atproto-labs/did-resolver@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/api@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/car@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/common-web@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/common@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/crypto@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/did@0.0.0-spaces-alpha-20261029171913'
+  - '@atproto-labs/did-resolver@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/api@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/car@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/common-web@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/common@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/crypto@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/did@0.0.0-spaces-alpha-20261124235736'
   - '@atproto/identity@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-builder@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-cbor@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-client@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-data@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-document@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-installer@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-json@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-resolver@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-schema@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex-server@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lex@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/lexicon@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/repo@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/syntax@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/xrpc@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/oauth-client@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/oauth-client-browser@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/oauth-types@0.0.0-spaces-alpha-20261029171913'
-  - '@atproto/space@0.0.0-spaces-alpha-20261029171913'
+  - '@atproto/lex-builder@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-cbor@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-client@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-data@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-document@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-installer@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-json@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-resolver@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-schema@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-server@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lexicon@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/repo@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/syntax@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/xrpc@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/oauth-client@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/oauth-client-browser@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/oauth-types@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/space@0.0.0-spaces-alpha-20261124235736'
   - '@tanstack/query-core@5.108.0'
   - '@tanstack/query-devtools@5.108.0'
   - '@tanstack/react-query-devtools@5.108.0'
   - '@tanstack/react-query@5.108.0'
+  - '@atproto-labs/fetch-node@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto-labs/handle-resolver-node@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto-labs/handle-resolver@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto-labs/identity-resolver@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/jwk-jose@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/jwk-webcrypto@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/jwk@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/lex-rpc@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/oauth-resolver@0.0.0-spaces-alpha-20261124235736'
+  - '@atproto/ws-client@0.0.0-spaces-alpha-20261124235736'

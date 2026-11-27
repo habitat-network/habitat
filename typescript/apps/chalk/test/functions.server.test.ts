@@ -89,7 +89,7 @@ describe("createDocSpace", () => {
         async ({ request }) => {
           body = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");
-          return HttpResponse.json({ space: "at://did:plc:member1/space/x" });
+          return HttpResponse.json({ space: "at:space/did:plc:member1/x" });
         },
       ),
     );
@@ -103,7 +103,7 @@ describe("createDocSpace", () => {
     });
     expect(proxyHeader).toBeNull();
     expect(result).toEqual({
-      uri: "at://did:plc:member1/space/x",
+      uri: "at:space/did:plc:member1/x",
       ownerDid: "did:plc:member1",
     });
   });
@@ -117,7 +117,7 @@ describe("createDocSpace", () => {
         async ({ request }) => {
           body = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");
-          return HttpResponse.json({ uri: "at://did:web:org.example/space/x" });
+          return HttpResponse.json({ uri: "at:space/did:web:org.example/x" });
         },
       ),
     );
@@ -137,7 +137,7 @@ describe("createDocSpace", () => {
     });
     expect(proxyHeader).toBe("did:web:org.example#habitat");
     expect(result).toEqual({
-      uri: "at://did:web:org.example/space/x",
+      uri: "at:space/did:web:org.example/x",
       ownerDid: "did:web:org.example",
     });
   });
@@ -177,7 +177,7 @@ describe("fetchOrgName", () => {
     expect(params?.get("collection")).toBe("community.opensocial.profile");
     expect(params?.get("rkey")).toBe("self");
     expect(params?.get("space")).toBe(
-      "at://did:web:org.example/space/community.opensocial.about/self",
+      "at:space/did:web:org.example/community.opensocial.about/self",
     );
   });
 
@@ -214,10 +214,10 @@ describe("listMyOrgIds", () => {
           return HttpResponse.json({
             spaces: [
               {
-                uri: "at://did:web:org1.example/space/community.opensocial.members/self",
+                uri: "at:space/did:web:org1.example/community.opensocial.members/self",
               },
               {
-                uri: "at://did:web:org2.example/space/community.opensocial.members/self",
+                uri: "at:space/did:web:org2.example/community.opensocial.members/self",
               },
             ],
           });
@@ -242,9 +242,9 @@ describe("docRole", () => {
     server.close();
   });
 
-  const DOC = "at://did:web:alice.example/space/network.habitat.docs/abc";
+  const DOC = "at:space/did:web:alice.example/network.habitat.docs/abc";
   const COMMENTS =
-    "at://did:web:alice.example/space/network.habitat.docs.comments/abc";
+    "at:space/did:web:alice.example/network.habitat.docs.comments/abc";
   const BOB = "did:plc:bob";
 
   // allow lists the (space, relation) pairs pear should say yes to; every
@@ -325,7 +325,7 @@ describe("deleteUserGrant", () => {
     server.close();
   });
 
-  const SPACE = "at://did:web:alice.example/space/network.habitat.docs/abc";
+  const SPACE = "at:space/did:web:alice.example/network.habitat.docs/abc";
   const GRANT = `${SPACE}/did:web:alice.example/network.habitat.relationship.userRelation/rk1`;
   const BOB = "did:plc:bob";
 
@@ -397,7 +397,7 @@ describe("listUserGrants", () => {
     server.close();
   });
 
-  const SPACE = "at://did:web:alice.example/space/network.habitat.docs/abc";
+  const SPACE = "at:space/did:web:alice.example/network.habitat.docs/abc";
   const GRANT = `${SPACE}/did:web:alice.example/network.habitat.relationship.userRelation/rk1`;
   const BOB = "did:plc:bob";
 

@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import * as Y from "yjs";
 import type { DocRoom } from "../src/server/docs/rooms/docRoom";
 
-const URI = "at://did:web:alice.example/space/network.habitat.docs/abc";
+const URI = "at:space/did:web:alice.example/network.habitat.docs/abc";
 const ID = { spaceUri: URI, ownerDid: "did:web:alice.example" };
 
 function updateFrom(fn: (d: Y.Doc) => void): Uint8Array {

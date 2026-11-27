@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { searchTool } from "@/server/search";
 
 const ORG = "did:web:org.example" as const;
-const SPACE_URI = "at://did:plc:alice/space/network.habitat.brain/3kchat";
+const SPACE_URI = "at:space/did:plc:alice/network.habitat.brain/3kchat";
 const RECORD_URI = `${SPACE_URI}/did:plc:alice/network.habitat.brain.message/a`;
 
 // An agent whose fetches are recorded and answered with one search hit.

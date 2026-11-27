@@ -405,10 +405,10 @@ func eventObject(event spaces.Event) (any, error) {
 	case spaces.CommitEvent:
 		payload := habitat.NetworkHabitatSpaceSubscribeCommit{
 			Seq:   int64(e.Seq),
-			Space: e.Space.String(),
+			Space: e.Space.AtSpace().String(),
 			Did:   e.Repo.String(),
 			Uri: habitat_syntax.ConstructSpaceRecordURI(
-				e.Space, e.Repo, e.Collection, e.Rkey).String(),
+				e.Space, e.Repo, e.Collection, e.Rkey).AtSpace().String(),
 			Time:       wireTime(e.Time),
 			Rev:        e.Rev.String(),
 			Operation:  string(e.Operation),
@@ -423,7 +423,7 @@ func eventObject(event spaces.Event) (any, error) {
 	case spaces.SpaceDeletedEvent:
 		return habitat.NetworkHabitatSpaceSubscribeSpaceDeleted{
 			Seq:   int64(e.Seq),
-			Space: e.Space.String(),
+			Space: e.Space.AtSpace().String(),
 			Time:  wireTime(e.Time),
 		}, nil
 	default:

@@ -137,7 +137,7 @@ func (d *Deliverer) notifyWebhooks(
 			}
 		}
 		body, err := json.Marshal(comatproto.ComAtprotoSpaceNotifySpaceUpdateInput{
-			Space: space.String(), Token: h.Token, Update: payload,
+			Space: space.AtSpace().String(), Token: h.Token, Update: payload,
 		})
 		if err != nil {
 			slog.ErrorContext(ctx, "notify: marshal notifySpaceUpdate", "err", err)

@@ -98,7 +98,7 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 	for range 2 {
 		select {
 		case d := <-received:
-			require.Equal(t, space.String(), d.in.Space)
+			require.Equal(t, space.AtSpace().String(), d.in.Space)
 			require.Equal(t, repo.String(), d.in.Repo)
 			require.Equal(t, "3lrev", d.in.Rev)
 			require.Equal(t, []byte{0x01, 0x02}, []byte(d.in.Data))
@@ -156,7 +156,7 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 
 	select {
 	case in := <-received:
-		require.Equal(t, space.String(), in.Space)
+		require.Equal(t, space.AtSpace().String(), in.Space)
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for notifySpaceDeleted delivery")
 	}

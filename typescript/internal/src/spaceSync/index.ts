@@ -32,4 +32,4 @@ export { SpaceSyncer } from "./SpaceSyncer";
 export { SyncSink } from "./SyncSink";
 export { SyncStore } from "./SyncStore";
 export * from "./types";
-export { parseSpaceRef } from "./wire";
+export { normalizeSpaceUri, parseSpaceRef } from "./wire";

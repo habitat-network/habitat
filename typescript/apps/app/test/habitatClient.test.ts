@@ -92,13 +92,13 @@ describe("createHabitatClient", () => {
     );
     const client = createHabitatClient(testEnv, "did:plc:member1");
     await client.call("network.habitat.space.listRecords", "GET", {
-      space: "at://did:plc:owner/space/network.habitat.docs/abc",
+      space: "at:space/did:plc:owner/network.habitat.docs/abc",
       cursor: undefined,
     });
     expect(request?.headers.get("X-Test-Did")).toBe("did:plc:member1");
     expect(new URL(request!.url).searchParams.toString()).toBe(
       new URLSearchParams({
-        space: "at://did:plc:owner/space/network.habitat.docs/abc",
+        space: "at:space/did:plc:owner/network.habitat.docs/abc",
       }).toString(),
     );
   });
@@ -186,7 +186,7 @@ describe("createHabitatClient", () => {
         "http://pds.test/xrpc/network.habitat.space.getBlob",
         ({ request }) => {
           const params = new URL(request.url).searchParams;
-          expect(params.get("space")).toBe("at://did:web:org/space/t/k");
+          expect(params.get("space")).toBe("at:space/did:web:org/t/k");
           expect(params.get("repo")).toBe("did:web:org");
           expect(params.get("cid")).toBe("bafkcode");
           return new HttpResponse(new Uint8Array([7, 8]));
@@ -195,7 +195,7 @@ describe("createHabitatClient", () => {
     );
     await expect(
       createHabitatClient(testEnv, "did:web:org").getBlob(
-        "at://did:web:org/space/t/k",
+        "at:space/did:web:org/t/k",
         "did:web:org",
         "bafkcode",
       ),
@@ -233,7 +233,7 @@ describe("createHabitatClient", () => {
     const client = createHabitatClient(testEnv, "did:plc:member1");
     await expect(
       client.call("network.habitat.relationship.deleteRelation", "POST", {
-        uri: "at://did:plc:owner/space/network.habitat.docs/abc/rel/xyz",
+        uri: "at:space/did:plc:owner/network.habitat.docs/abc/rel/xyz",
       }),
     ).resolves.toBeUndefined();
   });

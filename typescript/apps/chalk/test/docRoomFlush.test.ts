@@ -9,7 +9,7 @@ import type { DocRoom } from "../src/server/rooms/docRoom";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
-const URI = "at://did:web:alice.example/space/network.habitat.docs/flush";
+const URI = "at:space/did:web:alice.example/network.habitat.docs/flush";
 const ID = { spaceUri: URI, ownerDid: "did:web:alice.example" };
 
 const fetchMock = vi.fn();
