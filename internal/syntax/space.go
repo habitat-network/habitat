@@ -364,10 +364,13 @@ func (s SpaceRecordURI) Rkey() syntax.RecordKey {
 // columns instead of the URI string. Embed it in a GORM model with
 // `gorm:"embedded;embeddedPrefix:space_"` for the columns space_owner,
 // space_type and space_skey.
+//
+// The fields are tagged as primary key columns: every table that embeds a
+// SpaceRef is keyed on the space first.
 type SpaceRef struct {
-	Owner syntax.DID
-	Type  syntax.NSID
-	Skey  SpaceKey
+	Owner syntax.DID  `gorm:"primaryKey"`
+	Type  syntax.NSID `gorm:"primaryKey"`
+	Skey  SpaceKey    `gorm:"primaryKey"`
 }
 
 // Ref splits the URI into its parts. A URI that matches no accepted format

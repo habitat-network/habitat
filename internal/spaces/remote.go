@@ -30,8 +30,9 @@ var ErrRepoNotRemote = errors.New("repo is not a remote writer of the space")
 // Like spaceRecord, a row holds the record's latest version and is
 // soft-deleted by a delete, so the log keeps the delete.
 type spaceRemoteRecord struct {
-	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
 	SpaceRef   habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
@@ -55,8 +56,9 @@ type spaceRemoteRecord struct {
 // the rev of the last op fetched, and the LtHash folded from every op so far,
 // which is checked against the repo's commit.
 type spaceRemoteSync struct {
-	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
 	SpaceRef  habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo      syntax.DID              `gorm:"primaryKey"`
 	Rev       syntax.TID
@@ -202,10 +204,11 @@ func (s *store) ApplyRemoteSync(
 			}
 		}
 		return tx.Save(&spaceRemoteSync{
-			Space: space,
-			Repo:  repo,
-			Rev:   sync.Rev,
-			State: sync.State.State(),
+			Space:    space,
+			SpaceRef: space.Ref(),
+			Repo:     repo,
+			Rev:      sync.Rev,
+			State:    sync.State.State(),
 		}).Error
 	})
 	if err != nil {
@@ -239,13 +242,19 @@ func applyRemoteOp(
 	now := time.Now()
 	if err := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
-			{Name: "space"}, {Name: "repo"}, {Name: "collection"}, {Name: "rkey"},
+			{Name: "space_owner"},
+			{Name: "space_type"},
+			{Name: "space_skey"},
+			{Name: "repo"},
+			{Name: "collection"},
+			{Name: "rkey"},
 		},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"value", "cid", "prev_cid", "rev", "seq", "updated_at", "deleted_at",
 		}),
 	}).Create(&spaceRemoteRecord{
 		Space:      space,
+		SpaceRef:   space.Ref(),
 		Repo:       repo,
 		Collection: op.Collection,
 		Rkey:       op.Rkey,
