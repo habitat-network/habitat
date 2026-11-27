@@ -191,9 +191,7 @@ func (s *Store) migrateLegacyGroupTx(ctx context.Context, org syntax.DID) error 
 			}
 			return out
 		}},
-		{legacyMemberProfile, MemberProfileCollection, func(v map[string]any) map[string]any {
-			return maps.Clone(v)
-		}},
+		{legacyMemberProfile, MemberProfileCollection, maps.Clone[map[string]any]},
 	} {
 		records, err := collection(oldMembers, move.from)
 		if err != nil {
