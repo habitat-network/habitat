@@ -1,6 +1,6 @@
 import { type Agent, type LexValue, xrpc } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import { community, network } from "api";
+import { network } from "api";
 import { deleteRecordIndexed, putRecordIndexed } from "../stream";
 import { FILE_COLLECTION } from "./sink";
 
@@ -30,13 +30,13 @@ export async function listOrgFileSpaces(
 
 // createFileSpace creates a new space for one file under the org, readable
 // by every org member. Must be called with the org's own session:
-// community.opensocial.createSpace accepts OAuth only for the community DID
+// network.habitat.opensocial.createSpace accepts OAuth only for the community DID
 // itself.
 export async function createFileSpace(
   orgAgent: Agent,
   orgDid: DidString,
 ): Promise<SpaceRefString> {
-  const { body } = await xrpc(orgAgent, community.opensocial.createSpace.main, {
+  const { body } = await xrpc(orgAgent, network.habitat.opensocial.createSpace.main, {
     body: { org: orgDid, type: FILE_SPACE_TYPE, roles: [MEMBER_ROLE] },
   });
   return body.uri as SpaceRefString;

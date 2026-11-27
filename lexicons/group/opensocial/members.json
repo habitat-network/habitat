@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.members",
+  "defs": {
+    "main": {
+      "type": "space",
+      "description": "Group roles, membership, and space index. Usually members-only.",
+      "key": "literal:self",
+      "title": "Group members",
+      "collections": [
+        "group.opensocial.permissions",
+        "group.opensocial.space",
+        "group.opensocial.role",
+        "group.opensocial.membership",
+        "group.opensocial.acceptance",
+        "group.opensocial.access",
+        "com.atproto.label.record"
+      ]
+    }
+  }
+}

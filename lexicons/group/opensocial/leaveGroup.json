@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.leaveGroup",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Leave a group, deleting the caller's membership. Requires service auth.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["group"],
+          "properties": {
+            "group": {
+              "type": "string",
+              "format": "did"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "GroupNotFound"
+        }
+      ]
+    }
+  }
+}

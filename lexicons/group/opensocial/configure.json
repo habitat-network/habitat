@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.configure",
+  "defs": {
+    "main": {
+      "type": "permission-set",
+      "description": "For group-DID sessions.",
+      "title": "Group settings",
+      "detail": "Edit the group's profile, rules, and roles, and decide what each role can do.",
+      "permissions": [
+        {
+          "type": "permission",
+          "resource": "space",
+          "spaceType": "group.opensocial.meta",
+          "authority": "self",
+          "skey": "self",
+          "collection": [
+            "group.opensocial.profile",
+            "group.opensocial.rule",
+            "group.opensocial.labeler"
+          ],
+          "action": ["read", "create", "update", "delete"]
+        },
+        {
+          "type": "permission",
+          "resource": "space",
+          "spaceType": "group.opensocial.members",
+          "authority": "self",
+          "skey": "self",
+          "collection": [
+            "group.opensocial.role",
+            "group.opensocial.permissions"
+          ],
+          "action": ["read", "create", "update", "delete"]
+        }
+      ]
+    }
+  }
+}

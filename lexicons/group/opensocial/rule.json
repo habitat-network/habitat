@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.rule",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A group rule.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["title", "text"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxGraphemes": 64,
+            "maxLength": 640
+          },
+          "text": {
+            "type": "string",
+            "maxGraphemes": 2000,
+            "maxLength": 20000
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Display order, ascending."
+          }
+        }
+      }
+    }
+  }
+}

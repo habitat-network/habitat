@@ -32,7 +32,7 @@ func (f fakeCommunities) ListMemberSpaces(
 	var out []habitat_syntax.SpaceURI
 	for community := range f[user] {
 		out = append(out, habitat_syntax.ConstructSpaceURI(
-			community, "community.opensocial.members", "self"))
+			community, "group.opensocial.members", "self"))
 	}
 	return out, nil
 }

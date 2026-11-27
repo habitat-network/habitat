@@ -8,14 +8,14 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
-// RequestJoin implements community.opensocial.requestJoin.
+// RequestJoin implements network.habitat.opensocial.requestJoin.
 func (p *PearServer) RequestJoin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -24,7 +24,7 @@ func (p *PearServer) RequestJoin(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var input opensocial_api.CommunityOpensocialRequestJoinInput
+	var input habitat.NetworkHabitatOpensocialRequestJoinInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
@@ -46,5 +46,5 @@ func (p *PearServer) RequestJoin(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("accept invite: %w", err))
 		return
 	}
-	httpx.WriteJSON(ctx, w, opensocial_api.CommunityOpensocialRequestJoinOutput{Roles: roles})
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatOpensocialRequestJoinOutput{Roles: roles})
 }

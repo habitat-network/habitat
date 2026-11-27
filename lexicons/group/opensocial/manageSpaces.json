@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.manageSpaces",
+  "defs": {
+    "main": {
+      "type": "permission-set",
+      "description": "For group-DID sessions.",
+      "title": "Group access",
+      "detail": "Control who can see and change the group's info and member list, and which spaces are listed.",
+      "permissions": [
+        {
+          "type": "permission",
+          "resource": "space",
+          "spaceType": "group.opensocial.meta",
+          "authority": "self",
+          "skey": "self",
+          "collection": ["group.opensocial.access"],
+          "action": ["read", "create", "update", "delete"]
+        },
+        {
+          "type": "permission",
+          "resource": "space",
+          "spaceType": "group.opensocial.members",
+          "authority": "self",
+          "skey": "self",
+          "collection": ["group.opensocial.space", "group.opensocial.access"],
+          "action": ["read", "create", "update", "delete"]
+        }
+      ]
+    }
+  }
+}

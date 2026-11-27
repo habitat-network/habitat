@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 )
 
@@ -21,7 +21,7 @@ func TestServer_UpdateProfile(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.UpdateProfile,
-			opensocial_api.CommunityOpensocialUpdateProfileInput{
+			habitat.NetworkHabitatOpensocialUpdateProfileInput{
 				Org: orgDID, Name: "Acme Corp",
 			},
 			&out,
@@ -37,7 +37,7 @@ func TestServer_UpdateProfile(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.UpdateProfile,
-			opensocial_api.CommunityOpensocialUpdateProfileInput{
+			habitat.NetworkHabitatOpensocialUpdateProfileInput{
 				Org: orgDID, Name: "Acme Corp", Description: "We make widgets",
 			},
 			&out,

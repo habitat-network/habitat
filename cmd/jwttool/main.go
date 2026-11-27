@@ -124,7 +124,7 @@ func runSpaceCredential(args []string) error {
 	spaceStr := fs.String(
 		"space",
 		"",
-		"space URI (e.g. at://did:web:example.com/space/community.opensocial.about/self)",
+		"space URI (e.g. at://did:web:example.com/space/group.opensocial.meta/self)",
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -162,7 +162,7 @@ func runDelegation(args []string) error {
 	spaceStr := fs.String(
 		"space",
 		"",
-		"space URI (e.g. at://did:web:example.com/space/community.opensocial.about/self)",
+		"space URI (e.g. at://did:web:example.com/space/group.opensocial.meta/self)",
 	)
 	if err := fs.Parse(args); err != nil {
 		return err

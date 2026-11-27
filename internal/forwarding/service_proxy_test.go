@@ -231,7 +231,7 @@ func TestServiceProxyIntegration_DoesNotDuplicateCORSHeaders(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/community.opensocial.updatePermissions",
+		"/xrpc/network.habitat.opensocial.updatePermissions",
 		http.NoBody,
 	)
 	r.Header.Set("Atproto-Proxy", targetDID+"#habitat")

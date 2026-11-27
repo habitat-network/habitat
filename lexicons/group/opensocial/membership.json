@@ -1,0 +1,29 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.membership",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A member's roles in the group, keyed by the member's DID.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["roles", "createdAt"],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "maxLength": 100,
+            "items": {
+              "type": "ref",
+              "ref": "group.opensocial.defs#roleId"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

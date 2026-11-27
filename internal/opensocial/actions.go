@@ -1,7 +1,7 @@
 package opensocial
 
-// Action is one of the standardized actions a community.opensocial.role can
-// be bound to, via a community's community.opensocial.permissions record. A
+// Action is one of the standardized actions a group.opensocial.role can
+// be bound to, via a community's group.opensocial.permissions record. A
 // member's authorized actions are the union of the actions bound to every
 // role they hold — there are no deny-rules or precedence between roles.
 type Action string

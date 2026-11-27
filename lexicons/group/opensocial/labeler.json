@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.labeler",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The group's label values and the reports it accepts.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["policies"],
+        "properties": {
+          "policies": {
+            "type": "ref",
+            "ref": "group.opensocial.defs#labelerPolicies"
+          },
+          "reasonTypes": {
+            "type": "array",
+            "description": "Accepted report reasons. Omit to accept all.",
+            "items": {
+              "type": "ref",
+              "ref": "com.atproto.moderation.defs#reasonType"
+            }
+          },
+          "subjectTypes": {
+            "type": "array",
+            "description": "Accepted report subject types. Omit to accept all.",
+            "items": {
+              "type": "ref",
+              "ref": "com.atproto.moderation.defs#subjectType"
+            }
+          },
+          "subjectCollections": {
+            "type": "array",
+            "description": "Accepted report record types. Omit to accept all.",
+            "items": {
+              "type": "string",
+              "format": "nsid"
+            }
+          }
+        }
+      }
+    }
+  }
+}

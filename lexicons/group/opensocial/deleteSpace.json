@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.deleteSpace",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Delete a group space and its index entry. Requires auth as the group.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["space"],
+          "properties": {
+            "space": {
+              "type": "string",
+              "format": "space-ref"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "SpaceNotFound"
+        },
+        {
+          "name": "ReservedSpace",
+          "description": "The meta and members spaces are reserved."
+        }
+      ]
+    }
+  }
+}

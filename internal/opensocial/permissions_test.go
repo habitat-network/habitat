@@ -6,7 +6,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -67,14 +67,14 @@ func TestPermissions(t *testing.T) {
 
 		require.NoError(t, s.PutPermissions(
 			t.Context(), org,
-			[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
+			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 				{Action: string(opensocial.ActionEject), Roles: []string{opensocial.AdminRoleRkey}},
 				{
 					Action: string(opensocial.ActionSpaceConfigure),
 					Roles:  []string{"moderator", opensocial.AdminRoleRkey},
 				},
 			},
-			[]opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
+			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
 				{
 					Role:  opensocial.AdminRoleRkey,
 					Roles: []string{opensocial.MemberRoleRkey, "moderator"},
@@ -96,13 +96,13 @@ func TestPermissions(t *testing.T) {
 	t.Run("AssignableRolesAndCanAssignRoles", func(t *testing.T) {
 		require.NoError(t, s.PutPermissions(
 			t.Context(), org,
-			[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
+			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 				{
 					Action: string(opensocial.ActionRoleAssign),
 					Roles:  []string{opensocial.AdminRoleRkey},
 				},
 			},
-			[]opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
+			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
 				{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},
 			},
 		))
@@ -151,16 +151,16 @@ func TestPermissions(t *testing.T) {
 		record, err := s.SpaceStore.GetRecord(
 			t.Context(),
 			habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self"),
-			org, "community.opensocial.role", "vip",
+			org, "group.opensocial.role", "vip",
 		)
 		require.NoError(t, err)
-		require.Equal(t, "VIP", record.Value["name"])
+		require.Equal(t, "VIP", record.Value["displayName"])
 
 		require.NoError(t, s.DeleteRole(t.Context(), org, "vip"))
 		_, err = s.SpaceStore.GetRecord(
 			t.Context(),
 			habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self"),
-			org, "community.opensocial.role", "vip",
+			org, "group.opensocial.role", "vip",
 		)
 		require.Error(t, err)
 
@@ -244,7 +244,7 @@ func TestPermissionsLegacyOrgFallback(t *testing.T) {
 	// fallback.
 	require.NoError(t, s.PutPermissions(
 		t.Context(), org,
-		[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
+		[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 			{
 				Action: string(opensocial.ActionCommunityConfigure),
 				Roles:  []string{opensocial.AdminRoleRkey},

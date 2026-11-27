@@ -1,4 +1,4 @@
-// Mirrors the `action` knownValues in lexicons/community/opensocial/permissions.json
+// Mirrors the `action` knownValues in lexicons/group/opensocial/permissions.json
 // and the internal/opensocial.Action constants (Go). Kept in sync manually
 // since actions are a small, stable enumeration for the standard.
 export const OPENSOCIAL_ACTIONS: {
@@ -49,7 +49,7 @@ export const ACTION_ROLE_ASSIGN = "role.assign";
 export const ACTION_COMMUNITY_CONFIGURE = "community.configure";
 
 // hasOpensocialAction reports whether a member holding userRoles may perform
-// action under bindings (the community.opensocial.permissions record's
+// action under bindings (the group.opensocial.permissions record's
 // action bindings). A member is authorized when any role they hold is bound
 // to the action. Mirrors Store.CheckAction (Go): a community with no
 // permissions record at all (surfaced here as empty bindings) falls back to

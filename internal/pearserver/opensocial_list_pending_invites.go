@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
-// ListPendingInvites implements community.opensocial.listPendingInvites.
+// ListPendingInvites implements network.habitat.opensocial.listPendingInvites.
 func (p *PearServer) ListPendingInvites(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -18,7 +18,7 @@ func (p *PearServer) ListPendingInvites(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	var params opensocial_api.CommunityOpensocialListPendingInvitesParams
+	var params habitat.NetworkHabitatOpensocialListPendingInvitesParams
 	if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode query params", err)
 		return
@@ -35,11 +35,11 @@ func (p *PearServer) ListPendingInvites(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list pending invites: %w", err))
 		return
 	}
-	views := make([]opensocial_api.CommunityOpensocialDefsInviteView, len(invites))
+	views := make([]habitat.NetworkHabitatOpensocialDefsInviteView, len(invites))
 	for i, invite := range invites {
 		views[i] = inviteToView(invite)
 	}
 	httpx.WriteJSON(
-		ctx, w, opensocial_api.CommunityOpensocialListPendingInvitesOutput{Invites: views},
+		ctx, w, habitat.NetworkHabitatOpensocialListPendingInvitesOutput{Invites: views},
 	)
 }

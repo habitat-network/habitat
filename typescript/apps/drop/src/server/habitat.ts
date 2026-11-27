@@ -1,6 +1,6 @@
 import { type Agent, type LexValue, xrpc } from "@atproto/lex";
 import { type DidString, SpaceRef, type SpaceRefString } from "@atproto/syntax";
-import { com, community, network } from "api";
+import { com, group, network } from "api";
 import { FILE_COLLECTION } from "./sink";
 
 // Calls Drop makes against the Habitat instance, each as a specific OAuth
@@ -15,16 +15,16 @@ export const FILE_SPACE_TYPE = "network.habitat.drop";
 const MEMBER_ROLE = "member";
 
 // listMyOrgIds lists every opensocial org the agent's subject belongs to:
-// every community.opensocial.members space it holds a membership in (same
+// every group.opensocial.members space it holds a membership in (same
 // query as chalk's listMyOrgIds and the frontend's Communities page).
 export async function listMyOrgIds(agent: Agent): Promise<DidString[]> {
   const { body } = await xrpc(agent, network.habitat.space.listSpaces.main, {
-    params: { spaceType: "community.opensocial.members" },
+    params: { spaceType: "group.opensocial.members" },
   });
   return body.spaces.map((s) => SpaceRef.parse(s.uri).spaceDid);
 }
 
-// fetchOrgName reads an org's display name off its community.opensocial
+// fetchOrgName reads an org's display name off its group.opensocial
 // profile record. Any member can read the org's about space, so the
 // member's own agent works. Null when the read fails, so callers can fall
 // back to the DID.
@@ -37,15 +37,15 @@ export async function fetchOrgName(
       params: {
         space: new SpaceRef(
           orgDid,
-          "community.opensocial.about",
+          "group.opensocial.meta",
           "self",
         ).toString(),
         repo: orgDid,
-        collection: "community.opensocial.profile",
+        collection: "group.opensocial.profile",
         rkey: "self",
       },
     });
-    const name = (body.value as { name?: unknown }).name;
+    const name = (body.value as { displayName?: unknown }).displayName;
     return typeof name === "string" ? name : null;
   } catch {
     return null;
@@ -67,13 +67,13 @@ export async function listOrgFileSpaces(
 
 // createFileSpace creates a new space for one file under the org, readable
 // by every org member. Must be called with the org's own session:
-// community.opensocial.createSpace accepts OAuth only for the community DID
+// network.habitat.opensocial.createSpace accepts OAuth only for the community DID
 // itself.
 export async function createFileSpace(
   orgAgent: Agent,
   orgDid: DidString,
 ): Promise<SpaceRefString> {
-  const { body } = await xrpc(orgAgent, community.opensocial.createSpace.main, {
+  const { body } = await xrpc(orgAgent, network.habitat.opensocial.createSpace.main, {
     body: { org: orgDid, type: FILE_SPACE_TYPE, roles: [MEMBER_ROLE] },
   });
   return body.uri as SpaceRefString;

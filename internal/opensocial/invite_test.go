@@ -34,7 +34,7 @@ func bootstrapMembersSpace(
 	org syntax.DID,
 ) {
 	t.Helper()
-	_, err := spacesStore.CreateSpace(t.Context(), org, "community.opensocial.members", "self")
+	_, err := spacesStore.CreateSpace(t.Context(), org, "group.opensocial.members", "self")
 	require.NoError(t, err)
 }
 
@@ -74,17 +74,17 @@ func TestCreateInvite_ListInvites_RequestJoin(t *testing.T) {
 func TestCreateInvite_AlreadyMember(t *testing.T) {
 	s := newTestStore(t)
 	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
-	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self")
+	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "group.opensocial.members", "self")
 
 	_, _, err := s.SpaceStore.PutRecord(
 		t.Context(),
 		membersSpace,
 		orgDID,
-		"community.opensocial.membership",
+		"group.opensocial.membership",
 		syntax.RecordKey(alice),
 		spaces_testutil.MustMarshalRecord(
 			t,
-			opensocial_api.CommunityOpensocialMembership{
+			opensocial_api.GroupOpensocialMembership{
 				Roles: []string{opensocial.MemberRoleRkey},
 			},
 		),
@@ -138,17 +138,17 @@ func TestRequestJoin_NotFound(t *testing.T) {
 func TestRequestJoin_AlreadyMemberNoInvite(t *testing.T) {
 	s := newTestStore(t)
 	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
-	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self")
+	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "group.opensocial.members", "self")
 
 	_, _, err := s.SpaceStore.PutRecord(
 		t.Context(),
 		membersSpace,
 		orgDID,
-		"community.opensocial.membership",
+		"group.opensocial.membership",
 		syntax.RecordKey(alice),
 		spaces_testutil.MustMarshalRecord(
 			t,
-			opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
+			opensocial_api.GroupOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
 		),
 	)
 	require.NoError(t, err)

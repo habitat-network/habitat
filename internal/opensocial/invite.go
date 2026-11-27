@@ -175,7 +175,7 @@ func (s *Store) RequestJoin(
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
 		membersSpace := habitat_syntax.ConstructSpaceURI(
-			orgDID, "community.opensocial.members", "self",
+			orgDID, "group.opensocial.members", "self",
 		)
 
 		var row inviteRow
@@ -199,15 +199,15 @@ func (s *Store) RequestJoin(
 			if err := tx.Delete(&row).Error; err != nil {
 				return fmt.Errorf("delete invite: %w", err)
 			}
-			recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMembership{
+			recordBytes, err := spaces.MarshalRecord(opensocial_api.GroupOpensocialMembership{
 				Roles:     roles,
-				UpdatedAt: time.Now().Format(time.RFC3339),
+				CreatedAt: time.Now().Format(time.RFC3339),
 			})
 			if err != nil {
 				return fmt.Errorf("marshal membership record: %w", err)
 			}
 			if _, _, err = spacesStoreTx.PutRecord(
-				ctx, membersSpace, orgDID, "community.opensocial.membership",
+				ctx, membersSpace, orgDID, "group.opensocial.membership",
 				syntax.RecordKey(invitee),
 				recordBytes,
 			); err != nil {

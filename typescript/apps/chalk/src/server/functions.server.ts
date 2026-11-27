@@ -40,10 +40,10 @@ export async function createDocSpace(
     // roles is empty: access is granted via explicit spaceRelation/
     // userRelation records (the share dialog) instead of being baked in at
     // creation time — sharing with "the whole org" means a spaceRelation
-    // naming the org's own community.opensocial.members space as its
+    // naming the org's own group.opensocial.members space as its
     // subject (see orgMembersSpaceUri/OrgShareControl).
     const created = await client.call<{ uri: string }>(
-      "community.opensocial.createSpace",
+      "network.habitat.opensocial.createSpace",
       "POST",
       {
         org: currentOrg,
@@ -64,8 +64,8 @@ export async function createDocSpace(
 }
 
 // fetchOrgName reads an org's display name off its
-// community.opensocial.profile record, via the member's own session — no
-// Atproto-Proxy needed: the about space's own community.opensocial.access
+// group.opensocial.profile record, via the member's own session — no
+// Atproto-Proxy needed: the about space's own group.opensocial.access
 // record already admits any member/admin role (set at org creation), so
 // pear's CheckUserHasSpaceRole grants the read directly (same mechanism
 // that makes org docs readable org-wide — see the design doc). Returns
@@ -75,43 +75,43 @@ export async function fetchOrgName(
   client: HabitatClient,
   orgDid: DidString,
 ): Promise<string | null> {
-  const aboutSpace = new SpaceRef(
+  const metaSpace = new SpaceRef(
     orgDid,
-    "community.opensocial.about",
+    "group.opensocial.meta",
     "self",
   ).toString();
   try {
-    const { value } = await client.call<{ value: { name: string } }>(
+    const { value } = await client.call<{ value: { displayName: string } }>(
       "network.habitat.space.getRecord",
       "GET",
       {
-        space: aboutSpace,
+        space: metaSpace,
         repo: orgDid,
-        collection: "community.opensocial.profile",
+        collection: "group.opensocial.profile",
         rkey: "self",
       },
     );
-    return value.name;
+    return value.displayName;
   } catch {
     return null;
   }
 }
 
 // orgMembersSpaceUri returns the URI of orgDid's own
-// community.opensocial.members space — naming this as a spaceRelation's
+// group.opensocial.members space — naming this as a spaceRelation's
 // subject, with subjectRole "reader", grants the relation to every member
 // of the org (pear's CheckUserHasSpaceRole treats holding any opensocial
 // membership as holding "reader" on this space; see internal/perms/store.go).
 export function orgMembersSpaceUri(orgDid: string): string {
   return new SpaceRef(
     orgDid as DidString,
-    "community.opensocial.members",
+    "group.opensocial.members",
     "self",
   ).toString();
 }
 
 // listMyOrgIds lists the DIDs of every opensocial org the member belongs
-// to — every community.opensocial.members space they hold a membership or
+// to — every group.opensocial.members space they hold a membership or
 // acceptance record in, same query frontend's Communities page uses
 // (frontend/src/queries/opensocial.ts's myOrgsQueryOptions).
 export async function listMyOrgIds(
@@ -120,7 +120,7 @@ export async function listMyOrgIds(
   const { spaces } = await client.call<{ spaces: { uri: string }[] }>(
     "network.habitat.space.listSpaces",
     "GET",
-    { spaceType: "community.opensocial.members" },
+    { spaceType: "group.opensocial.members" },
   );
   const orgs: DidString[] = [];
   for (const space of spaces) {

@@ -62,8 +62,8 @@ func (s *Store) ProvisionMember(ctx context.Context, orgDID, memberDID syntax.DI
 				return err
 			}
 		}
-		recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAcceptance{
-			UpdatedAt: time.Now().Format(time.RFC3339),
+		recordBytes, err := spaces.MarshalRecord(opensocial_api.GroupOpensocialAcceptance{
+			CreatedAt: time.Now().Format(time.RFC3339),
 		})
 		if err != nil {
 			return fmt.Errorf("marshal acceptance record: %w", err)

@@ -61,7 +61,7 @@ export const docAccess = sqliteTable(
 
 // docOrgAccess mirrors the network.habitat.relationship.spaceRelation
 // records that grant a whole org access to a doc — the ones whose subject is
-// that org's own community.opensocial.members space (see orgMembersSpaceUri),
+// that org's own group.opensocial.members space (see orgMembersSpaceUri),
 // which is how "share with everyone at <org>" is expressed. One row per
 // (orgDid, spaceUri): an org holds at most one relation on a given doc.
 // Like doc_access, the relation record's own URI is kept as an indexed
@@ -220,7 +220,7 @@ export { oauthSessions, oauthStates } from "internal/oauthClient/schema";
 
 // --- Group membership (the syncer's MembershipSink, src/server/members/sink.ts)
 
-// memberships mirrors each group's community.opensocial.membership records,
+// memberships mirrors each group's group.opensocial.membership records,
 // synced from its members space: one row per (group, member), with the
 // roles the record names. It's what decides whether a member may open a
 // group's pages, so a member who leaves or is removed loses access as soon

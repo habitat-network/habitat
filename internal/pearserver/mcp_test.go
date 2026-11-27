@@ -472,7 +472,7 @@ func TestServer_McpSearch(t *testing.T) {
 	_, _, err = sp.PutRecord(
 		t.Context(),
 		habitat_syntax.ConstructSpaceURI(syntax.DID(orgDID), opensocial.MembersSpaceType, "self"),
-		alice, "community.opensocial.acceptance", "self",
+		alice, "group.opensocial.acceptance", "self",
 		spaces_testutil.MustMarshalRecord(t, map[string]any{"updatedAt": "2024-01-01T00:00:00Z"}),
 	)
 	require.NoError(t, err)
@@ -557,7 +557,7 @@ func TestServer_McpDebug(t *testing.T) {
 	_, _, err = sp.PutRecord(
 		t.Context(),
 		habitat_syntax.ConstructSpaceURI(syntax.DID(orgDID), opensocial.MembersSpaceType, "self"),
-		alice, "community.opensocial.acceptance", "self",
+		alice, "group.opensocial.acceptance", "self",
 		spaces_testutil.MustMarshalRecord(t, map[string]any{"updatedAt": "2024-01-01T00:00:00Z"}),
 	)
 	require.NoError(t, err)

@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.access",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Role grants for this space, and whether it is public.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["grants"],
+        "properties": {
+          "publicRead": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, anyone may read the space."
+          },
+          "grants": {
+            "type": "array",
+            "maxLength": 100,
+            "description": "At most one entry per role.",
+            "items": {
+              "type": "ref",
+              "ref": "group.opensocial.defs#spaceGrant"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -225,7 +225,7 @@ it("ignores a userRelation record missing subject or relation", async () => {
 
 const ORG = "did:web:org.example";
 const ORG_DOC = `at:space/${ORG}/network.habitat.docs/org1`;
-const MEMBERS_SPACE = `at:space/${ORG}/community.opensocial.members/self`;
+const MEMBERS_SPACE = `at:space/${ORG}/group.opensocial.members/self`;
 const SPACE_RELATION_RECORD = `${ORG_DOC}/${ORG}/network.habitat.relationship.spaceRelation/rkey1`;
 const ORG_DOC_SUMMARY = {
   docId: ORG_DOC,

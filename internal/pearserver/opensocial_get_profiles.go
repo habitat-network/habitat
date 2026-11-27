@@ -16,7 +16,7 @@ import (
 )
 
 // GetProfiles implements network.habitat.opensocial.getProfiles: fetches the
-// profiles of members within org. A member with a community.opensocial.memberProfile
+// profiles of members within org. A member with a network.habitat.opensocial.memberProfile
 // record uses it; a member without one falls back to their public Bluesky
 // profile. Callable by any member of org; requested DIDs that aren't members
 // of org are omitted from the response.
@@ -73,7 +73,7 @@ func (p *PearServer) GetProfiles(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildProfileViews resolves each of members' profile within org: their
-// community.opensocial.memberProfile record if they have one, or their
+// network.habitat.opensocial.memberProfile record if they have one, or their
 // public Bluesky profile otherwise, plus their handle from identity resolution.
 func (p *PearServer) buildProfileViews(
 	ctx context.Context,

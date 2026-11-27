@@ -1,0 +1,25 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.space",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An entry in the group's space index.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["space", "createdAt"],
+        "properties": {
+          "space": {
+            "type": "string",
+            "format": "space-ref"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

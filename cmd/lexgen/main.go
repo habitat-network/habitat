@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -45,6 +46,10 @@ func main() {
 	}
 }
 
+// allPackages holds every configured package so that refs into another
+// package's lexicons can be emitted as qualified Go types.
+var allPackages []lex.Package
+
 func run(configPath, lexiconsDir string) error {
 	// Read configuration
 	configData, err := os.ReadFile(configPath)
@@ -56,6 +61,8 @@ func run(configPath, lexiconsDir string) error {
 	if err := json.Unmarshal(configData, &configs); err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
+
+	allPackages = configs
 
 	// Process each configuration
 	for _, config := range configs {
@@ -200,6 +207,13 @@ func generateCode(lex *lex.Schema, config lex.Package) (GeneratedFile, error) {
 			}
 			body.WriteString(code)
 
+		case "string":
+			// Named string defs (e.g. an id or enum) become aliases so refs to
+			// them resolve to a Go type.
+			fmt.Fprintf(&body, "// %s is a %s string def\ntype %s = string\n\n",
+				toTypeName(lex.ID)+toFieldName(defName), defName,
+				toTypeName(lex.ID)+toFieldName(defName))
+
 		case "object":
 			// Generate nested object types
 			code, err := generateObjectCode(lex.ID, defName, defData)
@@ -216,6 +230,13 @@ func generateCode(lex *lex.Schema, config lex.Package) (GeneratedFile, error) {
 	}
 	if strings.Contains(body.String(), "atdata.") {
 		imports = append(imports, "github.com/bluesky-social/indigo/atproto/atdata")
+	}
+
+	for _, other := range allPackages {
+		if other.GoPackage != config.GoPackage &&
+			regexp.MustCompile(`(^|[^\w.])`+other.GoPackage+`\.[A-Z]`).MatchString(body.String()) {
+			imports = append(imports, other.Import)
+		}
 	}
 
 	var builder strings.Builder
@@ -560,13 +581,34 @@ func resolveRef(ref string, lexiconID string, lexSchema *lex.Schema) string {
 		base := parts[0]
 		frag := parts[1]
 		if base == "" {
-			return toTypeName(lexiconID) + toFieldName(frag)
+			base = lexiconID
 		}
-		return toTypeName(base) + toFieldName(frag)
+		return qualifyRef(base, lexiconID, toTypeName(base)+toFieldName(frag))
 	}
 
 	// External reference - convert to type name
-	return toTypeName(ref)
+	return qualifyRef(ref, lexiconID, toTypeName(ref))
+}
+
+// qualifyRef prefixes typeName with its Go package when the lexicon it points
+// at belongs to a different configured package than lexiconID.
+func qualifyRef(base, lexiconID, typeName string) string {
+	owner := func(id string) *lex.Package {
+		var best *lex.Package
+		for i := range allPackages {
+			p := &allPackages[i]
+			if strings.HasPrefix(id, p.Prefix+".") &&
+				(best == nil || len(p.Prefix) > len(best.Prefix)) {
+				best = p
+			}
+		}
+		return best
+	}
+	from, to := owner(lexiconID), owner(base)
+	if from == nil || to == nil || from.GoPackage == to.GoPackage {
+		return typeName
+	}
+	return to.GoPackage + "." + typeName
 }
 
 func toTypeName(id string) string {

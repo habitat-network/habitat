@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.role",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A group role, keyed by role ID.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["displayName"],
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "maxGraphemes": 64,
+            "maxLength": 640
+          },
+          "description": {
+            "type": "string",
+            "maxGraphemes": 2000,
+            "maxLength": 20000
+          },
+          "default": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, granted to members admitted through requestJoin."
+          }
+        }
+      }
+    }
+  }
+}

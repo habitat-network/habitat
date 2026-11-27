@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"net/http"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
-// CreateOpensocialSpace implements community.opensocial.createSpace: creates
+// CreateOpensocialSpace implements network.habitat.opensocial.createSpace: creates
 // a modality-specific space under the community DID with the given policy
-// (default relationspace), indexed with a community.opensocial.space record
+// (default relationspace), indexed with a group.opensocial.space record
 // and readable by the given roles (see
 // opensocial.Store.CreateSpace). The org itself may call this with OAuth, and
 // a member may call it with service auth — see requireSpaceAuthority.
@@ -27,7 +27,7 @@ func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	var input opensocial_api.CommunityOpensocialCreateSpaceInput
+	var input habitat.NetworkHabitatOpensocialCreateSpaceInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
@@ -68,7 +68,7 @@ func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 		httpx.WriteServerError(ctx, w, fmt.Errorf("create space: %w", err))
 		return
 	}
-	httpx.WriteJSON(ctx, w, opensocial_api.CommunityOpensocialCreateSpaceOutput{
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatOpensocialCreateSpaceOutput{
 		Uri: uri.AtSpace().String(),
 	})
 }

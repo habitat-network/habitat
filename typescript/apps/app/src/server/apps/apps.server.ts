@@ -1,7 +1,7 @@
 import type { Agent, LexValue } from "@atproto/lex";
 import { xrpc } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import { community } from "api";
+import { network } from "api";
 import type { AppBundle } from "@/lib/apps";
 import { deleteRecordIndexed, putRecordIndexed } from "../stream";
 import { APP_COLLECTION } from "./sink";
@@ -23,7 +23,7 @@ export async function createAppSpace(
   orgAgent: Agent,
   orgDid: DidString,
 ): Promise<SpaceRefString> {
-  const { body } = await xrpc(orgAgent, community.opensocial.createSpace.main, {
+  const { body } = await xrpc(orgAgent, network.habitat.opensocial.createSpace.main, {
     body: { org: orgDid, type: APP_SPACE_TYPE, roles: [MEMBER_ROLE] },
   });
   return body.uri as SpaceRefString;

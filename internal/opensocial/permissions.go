@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/habitat-network/habitat/api/habitat"
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	PermissionsCollection = "community.opensocial.permissions"
-	RoleCollection        = "community.opensocial.role"
+	PermissionsCollection = "group.opensocial.permissions"
+	RoleCollection        = "group.opensocial.role"
 )
 
 var (
@@ -39,7 +39,7 @@ var (
 func (s *Store) GetPermissions(
 	ctx context.Context,
 	orgDID syntax.DID,
-) (_ opensocial_api.CommunityOpensocialPermissions, err error) {
+) (_ opensocial_api.GroupOpensocialPermissions, err error) {
 	ctx, span := tracer.Start(ctx, "opensocial.GetPermissions", trace.WithAttributes(
 		telemetry.Org(orgDID),
 	))
@@ -55,7 +55,7 @@ func (s *Store) GetPermissions(
 func (s *Store) getPermissions(
 	ctx context.Context,
 	orgDID syntax.DID,
-) (opensocial_api.CommunityOpensocialPermissions, bool, error) {
+) (opensocial_api.GroupOpensocialPermissions, bool, error) {
 	record, err := s.spacesStore.GetRecord(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
@@ -64,16 +64,16 @@ func (s *Store) getPermissions(
 		"self",
 	)
 	if errors.Is(err, spaces.ErrRecordNotFound) {
-		return opensocial_api.CommunityOpensocialPermissions{}, false, nil
+		return opensocial_api.GroupOpensocialPermissions{}, false, nil
 	}
 	if err != nil {
-		return opensocial_api.CommunityOpensocialPermissions{}, false, fmt.Errorf(
+		return opensocial_api.GroupOpensocialPermissions{}, false, fmt.Errorf(
 			"get permissions record: %w", err,
 		)
 	}
-	var permissions opensocial_api.CommunityOpensocialPermissions
+	var permissions opensocial_api.GroupOpensocialPermissions
 	if err := decodeRecordValue(record.Value, &permissions); err != nil {
-		return opensocial_api.CommunityOpensocialPermissions{}, false, fmt.Errorf(
+		return opensocial_api.GroupOpensocialPermissions{}, false, fmt.Errorf(
 			"decode permissions record: %w", err,
 		)
 	}
@@ -103,17 +103,15 @@ func (s *Store) listRoleRkeys(ctx context.Context, orgDID syntax.DID) ([]string,
 func (s *Store) PutPermissions(
 	ctx context.Context,
 	orgDID syntax.DID,
-	bindings []opensocial_api.CommunityOpensocialPermissionsActionBinding,
-	assignable []opensocial_api.CommunityOpensocialPermissionsAssignableBinding,
+	bindings []habitat.NetworkHabitatOpensocialDefsActionBinding,
+	assignable []habitat.NetworkHabitatOpensocialDefsAssignableBinding,
 ) (err error) {
 	ctx, span := tracer.Start(ctx, "opensocial.PutPermissions", trace.WithAttributes(
 		telemetry.Org(orgDID),
 	))
 	defer func() { telemetry.End(span, err) }()
-	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialPermissions{
-		Bindings:   bindings,
-		Assignable: assignable,
-		UpdatedAt:  time.Now().Format(time.RFC3339),
+	recordBytes, err := spaces.MarshalRecord(opensocial_api.GroupOpensocialPermissions{
+		Grants: permissionGrants(bindings, assignable),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal permissions record: %w", err)
@@ -166,15 +164,8 @@ func (s *Store) CheckAction(
 		return slices.Contains(userRoles, AdminRoleRkey), nil
 	}
 	userRoleSet := xmaps.SetFromSlice(userRoles)
-	for _, binding := range permissions.Bindings {
-		if Action(binding.Action) != action {
-			continue
-		}
-		if len(xmaps.Intersection(userRoleSet, xmaps.SetFromSlice(binding.Roles))) > 0 {
-			return true, nil
-		}
-	}
-	return false, nil
+	roles := actionRoles(permissions.Grants)[action]
+	return len(xmaps.Intersection(userRoleSet, xmaps.SetFromSlice(roles))) > 0, nil
 }
 
 // AssignableRoles returns the union, across every role user holds in
@@ -214,12 +205,9 @@ func (s *Store) AssignableRoles(
 	}
 	userRoleSet := xmaps.SetFromSlice(userRoles)
 	assignable := xmaps.Set[string]{}
-	for _, binding := range permissions.Assignable {
-		if _, ok := userRoleSet[binding.Role]; !ok {
-			continue
-		}
-		for _, role := range binding.Roles {
-			assignable[role] = struct{}{}
+	for role := range userRoleSet {
+		for _, assignableRole := range assignableRoles(permissions.Grants, role) {
+			assignable[assignableRole] = struct{}{}
 		}
 	}
 	return slices.Collect(maps.Keys(assignable)), nil
@@ -271,9 +259,8 @@ func (s *Store) PutRole(
 		telemetry.Org(orgDID), roleKey.String(rkey.String()),
 	))
 	defer func() { telemetry.End(span, err) }()
-	role := opensocial_api.CommunityOpensocialRole{
-		Name:      name,
-		UpdatedAt: time.Now().Format(time.RFC3339),
+	role := opensocial_api.GroupOpensocialRole{
+		DisplayName: name,
 	}
 	if description != "" {
 		role.Description = description

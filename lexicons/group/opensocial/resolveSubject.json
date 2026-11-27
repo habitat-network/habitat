@@ -1,0 +1,52 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.resolveSubject",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Resolve or escalate a subject. Setting the current status again just adds the note. Requires auth as the group.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subject", "status"],
+          "properties": {
+            "subject": {
+              "type": "union",
+              "refs": [
+                "group.opensocial.defs#accountSubject",
+                "group.opensocial.defs#recordSubject"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": ["resolved", "escalated"]
+            },
+            "note": {
+              "type": "string",
+              "maxGraphemes": 2000,
+              "maxLength": 20000
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "group.opensocial.defs#subjectView"
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidSubject",
+          "description": "The subject isn't in this group."
+        },
+        {
+          "name": "SubjectNotFound",
+          "description": "The subject has never been reported."
+        }
+      ]
+    }
+  }
+}

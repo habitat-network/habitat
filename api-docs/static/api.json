@@ -17,14 +17,14 @@
     }
   ],
   "paths": {
-    "/community.opensocial.assignRoles": {
+    "/group.opensocial.cancelJoinRequest": {
       "post": {
         "tags": [
-          "community.opensocial.assignRoles"
+          "group.opensocial.cancelJoinRequest"
         ],
-        "summary": "community.opensocial.assignRoles",
-        "description": "Set a member's full role set, replacing whatever roles they previously held. Requires service-auth. Requires the `role.assign` action, bounded by the roles the caller may assign: every role being added or removed must be one the caller's own roles are permitted to assign, per the community's permissions record.",
-        "operationId": "community.opensocial.assignRoles",
+        "summary": "group.opensocial.cancelJoinRequest",
+        "description": "Withdraw the caller's pending join request. Requires service auth.",
+        "operationId": "group.opensocial.cancelJoinRequest",
         "security": [
           {
             "Bearer": []
@@ -37,26 +37,12 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "org",
-                  "member",
-                  "roles"
+                  "group"
                 ],
                 "properties": {
-                  "org": {
+                  "group": {
                     "type": "string",
-                    "description": "DID of the community.",
                     "format": "did"
-                  },
-                  "member": {
-                    "type": "string",
-                    "description": "DID of the member whose roles to set.",
-                    "format": "did"
-                  },
-                  "roles": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
                   }
                 }
               }
@@ -91,10 +77,10 @@
                           "const": "InvalidToken"
                         },
                         {
-                          "const": "RoleNotAssignable"
+                          "const": "GroupNotFound"
                         },
                         {
-                          "const": "MemberNotFound"
+                          "const": "JoinRequestNotFound"
                         }
                       ]
                     },
@@ -131,14 +117,14 @@
         }
       }
     },
-    "/community.opensocial.createInvite": {
+    "/group.opensocial.createReport": {
       "post": {
         "tags": [
-          "community.opensocial.createInvite"
+          "group.opensocial.createReport"
         ],
-        "summary": "community.opensocial.createInvite",
-        "description": "Invite a user to join the community. Tracks the invite in the org's invite table; no repo records are written until the invitee accepts via requestJoin. Requires service-auth. Requires the `invite` action.",
-        "operationId": "community.opensocial.createInvite",
+        "summary": "group.opensocial.createReport",
+        "description": "Report an account or record in a group. Requires service auth.",
+        "operationId": "group.opensocial.createReport",
         "security": [
           {
             "Bearer": []
@@ -151,25 +137,35 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "org",
-                  "invitee"
+                  "group",
+                  "subject",
+                  "reasonType"
                 ],
                 "properties": {
-                  "org": {
+                  "group": {
                     "type": "string",
-                    "description": "DID of the community to invite into.",
                     "format": "did"
                   },
-                  "invitee": {
-                    "type": "string",
-                    "description": "DID of the user to invite.",
-                    "format": "did"
+                  "subject": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/group.opensocial.defs.accountSubject"
+                      },
+                      {
+                        "$ref": "#/components/schemas/group.opensocial.defs.recordSubject"
+                      }
+                    ]
                   },
-                  "roles": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
+                  "reasonType": {
+                    "$ref": "#/components/schemas/com.atproto.moderation.defs.reasonType"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  "rule": {
+                    "type": "string",
+                    "format": "at-uri"
                   }
                 }
               }
@@ -184,11 +180,18 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "invite"
+                    "id",
+                    "createdAt"
                   ],
                   "properties": {
-                    "invite": {
-                      "$ref": "#/components/schemas/community.opensocial.defs.inviteView"
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
                     }
                   }
                 }
@@ -219,10 +222,10 @@
                           "const": "InvalidToken"
                         },
                         {
-                          "const": "AlreadyMember"
+                          "const": "GroupNotFound"
                         },
                         {
-                          "const": "InviteAlreadyExists"
+                          "const": "InvalidSubject"
                         }
                       ]
                     },
@@ -259,14 +262,14 @@
         }
       }
     },
-    "/community.opensocial.createSpace": {
+    "/group.opensocial.createSpace": {
       "post": {
         "tags": [
-          "community.opensocial.createSpace"
+          "group.opensocial.createSpace"
         ],
-        "summary": "community.opensocial.createSpace",
-        "description": "Create a modality-specific space under the community DID and index it with a community.opensocial.space record. Requires service auth as a member of the community, or an OAuth credential for the community DID itself. Requires the `space.create` action.",
-        "operationId": "community.opensocial.createSpace",
+        "summary": "group.opensocial.createSpace",
+        "description": "Create a group space with its access record and, unless index is false, an index entry. Requires auth as the group.",
+        "operationId": "group.opensocial.createSpace",
         "security": [
           {
             "Bearer": []
@@ -279,37 +282,26 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "org",
-                  "type"
+                  "spaceType",
+                  "access"
                 ],
                 "properties": {
-                  "org": {
+                  "spaceType": {
                     "type": "string",
-                    "description": "DID of the community to create the space under.",
-                    "format": "did"
-                  },
-                  "type": {
-                    "type": "string",
-                    "description": "The NSID of the space's type, describing its modality.",
                     "format": "nsid"
                   },
                   "skey": {
                     "type": "string",
-                    "description": "The space key. If not provided, one will be auto-generated (TID).",
-                    "maxLength": 512
+                    "description": "Generated as a TID if not provided.",
+                    "format": "record-key"
                   },
-                  "policy": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/network.habitat.relationspace.policy"
-                      }
-                    ]
+                  "access": {
+                    "$ref": "#/components/schemas/group.opensocial.defs.accessConfig"
                   },
-                  "roles": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
+                  "index": {
+                    "type": "boolean",
+                    "description": "Add the space to the group's index.",
+                    "default": true
                   }
                 }
               }
@@ -324,13 +316,19 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "uri"
+                    "space",
+                    "access"
                   ],
                   "properties": {
-                    "uri": {
+                    "space": {
                       "type": "string",
-                      "description": "URI of the created space.",
-                      "format": "at-uri"
+                      "format": "space-ref"
+                    },
+                    "access": {
+                      "$ref": "#/components/schemas/com.atproto.repo.strongRef.main"
+                    },
+                    "index": {
+                      "$ref": "#/components/schemas/com.atproto.repo.strongRef.main"
                     }
                   }
                 }
@@ -364,7 +362,13 @@
                           "const": "SpaceAlreadyExists"
                         },
                         {
-                          "const": "InvalidType"
+                          "const": "ReservedSpace"
+                        },
+                        {
+                          "const": "UnknownRole"
+                        },
+                        {
+                          "const": "InvalidScope"
                         }
                       ]
                     },
@@ -401,14 +405,14 @@
         }
       }
     },
-    "/community.opensocial.deleteRole": {
+    "/group.opensocial.deleteSpace": {
       "post": {
         "tags": [
-          "community.opensocial.deleteRole"
+          "group.opensocial.deleteSpace"
         ],
-        "summary": "community.opensocial.deleteRole",
-        "description": "Remove a role. Members holding it keep their other roles; the role is left off any access or permissions bindings that named it. Requires service-auth. Requires the `community.configure` action.",
-        "operationId": "community.opensocial.deleteRole",
+        "summary": "group.opensocial.deleteSpace",
+        "description": "Delete a group space and its index entry. Requires auth as the group.",
+        "operationId": "group.opensocial.deleteSpace",
         "security": [
           {
             "Bearer": []
@@ -421,1024 +425,12 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "org",
-                  "role"
-                ],
-                "properties": {
-                  "org": {
-                    "type": "string",
-                    "description": "DID of the community the role belongs to.",
-                    "format": "did"
-                  },
-                  "role": {
-                    "type": "string",
-                    "description": "Record key of the role to remove."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "RoleNotFound"
-                        },
-                        {
-                          "const": "CannotDeleteBuiltinRole"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/community.opensocial.ejectMember": {
-      "post": {
-        "tags": [
-          "community.opensocial.ejectMember"
-        ],
-        "summary": "community.opensocial.ejectMember",
-        "description": "Remove a member from the community, revoking their roles and access. Requires service-auth. Requires the `eject` action, bounded by the roles the caller may assign.",
-        "operationId": "community.opensocial.ejectMember",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "org",
-                  "member"
-                ],
-                "properties": {
-                  "org": {
-                    "type": "string",
-                    "description": "DID of the community to remove the member from.",
-                    "format": "did"
-                  },
-                  "member": {
-                    "type": "string",
-                    "description": "DID of the member to remove.",
-                    "format": "did"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "MemberNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/community.opensocial.listInvites": {
-      "get": {
-        "tags": [
-          "community.opensocial.listInvites"
-        ],
-        "summary": "community.opensocial.listInvites",
-        "description": "List the calling user's pending invites across every community on this instance.",
-        "operationId": "community.opensocial.listInvites",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 50
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "invites"
-                  ],
-                  "properties": {
-                    "cursor": {
-                      "type": "string"
-                    },
-                    "invites": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/community.opensocial.defs.inviteView"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/community.opensocial.listPendingInvites": {
-      "get": {
-        "tags": [
-          "community.opensocial.listPendingInvites"
-        ],
-        "summary": "community.opensocial.listPendingInvites",
-        "description": "List all pending invites for the org, across all invitees. Requires service-auth. Requires the `invite` action.",
-        "operationId": "community.opensocial.listPendingInvites",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "org",
-            "in": "query",
-            "description": "DID of the community to list pending invites for.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "DID of the community to list pending invites for.",
-              "format": "did"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 50
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "invites"
-                  ],
-                  "properties": {
-                    "cursor": {
-                      "type": "string"
-                    },
-                    "invites": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/community.opensocial.defs.inviteView"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/community.opensocial.putRole": {
-      "post": {
-        "tags": [
-          "community.opensocial.putRole"
-        ],
-        "summary": "community.opensocial.putRole",
-        "description": "Create or update a role. Requires service-auth. Requires the `community.configure` action.",
-        "operationId": "community.opensocial.putRole",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "org",
-                  "role",
-                  "name"
-                ],
-                "properties": {
-                  "org": {
-                    "type": "string",
-                    "description": "DID of the community the role belongs to.",
-                    "format": "did"
-                  },
-                  "role": {
-                    "type": "string",
-                    "description": "Record key for the role, e.g. \"moderator\"."
-                  },
-                  "name": {
-                    "type": "string",
-                    "maxLength": 256
-                  },
-                  "description": {
-                    "type": "string",
-                    "maxLength": 2048
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/community.opensocial.requestJoin": {
-      "post": {
-        "tags": [
-          "community.opensocial.requestJoin"
-        ],
-        "summary": "community.opensocial.requestJoin",
-        "description": "Accept the calling user's pending invite to this community. Removes the invite from the org's invite table and writes a community.opensocial.membership record (in the org repo) and a community.opensocial.acceptance record (in the user's repo, members space). Requires service-auth.",
-        "operationId": "community.opensocial.requestJoin",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "org"
-                ],
-                "properties": {
-                  "org": {
-                    "type": "string",
-                    "description": "DID of the community whose invite to accept.",
-                    "format": "did"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "roles"
-                  ],
-                  "properties": {
-                    "roles": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "InviteNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/community.opensocial.revokeInvite": {
-      "post": {
-        "tags": [
-          "community.opensocial.revokeInvite"
-        ],
-        "summary": "community.opensocial.revokeInvite",
-        "description": "Retract a pending invite before it is accepted. Requires service-auth. Requires the `invite` action.",
-        "operationId": "community.opensocial.revokeInvite",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "org",
-                  "id"
-                ],
-                "properties": {
-                  "org": {
-                    "type": "string",
-                    "description": "DID of the community the invite belongs to.",
-                    "format": "did"
-                  },
-                  "id": {
-                    "type": "string",
-                    "description": "Id of the invite to revoke, from community.opensocial.defs#inviteView."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "InviteNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/community.opensocial.updatePermissions": {
-      "post": {
-        "tags": [
-          "community.opensocial.updatePermissions"
-        ],
-        "summary": "community.opensocial.updatePermissions",
-        "description": "Replace the community's authz configuration: which roles authorize which actions, and which roles each role may assign/eject. Requires service-auth. Requires the `community.configure` action.",
-        "operationId": "community.opensocial.updatePermissions",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "org",
-                  "bindings",
-                  "assignable"
-                ],
-                "properties": {
-                  "org": {
-                    "type": "string",
-                    "description": "DID of the community whose permissions to update.",
-                    "format": "did"
-                  },
-                  "bindings": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/community.opensocial.permissions.actionBinding"
-                    }
-                  },
-                  "assignable": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/community.opensocial.permissions.assignableBinding"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/community.opensocial.updateProfile": {
-      "post": {
-        "tags": [
-          "community.opensocial.updateProfile"
-        ],
-        "summary": "community.opensocial.updateProfile",
-        "description": "Replace the community's profile: name, description, and join policy. Avatar is set separately via uploadImage. Requires service-auth. Requires the `community.configure` action.",
-        "operationId": "community.opensocial.updateProfile",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "org",
-                  "name"
-                ],
-                "properties": {
-                  "org": {
-                    "type": "string",
-                    "description": "DID of the community whose profile to update.",
-                    "format": "did"
-                  },
-                  "name": {
-                    "type": "string",
-                    "maxLength": 256
-                  },
-                  "description": {
-                    "type": "string",
-                    "maxLength": 2048
-                  },
-                  "joinPolicy": {
-                    "type": "string",
-                    "enum": [
-                      "community.opensocial.profile#open",
-                      "community.opensocial.profile#invite",
-                      "community.opensocial.profile#request"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/community.opensocial.updateSpace": {
-      "post": {
-        "tags": [
-          "community.opensocial.updateSpace"
-        ],
-        "summary": "community.opensocial.updateSpace",
-        "description": "Replace the roles that may read a space, written into its community.opensocial.access record. Requires service-auth. Requires the `space.configure` action.",
-        "operationId": "community.opensocial.updateSpace",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "space",
-                  "roles"
+                  "space"
                 ],
                 "properties": {
                   "space": {
                     "type": "string",
-                    "description": "URI of the space to update.",
-                    "format": "at-uri"
-                  },
-                  "roles": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
+                    "format": "space-ref"
                   }
                 }
               }
@@ -1473,7 +465,10 @@
                           "const": "InvalidToken"
                         },
                         {
-                          "const": "InvalidSpace"
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "ReservedSpace"
                         }
                       ]
                     },
@@ -1510,14 +505,14 @@
         }
       }
     },
-    "/community.opensocial.uploadImage": {
+    "/group.opensocial.denyJoinRequest": {
       "post": {
         "tags": [
-          "community.opensocial.uploadImage"
+          "group.opensocial.denyJoinRequest"
         ],
-        "summary": "community.opensocial.uploadImage",
-        "description": "Upload an image and set it as the community's profile avatar. Requires service-auth. Requires the `community.configure` action.",
-        "operationId": "community.opensocial.uploadImage",
+        "summary": "group.opensocial.denyJoinRequest",
+        "description": "Deny a pending join request. Requires auth as the group.",
+        "operationId": "group.opensocial.denyJoinRequest",
         "security": [
           {
             "Bearer": []
@@ -1526,9 +521,143 @@
         "requestBody": {
           "required": true,
           "content": {
-            "*/*": {}
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "member"
+                ],
+                "properties": {
+                  "member": {
+                    "type": "string",
+                    "format": "did"
+                  }
+                }
+              }
+            }
           }
         },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "JoinRequestNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group.opensocial.getSubjectHistory": {
+      "get": {
+        "tags": [
+          "group.opensocial.getSubjectHistory"
+        ],
+        "summary": "group.opensocial.getSubjectHistory",
+        "description": "Get a subject's moderation history, oldest first. Requires auth as the group.",
+        "operationId": "group.opensocial.getSubjectHistory",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "description": "An account DID or record URI.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "An account DID or record URI.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "cid",
+            "in": "query",
+            "description": "If set, only this version of the record.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "If set, only this version of the record.",
+              "format": "cid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -1537,12 +666,17 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "blob"
+                    "events"
                   ],
                   "properties": {
-                    "blob": {
-                      "type": "string",
-                      "format": "binary"
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/group.opensocial.defs.moderationEvent"
+                      }
                     }
                   }
                 }
@@ -1571,6 +705,615 @@
                         },
                         {
                           "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidSubject"
+                        },
+                        {
+                          "const": "InvalidCursor"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group.opensocial.leaveGroup": {
+      "post": {
+        "tags": [
+          "group.opensocial.leaveGroup"
+        ],
+        "summary": "group.opensocial.leaveGroup",
+        "description": "Leave a group, deleting the caller's membership. Requires service auth.",
+        "operationId": "group.opensocial.leaveGroup",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group.opensocial.listJoinRequests": {
+      "get": {
+        "tags": [
+          "group.opensocial.listJoinRequests"
+        ],
+        "summary": "group.opensocial.listJoinRequests",
+        "description": "List pending join requests. Requires auth as the group.",
+        "operationId": "group.opensocial.listJoinRequests",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "requests"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "requests": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/group.opensocial.defs.joinRequest"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidCursor"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group.opensocial.listSubjects": {
+      "get": {
+        "tags": [
+          "group.opensocial.listSubjects"
+        ],
+        "summary": "group.opensocial.listSubjects",
+        "description": "List subjects in the moderation queue. Requires auth as the group.",
+        "operationId": "group.opensocial.listSubjects",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "open"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "subjects"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "subjects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/group.opensocial.defs.subjectView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidCursor"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group.opensocial.requestJoin": {
+      "post": {
+        "tags": [
+          "group.opensocial.requestJoin"
+        ],
+        "summary": "group.opensocial.requestJoin",
+        "description": "Request to join a group, optionally redeeming an invite. Requires service auth.",
+        "operationId": "group.opensocial.requestJoin",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "format": "did"
+                  },
+                  "invite": {
+                    "type": "string",
+                    "format": "at-uri"
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 20000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "admitted"
+                      ]
+                    },
+                    "request": {
+                      "$ref": "#/components/schemas/group.opensocial.defs.joinRequest"
+                    },
+                    "membership": {
+                      "$ref": "#/components/schemas/com.atproto.repo.strongRef.main"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        },
+                        {
+                          "const": "InvalidInvite"
+                        },
+                        {
+                          "const": "JoinClosed"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group.opensocial.resolveSubject": {
+      "post": {
+        "tags": [
+          "group.opensocial.resolveSubject"
+        ],
+        "summary": "group.opensocial.resolveSubject",
+        "description": "Resolve or escalate a subject. Setting the current status again just adds the note. Requires auth as the group.",
+        "operationId": "group.opensocial.resolveSubject",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subject",
+                  "status"
+                ],
+                "properties": {
+                  "subject": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/group.opensocial.defs.accountSubject"
+                      },
+                      {
+                        "$ref": "#/components/schemas/group.opensocial.defs.recordSubject"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 20000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/group.opensocial.defs.subjectView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidSubject"
+                        },
+                        {
+                          "const": "SubjectNotFound"
                         }
                       ]
                     },
@@ -4053,6 +3796,248 @@
         }
       }
     },
+    "/network.habitat.opensocial.assignRoles": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.assignRoles",
+        "description": "Set a member's full role set, replacing whatever roles they previously held. Requires service-auth. Requires the `role.assign` action, bounded by the roles the caller may assign: every role being added or removed must be one the caller's own roles are permitted to assign, per the community's permissions record.",
+        "operationId": "network.habitat.opensocial.assignRoles",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "member",
+                  "roles"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community.",
+                    "format": "did"
+                  },
+                  "member": {
+                    "type": "string",
+                    "description": "DID of the member whose roles to set.",
+                    "format": "did"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "RoleNotAssignable"
+                        },
+                        {
+                          "const": "MemberNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.createInvite": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.createInvite",
+        "description": "Invite a user to join the community. Tracks the invite in the org's invite table; no repo records are written until the invitee accepts via requestJoin. Requires service-auth. Requires the `invite` action.",
+        "operationId": "network.habitat.opensocial.createInvite",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "invitee"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to invite into.",
+                    "format": "did"
+                  },
+                  "invitee": {
+                    "type": "string",
+                    "description": "DID of the user to invite.",
+                    "format": "did"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "invite"
+                  ],
+                  "properties": {
+                    "invite": {
+                      "$ref": "#/components/schemas/network.habitat.opensocial.defs.inviteView"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "AlreadyMember"
+                        },
+                        {
+                          "const": "InviteAlreadyExists"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.opensocial.createOrg": {
       "post": {
         "tags": [
@@ -4164,13 +4149,365 @@
         }
       }
     },
+    "/network.habitat.opensocial.createSpace": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.createSpace",
+        "description": "Create a modality-specific space under the community DID and index it with a group.opensocial.space record. Requires service auth as a member of the community, or an OAuth credential for the community DID itself. Requires the `space.create` action.",
+        "operationId": "network.habitat.opensocial.createSpace",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "type"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to create the space under.",
+                    "format": "did"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "The NSID of the space's type, describing its modality.",
+                    "format": "nsid"
+                  },
+                  "skey": {
+                    "type": "string",
+                    "description": "The space key. If not provided, one will be auto-generated (TID).",
+                    "maxLength": 512
+                  },
+                  "policy": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/network.habitat.relationspace.policy"
+                      }
+                    ]
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "URI of the created space.",
+                      "format": "at-uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceAlreadyExists"
+                        },
+                        {
+                          "const": "InvalidType"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.deleteRole": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.deleteRole",
+        "description": "Remove a role. Members holding it keep their other roles; the role is left off any access or permissions bindings that named it. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "network.habitat.opensocial.deleteRole",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "role"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the role belongs to.",
+                    "format": "did"
+                  },
+                  "role": {
+                    "type": "string",
+                    "description": "Record key of the role to remove."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "RoleNotFound"
+                        },
+                        {
+                          "const": "CannotDeleteBuiltinRole"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.ejectMember": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.ejectMember",
+        "description": "Remove a member from the community, revoking their roles and access. Requires service-auth. Requires the `eject` action, bounded by the roles the caller may assign.",
+        "operationId": "network.habitat.opensocial.ejectMember",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "member"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to remove the member from.",
+                    "format": "did"
+                  },
+                  "member": {
+                    "type": "string",
+                    "description": "DID of the member to remove.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "MemberNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.opensocial.getProfiles": {
       "get": {
         "tags": [
           "network.habitat.opensocial"
         ],
         "summary": "network.habitat.opensocial.getProfiles",
-        "description": "Get the profiles of members within an opensocial org. For a member with no community.opensocial.memberProfile record, falls back to their public Bluesky profile. Callable by any member of the org.",
+        "description": "Get the profiles of members within an opensocial org. For a member with no network.habitat.opensocial.memberProfile record, falls back to their public Bluesky profile. Callable by any member of the org.",
         "operationId": "network.habitat.opensocial.getProfiles",
         "security": [
           {
@@ -4220,6 +4557,1002 @@
                       "items": {
                         "$ref": "#/components/schemas/network.habitat.opensocial.getProfiles.profileView"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.listInvites": {
+      "get": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.listInvites",
+        "description": "List the calling user's pending invites across every community on this instance.",
+        "operationId": "network.habitat.opensocial.listInvites",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "invites"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "invites": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.opensocial.defs.inviteView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.listPendingInvites": {
+      "get": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.listPendingInvites",
+        "description": "List all pending invites for the org, across all invitees. Requires service-auth. Requires the `invite` action.",
+        "operationId": "network.habitat.opensocial.listPendingInvites",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "org",
+            "in": "query",
+            "description": "DID of the community to list pending invites for.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "DID of the community to list pending invites for.",
+              "format": "did"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "invites"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "invites": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.opensocial.defs.inviteView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.putRole": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.putRole",
+        "description": "Create or update a role. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "network.habitat.opensocial.putRole",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "role",
+                  "name"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the role belongs to.",
+                    "format": "did"
+                  },
+                  "role": {
+                    "type": "string",
+                    "description": "Record key for the role, e.g. \"moderator\"."
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2048
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.requestJoin": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.requestJoin",
+        "description": "Accept the calling user's pending invite to this community. Removes the invite from the org's invite table and writes a group.opensocial.membership record (in the org repo) and a group.opensocial.acceptance record (in the user's repo, members space). Requires service-auth.",
+        "operationId": "network.habitat.opensocial.requestJoin",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community whose invite to accept.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "roles"
+                  ],
+                  "properties": {
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InviteNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.revokeInvite": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.revokeInvite",
+        "description": "Retract a pending invite before it is accepted. Requires service-auth. Requires the `invite` action.",
+        "operationId": "network.habitat.opensocial.revokeInvite",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the invite belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "Id of the invite to revoke, from network.habitat.opensocial.defs#inviteView."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InviteNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.updatePermissions": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.updatePermissions",
+        "description": "Replace the community's authz configuration: which roles authorize which actions, and which roles each role may assign/eject. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "network.habitat.opensocial.updatePermissions",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "bindings",
+                  "assignable"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community whose permissions to update.",
+                    "format": "did"
+                  },
+                  "bindings": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/network.habitat.opensocial.defs.actionBinding"
+                    }
+                  },
+                  "assignable": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/network.habitat.opensocial.defs.assignableBinding"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.updateProfile": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.updateProfile",
+        "description": "Replace the community's profile: name, description, and join policy. Avatar is set separately via uploadImage. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "network.habitat.opensocial.updateProfile",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "name"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community whose profile to update.",
+                    "format": "did"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2048
+                  },
+                  "joinPolicy": {
+                    "type": "string",
+                    "enum": [
+                      "group.opensocial.profile#open",
+                      "group.opensocial.profile#invite",
+                      "group.opensocial.profile#request"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.updateSpace": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.updateSpace",
+        "description": "Replace the roles that may read a space, written into its group.opensocial.access record. Requires service-auth. Requires the `space.configure` action.",
+        "operationId": "network.habitat.opensocial.updateSpace",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "roles"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "URI of the space to update.",
+                    "format": "at-uri"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidSpace"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.uploadImage": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.uploadImage",
+        "description": "Upload an image and set it as the community's profile avatar. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "network.habitat.opensocial.uploadImage",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "*/*": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "blob"
+                  ],
+                  "properties": {
+                    "blob": {
+                      "type": "string",
+                      "format": "binary"
                     }
                   }
                 }
@@ -6890,6 +8223,194 @@
         }
       }
     },
+    "/network.habitat.space.getSnapshot": {
+      "get": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.getSnapshot",
+        "description": "Page through the event log up to a pinned tip as plain HTTP, for catching up on a large backlog before following network.habitat.space.subscribe live. It is the counterpart of Jetstream's planSnapshot replay archive: afterSeq/beforeSeq bound the range, and plannedThroughSeq/tipSeq drive pagination the same way. Jetstream's archive is sealed segment files, so its plan lists files to download; this host's log is one compacted table, so the events themselves are returned inline, as the same #commit and #spaceDeleted objects subscribe frames carry. Read the first page without beforeSeq, then pass the tipSeq it returns as beforeSeq on every later page so the snapshot does not move while it is being read. When plannedThroughSeq reaches tipSeq the snapshot is complete: open subscribe with cursor tipSeq + 1 to follow live without a gap. Events are authorized exactly as on subscribe, and the log is compacted the same way, so a snapshot converges on current state but skips intermediate versions. Callable with OAuth, service auth or a space credential.",
+        "operationId": "network.habitat.space.getSnapshot",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "afterSeq",
+            "in": "query",
+            "description": "Start after this seq: events at or below it are not included. Omitted or 0: from the start of the log.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "beforeSeq",
+            "in": "query",
+            "description": "Stop at this seq: events above it are not included. Omitted: the log's current head, returned as tipSeq.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of events to return in one page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "spaces",
+            "in": "query",
+            "description": "As in subscribe.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "at-uri"
+              },
+              "maxItems": 100
+            }
+          },
+          {
+            "name": "dids",
+            "in": "query",
+            "description": "As in subscribe.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "did"
+              },
+              "maxItems": 10000
+            }
+          },
+          {
+            "name": "collections",
+            "in": "query",
+            "description": "As in subscribe.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "events",
+                    "plannedThroughSeq",
+                    "tipSeq"
+                  ],
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "$ref": "#/components/schemas/network.habitat.space.subscribe.commit"
+                          },
+                          {
+                            "$ref": "#/components/schemas/network.habitat.space.subscribe.spaceDeleted"
+                          }
+                        ]
+                      }
+                    },
+                    "plannedThroughSeq": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "tipSeq": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.getSpaceCredential": {
       "post": {
         "tags": [
@@ -8479,242 +10000,169 @@
   },
   "components": {
     "schemas": {
-      "community.opensocial.acceptance": {
+      "group.opensocial.acceptance": {
         "type": "object",
         "required": [
-          "updatedAt"
-        ],
-        "properties": {
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "community.opensocial.access": {
-        "type": "object",
-        "required": [
-          "roles"
-        ],
-        "properties": {
-          "roles": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "community.opensocial.defs.inviteView": {
-        "type": "object",
-        "description": "A pending invite to join the community, tracked in the org's invite table (not yet a repo record).",
-        "required": [
-          "id",
-          "org",
-          "invitee",
-          "roles",
           "createdAt"
         ],
         "properties": {
-          "id": {
-            "type": "string",
-            "description": "Opaque id of the invite, used to revoke it."
-          },
-          "org": {
-            "type": "string",
-            "description": "DID of the community the invite is for.",
-            "format": "did"
-          },
-          "invitee": {
-            "type": "string",
-            "description": "DID of the invited user.",
-            "format": "did"
-          },
-          "roles": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
           }
         }
       },
-      "community.opensocial.memberProfile": {
+      "group.opensocial.access": {
         "type": "object",
         "required": [
-          "updatedAt"
+          "grants"
         ],
         "properties": {
-          "displayName": {
-            "type": "string",
-            "description": "The member's display name within the community.",
-            "maxLength": 256
+          "publicRead": {
+            "type": "boolean",
+            "description": "If true, anyone may read the space."
           },
-          "bio": {
-            "type": "string",
-            "description": "A short bio for the member.",
-            "maxLength": 2048
-          },
-          "avatarUrl": {
-            "type": "string",
-            "description": "URL of the member's avatar image.",
-            "format": "uri",
-            "maxLength": 2048
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "community.opensocial.membership": {
-        "type": "object",
-        "required": [
-          "roles",
-          "updatedAt"
-        ],
-        "properties": {
-          "roles": {
+          "grants": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
+              "$ref": "#/components/schemas/group.opensocial.defs.spaceGrant"
+            },
+            "maxItems": 100
           }
         }
       },
-      "community.opensocial.permissions": {
+      "group.opensocial.declaration": {
         "type": "object",
         "required": [
-          "bindings",
+          "meta"
+        ],
+        "properties": {
+          "meta": {
+            "type": "string",
+            "format": "space-ref"
+          }
+        }
+      },
+      "group.opensocial.defs.roleId": {
+        "type": "string",
+        "description": "The rkey of a role record.",
+        "format": "record-key",
+        "maxLength": 512
+      },
+      "group.opensocial.defs.joinPolicy": {
+        "type": "string",
+        "description": "open admits anyone; approval queues a join request; invite requires an invitation. An invitation admits its recipient under any policy.",
+        "enum": [
+          "open",
+          "approval",
+          "invite"
+        ]
+      },
+      "group.opensocial.defs.spaceGrant": {
+        "type": "object",
+        "description": "A role's scopes in one space.",
+        "required": [
+          "role",
+          "scopes"
+        ],
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/group.opensocial.defs.roleId"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "maxItems": 100
+          }
+        }
+      },
+      "group.opensocial.defs.groupGrant": {
+        "type": "object",
+        "description": "A role's group-wide scopes, and the roles it may assign.",
+        "required": [
+          "role",
+          "scopes",
           "assignable"
         ],
         "properties": {
-          "bindings": {
+          "role": {
+            "$ref": "#/components/schemas/group.opensocial.defs.roleId"
+          },
+          "scopes": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/community.opensocial.permissions.actionBinding"
-            }
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "maxItems": 100
           },
           "assignable": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/community.opensocial.permissions.assignableBinding"
-            }
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
+              "$ref": "#/components/schemas/group.opensocial.defs.roleId"
+            },
+            "maxItems": 100
           }
         }
       },
-      "community.opensocial.permissions.actionBinding": {
+      "group.opensocial.defs.accessConfig": {
         "type": "object",
+        "description": "The contents of an access record.",
         "required": [
-          "action",
-          "roles"
+          "grants"
         ],
         "properties": {
-          "action": {
-            "type": "string",
-            "description": "The action this binding authorizes.",
-            "enum": [
-              "invite",
-              "eject",
-              "role.assign",
-              "space.create",
-              "space.configure",
-              "space.delete",
-              "community.configure",
-              "mcp.configure"
-            ]
+          "publicRead": {
+            "type": "boolean",
+            "description": "If true, anyone may read the space."
           },
-          "roles": {
+          "grants": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "$ref": "#/components/schemas/group.opensocial.defs.spaceGrant"
+            },
+            "maxItems": 100
           }
         }
       },
-      "community.opensocial.permissions.assignableBinding": {
+      "group.opensocial.defs.labelerPolicies": {
         "type": "object",
         "required": [
-          "role",
-          "roles"
+          "labelValues"
         ],
         "properties": {
-          "role": {
-            "type": "string",
-            "description": "Record key of the role this binding applies to."
-          },
-          "roles": {
+          "labelValues": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/com.atproto.label.defs.labelValue"
+            }
+          },
+          "labelValueDefinitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/com.atproto.label.defs.labelValueDefinition"
             }
           }
         }
       },
-      "community.opensocial.profile": {
+      "group.opensocial.defs.accountSubject": {
         "type": "object",
         "required": [
-          "name"
+          "did"
         ],
         "properties": {
-          "name": {
+          "did": {
             "type": "string",
-            "description": "The community's display name.",
-            "maxLength": 256
-          },
-          "description": {
-            "type": "string",
-            "description": "A short description of the community.",
-            "maxLength": 2048
-          },
-          "avatar": {
-            "type": "string",
-            "format": "binary",
-            "maxLength": 1000000
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
+            "format": "did"
           }
         }
       },
-      "community.opensocial.role": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Display name for the role, e.g. \"Admin\" or \"Moderator\".",
-            "maxLength": 256
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 2048
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "community.opensocial.space": {
+      "group.opensocial.defs.recordSubject": {
         "type": "object",
         "required": [
           "uri"
@@ -8722,10 +10170,354 @@
         "properties": {
           "uri": {
             "type": "string",
-            "description": "URI of the indexed space.",
             "format": "at-uri"
           },
+          "cid": {
+            "type": "string",
+            "description": "If set, a specific version of the record.",
+            "format": "cid"
+          }
+        }
+      },
+      "group.opensocial.defs.subjectStatus": {
+        "type": "string"
+      },
+      "group.opensocial.defs.subjectView": {
+        "type": "object",
+        "description": "A subject in the moderation queue.",
+        "required": [
+          "subject",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "reportCount"
+        ],
+        "properties": {
+          "subject": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/group.opensocial.defs.accountSubject"
+              },
+              {
+                "$ref": "#/components/schemas/group.opensocial.defs.recordSubject"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/group.opensocial.defs.subjectStatus"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
           "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reportCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "group.opensocial.defs.moderationEvent": {
+        "type": "object",
+        "description": "An event in a subject's moderation history.",
+        "required": [
+          "id",
+          "createdAt",
+          "event"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "May be withheld to protect reporters and moderators.",
+            "format": "did"
+          },
+          "event": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/group.opensocial.defs.reportEvent"
+              },
+              {
+                "$ref": "#/components/schemas/group.opensocial.defs.statusEvent"
+              },
+              {
+                "$ref": "#/components/schemas/group.opensocial.defs.labelEvent"
+              },
+              {
+                "$ref": "#/components/schemas/group.opensocial.defs.ejectEvent"
+              }
+            ]
+          }
+        }
+      },
+      "group.opensocial.defs.reportEvent": {
+        "type": "object",
+        "required": [
+          "reasonType"
+        ],
+        "properties": {
+          "reasonType": {
+            "$ref": "#/components/schemas/com.atproto.moderation.defs.reasonType"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "rule": {
+            "type": "string",
+            "format": "at-uri"
+          }
+        }
+      },
+      "group.opensocial.defs.statusEvent": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/group.opensocial.defs.subjectStatus"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "group.opensocial.defs.labelEvent": {
+        "type": "object",
+        "description": "A label record was written or deleted.",
+        "required": [
+          "uri",
+          "val"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "The label record.",
+            "format": "at-uri"
+          },
+          "val": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "deleted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "group.opensocial.defs.ejectEvent": {
+        "type": "object",
+        "description": "The subject was ejected from the group.",
+        "properties": {}
+      },
+      "group.opensocial.defs.joinRequest": {
+        "type": "object",
+        "description": "A pending join request.",
+        "required": [
+          "member",
+          "createdAt"
+        ],
+        "properties": {
+          "member": {
+            "type": "string",
+            "format": "did"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "group.opensocial.invite": {
+        "type": "object",
+        "required": [
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "group.opensocial.labeler": {
+        "type": "object",
+        "required": [
+          "policies"
+        ],
+        "properties": {
+          "policies": {
+            "$ref": "#/components/schemas/group.opensocial.defs.labelerPolicies"
+          },
+          "reasonTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/com.atproto.moderation.defs.reasonType"
+            }
+          },
+          "subjectTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/com.atproto.moderation.defs.subjectType"
+            }
+          },
+          "subjectCollections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "nsid"
+            }
+          }
+        }
+      },
+      "group.opensocial.membership": {
+        "type": "object",
+        "required": [
+          "roles",
+          "createdAt"
+        ],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/group.opensocial.defs.roleId"
+            },
+            "maxItems": 100
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "group.opensocial.permissions": {
+        "type": "object",
+        "required": [
+          "grants"
+        ],
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/group.opensocial.defs.groupGrant"
+            },
+            "maxItems": 100
+          }
+        }
+      },
+      "group.opensocial.profile": {
+        "type": "object",
+        "required": [
+          "displayName",
+          "joinPolicy"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "maxLength": 640
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "avatar": {
+            "type": "string",
+            "format": "binary",
+            "maxLength": 2000000
+          },
+          "banner": {
+            "type": "string",
+            "format": "binary",
+            "maxLength": 2000000
+          },
+          "joinPolicy": {
+            "$ref": "#/components/schemas/group.opensocial.defs.joinPolicy"
+          },
+          "url": {
+            "type": "string",
+            "description": "Group website. Must be http or https.",
+            "format": "uri"
+          }
+        }
+      },
+      "group.opensocial.role": {
+        "type": "object",
+        "required": [
+          "displayName"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "maxLength": 640
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "default": {
+            "type": "boolean",
+            "description": "If true, granted to members admitted through requestJoin."
+          }
+        }
+      },
+      "group.opensocial.rule": {
+        "type": "object",
+        "required": [
+          "title",
+          "text"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 640
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "group.opensocial.space": {
+        "type": "object",
+        "required": [
+          "space",
+          "createdAt"
+        ],
+        "properties": {
+          "space": {
+            "type": "string",
+            "format": "space-ref"
+          },
+          "createdAt": {
             "type": "string",
             "format": "date-time"
           }
@@ -9253,6 +11045,91 @@
           }
         }
       },
+      "network.habitat.opensocial.defs.inviteView": {
+        "type": "object",
+        "description": "A pending invite to join the community, tracked in the org's invite table (not yet a repo record).",
+        "required": [
+          "id",
+          "org",
+          "invitee",
+          "roles",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Opaque id of the invite, used to revoke it."
+          },
+          "org": {
+            "type": "string",
+            "description": "DID of the community the invite is for.",
+            "format": "did"
+          },
+          "invitee": {
+            "type": "string",
+            "description": "DID of the invited user.",
+            "format": "did"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.opensocial.defs.actionBinding": {
+        "type": "object",
+        "required": [
+          "action",
+          "roles"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "The action this binding authorizes.",
+            "enum": [
+              "invite",
+              "eject",
+              "role.assign",
+              "space.create",
+              "space.configure",
+              "space.delete",
+              "community.configure",
+              "mcp.configure"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "network.habitat.opensocial.defs.assignableBinding": {
+        "type": "object",
+        "required": [
+          "role",
+          "roles"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Record key of the role this binding applies to."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "network.habitat.opensocial.getProfiles.profileView": {
         "type": "object",
         "required": [
@@ -9275,6 +11152,34 @@
           },
           "avatarUrl": {
             "type": "string"
+          }
+        }
+      },
+      "network.habitat.opensocial.memberProfile": {
+        "type": "object",
+        "required": [
+          "updatedAt"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "The member's display name within the community.",
+            "maxLength": 256
+          },
+          "bio": {
+            "type": "string",
+            "description": "A short bio for the member.",
+            "maxLength": 2048
+          },
+          "avatarUrl": {
+            "type": "string",
+            "description": "URL of the member's avatar image.",
+            "format": "uri",
+            "maxLength": 2048
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -9978,73 +11883,97 @@
   },
   "tags": [
     {
-      "name": "community.opensocial.acceptance"
+      "name": "group.opensocial.acceptance"
     },
     {
-      "name": "community.opensocial.access"
+      "name": "group.opensocial.access"
     },
     {
-      "name": "community.opensocial.assignRoles"
+      "name": "group.opensocial.cancelJoinRequest"
     },
     {
-      "name": "community.opensocial.createInvite"
+      "name": "group.opensocial.configure"
     },
     {
-      "name": "community.opensocial.createSpace"
+      "name": "group.opensocial.createReport"
     },
     {
-      "name": "community.opensocial.defs"
+      "name": "group.opensocial.createSpace"
     },
     {
-      "name": "community.opensocial.deleteRole"
+      "name": "group.opensocial.declaration"
     },
     {
-      "name": "community.opensocial.ejectMember"
+      "name": "group.opensocial.defs"
     },
     {
-      "name": "community.opensocial.listInvites"
+      "name": "group.opensocial.deleteSpace"
     },
     {
-      "name": "community.opensocial.listPendingInvites"
+      "name": "group.opensocial.denyJoinRequest"
     },
     {
-      "name": "community.opensocial.memberProfile"
+      "name": "group.opensocial.getSubjectHistory"
     },
     {
-      "name": "community.opensocial.membership"
+      "name": "group.opensocial.invite"
     },
     {
-      "name": "community.opensocial.permissions"
+      "name": "group.opensocial.invites"
     },
     {
-      "name": "community.opensocial.profile"
+      "name": "group.opensocial.labeler"
     },
     {
-      "name": "community.opensocial.putRole"
+      "name": "group.opensocial.leaveGroup"
     },
     {
-      "name": "community.opensocial.requestJoin"
+      "name": "group.opensocial.listJoinRequests"
     },
     {
-      "name": "community.opensocial.revokeInvite"
+      "name": "group.opensocial.listSubjects"
     },
     {
-      "name": "community.opensocial.role"
+      "name": "group.opensocial.manageMembers"
     },
     {
-      "name": "community.opensocial.space"
+      "name": "group.opensocial.manageSpaces"
     },
     {
-      "name": "community.opensocial.updatePermissions"
+      "name": "group.opensocial.members"
     },
     {
-      "name": "community.opensocial.updateProfile"
+      "name": "group.opensocial.membership"
     },
     {
-      "name": "community.opensocial.updateSpace"
+      "name": "group.opensocial.meta"
     },
     {
-      "name": "community.opensocial.uploadImage"
+      "name": "group.opensocial.moderate"
+    },
+    {
+      "name": "group.opensocial.participate"
+    },
+    {
+      "name": "group.opensocial.permissions"
+    },
+    {
+      "name": "group.opensocial.profile"
+    },
+    {
+      "name": "group.opensocial.requestJoin"
+    },
+    {
+      "name": "group.opensocial.resolveSubject"
+    },
+    {
+      "name": "group.opensocial.role"
+    },
+    {
+      "name": "group.opensocial.rule"
+    },
+    {
+      "name": "group.opensocial.space"
     },
     {
       "name": "network.habitat.admin"

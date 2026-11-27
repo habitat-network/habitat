@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.denyJoinRequest",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Deny a pending join request. Requires auth as the group.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["member"],
+          "properties": {
+            "member": {
+              "type": "string",
+              "format": "did"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "JoinRequestNotFound"
+        }
+      ]
+    }
+  }
+}

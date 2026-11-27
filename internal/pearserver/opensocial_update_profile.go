@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"net/http"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
-// UpdateProfile implements community.opensocial.updateProfile.
+// UpdateProfile implements network.habitat.opensocial.updateProfile.
 func (p *PearServer) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -19,7 +19,7 @@ func (p *PearServer) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var input opensocial_api.CommunityOpensocialUpdateProfileInput
+	var input habitat.NetworkHabitatOpensocialUpdateProfileInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return

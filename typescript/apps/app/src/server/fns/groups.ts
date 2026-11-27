@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { DidString, NsidString, SpaceRefString } from "@atproto/syntax";
-import { com, community, network } from "api";
+import { com, group, network } from "api";
 import { Effect, Schema } from "effect";
 import { isConnectedOrg } from "@/db";
 import { BadRequest } from "@/server/effect/errors";
@@ -58,7 +58,7 @@ export interface GroupView extends GroupProfile {
   connected: boolean;
   // The signed-in member's roles in the group.
   myRoles: string[];
-  // The actions the member's roles grant (community.opensocial.permissions
+  // The actions the member's roles grant (group.opensocial.permissions
   // bindings), so pages can hide controls the member can't use. pear checks
   // every action again on its own.
   myActions: string[];
@@ -180,7 +180,7 @@ export const createGroup = createServerFn({ method: "POST" })
         if (data.name.trim()) {
           yield* habitat.xrpc(
             did,
-            community.opensocial.updateProfile.main,
+            network.habitat.opensocial.updateProfile.main,
             {
               body: {
                 org: org as DidString,
@@ -205,7 +205,7 @@ const accept = Effect.fn("groups.accept")(function* (did: string, org: string) {
   const habitat = yield* Habitat;
   const { roles } = yield* habitat.xrpc(
     did,
-    community.opensocial.requestJoin.main,
+    network.habitat.opensocial.requestJoin.main,
     { body: { org: org as DidString } },
     viaGroup(org),
   );
@@ -213,11 +213,11 @@ const accept = Effect.fn("groups.accept")(function* (did: string, org: string) {
     body: {
       space: membersSpace(org) as SpaceRefString,
       repo: did as DidString,
-      collection: "community.opensocial.acceptance" as NsidString,
+      collection: "group.opensocial.acceptance" as NsidString,
       rkey: "self",
       record: {
-        $type: "community.opensocial.acceptance",
-        updatedAt: new Date().toISOString(),
+        $type: "group.opensocial.acceptance",
+        createdAt: new Date().toISOString(),
       },
     },
   });
@@ -242,7 +242,7 @@ export const listMyInvites = createServerFn({ method: "GET" }).handler(() =>
       const habitat = yield* Habitat;
       const { invites } = yield* habitat.xrpc(
         did,
-        community.opensocial.listInvites.main,
+        network.habitat.opensocial.listInvites.main,
         { params: {} },
         yield* viaInstance,
       );
@@ -297,7 +297,7 @@ export const updateGroupProfile = createServerFn({ method: "POST" })
         const habitat = yield* Habitat;
         yield* habitat.xrpc(
           did,
-          community.opensocial.updateProfile.main,
+          network.habitat.opensocial.updateProfile.main,
           {
             body: {
               org,
@@ -312,7 +312,7 @@ export const updateGroupProfile = createServerFn({ method: "POST" })
   );
 
 // putMyGroupProfile writes the member's own profile within the group (a
-// community.opensocial.memberProfile record in the members space, keyed by
+// network.habitat.opensocial.memberProfile record in the members space, keyed by
 // their DID), which is what other members see.
 export const putMyGroupProfile = createServerFn({ method: "POST" })
   .validator(
@@ -335,10 +335,10 @@ export const putMyGroupProfile = createServerFn({ method: "POST" })
           body: {
             space: membersSpace(org) as SpaceRefString,
             repo: did,
-            collection: "community.opensocial.memberProfile" as NsidString,
+            collection: "network.habitat.opensocial.memberProfile" as NsidString,
             rkey: did,
             record: {
-              $type: "community.opensocial.memberProfile",
+              $type: "network.habitat.opensocial.memberProfile",
               displayName: data.displayName.trim() || undefined,
               bio: data.bio.trim() || undefined,
               avatarUrl: existing?.avatarUrl || undefined,
@@ -379,7 +379,7 @@ export const leaveGroup = createServerFn({ method: "POST" })
         const habitat = yield* Habitat;
         yield* habitat.xrpc(
           did,
-          community.opensocial.ejectMember.main,
+          network.habitat.opensocial.ejectMember.main,
           { body: { org, member: did as DidString } },
           viaGroup(org),
         );

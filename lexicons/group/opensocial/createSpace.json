@@ -1,0 +1,74 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.createSpace",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Create a group space with its access record and, unless index is false, an index entry. Requires auth as the group.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["spaceType", "access"],
+          "properties": {
+            "spaceType": {
+              "type": "string",
+              "format": "nsid"
+            },
+            "skey": {
+              "type": "string",
+              "format": "record-key",
+              "description": "Generated as a TID if not provided."
+            },
+            "access": {
+              "type": "ref",
+              "ref": "group.opensocial.defs#accessConfig"
+            },
+            "index": {
+              "type": "boolean",
+              "default": true,
+              "description": "Add the space to the group's index."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["space", "access"],
+          "properties": {
+            "space": {
+              "type": "string",
+              "format": "space-ref"
+            },
+            "access": {
+              "type": "ref",
+              "ref": "com.atproto.repo.strongRef#main"
+            },
+            "index": {
+              "type": "ref",
+              "ref": "com.atproto.repo.strongRef#main",
+              "description": "Present when the space was indexed."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "SpaceAlreadyExists"
+        },
+        {
+          "name": "ReservedSpace",
+          "description": "The meta and members spaces are reserved."
+        },
+        {
+          "name": "UnknownRole"
+        },
+        {
+          "name": "InvalidScope"
+        }
+      ]
+    }
+  }
+}

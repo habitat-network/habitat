@@ -7,18 +7,20 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atdata"
 )
 
-// CommunityOpensocialProfile represents a community.opensocial.profile record
-type CommunityOpensocialProfile struct {
-	LexiconTypeID string       `json:"$type"`
-	Avatar        *atdata.Blob `json:"avatar,omitempty"`
-	Description   string       `json:"description,omitempty"`
-	Name          string       `json:"name"`
-	UpdatedAt     string       `json:"updatedAt,omitempty"`
+// GroupOpensocialProfile represents a group.opensocial.profile record
+type GroupOpensocialProfile struct {
+	LexiconTypeID string                        `json:"$type"`
+	Avatar        *atdata.Blob                  `json:"avatar,omitempty"`
+	Banner        *atdata.Blob                  `json:"banner,omitempty"`
+	Description   string                        `json:"description,omitempty"`
+	DisplayName   string                        `json:"displayName"`
+	JoinPolicy    GroupOpensocialDefsJoinPolicy `json:"joinPolicy"`
+	Url           string                        `json:"url,omitempty"`
 }
 
-// MarshalJSON sets $type to "community.opensocial.profile" before encoding.
-func (t CommunityOpensocialProfile) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "community.opensocial.profile"
-	type alias CommunityOpensocialProfile
+// MarshalJSON sets $type to "group.opensocial.profile" before encoding.
+func (t GroupOpensocialProfile) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "group.opensocial.profile"
+	type alias GroupOpensocialProfile
 	return json.Marshal(alias(t))
 }

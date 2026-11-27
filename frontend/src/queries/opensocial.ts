@@ -9,7 +9,7 @@ import {
 } from "@atproto/lex";
 import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { com, community, network } from "api";
+import { com, group, network, permissionsFromRecord } from "api";
 import { fetchClientMetadata } from "@/lib/oauthScopes";
 import { pearAgent } from "./pearAgent";
 import {
@@ -18,24 +18,24 @@ import {
   spaceCredentialQueryOptions,
 } from "./spaceCredential";
 
-export type InviteView = community.opensocial.defs.InviteView;
+export type InviteView = network.habitat.opensocial.defs.InviteView;
 
 export interface MemberView {
   did: string;
   roles: string[];
 }
 
-const MEMBERS_SPACE_TYPE = "community.opensocial.members";
+const MEMBERS_SPACE_TYPE = "group.opensocial.members";
 
 // OrgSummary is a community the calling user belongs to, resolved from the
-// community.opensocial.members space they hold a repo in.
+// group.opensocial.members space they hold a repo in.
 export interface OrgSummary {
   did: DidString;
   spaceUri: string;
 }
 
 // myOrgsQueryOptions lists the communities the calling user belongs to: every
-// community.opensocial.members space they've written a membership or
+// group.opensocial.members space they've written a membership or
 // acceptance record into.
 export function myOrgsQueryOptions(authManager: AuthManager) {
   return queryOptions({
@@ -62,7 +62,7 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
 }
 
 // myInvitesQueryOptions lists the calling user's pending invites across every
-// community on this instance. community.opensocial.* endpoints are a habitat
+// community on this instance. group.opensocial.* endpoints are a habitat
 // management-plane API with no PDS-side implementation, so they're all
 // proxied to this habitat instance via pearAgent — otherwise a spaces-capable
 // identity's session would send them straight to their own PDS, which
@@ -73,7 +73,7 @@ export function myInvitesQueryOptions(authManager: AuthManager) {
     queryFn: async (): Promise<InviteView[]> => {
       const response = await xrpc(
         pearAgent(authManager),
-        community.opensocial.listInvites.main,
+        network.habitat.opensocial.listInvites.main,
         { params: {} },
       );
       return response.body.invites;
@@ -93,7 +93,7 @@ export function orgPendingInvitesQueryOptions(
     queryFn: async (): Promise<InviteView[]> => {
       const response = await xrpc(
         pearAgent(authManager),
-        community.opensocial.listPendingInvites.main,
+        network.habitat.opensocial.listPendingInvites.main,
         { params: { org: org as DidString } },
       );
       return response.body.invites;
@@ -102,7 +102,7 @@ export function orgPendingInvitesQueryOptions(
 }
 
 // orgMembersQueryOptions lists a community's members and their roles, read
-// directly off the community.opensocial.membership records in its members
+// directly off the group.opensocial.membership records in its members
 // space via a space credential (see spaceCredentialQueryOptions) — there's no
 // dedicated listMembers endpoint.
 export function orgMembersQueryOptions(
@@ -112,7 +112,7 @@ export function orgMembersQueryOptions(
 ) {
   const membersSpace = new SpaceRef(
     org,
-    "community.opensocial.members",
+    "group.opensocial.members",
     "self",
   ).toString();
   return queryOptions({
@@ -129,7 +129,7 @@ export function orgMembersQueryOptions(
           params: {
             space: membersSpace as SpaceRefString,
             repo: org,
-            collection: "community.opensocial.membership" as NsidString,
+            collection: "group.opensocial.membership" as NsidString,
           },
         },
       );
@@ -173,7 +173,7 @@ export function orgAppAccessQueryOptions(
 ) {
   const membersSpace = new SpaceRef(
     org,
-    "community.opensocial.members",
+    "group.opensocial.members",
     "self",
   ).toString();
   return queryOptions({
@@ -235,9 +235,9 @@ export function orgProfileQueryOptions(
   queryClient: QueryClient,
 ) {
   ensureValidDid(org);
-  const aboutSpace = new SpaceRef(
+  const metaSpace = new SpaceRef(
     org,
-    "community.opensocial.about",
+    "group.opensocial.meta",
     "self",
   ).toString();
   return queryOptions({
@@ -245,32 +245,32 @@ export function orgProfileQueryOptions(
     queryFn: async (): Promise<OrgProfile | null> => {
       try {
         const cred = await queryClient.fetchQuery(
-          spaceCredentialQueryOptions(aboutSpace, authManager),
+          spaceCredentialQueryOptions(metaSpace, authManager),
         );
         const agent = spaceAgent(cred);
         const response = await xrpc(agent, com.atproto.space.getRecord.main, {
           validateResponse: false,
           params: {
-            space: aboutSpace as SpaceRefString,
+            space: metaSpace as SpaceRefString,
             repo: org as DidString,
-            collection: "community.opensocial.profile" as NsidString,
+            collection: "group.opensocial.profile" as NsidString,
             rkey: "self",
           },
           // Required with a space credential; not checked here.
           headers: await acceptRecordMacHeaders(),
         });
         const value = response.body.value as {
-          name: string;
+          displayName: string;
           description?: string;
           avatar?: BlobRef;
         };
         const profile: OrgProfile = {
-          name: value.name,
+          name: value.displayName,
           description: value.description,
         };
         const cid = value.avatar && getBlobCidString(value.avatar);
         if (cid) {
-          const blobParams = new URLSearchParams({ space: aboutSpace, cid });
+          const blobParams = new URLSearchParams({ space: metaSpace, cid });
           const blobUrl = `${cred.host}/xrpc/com.atproto.space.getBlob?${blobParams}`;
           const blobRes = await fetch(blobUrl, {
             headers: await spaceCredentialHeaders(cred),
@@ -297,7 +297,7 @@ export async function updateProfile(
 ) {
   const response = await xrpc(
     pearAgent(authManager),
-    community.opensocial.updateProfile.main,
+    network.habitat.opensocial.updateProfile.main,
     {
       body: {
         org: org as DidString,
@@ -322,7 +322,7 @@ export async function uploadOrgImage(
   const headers = new Headers();
   headers.append("Content-Type", file.type || "application/octet-stream");
   const res = await pearAgent(authManager).fetchHandler(
-    `/xrpc/community.opensocial.uploadImage?org=${encodeURIComponent(org)}`,
+    `/xrpc/network.habitat.opensocial.uploadImage?org=${encodeURIComponent(org)}`,
     { method: "POST", body: buf, headers },
   );
   if (!res) {
@@ -348,32 +348,32 @@ export async function createOrg(authManager: AuthManager, handle: string) {
 }
 
 // acceptInvite consumes the caller's pending invite to `org`, granting the
-// roles it carried, then writes the caller's own community.opensocial.acceptance
+// roles it carried, then writes the caller's own group.opensocial.acceptance
 // record into the org's members space — that's the caller's explicit act of
 // joining, so it's authored under their own credentials rather than by the
 // backend on their behalf.
 export async function acceptInvite(authManager: AuthManager, org: string) {
   const response = await xrpc(
     pearAgent(authManager),
-    community.opensocial.requestJoin.main,
+    network.habitat.opensocial.requestJoin.main,
     { body: { org: org as DidString } },
   );
   const { roles } = response.body;
   ensureValidDid(org);
   const membersSpace = new SpaceRef(
     org,
-    "community.opensocial.members",
+    "group.opensocial.members",
     "self",
   ).toString();
   await xrpc(authManager, com.atproto.space.putRecord.main, {
     body: {
       space: membersSpace as SpaceRefString,
       repo: authManager.getAuthInfo()!.did as DidString,
-      collection: "community.opensocial.acceptance" as NsidString,
+      collection: "group.opensocial.acceptance" as NsidString,
       rkey: "self",
       record: {
-        $type: "community.opensocial.acceptance",
-        updatedAt: new Date().toISOString(),
+        $type: "group.opensocial.acceptance",
+        createdAt: new Date().toISOString(),
       },
     },
   });
@@ -387,7 +387,7 @@ export interface RoleView {
 }
 
 // orgRolesQueryOptions lists a community's declared roles, read directly off
-// the community.opensocial.role records in its members space via a space
+// the group.opensocial.role records in its members space via a space
 // credential (see spaceCredentialQueryOptions) — there's no dedicated
 // listRoles endpoint.
 export function orgRolesQueryOptions(
@@ -397,7 +397,7 @@ export function orgRolesQueryOptions(
 ) {
   const membersSpace = new SpaceRef(
     org,
-    "community.opensocial.members",
+    "group.opensocial.members",
     "self",
   ).toString();
   return queryOptions({
@@ -414,16 +414,16 @@ export function orgRolesQueryOptions(
           params: {
             space: membersSpace as SpaceRefString,
             repo: org,
-            collection: "community.opensocial.role" as NsidString,
+            collection: "group.opensocial.role" as NsidString,
           },
         },
       );
       return response.body.records.map((record) => {
         const value = record.value as
-          { name?: string; description?: string } | undefined;
+          { displayName?: string; description?: string } | undefined;
         return {
           rkey: record.rkey,
-          name: value?.name ?? record.rkey,
+          name: value?.displayName ?? record.rkey,
           description: value?.description,
         };
       });
@@ -431,9 +431,9 @@ export function orgRolesQueryOptions(
   });
 }
 
-export type ActionBinding = community.opensocial.permissions.ActionBinding;
+export type ActionBinding = network.habitat.opensocial.defs.ActionBinding;
 export type AssignableBinding =
-  community.opensocial.permissions.AssignableBinding;
+  network.habitat.opensocial.defs.AssignableBinding;
 
 export interface PermissionsView {
   bindings: ActionBinding[];
@@ -441,7 +441,7 @@ export interface PermissionsView {
 }
 
 // orgPermissionsQueryOptions fetches a community's authz configuration (the
-// community.opensocial.permissions record), read via a space credential.
+// group.opensocial.permissions record), read via a space credential.
 // Resolves to empty bindings if the community hasn't written one yet.
 export function orgPermissionsQueryOptions(
   org: DidString,
@@ -450,7 +450,7 @@ export function orgPermissionsQueryOptions(
 ) {
   const membersSpace = new SpaceRef(
     org,
-    "community.opensocial.members",
+    "group.opensocial.members",
     "self",
   ).toString();
   return queryOptions({
@@ -468,21 +468,14 @@ export function orgPermissionsQueryOptions(
             params: {
               space: membersSpace as SpaceRefString,
               repo: org,
-              collection: "community.opensocial.permissions" as NsidString,
+              collection: "group.opensocial.permissions" as NsidString,
               rkey: "self",
             },
             // Required with a space credential; not checked here.
             headers: await acceptRecordMacHeaders(),
           },
         );
-        const value = response.body.value as {
-          bindings?: ActionBinding[];
-          assignable?: AssignableBinding[];
-        };
-        return {
-          bindings: value.bindings ?? [],
-          assignable: value.assignable ?? [],
-        };
+        return permissionsFromRecord(response.body.value);
       } catch {
         return { bindings: [], assignable: [] };
       }
@@ -501,7 +494,7 @@ export async function putRole(
 ) {
   const response = await xrpc(
     pearAgent(authManager, `${org}#habitat`),
-    community.opensocial.putRole.main,
+    network.habitat.opensocial.putRole.main,
     {
       body: {
         org: org as DidString,
@@ -524,7 +517,7 @@ export async function deleteRole(
 ) {
   const response = await xrpc(
     pearAgent(authManager, `${org}#habitat`),
-    community.opensocial.deleteRole.main,
+    network.habitat.opensocial.deleteRole.main,
     { body: { org: org as DidString, role } },
   );
   return response.body;
@@ -541,7 +534,7 @@ export async function updatePermissions(
 ) {
   const response = await xrpc(
     pearAgent(authManager, `${org}#habitat`),
-    community.opensocial.updatePermissions.main,
+    network.habitat.opensocial.updatePermissions.main,
     { body: { org: org as DidString, bindings, assignable } },
   );
   return response.body;
@@ -557,7 +550,7 @@ export async function assignRoles(
 ) {
   const response = await xrpc(
     pearAgent(authManager, `${org}#habitat`),
-    community.opensocial.assignRoles.main,
+    network.habitat.opensocial.assignRoles.main,
     { body: { org: org as DidString, member: member as DidString, roles } },
   );
   return response.body;
@@ -573,7 +566,7 @@ export async function ejectMember(
 ) {
   const response = await xrpc(
     pearAgent(authManager, `${org}#habitat`),
-    community.opensocial.ejectMember.main,
+    network.habitat.opensocial.ejectMember.main,
     { body: { org: org as DidString, member: member as DidString } },
   );
   return response.body;
@@ -589,7 +582,7 @@ export async function createInvite(
 ) {
   const response = await xrpc(
     pearAgent(authManager),
-    community.opensocial.createInvite.main,
+    network.habitat.opensocial.createInvite.main,
     {
       body: {
         org: org as DidString,
@@ -609,7 +602,7 @@ export interface MemberProfile {
 
 // myMemberProfileQueryOptions fetches the calling user's profile within an
 // org, exactly as other members see it (network.habitat.opensocial.getProfiles):
-// their community.opensocial.memberProfile record if they have one, else their
+// their network.habitat.opensocial.memberProfile record if they have one, else their
 // public Bluesky profile.
 export function myMemberProfileQueryOptions(
   org: string,
@@ -636,7 +629,7 @@ export function myMemberProfileQueryOptions(
 }
 
 // putMemberProfile writes the calling user's own
-// community.opensocial.memberProfile record into the org's members space —
+// network.habitat.opensocial.memberProfile record into the org's members space —
 // authored under their own credentials, keyed by their DID, which is where
 // getProfiles reads it from.
 export async function putMemberProfile(
@@ -648,17 +641,17 @@ export async function putMemberProfile(
   const did = authManager.getAuthInfo()!.did as DidString;
   const membersSpace = new SpaceRef(
     org,
-    "community.opensocial.members",
+    "group.opensocial.members",
     "self",
   ).toString();
   await xrpc(authManager, com.atproto.space.putRecord.main, {
     body: {
       space: membersSpace as SpaceRefString,
       repo: did,
-      collection: "community.opensocial.memberProfile" as NsidString,
+      collection: "network.habitat.opensocial.memberProfile" as NsidString,
       rkey: did,
       record: {
-        $type: "community.opensocial.memberProfile",
+        $type: "network.habitat.opensocial.memberProfile",
         displayName: profile.displayName || undefined,
         bio: profile.bio || undefined,
         avatarUrl: profile.avatarUrl || undefined,

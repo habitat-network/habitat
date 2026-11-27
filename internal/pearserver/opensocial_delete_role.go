@@ -7,13 +7,13 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
-// DeleteRole implements community.opensocial.deleteRole.
+// DeleteRole implements network.habitat.opensocial.deleteRole.
 func (p *PearServer) DeleteRole(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -22,7 +22,7 @@ func (p *PearServer) DeleteRole(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var input opensocial_api.CommunityOpensocialDeleteRoleInput
+	var input habitat.NetworkHabitatOpensocialDeleteRoleInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return

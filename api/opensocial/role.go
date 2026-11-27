@@ -4,17 +4,17 @@ package opensocial
 
 import "encoding/json"
 
-// CommunityOpensocialRole represents a community.opensocial.role record
-type CommunityOpensocialRole struct {
+// GroupOpensocialRole represents a group.opensocial.role record
+type GroupOpensocialRole struct {
 	LexiconTypeID string `json:"$type"`
+	Default       bool   `json:"default,omitempty"`
 	Description   string `json:"description,omitempty"`
-	Name          string `json:"name"`
-	UpdatedAt     string `json:"updatedAt,omitempty"`
+	DisplayName   string `json:"displayName"`
 }
 
-// MarshalJSON sets $type to "community.opensocial.role" before encoding.
-func (t CommunityOpensocialRole) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "community.opensocial.role"
-	type alias CommunityOpensocialRole
+// MarshalJSON sets $type to "group.opensocial.role" before encoding.
+func (t GroupOpensocialRole) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "group.opensocial.role"
+	type alias GroupOpensocialRole
 	return json.Marshal(alias(t))
 }

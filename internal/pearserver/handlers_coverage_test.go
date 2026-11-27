@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/authn"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
@@ -27,7 +26,7 @@ func TestServer_UploadImage(t *testing.T) {
 	upload := func(server *pearserver_testutil.TestServer, body []byte) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/xrpc/community.opensocial.uploadImage?org="+url.QueryEscape(orgDID),
+			"/xrpc/network.habitat.opensocial.uploadImage?org="+url.QueryEscape(orgDID),
 			bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "image/png")
@@ -40,7 +39,7 @@ func TestServer_UploadImage(t *testing.T) {
 		w := upload(ts, []byte("not really a png"))
 		require.Equal(t, http.StatusOK, w.Code)
 
-		var out opensocial_api.CommunityOpensocialUploadImageOutput
+		var out habitat.NetworkHabitatOpensocialUploadImageOutput
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
 		require.Equal(t, "image/png", out.Blob.MimeType)
 	})
@@ -59,7 +58,7 @@ func TestServer_UploadImage(t *testing.T) {
 	t.Run("rejects an invalid org", func(t *testing.T) {
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/xrpc/community.opensocial.uploadImage?org=not-a-did",
+			"/xrpc/network.habitat.opensocial.uploadImage?org=not-a-did",
 			strings.NewReader("image"),
 		)
 		w := httptest.NewRecorder()
@@ -308,7 +307,7 @@ func TestServer_HandlerValidationErrors(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.CreateInvite,
-			opensocial_api.CommunityOpensocialCreateInviteInput{
+			habitat.NetworkHabitatOpensocialCreateInviteInput{
 				Org: orgDID, Invitee: "not-a-did",
 			},
 			&out,
@@ -323,7 +322,7 @@ func TestServer_HandlerValidationErrors(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.DeleteRole,
-			opensocial_api.CommunityOpensocialDeleteRoleInput{Org: orgDID},
+			habitat.NetworkHabitatOpensocialDeleteRoleInput{Org: orgDID},
 			&out,
 		)
 		require.Equal(t, http.StatusBadRequest, code)
@@ -337,14 +336,14 @@ func TestServer_HandlerValidationErrors(t *testing.T) {
 
 		code := client.Procedure(
 			ts.Server.PutRole,
-			opensocial_api.CommunityOpensocialPutRoleInput{Org: orgDID},
+			habitat.NetworkHabitatOpensocialPutRoleInput{Org: orgDID},
 			&out,
 		)
 		require.Equal(t, http.StatusBadRequest, code)
 
 		code = client.Procedure(
 			ts.Server.PutRole,
-			opensocial_api.CommunityOpensocialPutRoleInput{Org: orgDID, Role: "moderator"},
+			habitat.NetworkHabitatOpensocialPutRoleInput{Org: orgDID, Role: "moderator"},
 			&out,
 		)
 		require.Equal(t, http.StatusBadRequest, code)
@@ -357,7 +356,7 @@ func TestServer_HandlerValidationErrors(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.UpdateProfile,
-			opensocial_api.CommunityOpensocialUpdateProfileInput{Org: orgDID},
+			habitat.NetworkHabitatOpensocialUpdateProfileInput{Org: orgDID},
 			&out,
 		)
 		require.Equal(t, http.StatusBadRequest, code)
@@ -370,7 +369,7 @@ func TestServer_HandlerValidationErrors(t *testing.T) {
 		var out struct{}
 		code := client.Procedure(
 			ts.Server.EjectMember,
-			opensocial_api.CommunityOpensocialEjectMemberInput{
+			habitat.NetworkHabitatOpensocialEjectMemberInput{
 				Org: orgDID, Member: bob.String(),
 			},
 			&out,
@@ -379,7 +378,7 @@ func TestServer_HandlerValidationErrors(t *testing.T) {
 
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/xrpc/community.opensocial.ejectMember",
+			"/xrpc/network.habitat.opensocial.ejectMember",
 			strings.NewReader("{not json"),
 		)
 		w := httptest.NewRecorder()

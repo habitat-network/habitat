@@ -42,7 +42,7 @@ The app is a public atproto OAuth client of a Habitat instance (pear).
   the group's DID (pear shows its admin approval page). The app keeps the
   group's own session too, which docs and files need: their spaces are
   owned by the group. Until a group is connected its pages say so.
-- **Management calls** (`community.opensocial.*`, `network.habitat.mcp.*`)
+- **Management calls** (`group.opensocial.*`, `network.habitat.mcp.*`)
   are made as the signed-in member and proxied to the group's Habitat
   instance (`atproto-proxy: <org>#habitat`), so pear decides what each
   member may do. Pages only hide controls the member's roles don't grant.

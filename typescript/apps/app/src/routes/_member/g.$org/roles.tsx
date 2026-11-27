@@ -45,7 +45,7 @@ import {
 
 // Roles & access: the group's roles, what each may do (its permission
 // bindings) and which roles it may hand out. pear stores all of it in one
-// community.opensocial.permissions record, so a save replaces the whole
+// group.opensocial.permissions record, so a save replaces the whole
 // thing.
 
 export const Route = createFileRoute("/_member/g/$org/roles")({

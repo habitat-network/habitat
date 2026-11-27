@@ -17,7 +17,7 @@ const ORG = "did:web:org.example" as DidString;
 const OTHER_ORG = "did:web:other.example" as DidString;
 const ALICE = "did:plc:alice";
 const BOB = "did:plc:bob";
-const SPACE = `at:space/${ORG}/community.opensocial.members/self`;
+const SPACE = `at:space/${ORG}/group.opensocial.members/self`;
 
 const membership = (...roles: string[]) =>
   jsonToLex({
@@ -60,7 +60,7 @@ describe("roster indexing", () => {
       putEvent(
         SPACE,
         ORG,
-        "community.opensocial.acceptance",
+        "group.opensocial.acceptance",
         ALICE,
         membership(),
       ),

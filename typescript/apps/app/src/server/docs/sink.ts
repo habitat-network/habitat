@@ -57,7 +57,7 @@ const DOC_COLLECTIONS = [
 ];
 // The space type whose role-holders are "everyone in the org" — a
 // spaceRelation naming one of these as its subject is an org-wide grant.
-const MEMBERS_SPACE_TYPE = "community.opensocial.members";
+const MEMBERS_SPACE_TYPE = "group.opensocial.members";
 
 // SinkDeps is what the sink needs from the syncer driving it: reading a
 // record's blob back out of its space (see sync.ts, which wires this to the

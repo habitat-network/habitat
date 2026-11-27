@@ -707,7 +707,7 @@ export const getDocOrgAccess = createServerFn({ method: "GET" })
 
 // shareDocWithOrg grants every member of the caller's current org access to
 // a doc, via a single spaceRelation naming the org's own
-// community.opensocial.members space as its subject (see
+// group.opensocial.members space as its subject (see
 // orgMembersSpaceUri) — this is what the share dialog's "entire org" option
 // calls. Always org-mode only; see managementClient's comment for why this
 // uses the org's own session rather than the calling member's.

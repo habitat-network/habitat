@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { DidString } from "@atproto/syntax";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
-import { community } from "api";
+import { network } from "api";
 import { Effect, Schema } from "effect";
 import { BadRequest } from "@/server/effect/errors";
 import { requireOrg } from "@/server/effect/member";
@@ -73,7 +73,7 @@ export const listGroupInvites = createServerFn({ method: "GET" })
         const result = yield* habitat
           .xrpc(
             did,
-            community.opensocial.listPendingInvites.main,
+            network.habitat.opensocial.listPendingInvites.main,
             { params: { org } },
             viaGroup(org),
           )
@@ -131,7 +131,7 @@ export const inviteMember = createServerFn({ method: "POST" })
         });
         const { invite } = yield* habitat.xrpc(
           did,
-          community.opensocial.createInvite.main,
+          network.habitat.opensocial.createInvite.main,
           {
             body: {
               org,
@@ -161,7 +161,7 @@ export const revokeInvite = createServerFn({ method: "POST" })
         const habitat = yield* Habitat;
         yield* habitat.xrpc(
           did,
-          community.opensocial.revokeInvite.main,
+          network.habitat.opensocial.revokeInvite.main,
           { body: { org, id: data.id } },
           viaGroup(org),
         );
@@ -189,7 +189,7 @@ export const assignRoles = createServerFn({ method: "POST" })
         const habitat = yield* Habitat;
         yield* habitat.xrpc(
           did,
-          community.opensocial.assignRoles.main,
+          network.habitat.opensocial.assignRoles.main,
           {
             body: {
               org,
@@ -226,7 +226,7 @@ export const removeMember = createServerFn({ method: "POST" })
         const gone = yield* habitat
           .xrpc(
             did,
-            community.opensocial.ejectMember.main,
+            network.habitat.opensocial.ejectMember.main,
             { body: { org, member: data.member as DidString } },
             viaGroup(org),
           )
@@ -309,7 +309,7 @@ export const putRole = createServerFn({ method: "POST" })
         const existing = yield* listRoles(did, org);
         yield* habitat.xrpc(
           did,
-          community.opensocial.putRole.main,
+          network.habitat.opensocial.putRole.main,
           {
             body: {
               org,
@@ -349,7 +349,7 @@ const makeAssignable = Effect.fn("makeAssignable")(function* (
   const habitat = yield* Habitat;
   yield* habitat.xrpc(
     did,
-    community.opensocial.updatePermissions.main,
+    network.habitat.opensocial.updatePermissions.main,
     {
       body: {
         org,
@@ -378,7 +378,7 @@ export const deleteRole = createServerFn({ method: "POST" })
         const habitat = yield* Habitat;
         yield* habitat.xrpc(
           did,
-          community.opensocial.deleteRole.main,
+          network.habitat.opensocial.deleteRole.main,
           { body: { org, role: data.role } },
           viaGroup(org),
         );
@@ -415,7 +415,7 @@ export const updatePermissions = createServerFn({ method: "POST" })
         const habitat = yield* Habitat;
         yield* habitat.xrpc(
           did,
-          community.opensocial.updatePermissions.main,
+          network.habitat.opensocial.updatePermissions.main,
           {
             body: {
               org,

@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -43,21 +42,21 @@ func TestServer_GetProfiles(t *testing.T) {
 		))
 
 		membersSpace := habitat_syntax.ConstructSpaceURI(
-			org, "community.opensocial.members", "self",
+			org, "group.opensocial.members", "self",
 		)
 		_, _, err = ts.SpaceStore.PutRecord(
-			t.Context(), membersSpace, admin, "community.opensocial.memberProfile",
+			t.Context(), membersSpace, admin, "network.habitat.opensocial.memberProfile",
 			syntax.RecordKey(admin),
-			spaces_testutil.MustMarshalRecord(t, opensocial_api.CommunityOpensocialMemberProfile{
+			spaces_testutil.MustMarshalRecord(t, habitat.NetworkHabitatOpensocialMemberProfile{
 				DisplayName: "Admin Person",
 				UpdatedAt:   "2024-01-01T00:00:00Z",
 			}),
 		)
 		require.NoError(t, err)
 		_, _, err = ts.SpaceStore.PutRecord(
-			t.Context(), membersSpace, alice, "community.opensocial.memberProfile",
+			t.Context(), membersSpace, alice, "network.habitat.opensocial.memberProfile",
 			syntax.RecordKey(alice),
-			spaces_testutil.MustMarshalRecord(t, opensocial_api.CommunityOpensocialMemberProfile{
+			spaces_testutil.MustMarshalRecord(t, habitat.NetworkHabitatOpensocialMemberProfile{
 				DisplayName: "Alice Person",
 				Bio:         "Hi, I'm Alice",
 				UpdatedAt:   "2024-01-01T00:00:00Z",

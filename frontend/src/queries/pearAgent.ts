@@ -3,7 +3,7 @@ import { resolveDidService } from "internal";
 import { type Agent } from "@atproto/lex";
 
 // pearAgent sends xrpc calls straight to a habitat instance's own
-// management-plane API (network.habitat.*, community.opensocial.*) — this
+// management-plane API (network.habitat.*, group.opensocial.*) — this
 // app's own instance by default, or an org's own habitat instance when `aud`
 // names one — rather than through the caller's own OAuth session. That
 // session's requests go wherever the caller's identity resolves its PDS to —

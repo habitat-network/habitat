@@ -22,8 +22,8 @@ export const OAUTH_SCOPE = [
   "transition:generic",
   "space:network.habitat.docs?authority=*&action=create&action=read&action=update&action=delete&manage=create&manage=update&manage=delete",
   "space:network.habitat.docs.comments?authority=*&action=create&action=read&action=update&action=delete&manage=create&manage=update&manage=delete",
-  "space:community.opensocial.members?authority=*&action=read",
-  "space:community.opensocial.about?authority=*&action=read",
+  "space:group.opensocial.members?authority=*&action=read",
+  "space:group.opensocial.meta?authority=*&action=read",
 ].join(" ");
 
 export function clientMetadata(baseUrl: string) {

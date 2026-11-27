@@ -84,7 +84,7 @@ describe("MemberProfileForm", () => {
         async ({ request }) => {
           saved = await request.json();
           return HttpResponse.json({
-            uri: `at://${ME}/community.opensocial.memberProfile/${ME}`,
+            uri: `at://${ME}/network.habitat.opensocial.memberProfile/${ME}`,
             cid: "bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5uxgf5kpqcsgz7soitae",
           });
         },
@@ -106,12 +106,12 @@ describe("MemberProfileForm", () => {
 
     await screen.findByText("Saved.");
     expect(saved).toMatchObject({
-      space: `at:space/${ORG}/community.opensocial.members/self`,
+      space: `at:space/${ORG}/group.opensocial.members/self`,
       repo: ME,
-      collection: "community.opensocial.memberProfile",
+      collection: "network.habitat.opensocial.memberProfile",
       rkey: ME,
       record: {
-        $type: "community.opensocial.memberProfile",
+        $type: "network.habitat.opensocial.memberProfile",
         displayName: "Sasha",
         bio: "hello",
         avatarUrl: "https://cdn.test/me.png",

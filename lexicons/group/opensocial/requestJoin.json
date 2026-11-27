@@ -1,0 +1,67 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.requestJoin",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Request to join a group, optionally redeeming an invite. Requires service auth.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["group"],
+          "properties": {
+            "group": {
+              "type": "string",
+              "format": "did"
+            },
+            "invite": {
+              "type": "string",
+              "format": "at-uri"
+            },
+            "message": {
+              "type": "string",
+              "maxGraphemes": 2000,
+              "maxLength": 20000
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "knownValues": ["pending", "admitted"]
+            },
+            "request": {
+              "type": "ref",
+              "ref": "group.opensocial.defs#joinRequest",
+              "description": "Present when pending."
+            },
+            "membership": {
+              "type": "ref",
+              "ref": "com.atproto.repo.strongRef#main",
+              "description": "Present when admitted."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "GroupNotFound"
+        },
+        {
+          "name": "InvalidInvite"
+        },
+        {
+          "name": "JoinClosed",
+          "description": "The group is invite-only."
+        }
+      ]
+    }
+  }
+}

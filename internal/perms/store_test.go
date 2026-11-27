@@ -197,54 +197,54 @@ func TestStoreCheckUserHasSpaceRoleImplicitAccess(t *testing.T) {
 
 // TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant covers opensocial
 // spaces, which are never given FGA tuples — access is governed entirely by
-// their own community.opensocial.access/membership records, so reader and
+// their own group.opensocial.access/membership records, so reader and
 // writer checks both have to fall back to those.
 func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
 
-	aboutSpace := newSpace(t, s.spaces, "community.opensocial.about", "self")
-	membersSpace, err := s.spaces.CreateSpace(ctx, org, "community.opensocial.members", "self")
+	metaSpace := newSpace(t, s.spaces, "group.opensocial.meta", "self")
+	membersSpace, err := s.spaces.CreateSpace(ctx, org, "group.opensocial.members", "self")
 	require.NoError(t, err)
 
-	// alice holds the "member" role, granted via community.opensocial.membership;
+	// alice holds the "member" role, granted via group.opensocial.membership;
 	// the about space's access record makes that role a reader.
 	_, _, err = s.spaces.PutRecord(
-		ctx, membersSpace, org, "community.opensocial.membership", syntax.RecordKey(alice),
+		ctx, membersSpace, org, "group.opensocial.membership", syntax.RecordKey(alice),
 		spaces_testutil.MustMarshalRecord(t, map[string]any{"roles": []string{"member"}}),
 	)
 	require.NoError(t, err)
 	_, _, err = s.spaces.PutRecord(
-		ctx, aboutSpace, org, "community.opensocial.access", "self",
-		spaces_testutil.MustMarshalRecord(t, map[string]any{"roles": []string{"member"}}),
+		ctx, metaSpace, org, "group.opensocial.access", "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"grants": []map[string]any{{"role": "member", "scopes": []string{"read"}}}}),
 	)
 	require.NoError(t, err)
 	_, _, err = s.spaces.PutRecord(
-		ctx, membersSpace, org, "community.opensocial.access", "self",
-		spaces_testutil.MustMarshalRecord(t, map[string]any{"roles": []string{"member"}}),
+		ctx, membersSpace, org, "group.opensocial.access", "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"grants": []map[string]any{{"role": "member", "scopes": []string{"read"}}}}),
 	)
 	require.NoError(t, err)
 
 	t.Run("member with a matching access grant reads without an FGA tuple", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, aboutSpace, habitat_syntax.SpaceRoleReader)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, metaSpace, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
 
 	t.Run("non-member is still granted read access to the profile space", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, bob, aboutSpace, habitat_syntax.SpaceRoleReader)
+		ok, err := s.CheckUserHasSpaceRole(ctx, bob, metaSpace, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
 
 	t.Run("member with a matching access grant writes without an FGA tuple", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, aboutSpace, habitat_syntax.SpaceRoleWriter)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, metaSpace, habitat_syntax.SpaceRoleWriter)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
 
 	t.Run("non-member is still granted write access to the profile space", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, bob, aboutSpace, habitat_syntax.SpaceRoleWriter)
+		ok, err := s.CheckUserHasSpaceRole(ctx, bob, metaSpace, habitat_syntax.SpaceRoleWriter)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
@@ -272,7 +272,7 @@ func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
 
 // TestStoreCheckUserHasSpaceRoleGrantsAccessViaOpensocialMembersSpaceRelation
 // covers sharing a space (e.g. a chalk doc) with an entire org by pointing a
-// spaceRelation's subject at that org's own community.opensocial.members
+// spaceRelation's subject at that org's own group.opensocial.members
 // space. Opensocial spaces are never given FGA tuples (see
 // TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant's doc comment), so
 // OpenFGA's own userset expansion for such a spaceRelation has nothing to
@@ -292,7 +292,7 @@ func TestStoreCheckUserHasSpaceRoleGrantsAccessViaOpensocialMembersSpaceRelation
 	// her own record into the members space, e.g. accepting an invite —
 	// AssignRoles alone writes under the org's own repo, not hers.
 	_, _, err = s.spaces.PutRecord(
-		ctx, membersSpace, alice, "community.opensocial.acceptance", "self",
+		ctx, membersSpace, alice, "group.opensocial.acceptance", "self",
 		spaces_testutil.MustMarshalRecord(t, map[string]any{"updatedAt": "2024-01-01T00:00:00Z"}),
 	)
 	require.NoError(t, err)

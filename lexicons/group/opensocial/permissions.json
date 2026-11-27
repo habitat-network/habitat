@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.permissions",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Group-wide scope grants for each role, and the roles each may assign.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["grants"],
+        "properties": {
+          "grants": {
+            "type": "array",
+            "maxLength": 100,
+            "description": "At most one entry per role.",
+            "items": {
+              "type": "ref",
+              "ref": "group.opensocial.defs#groupGrant"
+            }
+          }
+        }
+      }
+    }
+  }
+}

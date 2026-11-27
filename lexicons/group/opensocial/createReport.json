@@ -1,0 +1,70 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.createReport",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Report an account or record in a group. Requires service auth.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["group", "subject", "reasonType"],
+          "properties": {
+            "group": {
+              "type": "string",
+              "format": "did"
+            },
+            "subject": {
+              "type": "union",
+              "refs": [
+                "group.opensocial.defs#accountSubject",
+                "group.opensocial.defs#recordSubject"
+              ]
+            },
+            "reasonType": {
+              "type": "ref",
+              "ref": "com.atproto.moderation.defs#reasonType"
+            },
+            "reason": {
+              "type": "string",
+              "maxGraphemes": 2000,
+              "maxLength": 20000
+            },
+            "rule": {
+              "type": "string",
+              "format": "at-uri"
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["id", "createdAt"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "GroupNotFound"
+        },
+        {
+          "name": "InvalidSubject",
+          "description": "The subject isn't in this group."
+        }
+      ]
+    }
+  }
+}

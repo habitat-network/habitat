@@ -129,7 +129,7 @@ function isSpaceAlreadyExists(err: unknown): boolean {
 // comment at all.
 //
 // Org docs differ only in how the space is created: they reach
-// community.opensocial.createSpace through Atproto-Proxy as the member,
+// network.habitat.opensocial.createSpace through Atproto-Proxy as the member,
 // exactly as createDocSpace does for the doc space itself, with no roles —
 // access comes from the doc space's relations, not org membership. The
 // relations are still set as the owner, which for an org doc is the org's
@@ -149,7 +149,7 @@ export async function ensureCommentsSpace(
   try {
     if (opts.isOrg) {
       await client.call(
-        "community.opensocial.createSpace",
+        "network.habitat.opensocial.createSpace",
         "POST",
         {
           org: opts.ownerDid,

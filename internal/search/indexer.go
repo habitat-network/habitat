@@ -66,8 +66,8 @@ const (
 	sweepInterval = 5 * time.Minute
 	// opsPageSize is how many ops the indexer pulls per ListRepoOps call.
 	opsPageSize = 100
-	// accessCollection holds a space's community.opensocial.access record.
-	accessCollection = syntax.NSID("community.opensocial.access")
+	// accessCollection holds a space's group.opensocial.access record.
+	accessCollection = syntax.NSID("group.opensocial.access")
 	// maxJobLinks caps how many queueing spans one job links to, when many
 	// notifications collapse into it.
 	maxJobLinks = 32
@@ -587,14 +587,14 @@ func (x *Indexer) refreshAccess(
 
 // spaceAccess resolves who may read space: anyone for an opensocial about
 // space; otherwise the users the perms store resolves as readers, and the
-// community roles its community.opensocial.access record names.
+// community roles its group.opensocial.access record names.
 func spaceAccess(
 	ctx context.Context,
 	source RepoSource,
 	perms PermSource,
 	space habitat_syntax.SpaceURI,
 ) (Access, error) {
-	if space.SpaceType() == opensocial.AboutSpaceType {
+	if space.SpaceType() == opensocial.MetaSpaceType {
 		return Access{Public: true}, nil
 	}
 	users, err := perms.ListUserSubjects(ctx, space, habitat_syntax.SpaceRoleReader)
@@ -614,11 +614,11 @@ func spaceAccess(
 	if err != nil {
 		return Access{}, fmt.Errorf("encode access record: %w", err)
 	}
-	var record opensocial_api.CommunityOpensocialAccess
+	var record opensocial_api.GroupOpensocialAccess
 	if err := json.Unmarshal(raw, &record); err != nil {
 		return Access{}, fmt.Errorf("decode access record: %w", err)
 	}
-	for _, role := range record.Roles {
+	for _, role := range opensocial.ReadRoles(record.Grants) {
 		access.CommunityRoles = append(access.CommunityRoles,
 			CommunityRole{Community: space.SpaceOwner(), Role: role})
 	}

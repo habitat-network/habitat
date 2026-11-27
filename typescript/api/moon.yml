@@ -31,6 +31,14 @@ tasks:
     - --out
     - ./src/generated
     - --clear
+    # @atproto/lex's space schema types its collection list as one record
+    # type, so a space type listing different records fails to typecheck.
+    - --exclude
+    - group.opensocial.meta
+    - --exclude
+    - group.opensocial.members
+    - --exclude
+    - group.opensocial.invites
     - --index-file
     - --defs-export
     outputs:

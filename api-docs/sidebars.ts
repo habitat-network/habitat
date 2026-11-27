@@ -9,15 +9,15 @@ const hiddenGroups = new Set([
   "network.habitat.internal",
   "network.habitat.listConnectedApps",
   "network.habitat.docs",
-  // Only community.opensocial.createSpace is shown for this namespace.
-  "community.opensocial.createInvite",
-  "community.opensocial.ejectMember",
-  "community.opensocial.listInvites",
-  "community.opensocial.listPendingInvites",
-  "community.opensocial.requestJoin",
-  "community.opensocial.revokeInvite",
-  "community.opensocial.updateProfile",
-  "community.opensocial.uploadImage",
+  // Only network.habitat.opensocial.createSpace is shown for this namespace.
+  "network.habitat.opensocial.createInvite",
+  "network.habitat.opensocial.ejectMember",
+  "network.habitat.opensocial.listInvites",
+  "network.habitat.opensocial.listPendingInvites",
+  "network.habitat.opensocial.requestJoin",
+  "network.habitat.opensocial.revokeInvite",
+  "network.habitat.opensocial.updateProfile",
+  "network.habitat.opensocial.uploadImage",
 ]);
 
 // Individual endpoints kept out of the public HTTP reference: deprecated

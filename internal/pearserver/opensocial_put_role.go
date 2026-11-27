@@ -6,13 +6,13 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
-// PutRole implements community.opensocial.putRole.
+// PutRole implements network.habitat.opensocial.putRole.
 func (p *PearServer) PutRole(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -21,7 +21,7 @@ func (p *PearServer) PutRole(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var input opensocial_api.CommunityOpensocialPutRoleInput
+	var input habitat.NetworkHabitatOpensocialPutRoleInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return

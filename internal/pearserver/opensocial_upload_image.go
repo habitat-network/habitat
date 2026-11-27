@@ -6,12 +6,12 @@ import (
 	"io"
 	"net/http"
 
-	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
-// UploadImage implements community.opensocial.uploadImage: sets the
+// UploadImage implements network.habitat.opensocial.uploadImage: sets the
 // community's profile avatar from the uploaded image bytes. Requires the
 // caller to be an admin of the community.
 func (p *PearServer) UploadImage(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +22,7 @@ func (p *PearServer) UploadImage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var params opensocial_api.CommunityOpensocialUploadImageParams
+	var params habitat.NetworkHabitatOpensocialUploadImageParams
 	if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode query params", err)
 		return
@@ -52,5 +52,5 @@ func (p *PearServer) UploadImage(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("upload image: %w", err))
 		return
 	}
-	httpx.WriteJSON(ctx, w, opensocial_api.CommunityOpensocialUploadImageOutput{Blob: blob})
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatOpensocialUploadImageOutput{Blob: blob})
 }

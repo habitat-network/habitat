@@ -100,15 +100,15 @@ func newSharedOpenSocialServers(
 func bootstrapAdminMemberships(t *testing.T, sp spaces.Store) {
 	t.Helper()
 	membersSpace, err := sp.CreateSpace(
-		t.Context(), org, "community.opensocial.members", "self",
+		t.Context(), org, "group.opensocial.members", "self",
 	)
 	require.NoError(t, err)
 	_, _, err = sp.PutRecord(
-		t.Context(), membersSpace, org, "community.opensocial.membership",
+		t.Context(), membersSpace, org, "group.opensocial.membership",
 		syntax.RecordKey(admin),
 		spaces_testutil.MustMarshalRecord(
 			t,
-			opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
+			opensocial_api.GroupOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
 		),
 	)
 	require.NoError(t, err)

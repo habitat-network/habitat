@@ -7,7 +7,7 @@
   },
   {
     "package": "opensocial",
-    "prefix": "community.opensocial",
+    "prefix": "group.opensocial",
     "outdir": "api/opensocial",
     "import": "github.com/habitat-network/habitat/api/opensocial"
   },

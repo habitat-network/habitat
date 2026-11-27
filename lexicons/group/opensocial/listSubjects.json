@@ -1,0 +1,53 @@
+{
+  "lexicon": 1,
+  "id": "group.opensocial.listSubjects",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List subjects in the moderation queue. Requires auth as the group.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["open", "escalated", "resolved"],
+            "default": "open"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subjects"],
+          "properties": {
+            "cursor": {
+              "type": "string"
+            },
+            "subjects": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "group.opensocial.defs#subjectView"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidCursor"
+        }
+      ]
+    }
+  }
+}
