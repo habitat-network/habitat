@@ -284,8 +284,14 @@ func TestPermissionsGroupDIDAndEscalation(t *testing.T) {
 		t.Context(), org,
 		[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 			{Action: string(opensocial.ActionCommunityConfigure), Roles: []string{"delegate"}},
-			{Action: string(opensocial.ActionCommunityConfigure), Roles: []string{opensocial.AdminRoleRkey}},
-			{Action: string(opensocial.ActionMcpConfigure), Roles: []string{opensocial.AdminRoleRkey}},
+			{
+				Action: string(opensocial.ActionCommunityConfigure),
+				Roles:  []string{opensocial.AdminRoleRkey},
+			},
+			{
+				Action: string(opensocial.ActionMcpConfigure),
+				Roles:  []string{opensocial.AdminRoleRkey},
+			},
 		},
 		[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
 			{Role: "delegate", Roles: []string{opensocial.MemberRoleRkey}},
@@ -297,7 +303,10 @@ func TestPermissionsGroupDIDAndEscalation(t *testing.T) {
 		err := s.UpdatePermissions(
 			t.Context(), org, delegate,
 			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
-				{Action: string(opensocial.ActionMcpConfigure), Roles: []string{opensocial.MemberRoleRkey}},
+				{
+					Action: string(opensocial.ActionMcpConfigure),
+					Roles:  []string{opensocial.MemberRoleRkey},
+				},
 			},
 			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
 				{Role: "delegate", Roles: []string{opensocial.MemberRoleRkey}},
@@ -316,7 +325,12 @@ func TestPermissionsGroupDIDAndEscalation(t *testing.T) {
 				{Role: "delegate", Roles: []string{opensocial.MemberRoleRkey}},
 			},
 		)
-		require.ErrorIs(t, err, opensocial.ErrEscalation, "dropping the admin role's grants changes admin")
+		require.ErrorIs(
+			t,
+			err,
+			opensocial.ErrEscalation,
+			"dropping the admin role's grants changes admin",
+		)
 	})
 
 	t.Run("an admin may rewrite permissions it already holds", func(t *testing.T) {

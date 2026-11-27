@@ -36,9 +36,13 @@ export async function createFileSpace(
   orgAgent: Agent,
   orgDid: DidString,
 ): Promise<SpaceRefString> {
-  const { body } = await xrpc(orgAgent, network.habitat.opensocial.createSpace.main, {
-    body: { org: orgDid, type: FILE_SPACE_TYPE, roles: [MEMBER_ROLE] },
-  });
+  const { body } = await xrpc(
+    orgAgent,
+    network.habitat.opensocial.createSpace.main,
+    {
+      body: { org: orgDid, type: FILE_SPACE_TYPE, roles: [MEMBER_ROLE] },
+    },
+  );
   return body.uri as SpaceRefString;
 }
 

@@ -296,9 +296,17 @@ func (s *Store) CreateSpace(
 		attribute.String("habitat.space.type", spaceType.String()),
 	))
 	defer func() { telemetry.End(span, err) }()
-	created, err := s.createSpace(ctx, orgDID, spaceType, skey, policy, opensocial_api.GroupOpensocialAccess{
-		Grants: readGrants(roles),
-	}, true)
+	created, err := s.createSpace(
+		ctx,
+		orgDID,
+		spaceType,
+		skey,
+		policy,
+		opensocial_api.GroupOpensocialAccess{
+			Grants: readGrants(roles),
+		},
+		true,
+	)
 	if err != nil {
 		return "", err
 	}
