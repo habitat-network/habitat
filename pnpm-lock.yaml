@@ -461,7 +461,7 @@ importers:
         version: link:../../internal
       iron-session:
         specifier: ^9.0.1
-        version: 9.1.0
+        version: 9.1.1
       lib0:
         specifier: ^0.2.117
         version: 0.2.120
@@ -612,7 +612,7 @@ importers:
         version: link:../../internal
       iron-session:
         specifier: ^9.0.1
-        version: 9.1.0
+        version: 9.1.1
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
@@ -760,7 +760,7 @@ importers:
         version: link:../../internal
       iron-session:
         specifier: ^9.0.1
-        version: 9.1.0
+        version: 9.1.1
       lib0:
         specifier: ^0.2.117
         version: 0.2.120
@@ -890,7 +890,7 @@ importers:
         version: link:../../internal
       iron-session:
         specifier: ^9.0.1
-        version: 9.1.0
+        version: 9.1.1
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
@@ -8481,8 +8481,8 @@ packages:
     resolution: {integrity: sha512-9VGk3HGanVE6JoZXHiCpnGy5X0jYDnN4EA4lntFPj+1vIWlFhIylq2CrrCOJH9EAhc5CYhq18F2Av2tgoAPsYQ==}
     engines: {node: '>= 10'}
 
-  iron-session@9.1.0:
-    resolution: {integrity: sha512-ev5xEgYgRcG3tSUMlX5i9fL/AedBYqDOnojk7Ihqs/scFDQ2u4FzwZybhYkJasCSKeIong128SCQlSbvWu9s0g==}
+  iron-session@9.1.1:
+    resolution: {integrity: sha512-3lp4fCD9hJlcN65n0C4hYFF3ZPcRnQlOI4foKachDiu6fnYhNG8qWUF7UXMKV6X8N8bCprBh+FnX/0ZoSOdgMg==}
     engines: {node: '>=22.13.0'}
 
   iron-webcrypto@2.0.0:
@@ -20758,7 +20758,7 @@ snapshots:
 
   ipaddr.js@2.4.0: {}
 
-  iron-session@9.1.0:
+  iron-session@9.1.1:
     dependencies:
       cookie: 2.0.1
       iron-webcrypto: 2.0.0
