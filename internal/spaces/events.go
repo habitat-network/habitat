@@ -183,7 +183,7 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 
 		var records []spaceRecord
 		if err := tx.Unscoped().Clauses(skipLocked).
-			Select("space", "repo", "collection", "rkey", "rev").
+			Select("space_owner", "space_type", "space_skey", "repo", "collection", "rkey", "rev").
 			Where("seq = 0").Order("rev ASC").Limit(sequenceBatchSize).
 			Find(&records).Error; err != nil {
 			return fmt.Errorf("list pending records: %w", err)
@@ -191,8 +191,7 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 		for _, r := range records {
 			head++
 			if err := tx.Unscoped().Model(&spaceRecord{}).
-				Where("space = ? AND repo = ? AND collection = ? AND rkey = ? AND rev = ?",
-					r.Space, r.Repo, r.Collection, r.Rkey, r.Rev).
+				Scopes(habitat_syntax.InSpace(r.Space)).Where("repo = ? AND collection = ? AND rkey = ? AND rev = ?", r.Repo, r.Collection, r.Rkey, r.Rev).
 				Update("seq", head).Error; err != nil {
 				return fmt.Errorf("sequence record: %w", err)
 			}
@@ -202,7 +201,7 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 		var remotes []spaceRemoteRecord
 		if room := sequenceBatchSize - len(records); room > 0 {
 			if err := tx.Unscoped().Clauses(skipLocked).
-				Select("space", "repo", "collection", "rkey", "rev").
+				Select("space_owner", "space_type", "space_skey", "repo", "collection", "rkey", "rev").
 				Where("seq = 0").Order("rev ASC").Limit(room).
 				Find(&remotes).Error; err != nil {
 				return fmt.Errorf("list pending remote records: %w", err)
@@ -213,8 +212,7 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 			// Matching the rev leaves a row a later fetch has rewritten since,
 			// pending again, for the next batch.
 			if err := tx.Unscoped().Model(&spaceRemoteRecord{}).
-				Where("space = ? AND repo = ? AND collection = ? AND rkey = ? AND rev = ?",
-					r.Space, r.Repo, r.Collection, r.Rkey, r.Rev).
+				Scopes(habitat_syntax.InSpace(r.Space)).Where("repo = ? AND collection = ? AND rkey = ? AND rev = ?", r.Repo, r.Collection, r.Rkey, r.Rev).
 				Update("seq", head).Error; err != nil {
 				return fmt.Errorf("sequence remote record: %w", err)
 			}
@@ -271,7 +269,7 @@ func (s *store) ListEvents(
 
 	recordQuery := db.Unscoped().Model(&spaceRecord{}).Where("seq >= ?", cursor)
 	if len(filter.Spaces) > 0 {
-		recordQuery = recordQuery.Where("space IN ?", filter.Spaces)
+		recordQuery = recordQuery.Where("(space_owner, space_type, space_skey) IN ?", spaceRefTuples(filter.Spaces))
 	}
 	if len(filter.Repos) > 0 {
 		recordQuery = recordQuery.Where("repo IN ?", filter.Repos)
@@ -287,7 +285,7 @@ func (s *store) ListEvents(
 	// Records external repos hold on their own PDSes, as fetched from there.
 	remoteQuery := db.Unscoped().Model(&spaceRemoteRecord{}).Where("seq >= ?", cursor)
 	if len(filter.Spaces) > 0 {
-		remoteQuery = remoteQuery.Where("space IN ?", filter.Spaces)
+		remoteQuery = remoteQuery.Where("(space_owner, space_type, space_skey) IN ?", spaceRefTuples(filter.Spaces))
 	}
 	if len(filter.Repos) > 0 {
 		remoteQuery = remoteQuery.Where("repo IN ?", filter.Repos)
@@ -406,4 +404,15 @@ func commitEvent(row spaceRecord) (CommitEvent, error) {
 	event.Value = value
 	event.Cid = c
 	return event, nil
+}
+
+// spaceRefTuples is the (owner, type, skey) of each space, for matching rows
+// with a row-value IN condition.
+func spaceRefTuples(spaces []habitat_syntax.SpaceURI) [][]any {
+	tuples := make([][]any, len(spaces))
+	for i, space := range spaces {
+		ref := space.Ref()
+		tuples[i] = []any{ref.Owner, ref.Type, ref.Skey}
+	}
+	return tuples
 }

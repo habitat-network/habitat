@@ -255,7 +255,7 @@ func (s *store) ListForRepo(
 	repo syntax.DID,
 ) ([]Registration, error) {
 	return s.list(s.db.WithContext(ctx).
-		Where("space = ?", space).
+		Scopes(habitat_syntax.InSpace(space)).
 		Where("repo = ? OR repo = ?", repo, ""))
 }
 
@@ -263,7 +263,7 @@ func (s *store) ListForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 ) ([]Registration, error) {
-	return s.list(s.db.WithContext(ctx).Where("space = ?", space))
+	return s.list(s.db.WithContext(ctx).Scopes(habitat_syntax.InSpace(space)))
 }
 
 // list runs query with the shared unexpired filter and maps rows to the public
@@ -413,7 +413,7 @@ func (s *store) ListWebhooks(
 	space habitat_syntax.SpaceURI,
 ) ([]Webhook, error) {
 	var rows []webhook
-	if err := s.db.WithContext(ctx).Where("space = ?", space).Find(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Scopes(habitat_syntax.InSpace(space)).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list webhooks: %w", err)
 	}
 	out := make([]Webhook, len(rows))
@@ -428,7 +428,7 @@ func (s *store) ListWebhooks(
 
 func (s *store) MarkWebhookExpiryNotified(ctx context.Context, w Webhook) error {
 	err := s.db.WithContext(ctx).Model(&webhook{}).
-		Where("space = ? AND endpoint = ? AND token = ?", w.Space, w.Endpoint, w.Token).
+		Scopes(habitat_syntax.InSpace(w.Space)).Where("endpoint = ? AND token = ?", w.Endpoint, w.Token).
 		Update("expiry_notified", true).Error
 	if err != nil {
 		return fmt.Errorf("mark webhook expiry notified: %w", err)
@@ -449,11 +449,53 @@ func (s *store) ClearSpaceDeleted(ctx context.Context, p PendingDeletion) error 
 func (s *store) pendingDeletion(ctx context.Context, p PendingDeletion) *gorm.DB {
 	return s.db.WithContext(ctx).
 		Model(&spaceDeletedDelivery{}).
-		Where("space = ? AND audience = ? AND retry_at = ?", p.Space, p.Audience, p.RetryAt)
+		Scopes(habitat_syntax.InSpace(p.Space)).Where("audience = ? AND retry_at = ?", p.Audience, p.RetryAt)
 }
 
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
 	return []any{&registration{}, &spaceDeletedDelivery{}, &webhook{}}
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *registration) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *registration) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *webhook) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *webhook) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *spaceDeletedDelivery) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *spaceDeletedDelivery) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
 }

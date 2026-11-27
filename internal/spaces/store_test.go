@@ -1815,3 +1815,26 @@ func TestWritesStoreValueJSON(t *testing.T) {
 		require.Equal(t, parsed["text"], text)
 	}
 }
+
+func TestPutRecord_StoresSpaceURIParts(t *testing.T) {
+	db := db_testutil.NewDB(t, spaces.Models())
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
+
+	space, err := s.CreateSpace(t.Context(), orgID, groupType, "k")
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(
+		t.Context(), space, orgID, "network.habitat.note", "r1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
+	require.NoError(t, err)
+
+	for _, table := range []string{"space_records", "space_repos"} {
+		var owner, spaceType, skey string
+		require.NoError(t, db.Raw(
+			"SELECT space_owner, space_type, space_skey FROM "+table,
+		).Row().Scan(&owner, &spaceType, &skey), table)
+		require.Equal(t, orgID.String(), owner, table)
+		require.Equal(t, groupType.String(), spaceType, table)
+		require.Equal(t, "k", skey, table)
+	}
+}
