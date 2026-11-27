@@ -132,6 +132,9 @@ overrides:
   '@atproto/lex-resolver': 0.0.0-spaces-alpha-20261124235736
   '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
 
+patchedDependencies:
+  '@atproto/lex-schema@0.0.0-spaces-alpha-20261124235736': 2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781
+
 importers:
 
   .:
@@ -12634,7 +12637,7 @@ snapshots:
   '@atproto/lex-builder@0.0.0-spaces-alpha-20261124235736':
     dependencies:
       '@atproto/lex-document': 0.0.0-spaces-alpha-20261124235736
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
+      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)
       prettier: 3.10.1
       ts-morph: 27.0.2
       tslib: 2.8.1
@@ -12650,7 +12653,7 @@ snapshots:
     dependencies:
       '@atproto/lex-data': 0.1.11
       '@atproto/lex-rpc': 0.0.0-spaces-alpha-20261124235736
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
+      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)
       tslib: 2.8.1
     transitivePeerDependencies:
       - bufferutil
@@ -12665,7 +12668,7 @@ snapshots:
   '@atproto/lex-document@0.0.0-spaces-alpha-20261124235736':
     dependencies:
       '@atproto/lex-data': 0.1.11
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
+      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)
       tslib: 2.8.1
 
   '@atproto/lex-installer@0.0.0-spaces-alpha-20261124235736':
@@ -12680,7 +12683,7 @@ snapshots:
       '@atproto/lex-document': 0.0.0-spaces-alpha-20261124235736
       '@atproto/lex-resolver': 0.0.0-spaces-alpha-20261124235736
       '@atproto/lex-rpc': 0.0.0-spaces-alpha-20261124235736
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
+      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)
       '@atproto/syntax': 0.0.0-spaces-alpha-20261124235736
       prettier: 3.10.1
       tslib: 2.8.1
@@ -12701,7 +12704,7 @@ snapshots:
       '@atproto/lex-data': 0.1.11
       '@atproto/lex-document': 0.0.0-spaces-alpha-20261124235736
       '@atproto/lex-rpc': 0.0.0-spaces-alpha-20261124235736
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
+      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)
       '@atproto/repo': 0.0.0-spaces-alpha-20261124235736
       '@atproto/syntax': 0.0.0-spaces-alpha-20261124235736
       tslib: 2.8.1
@@ -12714,14 +12717,14 @@ snapshots:
       '@atproto/lex-cbor': 0.1.11
       '@atproto/lex-data': 0.1.11
       '@atproto/lex-json': 0.1.10
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
+      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)
       '@atproto/ws-client': 0.0.0-spaces-alpha-20261124235736
       tslib: 2.8.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@atproto/lex-schema@0.0.0-spaces-alpha-20261124235736':
+  '@atproto/lex-schema@0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)':
     dependencies:
       '@atproto/lex-data': 0.1.11
       '@atproto/syntax': 0.0.0-spaces-alpha-20261124235736
@@ -12737,7 +12740,7 @@ snapshots:
       '@atproto/lex-data': 0.1.11
       '@atproto/lex-json': 0.1.10
       '@atproto/lex-rpc': 0.0.0-spaces-alpha-20261124235736
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
+      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)
       http-terminator: 3.2.0
       tslib: 2.8.1
       ws: 8.21.3
@@ -12754,7 +12757,7 @@ snapshots:
       '@atproto/lex-installer': 0.0.0-spaces-alpha-20261124235736
       '@atproto/lex-json': 0.1.10
       '@atproto/lex-rpc': 0.0.0-spaces-alpha-20261124235736
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
+      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)
       tslib: 2.8.1
       yargs: 18.2.0
     transitivePeerDependencies:
@@ -12828,7 +12831,7 @@ snapshots:
       '@atproto/crypto': 0.0.0-spaces-alpha-20261124235736
       '@atproto/lex-cbor': 0.1.11
       '@atproto/lex-data': 0.1.11
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736
+      '@atproto/lex-schema': 0.0.0-spaces-alpha-20261124235736(patch_hash=2b6f10bf1beeade004cb63b7b8e5857eb85435dbafc2ea24ccecf1a0c328f781)
       '@atproto/star': 0.0.1
       '@atproto/syntax': 0.0.0-spaces-alpha-20261124235736
       '@noble/hashes': 1.8.0
