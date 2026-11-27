@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-
 	"github.com/habitat-network/habitat/api/comatproto"
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/authn"
