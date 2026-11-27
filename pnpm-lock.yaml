@@ -1142,7 +1142,7 @@ importers:
     devDependencies:
       '@effect/vitest':
         specifier: ^4.0.2
-        version: 4.1.5(effect@4.1.6)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
+        version: 4.1.6(effect@4.1.6)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
       '@tailwindcss/typography':
         specifier: 'catalog:'
         version: 0.5.20(tailwindcss@4.3.5)
@@ -2842,10 +2842,10 @@ packages:
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
 
-  '@effect/vitest@4.1.5':
-    resolution: {integrity: sha512-18u1013wkJtSelk1ZYLc/5aUnluTQyDfi2hAemkJW1GQ9qXw4mtPSiSf0AXZPhesmGCvG1Dk2C4JYD2sz+R72w==}
+  '@effect/vitest@4.1.6':
+    resolution: {integrity: sha512-Knb13gPhDbtOuNUnPXE/Sl+UvrKFHRATwU2vy+DGQCpjK1yI3oy1feQo1g2X8ZdOdc63sJB7HJXCMNsDy8xYvg==}
     peerDependencies:
-      effect: ^4.1.5
+      effect: ^4.1.6
       vitest: '>=5.0.0 <6.0.0'
 
   '@emnapi/core@1.11.2':
@@ -15116,7 +15116,7 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@effect/vitest@4.1.5(effect@4.1.6)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
+  '@effect/vitest@4.1.6(effect@4.1.6)(vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
     dependencies:
       effect: 4.1.6
       vitest: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(jsdom@30.1.3(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
