@@ -195,6 +195,8 @@ type Store interface {
 	// ErrSpaceNotFound.
 	SetSpacePolicy(ctx context.Context, uri habitat_syntax.SpaceURI, policy Policy) error
 	setGroupSpacePolicy(ctx context.Context, uri habitat_syntax.SpaceURI, policy Policy) error
+	syncGroupSpaceIndex(ctx context.Context, uri habitat_syntax.SpaceURI) error
+	listGroupWriterSpaces(ctx context.Context, group, writer syntax.DID) ([]groupWriterSpace, error)
 	// IsSpaceDeleted reports whether the space was deleted and hasn't been
 	// recreated since. A space that never existed is not deleted.
 	IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
