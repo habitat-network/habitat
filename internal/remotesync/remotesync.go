@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -88,6 +89,10 @@ const (
 	// none is stored until the whole run is verified against the commit.
 	maxOps      = 100_000
 	listRepoOps = "com.atproto.space.listRepoOps"
+	// Limits apply after HTTP decompression and across the entire sync.
+	maxPageBytes = 32 << 20
+	maxSyncBytes = 128 << 20
+	maxSyncTime  = time.Minute
 )
 
 // repoKey names one external writer of one space.
@@ -241,6 +246,8 @@ func (s *Syncer) Sync(
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 ) (err error) {
+	ctx, cancel := context.WithTimeout(ctx, maxSyncTime)
+	defer cancel()
 	ctx, span := tracer.Start(ctx, "remotesync.Sync", trace.WithAttributes(
 		telemetry.Space(space),
 		telemetry.Repo(repo),
@@ -260,14 +267,15 @@ func (s *Syncer) Sync(
 		return err
 	}
 
-	result, err := reader.fetch(ctx, remote.SyncedRev, remote.State)
+	remaining := int64(maxSyncBytes)
+	result, err := reader.fetch(ctx, remote.SyncedRev, remote.State, &remaining)
 	if remote.SyncedRev != "" && (errors.Is(err, errRevNotFound) || errors.Is(err, ErrInvalidOps)) {
 		// The stored position doesn't lead to the repo's head: start over.
 		span.AddEvent(
 			"rebuild",
 			trace.WithAttributes(attribute.String("habitat.cause", err.Error())),
 		)
-		result, err = reader.fetch(ctx, "", spacecommit.LtHash{})
+		result, err = reader.fetch(ctx, "", spacecommit.LtHash{}, &remaining)
 	}
 	if err != nil {
 		return err
@@ -354,18 +362,29 @@ func (r *repoReader) fetch(
 	ctx context.Context,
 	since syntax.TID,
 	state spacecommit.LtHash,
+	remaining *int64,
 ) (spaces.RemoteSync, error) {
 	result := spaces.RemoteSync{Rev: since, State: state, Rebuild: since == ""}
-	var head *spacecommit.Commit
+	var cursor string
+	seen := map[string]struct{}{}
 	for {
-		page, commit, err := r.listRepoOps(ctx, result.Rev)
+		page, commit, err := r.listRepoOps(ctx, since, cursor, remaining)
 		if err != nil {
 			return spaces.RemoteSync{}, err
+		}
+		if len(page.Ops) > pageSize || len(result.Ops)+len(page.Ops) > maxOps {
+			return spaces.RemoteSync{}, fmt.Errorf("%w: too many ops to fetch", ErrInvalidOps)
 		}
 		for _, entry := range page.Ops {
 			op, err := remoteOp(entry)
 			if err != nil {
 				return spaces.RemoteSync{}, err
+			}
+			if op.Rev <= since || op.Rev < result.Rev {
+				return spaces.RemoteSync{}, fmt.Errorf(
+					"%w: oplog revisions out of order",
+					ErrInvalidOps,
+				)
 			}
 			if op.Prev != "" {
 				result.State.Remove(spacecommit.RecordElement(op.Collection, op.Rkey, op.Prev))
@@ -376,27 +395,28 @@ func (r *repoReader) fetch(
 			result.Ops = append(result.Ops, op)
 			result.Rev = op.Rev
 		}
-		if len(result.Ops) > maxOps {
-			return spaces.RemoteSync{}, fmt.Errorf("more than %d ops to fetch", maxOps)
+		if page.Cursor == "" && commit != nil && commit.Matches(&result.State) {
+			rev, err := syntax.ParseTID(commit.Rev)
+			if err != nil || rev < result.Rev {
+				return spaces.RemoteSync{}, ErrInvalidOps
+			}
+			result.Rev = rev
+			return result, nil
 		}
-		if commit != nil {
-			head = commit
+		if page.Cursor == "" || len(page.Ops) == 0 || len(page.Cursor) > 1024 {
+			// An empty initial response has nothing to import. Never store
+			// an operation or advance an existing projection without a MAC.
+			if commit == nil && page.Cursor == "" && len(result.Ops) == 0 && since == "" {
+				return result, nil
+			}
+			return spaces.RemoteSync{}, ErrInvalidOps
 		}
-		if page.Cursor == "" || len(page.Ops) == 0 {
-			break
+		if _, ok := seen[page.Cursor]; ok {
+			return spaces.RemoteSync{}, fmt.Errorf("%w: repeated oplog cursor", ErrInvalidOps)
 		}
+		seen[page.Cursor] = struct{}{}
+		cursor = page.Cursor
 	}
-	if head == nil {
-		// The oplog's head was never reached: the repo has no commit yet.
-		return result, nil
-	}
-	if !head.Matches(&result.State) {
-		return spaces.RemoteSync{}, ErrInvalidOps
-	}
-	if rev, err := syntax.ParseTID(head.Rev); err == nil && rev > result.Rev {
-		result.Rev = rev
-	}
-	return result, nil
 }
 
 // listRepoOps reads one page of ops after since, returning the commit when
@@ -404,6 +424,8 @@ func (r *repoReader) fetch(
 func (r *repoReader) listRepoOps(
 	ctx context.Context,
 	since syntax.TID,
+	cursor string,
+	remaining *int64,
 ) (comatproto.ComAtprotoSpaceListRepoOpsOutput, *spacecommit.Commit, error) {
 	var out comatproto.ComAtprotoSpaceListRepoOpsOutput
 	keyShare, secret, err := spacecommit.Encapsulate(r.kem)
@@ -420,6 +442,9 @@ func (r *repoReader) listRepoOps(
 	if since != "" {
 		q.Set("since", since.String())
 	}
+	if cursor != "" {
+		q.Set("cursor", cursor)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		r.pds+"/xrpc/"+listRepoOps+"?"+q.Encode(), http.NoBody)
 	if err != nil {
@@ -433,24 +458,33 @@ func (r *repoReader) listRepoOps(
 	if err := httpsig.Sign(req, r.bindKey, "authorization", "atproto-space-audience"); err != nil {
 		return out, nil, fmt.Errorf("sign request: %w", err)
 	}
-	resp, err := r.httpc.Do(req)
+	client := *r.httpc
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := client.Do(req)
 	if err != nil {
 		return out, nil, fmt.Errorf("list repo ops: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		var body struct {
-			Error   string `json:"error"`
-			Message string `json:"message"`
+			Error string `json:"error"`
 		}
-		_ = json.NewDecoder(resp.Body).Decode(&body)
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body)
 		if body.Error == "RevNotFound" {
 			return out, nil, errRevNotFound
 		}
-		return out, nil, fmt.Errorf("list repo ops: %s: %s %s",
-			resp.Status, body.Error, body.Message)
+		return out, nil, fmt.Errorf("list repo ops: HTTP %d", resp.StatusCode)
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	limit := min(int64(maxPageBytes), *remaining)
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return out, nil, fmt.Errorf("read list repo ops: %w", err)
+	}
+	if int64(len(raw)) > limit {
+		return out, nil, errors.New("list repo ops exceeded response byte budget")
+	}
+	*remaining -= int64(len(raw))
+	if err := json.Unmarshal(raw, &out); err != nil {
 		return out, nil, fmt.Errorf("decode list repo ops: %w", err)
 	}
 	if out.Commit == nil {
