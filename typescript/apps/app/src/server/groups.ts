@@ -175,11 +175,7 @@ export const listRoles = Effect.fn("listRoles")(function* (
   did: string,
   org: string,
 ) {
-  const records = yield* listGroupRecords(
-    did,
-    org,
-    "group.opensocial.role",
-  );
+  const records = yield* listGroupRecords(did, org, "group.opensocial.role");
   return records.map((r): RoleView => ({
     id: r.rkey,
     name:
@@ -216,8 +212,7 @@ export function assignableWith(
 }
 
 export type ActionBinding = group.opensocial.permissions.ActionBinding;
-export type AssignableBinding =
-  group.opensocial.permissions.AssignableBinding;
+export type AssignableBinding = group.opensocial.permissions.AssignableBinding;
 
 export interface PermissionsView {
   // Whether the group has a permissions record at all. Without one, pear

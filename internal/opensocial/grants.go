@@ -151,7 +151,10 @@ func withReadRoles(
 			scopes = append([]string{ReadScope}, scopes...)
 		}
 		if len(scopes) > 0 {
-			out = append(out, opensocial_api.GroupOpensocialDefsSpaceGrant{Role: grant.Role, Scopes: scopes})
+			out = append(
+				out,
+				opensocial_api.GroupOpensocialDefsSpaceGrant{Role: grant.Role, Scopes: scopes},
+			)
 		}
 	}
 	for _, role := range roles {

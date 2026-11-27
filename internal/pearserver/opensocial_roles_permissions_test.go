@@ -144,6 +144,73 @@ func TestServer_UpdatePermissions(t *testing.T) {
 	})
 }
 
+func TestServer_UpdatePermissionsEscalationAndBadInput(t *testing.T) {
+	client := httpx_testutil.NewTestXRPCClient(t)
+
+	t.Run("a delegate cannot bind a scope it does not hold", func(t *testing.T) {
+		ts := newOpenSocialServer(t, alice)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+		org := syntax.DID(orgDID)
+		require.NoError(t, ts.OpenSocialStore.AssignRoles(
+			t.Context(), org, alice, []string{opensocial.MemberRoleRkey},
+		))
+		// alice may reconfigure the group but holds no other action's scopes.
+		require.NoError(t, ts.OpenSocialStore.PutPermissions(
+			t.Context(), org,
+			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
+				{
+					Action: string(opensocial.ActionCommunityConfigure),
+					Roles:  []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
+				},
+				{
+					Action: string(opensocial.ActionMcpConfigure),
+					Roles:  []string{opensocial.AdminRoleRkey},
+				},
+			},
+			[]habitat.NetworkHabitatOpensocialDefsAssignableBinding{
+				{Role: opensocial.MemberRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},
+				{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.AdminRoleRkey}},
+			},
+		))
+
+		var out struct{}
+		code := client.Procedure(
+			ts.Server.UpdatePermissions,
+			habitat.NetworkHabitatOpensocialUpdatePermissionsInput{
+				Org: orgDID,
+				Bindings: []habitat.NetworkHabitatOpensocialDefsActionBinding{
+					{
+						Action: string(opensocial.ActionCommunityConfigure),
+						Roles:  []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
+					},
+					{
+						Action: string(opensocial.ActionMcpConfigure),
+						Roles:  []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
+					},
+				},
+				Assignable: []habitat.NetworkHabitatOpensocialDefsAssignableBinding{
+					{Role: opensocial.MemberRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},
+					{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.AdminRoleRkey}},
+				},
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusUnauthorized, code)
+	})
+
+	t.Run("an invalid org is refused", func(t *testing.T) {
+		ts := newOpenSocialServer(t, admin)
+		var out struct{}
+		code := client.Procedure(
+			ts.Server.UpdatePermissions,
+			habitat.NetworkHabitatOpensocialUpdatePermissionsInput{Org: "not-a-did"},
+			&out,
+		)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+}
+
 func TestServer_AssignRoles(t *testing.T) {
 	client := httpx_testutil.NewTestXRPCClient(t)
 
