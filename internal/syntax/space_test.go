@@ -99,9 +99,10 @@ func TestSpaceURIAccessorsReturnEmptyForInvalidURI(t *testing.T) {
 	require.Empty(t, uri.Skey())
 
 	uri = SpaceURI("at://not-a-did/space/network.habitat.space/my-space")
+	// indigo validates the whole ref, so one bad part empties every accessor.
 	require.Empty(t, uri.SpaceOwner())
-	require.Equal(t, "network.habitat.space", uri.SpaceType().String())
-	require.Equal(t, SpaceKey("my-space"), uri.Skey())
+	require.Empty(t, uri.SpaceType())
+	require.Empty(t, uri.Skey())
 
 	uri = SpaceURI("at://did:plc:abc123/space/not_a_nsid/my-space")
 	require.Empty(t, uri.SpaceType())

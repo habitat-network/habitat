@@ -18,7 +18,7 @@ func FetchFollowers(ctx context.Context, did syntax.DID) ([]syntax.DID, error) {
 		Host: host,
 	}
 
-	output, err := bsky.GraphGetFollowers(ctx, client, did.String(), "", 0)
+	output, err := bsky.GraphGetFollowers(ctx, client, did.String(), "", 0, "")
 	if err != nil {
 		return nil, err
 	}
