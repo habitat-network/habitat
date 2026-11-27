@@ -114,11 +114,7 @@ export const listMembers = Effect.fn("listMembers")(function* (
   did: string,
   org: string,
 ) {
-  const memberships = yield* listGroupRecords(
-    did,
-    org,
-    "org.atgrp.membership",
-  );
+  const memberships = yield* listGroupRecords(did, org, "org.atgrp.membership");
   const profiles = yield* getProfiles(
     did,
     org,
@@ -236,7 +232,9 @@ export const readPermissions = Effect.fn("readPermissions")(function* (
   const records = yield* listGroupRecords(did, org, "org.atgrp.role");
   return {
     exists: records.length > 0,
-    ...permissionsFromRoles(records.map((r) => ({ rkey: r.rkey, value: r.value }))),
+    ...permissionsFromRoles(
+      records.map((r) => ({ rkey: r.rkey, value: r.value })),
+    ),
   } satisfies PermissionsView;
 });
 
