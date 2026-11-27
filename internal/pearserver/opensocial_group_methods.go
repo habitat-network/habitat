@@ -1,10 +1,14 @@
 package pearserver
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -232,11 +236,207 @@ func (p *PearServer) GroupRequestJoin(w http.ResponseWriter, r *http.Request) {
 		}
 		httpx.WriteJSON(ctx, w, out)
 	case "approval":
-		httpx.WriteError(
-			ctx, w, "NotImplemented",
-			opensocial.ErrJoinNeedsApproval.Error(), http.StatusNotImplemented,
+		req, err := p.opensocialStore.CreateJoinRequest(
+			ctx, group, credInfo.Subject, input.Message,
 		)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("create join request: %w", err))
+			return
+		}
+		view := joinRequestView(req)
+		httpx.WriteJSON(ctx, w, opensocial_api.GroupOpensocialRequestJoinOutput{
+			Status: "pending", Request: &view,
+		})
 	default:
 		httpx.WriteError(ctx, w, "JoinClosed", opensocial.ErrJoinClosed.Error(), http.StatusForbidden)
+	}
+}
+
+// rpcScope is the scope that grants a group method call.
+func rpcScope(lxm string) string { return "rpc:" + lxm }
+
+// requireGroupRPC checks that actor holds the rpc scope for lxm in group.
+func (p *PearServer) requireGroupRPC(
+	w http.ResponseWriter,
+	r *http.Request,
+	group, actor syntax.DID,
+	lxm string,
+) bool {
+	scopes, err := p.opensocialStore.UserScopes(r.Context(), group, actor)
+	if err != nil {
+		httpx.WriteServerError(r.Context(), w, fmt.Errorf("user scopes: %w", err))
+		return false
+	}
+	if !scopes.Covers(rpcScope(lxm)) {
+		httpx.WriteUnauthorized(
+			r.Context(), w, fmt.Sprintf("caller does not hold the %s scope", lxm), nil,
+		)
+		return false
+	}
+	return true
+}
+
+func joinRequestView(req opensocial.JoinRequest) opensocial_api.GroupOpensocialDefsJoinRequest {
+	return opensocial_api.GroupOpensocialDefsJoinRequest{
+		Member:    string(req.Member),
+		Message:   req.Message,
+		CreatedAt: req.CreatedAt.UTC().Format(time.RFC3339Nano),
+	}
+}
+
+// GroupListJoinRequests implements group.opensocial.listJoinRequests.
+func (p *PearServer) GroupListJoinRequests(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var group *syntax.DID
+	if raw := r.URL.Query().Get("group"); raw != "" {
+		parsed, ok := httpx.ParseDIDInput(ctx, w, raw, "group")
+		if !ok {
+			return
+		}
+		group = &parsed
+	}
+	actor, ok := p.groupActor(w, r, group)
+	if !ok {
+		return
+	}
+	target := actor
+	if group != nil {
+		target = *group
+	}
+	if !p.requireGroupRPC(w, r, target, actor, "group.opensocial.listJoinRequests") {
+		return
+	}
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 100 {
+			httpx.WriteInvalidRequest(ctx, w, "limit must be 1 to 100", err)
+			return
+		}
+		limit = n
+	}
+	var after *opensocial.JoinRequest
+	if raw := r.URL.Query().Get("cursor"); raw != "" {
+		cursor, err := decodeJoinRequestCursor(raw)
+		if err != nil {
+			httpx.WriteError(ctx, w, "InvalidCursor", "", http.StatusBadRequest)
+			return
+		}
+		after = &cursor
+	}
+	requests, err := p.opensocialStore.ListJoinRequests(ctx, target, limit, after)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list join requests: %w", err))
+		return
+	}
+	out := opensocial_api.GroupOpensocialListJoinRequestsOutput{
+		Requests: make([]opensocial_api.GroupOpensocialDefsJoinRequest, len(requests)),
+	}
+	for i, req := range requests {
+		out.Requests[i] = joinRequestView(req)
+	}
+	if len(requests) == limit {
+		out.Cursor = encodeJoinRequestCursor(requests[len(requests)-1])
+	}
+	httpx.WriteJSON(ctx, w, out)
+}
+
+func encodeJoinRequestCursor(req opensocial.JoinRequest) string {
+	return base64.RawURLEncoding.EncodeToString(
+		[]byte(strconv.FormatInt(req.CreatedAt.UnixNano(), 10) + "|" + string(req.Member)),
+	)
+}
+
+func decodeJoinRequestCursor(raw string) (opensocial.JoinRequest, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return opensocial.JoinRequest{}, err
+	}
+	nanos, member, ok := strings.Cut(string(decoded), "|")
+	if !ok {
+		return opensocial.JoinRequest{}, errors.New("malformed cursor")
+	}
+	n, err := strconv.ParseInt(nanos, 10, 64)
+	if err != nil {
+		return opensocial.JoinRequest{}, err
+	}
+	return opensocial.JoinRequest{CreatedAt: time.Unix(0, n).UTC(), Member: syntax.DID(member)}, nil
+}
+
+// GroupDenyJoinRequest implements group.opensocial.denyJoinRequest.
+func (p *PearServer) GroupDenyJoinRequest(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var input struct {
+		opensocial_api.GroupOpensocialDenyJoinRequestInput
+		// Group names the group; a group's own OAuth session may omit it.
+		Group string `json:"group"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
+		return
+	}
+	var named *syntax.DID
+	if input.Group != "" {
+		group, ok := httpx.ParseDIDInput(ctx, w, input.Group, "group")
+		if !ok {
+			return
+		}
+		named = &group
+	}
+	member, ok := httpx.ParseDIDInput(ctx, w, input.Member, "member")
+	if !ok {
+		return
+	}
+	actor, ok := p.groupActor(w, r, named)
+	if !ok {
+		return
+	}
+	group := actor
+	if named != nil {
+		group = *named
+	}
+	if !p.requireGroupRPC(w, r, group, actor, "group.opensocial.denyJoinRequest") {
+		return
+	}
+	err := p.opensocialStore.DeleteJoinRequest(ctx, group, member)
+	switch {
+	case errors.Is(err, opensocial.ErrJoinRequestNotFound):
+		httpx.WriteError(ctx, w, "JoinRequestNotFound", "", http.StatusNotFound)
+	case err != nil:
+		httpx.WriteServerError(ctx, w, fmt.Errorf("deny join request: %w", err))
+	}
+}
+
+// GroupCancelJoinRequest implements group.opensocial.cancelJoinRequest.
+func (p *PearServer) GroupCancelJoinRequest(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := p.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodServiceAuth),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	var input opensocial_api.GroupOpensocialCancelJoinRequestInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
+		return
+	}
+	group, ok := httpx.ParseDIDInput(ctx, w, input.Group, "group")
+	if !ok {
+		return
+	}
+	if _, err := p.opensocialStore.JoinPolicy(ctx, group); errors.Is(err, opensocial.ErrGroupNotFound) {
+		httpx.WriteError(ctx, w, "GroupNotFound", "", http.StatusNotFound)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("join policy: %w", err))
+		return
+	}
+	err := p.opensocialStore.DeleteJoinRequest(ctx, group, credInfo.Subject)
+	switch {
+	case errors.Is(err, opensocial.ErrJoinRequestNotFound):
+		httpx.WriteError(ctx, w, "JoinRequestNotFound", "", http.StatusNotFound)
+	case err != nil:
+		httpx.WriteServerError(ctx, w, fmt.Errorf("cancel join request: %w", err))
 	}
 }

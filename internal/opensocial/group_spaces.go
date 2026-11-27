@@ -28,9 +28,6 @@ var (
 	// ErrJoinClosed is returned when a group is invite-only and the caller has
 	// no invitation.
 	ErrJoinClosed = errors.New("the group is invite-only")
-	// ErrJoinNeedsApproval is returned for groups that approve joins, which
-	// this host does not yet queue.
-	ErrJoinNeedsApproval = errors.New("join requests are not supported yet")
 )
 
 func isReservedSpaceType(spaceType syntax.NSID) bool {
@@ -220,6 +217,9 @@ func (s *Store) Admit(ctx context.Context, orgDID, member syntax.DID) (StrongRef
 	}
 	ref, err := putMembershipRef(ctx, s.spacesStore, orgDID, member, roles)
 	if err != nil {
+		return StrongRef{}, nil, err
+	}
+	if err := s.clearJoinRequest(ctx, orgDID, member); err != nil {
 		return StrongRef{}, nil, err
 	}
 	return ref, roles, nil

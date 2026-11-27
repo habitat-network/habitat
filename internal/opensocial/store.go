@@ -554,7 +554,11 @@ func (s *Store) AssignRoles(
 		syntax.RecordKey(user),
 		recordBytes,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	// Writing a membership approves any pending request to join.
+	return s.clearJoinRequest(ctx, orgDID, user)
 }
 
 func (s *Store) CheckPermission(
@@ -936,5 +940,5 @@ func (s *Store) SeedMemberProfile(
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&inviteRow{}}
+	return []any{&inviteRow{}, &joinRequestRow{}}
 }
