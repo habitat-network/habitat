@@ -431,7 +431,13 @@ func (p *PearServer) GroupCancelJoinRequest(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if _, err := p.opensocialStore.JoinPolicy(ctx, group); errors.Is(err, opensocial.ErrGroupNotFound) {
+	if _, err := p.opensocialStore.JoinPolicy(
+		ctx,
+		group,
+	); errors.Is(
+		err,
+		opensocial.ErrGroupNotFound,
+	) {
 		httpx.WriteError(ctx, w, "GroupNotFound", "", http.StatusNotFound)
 		return
 	} else if err != nil {
