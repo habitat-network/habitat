@@ -1,6 +1,7 @@
 package spaces
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -892,7 +893,9 @@ func (s *store) RemoveWriter(
 	}
 	if removed {
 		// Best-effort: tell registered syncers, as a write does.
-		s.notifier.NotifyWriterRemoved(ctx, uri, repo, spaceRev, prevSpaceRev)
+		s.notify(ctx, func(ctx context.Context, n Notifier) {
+			n.NotifyWriterRemoved(ctx, uri, repo, spaceRev, prevSpaceRev)
+		})
 	}
 	return nil
 }
@@ -1002,7 +1005,11 @@ func (s *store) RegisterRemoteWrite(
 	}
 
 	// Best-effort: forward to registered syncers, same as a local write.
-	s.notifier.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
+	// The caller owns hash and may reuse its buffer before the outer commit.
+	hash = bytes.Clone(hash)
+	s.notify(ctx, func(ctx context.Context, n Notifier) {
+		n.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
+	})
 	return nil
 }
 
@@ -1178,7 +1185,9 @@ func (s *store) PutRecord(
 	)...)
 	if !skipped {
 		// Best-effort: notify registered syncers that this repo advanced.
-		s.notifier.NotifyWrite(ctx, spaceURI, repo, newRev, repoHash, spaceRev, prevSpaceRev)
+		s.notify(ctx, func(ctx context.Context, n Notifier) {
+			n.NotifyWrite(ctx, spaceURI, repo, newRev, repoHash, spaceRev, prevSpaceRev)
+		})
 	}
 	return recordURI, &newCid, nil
 }
@@ -1486,7 +1495,9 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 	}
 	// Tell registered syncers the space is gone. The notifier persists and
 	// retries the deliveries; see notify.Deliverer.
-	s.notifier.NotifySpaceDeleted(ctx, uri)
+	s.notify(ctx, func(ctx context.Context, n Notifier) {
+		n.NotifySpaceDeleted(ctx, uri)
+	})
 	return nil
 }
 
@@ -1712,7 +1723,9 @@ func (s *store) DeleteRecord(
 	if rev != "" {
 		span.SetAttributes(telemetry.Rev(rev.String()))
 		// Best-effort: notify registered syncers that this repo advanced.
-		s.notifier.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
+		s.notify(ctx, func(ctx context.Context, n Notifier) {
+			n.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
+		})
 	}
 	return nil
 }
@@ -1968,7 +1981,9 @@ func (s *store) ApplyWrites(
 	if headRev != "" {
 		span.SetAttributes(telemetry.Rev(headRev.String()))
 		// Best-effort: notify registered syncers that this repo advanced.
-		s.notifier.NotifyWrite(ctx, spaceURI, repo, headRev, headHash, spaceRev, prevSpaceRev)
+		s.notify(ctx, func(ctx context.Context, n Notifier) {
+			n.NotifyWrite(ctx, spaceURI, repo, headRev, headHash, spaceRev, prevSpaceRev)
+		})
 	}
 	return results, nil
 }
