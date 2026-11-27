@@ -1781,7 +1781,7 @@ func TestStoreRemoveWriterNotifiesWithAdvancedSpaceRev(t *testing.T) {
 }
 
 // TestWritesStoreValueJSON checks that PutRecord and ApplyWrites write the
-// record's JSON alongside its CBOR value.
+// record's JSON.
 func TestWritesStoreValueJSON(t *testing.T) {
 	db := db_testutil.NewDB(t, spaces.Models())
 	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
@@ -1817,8 +1817,8 @@ func TestWritesStoreValueJSON(t *testing.T) {
 	}
 }
 
-// TestReadsUseValueJSON checks that reads come from the JSON column, and that the
-// repo snapshot rebuilds CBOR blocks matching each record's CID from it.
+// TestReadsUseValueJSON checks that reads come from the JSON column and that
+// the repo snapshot rebuilds CBOR blocks matching each record's CID from it.
 func TestReadsUseValueJSON(t *testing.T) {
 	db := db_testutil.NewDB(t, spaces.Models())
 	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))

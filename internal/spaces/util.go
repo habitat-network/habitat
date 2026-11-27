@@ -57,11 +57,11 @@ func (r spaceRecord) decode() (map[string]any, error) {
 	return atdata.UnmarshalJSON(r.ValueJSON)
 }
 
-// cbor returns the record's DAG-CBOR block bytes. When they are rebuilt from
-// the JSON column the result must hash to the record's stored CID, since the
-// CID commits to those exact bytes.
+// cbor returns the record's DAG-CBOR block bytes, rebuilt from the JSON
+// column. The result must hash to the record's stored CID, since the CID
+// commits to those exact bytes.
 func (r spaceRecord) cbor() ([]byte, error) {
-	record, err := atdata.UnmarshalJSON(r.ValueJSON)
+	record, err := r.decode()
 	if err != nil {
 		return nil, fmt.Errorf("decode record json: %w", err)
 	}

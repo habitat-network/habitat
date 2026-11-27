@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
 	"go.opentelemetry.io/otel/attribute"
@@ -395,7 +394,7 @@ func commitEvent(row spaceRecord) (CommitEvent, error) {
 	if row.PrevCid == "" {
 		event.Operation = WriteCreate
 	}
-	value, err := atdata.UnmarshalCBOR(row.Value)
+	value, err := row.decode()
 	if err != nil {
 		return CommitEvent{}, fmt.Errorf("decode record %s: %w", row.Rev, err)
 	}

@@ -62,9 +62,8 @@ type spaceRecord struct {
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
-	Value      []byte
-	// ValueJSON is the same record as JSON in the native JSON column, written
-	// alongside Value. Reads use it; the backfill filled it for older rows.
+	// ValueJSON is the record as JSON in the database's native JSON type. The
+	// record's DAG-CBOR block is rebuilt from it when needed (see cbor).
 	ValueJSON datatypes.JSON
 	Rev       syntax.TID `gorm:"uniqueIndex"`
 	Cid       string
@@ -1143,7 +1142,6 @@ func (s *store) PutRecord(
 			Space:      spaceURI,
 			Collection: collection,
 			Rkey:       rkey,
-			Value:      value,
 			ValueJSON:  valueJSON,
 			Rev:        tid,
 			PrevCid:    existing.Cid,
@@ -1856,7 +1854,6 @@ func (s *store) ApplyWrites(
 					Space:      spaceURI,
 					Collection: w.Collection,
 					Rkey:       rkey,
-					Value:      w.Value,
 					ValueJSON:  valueJSON,
 					Rev:        rev,
 					PrevCid:    existing.Cid,

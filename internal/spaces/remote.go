@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gorm.io/datatypes"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -290,12 +291,21 @@ func deleteUntouched(
 
 // remoteCommitEvent is a fetched record's latest write as an event.
 func remoteCommitEvent(row spaceRemoteRecord) (CommitEvent, error) {
+	// Remote records keep their CBOR value; the event path reads JSON.
+	var valueJSON datatypes.JSON
+	if !row.DeletedAt.Valid {
+		var err error
+		valueJSON, err = cborToJSON(row.Value)
+		if err != nil {
+			return CommitEvent{}, fmt.Errorf("convert remote record %s: %w", row.Rev, err)
+		}
+	}
 	return commitEvent(spaceRecord{
 		Space:      row.Space,
 		Repo:       row.Repo,
 		Collection: row.Collection,
 		Rkey:       row.Rkey,
-		Value:      row.Value,
+		ValueJSON:  valueJSON,
 		Rev:        row.Rev,
 		Cid:        row.Cid,
 		PrevCid:    row.PrevCid,
