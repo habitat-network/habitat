@@ -21,7 +21,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
-    "@atproto/lex-json": "0.1.10",
+    "@atproto/lex-json": "0.1.11",
     "effect": "4.1.6"
   },
   "devDependencies": {
