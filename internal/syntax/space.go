@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"gorm.io/gorm"
 )
 
 type SpaceKey string
@@ -382,4 +383,17 @@ func (r SpaceRef) URI() SpaceURI {
 		return ""
 	}
 	return ConstructSpaceURI(r.Owner, r.Type, r.Skey)
+}
+
+// InSpace is a GORM scope that restricts a query to the rows of a space,
+// matching on the space_owner, space_type and space_skey columns that
+// [SpaceRef] embeds, for tables laid out as the models describe.
+func InSpace(uri SpaceURI) func(*gorm.DB) *gorm.DB {
+	ref := uri.Ref()
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where(
+			"space_owner = ? AND space_type = ? AND space_skey = ?",
+			ref.Owner, ref.Type, ref.Skey,
+		)
+	}
 }

@@ -639,12 +639,22 @@ func (s *store) ListSpaces(
 		Model(&spaceRepo{}).
 		Where("repo = ?", member)
 	if filterOwner != nil || filterType != nil {
-		query = query.Where(`space LIKE ? ESCAPE '\'`, spaceURIPattern(filterOwner, filterType))
+		if filterOwner != nil {
+			query = query.Where("space_owner = ?", *filterOwner)
+		}
+		if filterType != nil {
+			query = query.Where("space_type = ?", *filterType)
+		}
 	}
 
-	var uris []habitat_syntax.SpaceURI
-	if err := query.Order("updated_at DESC").Pluck("space", &uris).Error; err != nil {
+	var rows []spaceRepo
+	if err := query.Order("updated_at DESC").
+		Select("space_owner", "space_type", "space_skey").Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list written spaces: %w", err)
+	}
+	uris := make([]habitat_syntax.SpaceURI, len(rows))
+	for i, row := range rows {
+		uris[i] = row.SpaceRef.URI()
 	}
 	return uris, nil
 }
@@ -697,23 +707,6 @@ func (s *store) IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI)
 	return count > 0, nil
 }
 
-// spaceURIPattern builds a LIKE pattern matching the stored space URIs with the
-// given owner and type; a nil filter matches any value. Stored URIs are always
-// in the current format ("at://<did>/space/<type>/<skey>"), whose literal
-// separators anchor each component — and since neither a DID nor an NSID can
-// contain "/", a wildcard cannot spill into the neighbouring component.
-func spaceURIPattern(owner *syntax.DID, spaceType *syntax.NSID) string {
-	ownerPattern := "%"
-	if owner != nil {
-		ownerPattern = escapeLike(owner.String())
-	}
-	typePattern := "%"
-	if spaceType != nil {
-		typePattern = escapeLike(spaceType.String())
-	}
-	return fmt.Sprintf("at://%s/space/%s/%%", ownerPattern, typePattern)
-}
-
 // likeEscaper escapes the LIKE wildcards in a value interpolated into a
 // pattern, for use with "ESCAPE '\'". A DID can legitimately carry both: a
 // did:web holding a port percent-encodes it (did:web:example.com%3A8080), and %
@@ -732,7 +725,11 @@ func loadRepoHash(
 	repo syntax.DID,
 ) (spacecommit.LtHash, syntax.TID, bool, error) {
 	var row spaceRepo
-	err := tx.Unscoped().Where("space = ? AND repo = ?", space, repo).First(&row).Error
+	err := tx.Unscoped().
+		Scopes(habitat_syntax.InSpace(space)).
+		Where("repo = ?", repo).
+		First(&row).
+		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) || row.DeletedAt.Valid {
 		return spacecommit.LtHash{}, "", false, nil
 	}
@@ -880,7 +877,7 @@ func (s *store) RemoveWriter(
 			return err
 		}
 		var current spaceRepo
-		err := tx.Where("space = ? AND repo = ?", uri, repo).First(&current).Error
+		err := tx.Scopes(habitat_syntax.InSpace(uri)).Where("repo = ?", repo).First(&current).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && current.Removed) {
 			return nil
 		} else if err != nil {
@@ -892,7 +889,7 @@ func (s *store) RemoveWriter(
 		}
 		removed = true
 		return tx.Model(&spaceRepo{}).
-			Where("space = ? AND repo = ?", uri, repo).
+			Scopes(habitat_syntax.InSpace(uri)).Where("repo = ?", repo).
 			Updates(map[string]any{"removed": true, "space_rev": spaceRev}).Error
 	})
 	if err != nil {
@@ -926,7 +923,7 @@ func (s *store) listRepos(
 
 	// The writer set and each repo's hash come straight from the cached hash
 	// table, maintained incrementally by the write path — no record rescan.
-	query := s.db.WithContext(ctx).Where("space = ?", uri)
+	query := s.db.WithContext(ctx).Scopes(habitat_syntax.InSpace(uri))
 	if since != "" {
 		query = query.Where("space_rev > ?", since)
 	}
@@ -989,7 +986,7 @@ func (s *store) RegisterRemoteWrite(
 		// at or behind the repo's tracked rev is late or replayed: ignore it
 		// rather than roll the repo back, per the spaces proposal.
 		var current spaceRepo
-		err := tx.Where("space = ? AND repo = ?", uri, repo).First(&current).Error
+		err := tx.Scopes(habitat_syntax.InSpace(uri)).Where("repo = ?", repo).First(&current).Error
 		if err == nil && current.Rev >= rev {
 			stale = true
 			return nil
@@ -1038,7 +1035,10 @@ func (s *store) ImportWriters(
 				return err
 			}
 			var current spaceRepo
-			err := tx.Where("space = ? AND repo = ?", uri, w.DID).First(&current).Error
+			err := tx.Scopes(habitat_syntax.InSpace(uri)).
+				Where("repo = ?", w.DID).
+				First(&current).
+				Error
 			if err == nil {
 				continue
 			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1128,8 +1128,9 @@ func (s *store) PutRecord(
 		// it already existed) and fold in the new one, then advance the rev.
 		var existing spaceRecord
 		err = tx.
-			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-				spaceURI, repo, collection, rkey).
+			Scopes(
+				habitat_syntax.InSpace(spaceURI),
+			).Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 			First(&existing).Error
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("failed to get existing record: %w", err)
@@ -1205,8 +1206,8 @@ func (s *store) GetRecord(
 	}()
 	var row spaceRecord
 	err = s.db.WithContext(ctx).
-		Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-			uri, repo, collection, rkey).
+		Scopes(habitat_syntax.InSpace(uri)).
+		Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// A missing record is an expected outcome (e.g. putRecord checking
@@ -1245,10 +1246,11 @@ func (s *store) GetRecords(
 	defer func() { telemetry.End(span, err) }()
 
 	conds := make([]string, len(uris))
-	args := make([]any, 0, len(uris)*4)
+	args := make([]any, 0, len(uris)*6)
 	for i, uri := range uris {
-		conds[i] = "(space = ? AND repo = ? AND collection = ? AND rkey = ?)"
-		args = append(args, uri.SpaceURI(), uri.Repo(), uri.Collection(), uri.Rkey())
+		ref := uri.SpaceURI().Ref()
+		conds[i] = "(space_owner = ? AND space_type = ? AND space_skey = ? AND repo = ? AND collection = ? AND rkey = ?)"
+		args = append(args, ref.Owner, ref.Type, ref.Skey, uri.Repo(), uri.Collection(), uri.Rkey())
 	}
 	where := strings.Join(conds, " OR ")
 
@@ -1304,7 +1306,7 @@ func (s *store) ListRecords(
 		span.SetAttributes(telemetry.Collection(*collection))
 	}
 	query := s.db.WithContext(ctx).
-		Where("space = ?", uri).
+		Scopes(habitat_syntax.InSpace(uri)).
 		Where("repo = ?", repo)
 
 	if collection != nil {
@@ -1448,7 +1450,7 @@ func (s *store) RepoSnapshot(
 
 		var rows []spaceRecord
 		if err := tx.
-			Where("space = ?", uri).
+			Scopes(habitat_syntax.InSpace(uri)).
 			Where("repo = ?", repo).
 			Order("collection ASC, rkey ASC").
 			Find(&rows).Error; err != nil {
@@ -1484,13 +1486,13 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Drop the records for this space
 		if err := tx.
-			Where("space = ?", uri).
+			Scopes(habitat_syntax.InSpace(uri)).
 			Delete(&spaceRecord{}).Error; err != nil {
 			return err
 		}
 		// And the blob references those records held.
 		if err := tx.
-			Where("space = ?", uri).
+			Scopes(habitat_syntax.InSpace(uri)).
 			Delete(&blobRef{}).Error; err != nil {
 			return err
 		}
@@ -1498,12 +1500,12 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 		// And the copies of external writers' records, with how far they were
 		// fetched: the space's deletion event supersedes them.
 		if err := tx.Unscoped().
-			Where("space = ?", uri).
+			Scopes(habitat_syntax.InSpace(uri)).
 			Delete(&spaceRemoteRecord{}).Error; err != nil {
 			return err
 		}
 		if err := tx.
-			Where("space = ?", uri).
+			Scopes(habitat_syntax.InSpace(uri)).
 			Delete(&spaceRemoteSync{}).Error; err != nil {
 			return err
 		}
@@ -1512,7 +1514,7 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 		// hash of. They are the writer set listSpaces reads, so leaving them
 		// behind would keep a deleted space on its writers' listings.
 		if err := tx.
-			Where("space = ?", uri).
+			Scopes(habitat_syntax.InSpace(uri)).
 			Delete(&spaceRepo{}).Error; err != nil {
 			return err
 		}
@@ -1586,7 +1588,10 @@ func (s *store) ListRepoOps(
 			return ErrRevTooFar
 		}
 
-		query := tx.Unscoped().Model(&spaceRecord{}).Where("space = ? AND repo = ?", uri, repo)
+		query := tx.Unscoped().
+			Model(&spaceRecord{}).
+			Scopes(habitat_syntax.InSpace(uri)).
+			Where("repo = ?", repo)
 		if since != "" {
 			query = query.Where("rev > ?", since)
 		}
@@ -1703,8 +1708,8 @@ func (s *store) DeleteRecord(
 		}
 		var rows []spaceRecord
 		if err := tx.
-			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-				uri, repo, collection, rkey).
+			Scopes(habitat_syntax.InSpace(uri)).
+			Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 			Find(&rows).Error; err != nil {
 			return err
 		}
@@ -1713,8 +1718,8 @@ func (s *store) DeleteRecord(
 		}
 		rev = s.clock.Next()
 		if err := tx.Model(&spaceRecord{}).
-			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-				uri, repo, collection, rkey).
+			Scopes(habitat_syntax.InSpace(uri)).
+			Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 			Updates(map[string]any{
 				"deleted_at": time.Now(),
 				"rev":        rev,
@@ -1743,12 +1748,15 @@ func (s *store) DeleteRecord(
 		// Drop the hash row entirely once the repo holds no more records
 		var remaining int64
 		if err := tx.Model(&spaceRecord{}).
-			Where("space = ? AND repo = ?", uri, repo).
+			Scopes(habitat_syntax.InSpace(uri)).Where("repo = ?", repo).
 			Count(&remaining).Error; err != nil {
 			return err
 		}
 		if remaining == 0 {
-			return tx.Where("space = ? AND repo = ?", uri, repo).Delete(&spaceRepo{}).Error
+			return tx.Scopes(habitat_syntax.InSpace(uri)).
+				Where("repo = ?", repo).
+				Delete(&spaceRepo{}).
+				Error
 		}
 		return saveRepoHash(tx, uri, repo, h, rev, spaceRev)
 	})
@@ -1775,8 +1783,8 @@ func setBlobRefs(
 	blobs []atdata.Blob,
 ) error {
 	if err := tx.
-		Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-			space, repo, collection, rkey).
+		Scopes(habitat_syntax.InSpace(space)).
+		Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 		Delete(&blobRef{}).Error; err != nil {
 		return fmt.Errorf("failed to clear blob refs: %w", err)
 	}
@@ -1841,7 +1849,7 @@ func (s *store) BlobReferenced(
 ) (bool, error) {
 	var ref blobRef
 	err := s.db.WithContext(ctx).
-		Where("space = ? AND cid = ?", space, c.String()).
+		Scopes(habitat_syntax.InSpace(space)).Where("cid = ?", c.String()).
 		First(&ref).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
@@ -1893,8 +1901,9 @@ func (s *store) ApplyWrites(
 			uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, w.Collection, rkey)
 			var existing spaceRecord
 			err := tx.
-				Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-					spaceURI, repo, w.Collection, rkey).
+				Scopes(
+					habitat_syntax.InSpace(spaceURI),
+				).Where("repo = ? AND collection = ? AND rkey = ?", repo, w.Collection, rkey).
 				First(&existing).Error
 			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return fmt.Errorf("failed to get existing record: %w", err)
@@ -1952,8 +1961,8 @@ func (s *store) ApplyWrites(
 					return fmt.Errorf("%s: %w", uri, ErrRecordNotFound)
 				}
 				if err := tx.Model(&spaceRecord{}).
-					Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-						spaceURI, repo, w.Collection, rkey).
+					Scopes(habitat_syntax.InSpace(spaceURI)).
+					Where("repo = ? AND collection = ? AND rkey = ?", repo, w.Collection, rkey).
 					Updates(map[string]any{
 						"deleted_at": time.Now(),
 						"rev":        rev,
@@ -1985,12 +1994,15 @@ func (s *store) ApplyWrites(
 		// Drop the hash row entirely once the repo holds no more records.
 		var remaining int64
 		if err := tx.Model(&spaceRecord{}).
-			Where("space = ? AND repo = ?", spaceURI, repo).
+			Scopes(habitat_syntax.InSpace(spaceURI)).Where("repo = ?", repo).
 			Count(&remaining).Error; err != nil {
 			return err
 		}
 		if remaining == 0 {
-			return tx.Where("space = ? AND repo = ?", spaceURI, repo).Delete(&spaceRepo{}).Error
+			return tx.Scopes(habitat_syntax.InSpace(spaceURI)).
+				Where("repo = ?", repo).
+				Delete(&spaceRepo{}).
+				Error
 		}
 		return saveRepoHash(tx, spaceURI, repo, h, headRev, spaceRev)
 	})
@@ -2022,4 +2034,46 @@ func Models() []any {
 		&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}, &deletedSpace{}, &spaceEventSeq{},
 		&spaceRemoteRecord{}, &spaceRemoteSync{},
 	}
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *spaceRecord) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *spaceRecord) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *blobRef) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *blobRef) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *spaceRepo) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *spaceRepo) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
 }
