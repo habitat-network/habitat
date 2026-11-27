@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"gorm.io/gorm"
 )
 
 type SpaceKey string
@@ -357,4 +358,45 @@ func (s SpaceRecordURI) Rkey() syntax.RecordKey {
 		return ""
 	}
 	return rkey
+}
+
+// SpaceRef is a space URI split into its parts, for storing in a table's
+// columns instead of the URI string. Embed it in a GORM model with
+// `gorm:"embedded;embeddedPrefix:space_"` for the columns space_owner,
+// space_type and space_skey.
+//
+// The fields are tagged as primary key columns: every table that embeds a
+// SpaceRef is keyed on the space first.
+type SpaceRef struct {
+	Owner syntax.DID  `gorm:"primaryKey"`
+	Type  syntax.NSID `gorm:"primaryKey"`
+	Skey  SpaceKey    `gorm:"primaryKey"`
+}
+
+// Ref splits the URI into its parts. A URI that matches no accepted format
+// gives the zero SpaceRef.
+func (s SpaceURI) Ref() SpaceRef {
+	return SpaceRef{Owner: s.SpaceOwner(), Type: s.SpaceType(), Skey: s.Skey()}
+}
+
+// URI joins the parts back into a space URI in the current format. The zero
+// SpaceRef gives the empty URI.
+func (r SpaceRef) URI() SpaceURI {
+	if r == (SpaceRef{}) {
+		return ""
+	}
+	return ConstructSpaceURI(r.Owner, r.Type, r.Skey)
+}
+
+// InSpace is a GORM scope that restricts a query to the rows of a space,
+// matching on the space_owner, space_type and space_skey columns that
+// [SpaceRef] embeds, for tables laid out as the models describe.
+func InSpace(uri SpaceURI) func(*gorm.DB) *gorm.DB {
+	ref := uri.Ref()
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where(
+			"space_owner = ? AND space_type = ? AND space_skey = ?",
+			ref.Owner, ref.Type, ref.Skey,
+		)
+	}
 }

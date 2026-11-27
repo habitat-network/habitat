@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { EmptyState, PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
 import { resultLink } from "@/lib/searchLinks";
@@ -231,14 +232,13 @@ function SearchForm({
   busy: boolean;
   onSearch: (q: string) => void;
 }) {
-  const [draft, setDraft] = useState(q);
+  const { register, handleSubmit } = useForm<{ q: string }>({
+    defaultValues: { q },
+  });
   return (
     <form
       className="border-b p-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSearch(draft.trim());
-      }}
+      onSubmit={handleSubmit((v) => onSearch(v.q.trim()))}
     >
       <InputGroup className="mx-auto max-w-3xl">
         <InputGroupAddon>
@@ -247,8 +247,7 @@ function SearchForm({
         <InputGroupInput
           autoFocus
           placeholder="Search everything"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          {...register("q")}
         />
         {busy && (
           <InputGroupAddon align="inline-end">

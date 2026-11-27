@@ -1,4 +1,4 @@
-h1:eAz6bkfMINyEOMLHYmQAWUaqK9KVMQB5M5TcWc8IWcM=
+h1:HhmvjgOtKtVMmXEk7tqQgVOGanBAwTE8HdnNdzM5mfE=
 20260522005939_init.sql h1:KUJYrNB1nXExOKZnn9/cDQw4vjS53DzmQZCuhaZYmNw=
 20260925150000_baseline.sql h1:RGgjF3jiIujGjOvwEajH4/GIDqcmsgCZ+bVO2BQRtrw=
 20261005235000_space_revisions.sql h1:yeI4Eqsb4IdEWLjXk8MPuv6b1dVx2lGMMZmR3lX/GiM=
@@ -19,3 +19,5 @@ h1:eAz6bkfMINyEOMLHYmQAWUaqK9KVMQB5M5TcWc8IWcM=
 20261119230000_space_webhooks.sql h1:uCMnZlHbzKP7NJ+e0ohOlbANWR1zpv8IJHBW8VlyCH4=
 20261120235000_remote_records.sql h1:AHD9MULWckT+QxlWJz/6LKWGOdh0tq+7YWlqUM1jgas=
 20261121000000_space_record_value_json.sql h1:OgzSmm7575PA7uqrFdfxgDd+IBAs3/W9jD1UP81HIsQ=
+20261127060323_space_ref_columns.sql h1:r+E01s79Az8gQlg9NkEL4Mpz+4hGPnY2g4k/tt6oLCE=
+20261127194156_space_ref_primary_key.sql h1:67U4cAbKzR5Mb1j46uqQv9W9uETUfoG67qwNetsjxVQ=

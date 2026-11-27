@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
   useMutation,
   useQueryClient,
@@ -86,7 +87,12 @@ export function CommentSidebar({
   );
   const getActor = useHabitatActors(authorDids);
 
-  const [reply, setReply] = useState("");
+  // One compose box at a time: the pending thread's or the active thread's
+  // reply, so both share the field.
+  const { control, watch, reset } = useForm<{ reply: string }>({
+    defaultValues: { reply: "" },
+  });
+  const reply = watch("reply");
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
 
@@ -111,7 +117,7 @@ export function CommentSidebar({
         },
       }),
     onSuccess: () => {
-      setReply("");
+      reset();
       onPendingAnchorResolved?.();
       invalidate();
     },
@@ -122,7 +128,7 @@ export function CommentSidebar({
     mutationFn: (comment: StrongRef) =>
       createReply({ data: { org, docId, comment, body: reply } }),
     onSuccess: () => {
-      setReply("");
+      reset();
       invalidate();
     },
     onError: onMutationError("Couldn't post reply"),
@@ -178,12 +184,17 @@ export function CommentSidebar({
               &ldquo;{pendingAnchor.quotedText}&rdquo;
             </blockquote>
             <div className="space-y-2 pt-1">
-              <Textarea
-                autoFocus
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                placeholder="Comment..."
-                className="text-sm min-h-12"
+              <Controller
+                control={control}
+                name="reply"
+                render={({ field }) => (
+                  <Textarea
+                    autoFocus
+                    {...field}
+                    placeholder="Comment..."
+                    className="text-sm min-h-12"
+                  />
+                )}
               />
               <Button
                 size="sm"
@@ -265,12 +276,17 @@ export function CommentSidebar({
               ))}
               {isActive && canComment && (
                 <div className="space-y-2 pt-1">
-                  <Textarea
-                    autoFocus
-                    value={reply}
-                    onChange={(e) => setReply(e.target.value)}
-                    placeholder="Reply..."
-                    className="text-sm"
+                  <Controller
+                    control={control}
+                    name="reply"
+                    render={({ field }) => (
+                      <Textarea
+                        autoFocus
+                        {...field}
+                        placeholder="Reply..."
+                        className="text-sm"
+                      />
+                    )}
                   />
                   <Button
                     size="sm"

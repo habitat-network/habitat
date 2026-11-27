@@ -29,7 +29,10 @@ import (
 // distinct registrations. Registrations predating the service field carry their
 // endpoint URL as the audience; see the audience migration.
 type registration struct {
-	Space    habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
+	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo     syntax.DID              `gorm:"primaryKey"`
 	Audience string                  `gorm:"primaryKey"`
 	Endpoint string
@@ -47,7 +50,10 @@ type registration struct {
 // token travels in each request body. It stays active while the credential it
 // was registered with is valid (ExpiresAt).
 type webhook struct {
-	Space    habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
+	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Endpoint string                  `gorm:"primaryKey"`
 	Token    string                  `gorm:"primaryKey"`
 	// ExpiresAt is when the credential the registration was made with expires.
@@ -184,7 +190,10 @@ type Store interface {
 // RetryAt is unix milliseconds rather than a timestamp so it compares exactly
 // in the guarded updates on every dialect.
 type spaceDeletedDelivery struct {
-	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI
+	// SpaceRef holds the parts of Space and is the key. Space is the legacy
+	// URI column, still written until it is dropped.
+	SpaceRef  habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Audience  string                  `gorm:"primaryKey"`
 	Endpoint  string
 	Namespace Namespace
@@ -228,7 +237,11 @@ func (s *store) Register(
 	// service now resolves to a different address updates in place.
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{
-			{Name: "space"}, {Name: "repo"}, {Name: "audience"},
+			{Name: "space_owner"},
+			{Name: "space_type"},
+			{Name: "space_skey"},
+			{Name: "repo"},
+			{Name: "audience"},
 		},
 		DoUpdates: clause.AssignmentColumns(
 			[]string{"endpoint", "namespace", "expires_at", "updated_at"},
@@ -249,7 +262,7 @@ func (s *store) ListForRepo(
 	repo syntax.DID,
 ) ([]Registration, error) {
 	return s.list(s.db.WithContext(ctx).
-		Where("space = ?", space).
+		Scopes(habitat_syntax.InSpace(space)).
 		Where("repo = ? OR repo = ?", repo, ""))
 }
 
@@ -257,7 +270,7 @@ func (s *store) ListForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 ) ([]Registration, error) {
-	return s.list(s.db.WithContext(ctx).Where("space = ?", space))
+	return s.list(s.db.WithContext(ctx).Scopes(habitat_syntax.InSpace(space)))
 }
 
 // list runs query with the shared unexpired filter and maps rows to the public
@@ -322,7 +335,12 @@ func (s *store) QueueSpaceDeleted(
 		pending[i] = PendingDeletion{Registration: reg, RetryAt: retryAt}
 	}
 	err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "space"}, {Name: "audience"}},
+		Columns: []clause.Column{
+			{Name: "space_owner"},
+			{Name: "space_type"},
+			{Name: "space_skey"},
+			{Name: "audience"},
+		},
 		DoUpdates: clause.AssignmentColumns(
 			[]string{"endpoint", "namespace", "expires_at", "attempts", "retry_at"},
 		),
@@ -388,7 +406,13 @@ func (s *store) RegisterWebhook(
 	expiresAt time.Time,
 ) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "space"}, {Name: "endpoint"}, {Name: "token"}},
+		Columns: []clause.Column{
+			{Name: "space_owner"},
+			{Name: "space_type"},
+			{Name: "space_skey"},
+			{Name: "endpoint"},
+			{Name: "token"},
+		},
 		DoUpdates: clause.Assignments(map[string]any{
 			"expires_at":      expiresAt,
 			"expiry_notified": false,
@@ -407,7 +431,9 @@ func (s *store) ListWebhooks(
 	space habitat_syntax.SpaceURI,
 ) ([]Webhook, error) {
 	var rows []webhook
-	if err := s.db.WithContext(ctx).Where("space = ?", space).Find(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).
+		Scopes(habitat_syntax.InSpace(space)).
+		Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list webhooks: %w", err)
 	}
 	out := make([]Webhook, len(rows))
@@ -422,7 +448,8 @@ func (s *store) ListWebhooks(
 
 func (s *store) MarkWebhookExpiryNotified(ctx context.Context, w Webhook) error {
 	err := s.db.WithContext(ctx).Model(&webhook{}).
-		Where("space = ? AND endpoint = ? AND token = ?", w.Space, w.Endpoint, w.Token).
+		Scopes(habitat_syntax.InSpace(w.Space)).
+		Where("endpoint = ? AND token = ?", w.Endpoint, w.Token).
 		Update("expiry_notified", true).Error
 	if err != nil {
 		return fmt.Errorf("mark webhook expiry notified: %w", err)
@@ -443,11 +470,54 @@ func (s *store) ClearSpaceDeleted(ctx context.Context, p PendingDeletion) error 
 func (s *store) pendingDeletion(ctx context.Context, p PendingDeletion) *gorm.DB {
 	return s.db.WithContext(ctx).
 		Model(&spaceDeletedDelivery{}).
-		Where("space = ? AND audience = ? AND retry_at = ?", p.Space, p.Audience, p.RetryAt)
+		Scopes(habitat_syntax.InSpace(p.Space)).
+		Where("audience = ? AND retry_at = ?", p.Audience, p.RetryAt)
 }
 
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
 	return []any{&registration{}, &spaceDeletedDelivery{}, &webhook{}}
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *registration) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *registration) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *webhook) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *webhook) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
+}
+
+// BeforeSave stores the parts of Space in the space_* columns.
+func (r *spaceDeletedDelivery) BeforeSave(*gorm.DB) error {
+	r.SpaceRef = r.Space.Ref()
+	return nil
+}
+
+// AfterFind reads Space from the space_* columns.
+func (r *spaceDeletedDelivery) AfterFind(*gorm.DB) error {
+	if r.SpaceRef != (habitat_syntax.SpaceRef{}) {
+		r.Space = r.SpaceRef.URI()
+	}
+	return nil
 }
