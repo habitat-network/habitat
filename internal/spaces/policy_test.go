@@ -78,3 +78,16 @@ func TestSpacePolicy_RoundTrip(t *testing.T) {
 	_, err = s.GetSpacePolicy(t.Context(), other)
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
+
+func TestSpaceDeleteKeepsSpacesOfOtherTypes(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+	kept, err := s.CreateSpace(t.Context(), orgID, groupType, "same-key")
+	require.NoError(t, err)
+	gone, err := s.CreateSpace(t.Context(), orgID, "network.habitat.other", "same-key")
+	require.NoError(t, err)
+
+	require.NoError(t, s.DeleteSpace(t.Context(), gone))
+	exists, err := s.CheckSpaceExists(t.Context(), kept)
+	require.NoError(t, err)
+	require.True(t, exists, "a space with the same owner and skey but another type survives")
+}
