@@ -161,7 +161,7 @@ func (s *store) ListRemoteReposBehind(ctx context.Context) ([]RemoteRepo, error)
 	repos := make([]RemoteRepo, len(rows))
 	for i, row := range rows {
 		repos[i] = RemoteRepo{
-			Space:       row.SpaceRef.URI(),
+			Space:       row.URI(),
 			Repo:        row.Repo,
 			ReportedRev: row.ReportedRev,
 			State:       spacecommit.Load(row.State),
