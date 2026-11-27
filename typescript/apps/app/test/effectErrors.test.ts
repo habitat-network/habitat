@@ -33,6 +33,35 @@ describe("toHabitatError", () => {
     expect(proxied).toMatchObject({ status: 403, nsid });
   });
 
+  it("keeps pear's message from an error response of the typed client", () => {
+    const rejected = Object.assign(Object.create(XrpcError.prototype), {
+      status: 400,
+      error: "InvalidRequest",
+      message: "can't set up oauth with this mcp server: registration refused",
+      payload: {
+        encoding: "application/json",
+        body: {
+          error: "InvalidRequest",
+          message: "can't set up oauth with this mcp server: registration refused",
+        },
+      },
+    });
+    const error = toHabitatError(MEMBER, "network.habitat.mcp.addServer", rejected);
+    expect(userMessage(error as HabitatError)).toBe(
+      "can't set up oauth with this mcp server: registration refused",
+    );
+    // A response that wasn't an XRPC error has only the generic message.
+    const generic = Object.assign(Object.create(XrpcError.prototype), {
+      status: 400,
+      error: "InvalidRequest",
+      message: "Upstream server responded with a 400 error",
+      payload: { encoding: "text/plain", body: new Uint8Array() },
+    });
+    expect(toHabitatError(MEMBER, "x.y.z", generic)).toMatchObject({
+      detail: undefined,
+    });
+  });
+
   it("uses status 0 when the request never got an answer", () => {
     const error = toHabitatError(
       MEMBER,

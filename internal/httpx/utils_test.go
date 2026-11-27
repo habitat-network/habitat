@@ -52,3 +52,15 @@ func TestWriteServerError(t *testing.T) {
 	WriteServerError(t.Context(), w, fmt.Errorf("foo"))
 	require.JSONEq(t, `{"error":"ServerError", "message":"foo"}`, w.Body.String())
 }
+
+// Clients (the typed XRPC client in particular) only read an error's name and
+// message from a response served as application/json, so the header has to be
+// set before the status line is written.
+func TestWriteError_SetsJSONContentType(t *testing.T) {
+	w := httptest.NewRecorder()
+	WriteInvalidRequest(t.Context(), w, "foo", fmt.Errorf("bar"))
+	res := w.Result()
+	defer func() { _ = res.Body.Close() }()
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	require.Equal(t, "application/json", res.Header.Get("Content-Type"))
+}

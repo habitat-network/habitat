@@ -363,14 +363,37 @@ export function toHabitatError(
     if (status === 401 && !proxied) {
       return new SessionExpired({ did, message: messageOf(cause) });
     }
+    // The message of an error response is pear's own explanation, written
+    // for the person who made the request (see userMessage). XrpcError's
+    // message is a generic one for the status when the response wasn't a
+    // valid XRPC error, so only take it from a response that was.
+    const detail = errorResponseMessage(cause);
     return new HabitatError({
       nsid,
       status: status === 401 ? 403 : status,
       error: cause.error,
       message: messageOf(cause),
+      detail: detail || undefined,
     });
   }
   return new HabitatError({ nsid, status: 0, message: messageOf(cause) });
+}
+
+// errorResponseMessage is the `message` of a response that carried a valid
+// XRPC error body, or undefined.
+function errorResponseMessage(cause: unknown): string | undefined {
+  if (!Predicate.hasProperty(cause, "payload")) return undefined;
+  const { payload } = cause;
+  if (
+    !Predicate.hasProperty(payload, "encoding") ||
+    payload.encoding !== "application/json" ||
+    !Predicate.hasProperty(payload, "body") ||
+    !Predicate.hasProperty(payload.body, "message")
+  ) {
+    return undefined;
+  }
+  const { message } = payload.body;
+  return Predicate.isString(message) && message ? message : undefined;
 }
 
 export function messageOf(cause: unknown): string {

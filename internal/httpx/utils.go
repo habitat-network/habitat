@@ -37,6 +37,11 @@ func WriteJSON(ctx context.Context, w http.ResponseWriter, v any) {
 }
 
 func WriteError(ctx context.Context, w http.ResponseWriter, name string, msg string, code int) {
+	// The Content-Type has to be set before the status line is written: headers
+	// set after WriteHeader are dropped, and an error body served without
+	// application/json isn't recognized as an XRPC error by clients, which then
+	// show their generic message for the status instead of this one.
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	WriteJSON(ctx, w, atclient.ErrorBody{Name: name, Message: msg})
 }

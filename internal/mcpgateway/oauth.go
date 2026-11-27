@@ -198,7 +198,13 @@ func discoverOAuth(
 		client,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: register client: %w", ErrOAuthDiscovery, err)
+		return nil, fmt.Errorf(
+			"%w: register client: %w. Some servers (Figma's, for one) only allow "+
+				"approved clients to register themselves. If this is one, register a client "+
+				"with the server by hand, with %s as its redirect URL, and add the server "+
+				"with that client ID and secret",
+			ErrOAuthDiscovery, err, redirectURL,
+		)
 	}
 	cfg.ClientID = reg.ClientID
 	cfg.ClientSecret = reg.ClientSecret
