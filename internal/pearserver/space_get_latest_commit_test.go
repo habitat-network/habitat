@@ -41,7 +41,7 @@ func TestServer_GetLatestCommit(t *testing.T) {
 
 		require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
 		require.Equal(t, owner.String(), out.Commit.Repo)
-		require.Equal(t, uri.String(), out.Commit.Space)
+		require.Equal(t, uri.AtSpace().String(), out.Commit.Space)
 
 		rev, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
 		require.NoError(t, err)

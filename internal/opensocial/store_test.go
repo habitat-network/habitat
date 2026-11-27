@@ -115,7 +115,7 @@ func TestStore(t *testing.T) {
 			require.True(t, ok)
 			indexedURIs = append(indexedURIs, uri)
 		}
-		require.Contains(t, indexedURIs, spaceURI.String())
+		require.Contains(t, indexedURIs, spaceURI.AtSpace().String())
 
 		// ... and is not written into the new space itself.
 		newSpaceRecords, err := s.SpaceStore.ListRecords(t.Context(), spaceURI, org, &spaceColl)

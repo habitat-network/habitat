@@ -67,7 +67,7 @@ func (p *PearServer) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	if httpx.IsComAtprotoRequest(r) {
 		views := make([]comatproto.ComAtprotoSpaceListSpacesSpaceView, len(spaces))
 		for i, uri := range spaces {
-			views[i] = comatproto.ComAtprotoSpaceListSpacesSpaceView{Space: uri.String()}
+			views[i] = comatproto.ComAtprotoSpaceListSpacesSpaceView{Space: uri.AtSpace().String()}
 		}
 		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceListSpacesOutput{Spaces: views})
 		return
@@ -75,7 +75,7 @@ func (p *PearServer) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	views := make([]habitat.NetworkHabitatSpaceListSpacesSpaceView, len(spaces))
 	for i, uri := range spaces {
 		views[i] = habitat.NetworkHabitatSpaceListSpacesSpaceView{
-			Uri: uri.String(),
+			Uri: uri.AtSpace().String(),
 		}
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListSpacesOutput{

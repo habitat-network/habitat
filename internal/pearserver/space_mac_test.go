@@ -169,7 +169,7 @@ func TestServer_SpaceMACs(t *testing.T) {
 		require.Equal(t, recordCID.String(), out.Cid)
 		require.NoError(t, spacecommit.VerifyRecordMAC(
 			w.Header(),
-			habitat_syntax.ConstructSpaceRecordURI(uri, owner, groupTp, "k1").String(),
+			habitat_syntax.ConstructSpaceRecordURI(uri, owner, groupTp, "k1").AtSpace().String(),
 			cid.MustParse(out.Cid),
 			keyShare,
 			secret,

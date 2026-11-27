@@ -91,10 +91,10 @@ func (p *PearServer) listUserRelationViews(
 		views = append(views, habitat.NetworkHabitatRelationshipListRelationsUserRelationView{
 			Uri: habitat_syntax.ConstructSpaceRecordURI(
 				space, rec.Owner, rec.Collection, rec.Rkey,
-			).String(),
+			).AtSpace().String(),
 			Subject:  subjectDID,
 			Relation: relation,
-			Object:   space.String(),
+			Object:   space.AtSpace().String(),
 		})
 	}
 	return views, nil
@@ -132,11 +132,11 @@ func (p *PearServer) listSpaceRelationViews(
 		views = append(views, habitat.NetworkHabitatRelationshipListRelationsSpaceRelationView{
 			Uri: habitat_syntax.ConstructSpaceRecordURI(
 				space, rec.Owner, rec.Collection, rec.Rkey,
-			).String(),
+			).AtSpace().String(),
 			Subject:     subject,
 			SubjectRole: subjectRole,
 			Relation:    relation,
-			Object:      space.String(),
+			Object:      space.AtSpace().String(),
 		})
 	}
 	return views, nil

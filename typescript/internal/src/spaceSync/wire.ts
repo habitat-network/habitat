@@ -4,7 +4,11 @@ import {
   XrpcInvalidResponseError,
   XrpcResponseError,
 } from "@atproto/lex";
-import { SpaceRef, isSpaceRefString } from "@atproto/syntax";
+import {
+  SpaceRef,
+  fromLegacySpaceUri,
+  isSpaceRefString,
+} from "@atproto/syntax";
 import { Effect } from "effect";
 import { InvalidSpaceRefError } from "./errors";
 
@@ -48,18 +52,29 @@ export const failureStatus = (failure: XrpcFailure): number =>
     : 0;
 
 /**
- * Parse an untrusted string into a SpaceRef, once, at the edge. `isSpaceRefString`
- * accepts anything round-trippable; the round trip through `SpaceRef` is the exact
+ * A space URI in the current `at:space/{did}/{type}/{skey}` form, rewriting
+ * one in the spaces alpha's older `at://{did}/space/...` form. Stored data and
+ * older hosts still carry the older form; support for it goes with the
+ * migration to the new one.
+ */
+export const normalizeSpaceUri = (uri: string): string =>
+  fromLegacySpaceUri(uri) ?? uri;
+
+/**
+ * Parse an untrusted string into a SpaceRef, once, at the edge. Either space
+ * URI form is accepted (see `normalizeSpaceUri`). `isSpaceRefString` accepts
+ * anything round-trippable; the round trip through `SpaceRef` is the exact
  * re-check. Everything past the edge passes the SpaceRef around.
  */
 export const parseSpaceRef = (
   space: string,
 ): Effect.Effect<SpaceRef, InvalidSpaceRefError> =>
   Effect.suspend(() => {
-    if (!isSpaceRefString(space))
+    const current = normalizeSpaceUri(space);
+    if (!isSpaceRefString(current))
       return Effect.fail(new InvalidSpaceRefError({ space }));
-    const ref = SpaceRef.parse(space);
-    return ref.toString() === space
+    const ref = SpaceRef.parse(current);
+    return ref.toString() === current
       ? Effect.succeed(ref)
       : Effect.fail(new InvalidSpaceRefError({ space }));
   });

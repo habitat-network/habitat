@@ -149,7 +149,7 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 				},
 				&out,
 			)
-			return code, habitat_syntax.SpaceURI(out.Uri)
+			return code, habitat_syntax.SpaceURI(out.Uri).Canonical()
 		}
 
 		code, uri := create(nil)

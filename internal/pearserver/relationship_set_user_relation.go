@@ -63,5 +63,5 @@ func (p *PearServer) SetUserRelation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(ctx, w,
-		habitat.NetworkHabitatRelationshipSetUserRelationOutput{Uri: uri.String()})
+		habitat.NetworkHabitatRelationshipSetUserRelationOutput{Uri: uri.AtSpace().String()})
 }

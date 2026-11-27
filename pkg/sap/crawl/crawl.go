@@ -301,7 +301,10 @@ func (c *Crawler) crawlSession(
 			return nil
 		}
 		for _, sp := range output.Spaces {
-			space := habitat_syntax.SpaceURI(sp.Uri)
+			space, err := habitat_syntax.ParseSpaceURI(sp.Uri)
+			if err != nil {
+				return fmt.Errorf("list spaces: %w", err)
+			}
 			if err := c.TrackSpace(ctx, space, did, sessionID); err != nil {
 				return err
 			}

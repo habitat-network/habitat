@@ -12,7 +12,7 @@ func TestCommitXRPCRoundTrip(t *testing.T) {
 	api := c.ToXRPC()
 	require.Equal(t, int64(Version), api.Ver)
 	require.Equal(t, refRepo.String(), api.Repo)
-	require.Equal(t, refSpace.String(), api.Space)
+	require.Equal(t, refSpace.AtSpace().String(), api.Space)
 	require.Equal(t, refRev, api.Rev)
 	require.Equal(t, refData, []byte(api.Data))
 	require.Equal(t, c, FromXRPC(api))

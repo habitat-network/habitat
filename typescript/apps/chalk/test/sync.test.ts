@@ -7,9 +7,9 @@ import { issueDelegation } from "../src/server/sync";
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
 const ORG = "did:web:org.example";
-const DOC = `at://${ORG}/space/network.habitat.docs/abc` as SpaceRefString;
+const DOC = `at:space/${ORG}/network.habitat.docs/abc` as SpaceRefString;
 const COMMENTS =
-  `at://${ORG}/space/network.habitat.docs.comments/abc` as SpaceRefString;
+  `at:space/${ORG}/network.habitat.docs.comments/abc` as SpaceRefString;
 const BOB = "did:web:bob.example";
 
 // fakeDelegation answers getDelegationToken as `allowed` only, recording

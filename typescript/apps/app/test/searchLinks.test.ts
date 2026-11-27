@@ -14,7 +14,7 @@ const base: SearchResultView = {
 };
 
 it("opens docs in the app, ignoring the at:// url", () => {
-  const space = "at://did:web:a.example/space/network.habitat.docs/abc";
+  const space = "at:space/did:web:a.example/network.habitat.docs/abc";
   expect(
     resultLink({
       ...base,

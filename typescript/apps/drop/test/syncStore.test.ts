@@ -7,9 +7,9 @@ import { syncRepos, syncSpaces } from "@/db/schema";
 import { DrizzleSyncStore } from "internal/spaceSync/drizzle";
 
 const SPACE =
-  "at://did:web:org.example/space/network.habitat.drop/a" as SpaceRefString;
+  "at:space/did:web:org.example/network.habitat.drop/a" as SpaceRefString;
 const OTHER =
-  "at://did:web:org.example/space/network.habitat.drop/b" as SpaceRefString;
+  "at:space/did:web:org.example/network.habitat.drop/b" as SpaceRefString;
 const ORG = "did:web:org.example" as DidString;
 const ALICE = "did:plc:alice" as DidString;
 

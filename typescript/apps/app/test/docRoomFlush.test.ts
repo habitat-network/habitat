@@ -7,7 +7,7 @@ import { cancelAlarm, runAlarmNow } from "./docRoomAlarm";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
-const URI = "at://did:web:alice.example/space/network.habitat.docs/flush";
+const URI = "at:space/did:web:alice.example/network.habitat.docs/flush";
 const ID = { spaceUri: URI, ownerDid: "did:web:alice.example" };
 
 beforeAll(warmHabitat, 60_000);
