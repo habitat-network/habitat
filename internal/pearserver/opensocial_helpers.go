@@ -110,7 +110,7 @@ func (p *PearServer) requireSpaceAuthority(
 
 // requireAction validates that caller is authorized to perform action in
 // org — i.e. holds a role bound to it in the community's
-// org.atgrp.permissions record — writing an appropriate error
+// role records — writing an appropriate error
 // response and returning false if not.
 func (p *PearServer) requireAction(
 	ctx context.Context,

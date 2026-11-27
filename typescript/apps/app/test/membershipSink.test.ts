@@ -57,7 +57,7 @@ describe("roster indexing", () => {
 
   it("ignores other collections and records not in the group's own repo", async () => {
     await indexEvents(
-      putEvent(SPACE, ORG, "org.atgrp.acceptance", ALICE, membership()),
+      putEvent(SPACE, ORG, "org.atgrp.confirmation", ALICE, membership()),
       created(BOB, [], ALICE),
     );
     expect(await memberDidsOf(db, ORG)).toEqual([]);

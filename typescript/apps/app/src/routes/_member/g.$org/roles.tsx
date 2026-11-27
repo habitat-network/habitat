@@ -45,9 +45,8 @@ import {
 } from "@/server/fns/manage";
 
 // Roles & access: the group's roles, what each may do (its permission
-// bindings) and which roles it may hand out. pear stores all of it in one
-// org.atgrp.permissions record, so a save replaces the whole
-// thing.
+// bindings) and which roles it may hand out. pear stores each role's
+// permissions and canAssign list on its own role record.
 
 export const Route = createFileRoute("/_member/g/$org/roles")({
   validateSearch: z.object({ role: z.string().optional() }),

@@ -1,4 +1,4 @@
-// The actions pear checks (org.atgrp.permissions), with what
+// The actions pear checks (scopes on role records), with what
 // each one lets a role do, in the order the roles page lists them.
 export const ACTIONS: { id: string; label: string; description: string }[] = [
   {

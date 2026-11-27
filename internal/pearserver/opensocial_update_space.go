@@ -17,7 +17,7 @@ import (
 )
 
 // UpdateOpensocialSpace implements network.habitat.opensocial.updateSpace: replaces
-// the roles that may read a space by rewriting its org.atgrp.access
+// the roles that may read a space by rewriting its org.atgrp.policy
 // record. Requires service-auth, since callers reach this via Atproto-Proxy on
 // the caller's own session rather than a dedicated org session — see the chalk
 // org-support design doc.

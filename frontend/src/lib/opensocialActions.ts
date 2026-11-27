@@ -49,10 +49,10 @@ export const ACTION_ROLE_ASSIGN = "role.assign";
 export const ACTION_COMMUNITY_CONFIGURE = "community.configure";
 
 // hasOpensocialAction reports whether a member holding userRoles may perform
-// action under bindings (the org.atgrp.permissions record's
-// action bindings). A member is authorized when any role they hold is bound
+// action under bindings (derived from the
+// role records). A member is authorized when any role they hold is bound
 // to the action. Mirrors Store.CheckAction (Go): a community with no
-// permissions record at all (surfaced here as empty bindings) falls back to
+// role records at all (surfaced here as empty bindings) falls back to
 // authorizing its admins for every action.
 export function hasOpensocialAction(
   bindings: { action: string; roles: string[] }[],
@@ -69,7 +69,7 @@ export function hasOpensocialAction(
 // assignableRoles returns the union, across every role userRoles holds, of
 // the roles they may grant/revoke via role.assign (the permissions record's
 // assignable bindings). Mirrors Store.AssignableRoles (Go): a community with
-// no permissions record at all (surfaced here as empty bindings and empty
+// no role records at all (surfaced here as empty bindings and empty
 // assignable) falls back to letting its admins assign any declared role.
 export function assignableRoles(
   bindings: { action: string; roles: string[] }[],

@@ -465,7 +465,7 @@ func (s *Store) AssignRoles(
 // ListMemberSpaces returns the org.atgrp.members spaces `user`
 // belongs to — every org whose members space it holds a permissioned repo
 // in (i.e. has written its own record into, such as a
-// org.atgrp.acceptance record when joining).
+// org.atgrp.confirmation record when joining).
 func (s *Store) ListMemberSpaces(
 	ctx context.Context,
 	user syntax.DID,

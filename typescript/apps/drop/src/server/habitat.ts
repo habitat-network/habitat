@@ -37,7 +37,7 @@ export async function fetchOrgName(
       params: {
         space: new SpaceRef(orgDid, "org.atgrp.meta", "self").toString(),
         repo: orgDid,
-        collection: "org.atgrp.profile",
+        collection: "org.atgrp.about",
         rkey: "self",
       },
     });

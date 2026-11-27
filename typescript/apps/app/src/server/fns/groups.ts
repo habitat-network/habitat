@@ -58,8 +58,8 @@ export interface GroupView extends GroupProfile {
   connected: boolean;
   // The signed-in member's roles in the group.
   myRoles: string[];
-  // The actions the member's roles grant (org.atgrp.permissions
-  // bindings), so pages can hide controls the member can't use. pear checks
+  // The actions the member's roles grant (the
+  // action scopes in their role records), so pages can hide controls the member can't use. pear checks
   // every action again on its own.
   myActions: string[];
   memberCount: number;
@@ -213,10 +213,10 @@ const accept = Effect.fn("groups.accept")(function* (did: string, org: string) {
     body: {
       space: membersSpace(org) as SpaceRefString,
       repo: did as DidString,
-      collection: "org.atgrp.acceptance" as NsidString,
+      collection: "org.atgrp.confirmation" as NsidString,
       rkey: "self",
       record: {
-        $type: "org.atgrp.acceptance",
+        $type: "org.atgrp.confirmation",
         createdAt: new Date().toISOString(),
       },
     },

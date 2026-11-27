@@ -9,7 +9,7 @@ import {
 } from "@atproto/lex";
 import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { com, network, permissionsFromRecord } from "api";
+import { com, network, permissionsFromRoles } from "api";
 import { fetchClientMetadata } from "@/lib/oauthScopes";
 import { pearAgent } from "./pearAgent";
 import {
@@ -253,7 +253,7 @@ export function orgProfileQueryOptions(
           params: {
             space: metaSpace as SpaceRefString,
             repo: org as DidString,
-            collection: "org.atgrp.profile" as NsidString,
+            collection: "org.atgrp.about" as NsidString,
             rkey: "self",
           },
           // Required with a space credential; not checked here.
@@ -348,7 +348,7 @@ export async function createOrg(authManager: AuthManager, handle: string) {
 }
 
 // acceptInvite consumes the caller's pending invite to `org`, granting the
-// roles it carried, then writes the caller's own org.atgrp.acceptance
+// roles it carried, then writes the caller's own org.atgrp.confirmation
 // record into the org's members space — that's the caller's explicit act of
 // joining, so it's authored under their own credentials rather than by the
 // backend on their behalf.
@@ -369,10 +369,10 @@ export async function acceptInvite(authManager: AuthManager, org: string) {
     body: {
       space: membersSpace as SpaceRefString,
       repo: authManager.getAuthInfo()!.did as DidString,
-      collection: "org.atgrp.acceptance" as NsidString,
+      collection: "org.atgrp.confirmation" as NsidString,
       rkey: "self",
       record: {
-        $type: "org.atgrp.acceptance",
+        $type: "org.atgrp.confirmation",
         createdAt: new Date().toISOString(),
       },
     },
@@ -441,8 +441,8 @@ export interface PermissionsView {
 }
 
 // orgPermissionsQueryOptions fetches a community's authz configuration (the
-// org.atgrp.permissions record), read via a space credential.
-// Resolves to empty bindings if the community hasn't written one yet.
+// org.atgrp.role records), read via a space credential.
+// Resolves to empty bindings if the community has no roles yet.
 export function orgPermissionsQueryOptions(
   org: DidString,
   authManager: AuthManager,
@@ -462,20 +462,21 @@ export function orgPermissionsQueryOptions(
       try {
         const response = await xrpc(
           spaceAgent(cred),
-          com.atproto.space.getRecord.main,
+          com.atproto.space.listRecords.main,
           {
             validateResponse: false,
             params: {
               space: membersSpace as SpaceRefString,
               repo: org,
-              collection: "org.atgrp.permissions" as NsidString,
-              rkey: "self",
+              collection: "org.atgrp.role" as NsidString,
             },
             // Required with a space credential; not checked here.
             headers: await acceptRecordMacHeaders(),
           },
         );
-        return permissionsFromRecord(response.body.value);
+        return permissionsFromRoles(
+          response.body.records.map((r) => ({ rkey: r.rkey, value: r.value })),
+        );
       } catch {
         return { bindings: [], assignable: [] };
       }

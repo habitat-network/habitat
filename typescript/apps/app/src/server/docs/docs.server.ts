@@ -55,8 +55,8 @@ export async function createDocSpace(
 }
 
 // fetchOrgName reads an org's display name off its
-// org.atgrp.profile record, via the member's own session — no
-// Atproto-Proxy needed: the about space's own org.atgrp.access
+// org.atgrp.about record, via the member's own session — no
+// Atproto-Proxy needed: the meta space's own org.atgrp.policy
 // record already admits any member/admin role (set at org creation), so
 // pear's CheckUserHasSpaceRole grants the read directly (same mechanism
 // that makes org docs readable org-wide — see the design doc). Returns
@@ -78,7 +78,7 @@ export async function fetchOrgName(
       {
         space: metaSpace,
         repo: orgDid,
-        collection: "org.atgrp.profile",
+        collection: "org.atgrp.about",
         rkey: "self",
       },
     );

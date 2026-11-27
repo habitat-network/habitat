@@ -3,7 +3,7 @@
 // Each indexed document carries its space's [Access]: who its permission
 // records let read it. That is the users the perms store resolves as readers,
 // flattening network.habitat.relationship.userRelation and spaceRelation
-// records, and the community roles in org.atgrp.access. A query runs as a [Reader] and
+// records, and the community roles in org.atgrp.policy. A query runs as a [Reader] and
 // only matches documents whose Access includes one of the reader's
 // principals, so the index enforces read permission itself. Callers still
 // hydrate hits from the spaces store, which is the source of truth for the
@@ -68,7 +68,7 @@ type Principals struct {
 type Access struct {
 	// Principals granted read: the users the perms store resolves as the
 	// space's readers, and the community roles in its
-	// org.atgrp.access record.
+	// org.atgrp.policy record.
 	Principals
 	// Public is set when anyone may read, as with an opensocial about space.
 	Public bool

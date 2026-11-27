@@ -1,6 +1,5 @@
 import { and, eq } from "drizzle-orm";
 import type { LexMap } from "@atproto/lex";
-import { group } from "api";
 import { AtUri, type DidString } from "@atproto/syntax";
 import { Effect } from "effect";
 import type { Domain } from "../stream/domain";
@@ -11,7 +10,7 @@ import { memberships } from "@/db/schema";
 // The space each group keeps its roster in, and the record in it that says a
 // member belongs: keyed by the member's DID, written by the group itself.
 export const MEMBERS_SPACE_TYPE = "org.atgrp.members";
-export const MEMBERSHIP_COLLECTION = org.atgrp.membership.$nsid;
+export const MEMBERSHIP_COLLECTION = "org.atgrp.membership";
 
 function rolesOf(value: LexMap): string[] {
   const roles = (value as { roles?: unknown }).roles;

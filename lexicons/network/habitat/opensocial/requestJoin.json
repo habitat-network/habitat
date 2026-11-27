@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Accept the calling user's pending invite to this community. Removes the invite from the org's invite table and writes a org.atgrp.membership record (in the org repo) and a org.atgrp.acceptance record (in the user's repo, members space). Requires service-auth.",
+            "description": "Accept the calling user's pending invite to this community. Removes the invite from the org's invite table and writes a org.atgrp.membership record (in the org repo) and a org.atgrp.confirmation record (in the user's repo, members space). Requires service-auth.",
             "input": {
                 "encoding": "application/json",
                 "schema": {

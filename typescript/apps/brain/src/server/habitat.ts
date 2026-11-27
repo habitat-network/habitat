@@ -1,6 +1,6 @@
 import { type Agent, xrpc } from "@atproto/lex";
 import { type DidString, type NsidString, SpaceRef } from "@atproto/syntax";
-import { network, permissionsFromRecord } from "api";
+import { network, permissionsFromRoles } from "api";
 
 // Calls Brain makes against the Habitat instance, each as the signed-in
 // member (an OAuthSession is an @atproto/lex Agent).
@@ -28,7 +28,7 @@ export async function fetchOrgName(
       params: {
         space: new SpaceRef(orgDid, "org.atgrp.meta", "self").toString(),
         repo: orgDid,
-        collection: "org.atgrp.profile",
+        collection: "org.atgrp.about",
         rkey: "self",
       },
     });
@@ -155,12 +155,33 @@ export async function getConfigAccess(
       return undefined;
     }
   };
-  const [membership, permissions] = await Promise.all([
+  const listRoles = async () => {
+    try {
+      const { body } = await xrpc(
+        agent,
+        network.habitat.space.listRecords.main,
+        {
+          params: {
+            space,
+            repo: org,
+            collection: "org.atgrp.role" as NsidString,
+          },
+        },
+      );
+      return body.records.map((r) => ({
+        rkey: r.rkey,
+        value: r.value,
+      }));
+    } catch {
+      return [];
+    }
+  };
+  const [membership, roleRecords] = await Promise.all([
     read("org.atgrp.membership" as NsidString, member),
-    read("org.atgrp.permissions" as NsidString, "self"),
+    listRoles(),
   ]);
   const roles = (membership?.roles as string[] | undefined) ?? [];
-  const { bindings } = permissionsFromRecord(permissions);
+  const { bindings } = permissionsFromRoles(roleRecords);
   const allowed = (action: string) =>
     bindings.length === 0
       ? roles.includes("admin")

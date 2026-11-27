@@ -169,12 +169,12 @@ describe("fetchOrgName", () => {
     const client = new HabitatClient(testEnv, "did:plc:member1");
     const name = await fetchOrgName(client, "did:web:org.example");
     expect(name).toBe("Acme Corp");
-    // No Atproto-Proxy: the about space's own org.atgrp.access
+    // No Atproto-Proxy: the meta space's own org.atgrp.policy
     // record already admits any member/admin role, so pear's
     // CheckUserHasSpaceRole grants the read directly — see functions.server.ts.
     expect(proxyHeader).toBeNull();
     expect(params?.get("repo")).toBe("did:web:org.example");
-    expect(params?.get("collection")).toBe("org.atgrp.profile");
+    expect(params?.get("collection")).toBe("org.atgrp.about");
     expect(params?.get("rkey")).toBe("self");
     expect(params?.get("space")).toBe(
       "at:space/did:web:org.example/org.atgrp.meta/self",

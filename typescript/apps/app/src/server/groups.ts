@@ -1,5 +1,10 @@
 import { SpaceRef, type DidString, type NsidString } from "@atproto/syntax";
-import { group, network, permissionsFromRecord } from "api";
+import {
+  network,
+  permissionsFromRoles,
+  type ActionBinding as ApiActionBinding,
+  type AssignableBinding as ApiAssignableBinding,
+} from "api";
 import { Effect, Option } from "effect";
 import { connectedOrgNames, isConnectedOrg } from "@/db";
 import { HabitatError, OrgNotConnected } from "./effect/errors";
@@ -40,7 +45,7 @@ export interface GroupProfile {
   description: string | null;
 }
 
-// readGroupProfile reads a group's org.atgrp.profile record as
+// readGroupProfile reads a group's org.atgrp.about record as
 // the member. Any member can read the group's about space. A profile that
 // can't be read comes back empty rather than failing the page around it.
 export const readGroupProfile = Effect.fn("readGroupProfile")(function* (
@@ -56,7 +61,7 @@ export const readGroupProfile = Effect.fn("readGroupProfile")(function* (
       {
         space: metaSpace(org),
         repo: org,
-        collection: "org.atgrp.profile",
+        collection: "org.atgrp.about",
         rkey: "self",
       },
     )
@@ -211,47 +216,27 @@ export function assignableWith(
   return changed ? next : null;
 }
 
-export type ActionBinding = org.atgrp.permissions.ActionBinding;
-export type AssignableBinding = org.atgrp.permissions.AssignableBinding;
+export type ActionBinding = ApiActionBinding;
+export type AssignableBinding = ApiAssignableBinding;
 
 export interface PermissionsView {
-  // Whether the group has a permissions record at all. Without one, pear
-  // lets admins (and only admins) do everything.
+  // Whether the group has any role records at all. Without one, pear lets
+  // admins (and only admins) do everything.
   exists: boolean;
   bindings: ActionBinding[];
   assignable: AssignableBinding[];
 }
 
-// readPermissions reads the group's permissions record: which roles hold
-// which actions, and which roles each role may assign. A group that never
-// wrote one has none.
+// readPermissions derives which roles hold which actions, and which roles
+// each role may assign, from the group's role records.
 export const readPermissions = Effect.fn("readPermissions")(function* (
   did: string,
   org: string,
 ) {
-  const habitat = yield* Habitat;
-  const record = yield* habitat
-    .call<{ value?: Partial<PermissionsView> }>(
-      did,
-      "network.habitat.space.getRecord",
-      "GET",
-      {
-        space: membersSpace(org),
-        repo: org,
-        collection: "org.atgrp.permissions",
-        rkey: "self",
-      },
-    )
-    .pipe(
-      Effect.catchTag("HabitatError", (e) =>
-        e.status === 404 || e.status === 400
-          ? Effect.succeed({ value: undefined })
-          : Effect.fail(e),
-      ),
-    );
+  const records = yield* listGroupRecords(did, org, "org.atgrp.role");
   return {
-    exists: record.value !== undefined,
-    ...permissionsFromRecord(record.value),
+    exists: records.length > 0,
+    ...permissionsFromRoles(records.map((r) => ({ rkey: r.rkey, value: r.value }))),
   } satisfies PermissionsView;
 });
 

@@ -1,53 +1,34 @@
 /**
  * Hand-written readers for org.atgrp records.
  *
- * The org.atgrp lexicons give roles OAuth scopes (access and
- * permissions grants), while Habitat's UI still works with named actions.
- * Each action stands for the scopes it requires, mirroring ActionScopes in
- * internal/opensocial/actions.go; these helpers read a permissions record's
- * grants back into per-action role bindings. They are for display: the server
- * makes the authorization decisions.
+ * The org.atgrp lexicons give roles OAuth-style scopes (a role record's
+ * `permissions`) and a `canAssign` list, while Habitat's UI still works with
+ * named actions. Each action stands for the scopes it requires, mirroring
+ * ActionScopes in internal/opensocial/actions.go; these helpers read role
+ * records back into per-action role bindings. They are for display: the
+ * server makes the authorization decisions.
  */
 
-export const READ_SCOPE = 'read'
+const MEMBERS = 'org.atgrp.members'
+const INBOX = 'org.atgrp.inbox'
+const MEMBERSHIP = 'collection=org.atgrp.membership'
+
+/** The prefix of a scope that stands for one Habitat action. */
+export const ACTION_SCOPE_PREFIX = 'habitat:action='
+
+/** The canAssign entry that covers every role. */
+export const ASSIGN_ALL = '*'
 
 export type ActionBinding = { action: string; roles: string[] }
 export type AssignableBinding = { role: string; roles: string[] }
 
-type Grant = { role?: unknown; scopes?: unknown; assignable?: unknown }
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((v): v is string => typeof v === 'string')
-    : []
-}
-
-function grants(value: unknown): Grant[] {
-  const list = (value as { grants?: unknown } | undefined)?.grants
-  return Array.isArray(list) ? (list as Grant[]) : []
-}
-
-/** Roles that hold the read scope in a org.atgrp.access record value. */
-export function accessReadRoles(value: unknown): string[] {
-  return grants(value)
-    .filter((g) => strings(g.scopes).includes(READ_SCOPE))
-    .map((g) => g.role)
-    .filter((r): r is string => typeof r === 'string')
-}
-
-/** Builds access grants giving each role the read scope. */
-export function readGrants(roles: string[]) {
-  return roles.map((role) => ({ role, scopes: [READ_SCOPE] }))
-}
-
-const MEMBERS = 'org.atgrp.members'
-const INVITES = 'org.atgrp.invites'
-const MEMBERSHIP = 'collection=org.atgrp.membership'
+/** A role record with the key it is stored under. */
+export type RoleRecord = { rkey: string; value: unknown }
 
 /** The scopes each action requires (internal/opensocial/actions.go). */
 export const ACTION_SCOPES: Record<string, string[]> = {
   invite: [
-    `space:${INVITES}?authority=*&skey=self&collection=org.atgrp.invite&action=create`,
+    `space:${INBOX}?authority=*&skey=self&collection=org.atgrp.invite&action=create`,
   ],
   eject: [`space:${MEMBERS}?authority=self&skey=self&${MEMBERSHIP}&action=delete`],
   'role.assign': [
@@ -55,51 +36,88 @@ export const ACTION_SCOPES: Record<string, string[]> = {
   ],
   'space.create': ['space:*?manage=create'],
   'space.delete': ['space:*?manage=delete'],
-  'space.configure': ['include:org.atgrp.manageSpaces'],
-  'community.configure': ['include:org.atgrp.configure'],
+  'space.configure': ['space:*?manage=update'],
+  'community.configure': ['include:org.atgrp.authManageAdmin'],
   'mcp.configure': ['habitat:mcp=configure'],
 }
 
-// Broader scopes that also grant a required scope.
-const MANAGE_BOTH = 'space:*?manage=create&manage=delete'
-const IMPLIED_BY: Record<string, string[]> = {
-  [ACTION_SCOPES.invite[0]]: ['include:org.atgrp.manageMembers'],
-  [ACTION_SCOPES.eject[0]]: ['include:org.atgrp.manageMembers'],
-  [ACTION_SCOPES['role.assign'][0]]: ['include:org.atgrp.manageMembers'],
-  'space:*?manage=create': [MANAGE_BOTH],
-  'space:*?manage=delete': [MANAGE_BOTH],
+// Permission sets that also grant the actions' required scopes.
+const SET_GRANTS: Record<string, string[]> = {
+  'org.atgrp.authManageMembers': ['invite', 'eject', 'role.assign'],
+  'org.atgrp.authManageAdmin': ['community.configure'],
 }
 
-function holds(scopes: string[], required: string): boolean {
-  return (
-    scopes.includes(required) ||
-    (IMPLIED_BY[required] ?? []).some((s) => scopes.includes(s))
-  )
+/** The manage verbs a `space:*?manage=...` scope grants. */
+function manageVerbs(scope: string): string[] {
+  if (!scope.startsWith('space:*?')) return []
+  return new URLSearchParams(scope.slice('space:*?'.length)).getAll('manage')
 }
 
-/** Action bindings and assignable roles from a permissions record value. */
-export function permissionsFromRecord(value: unknown): {
+function strings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === 'string')
+    : []
+}
+
+/** Whether `scopes` grant `action`. */
+export function holdsAction(scopes: string[], action: string): boolean {
+  if (scopes.includes(`${ACTION_SCOPE_PREFIX}${action}`)) return true
+  const required = ACTION_SCOPES[action] ?? []
+  if (required.length === 0) return false
+  return required.every((req) => {
+    if (scopes.includes(req)) return true
+    const verbs = manageVerbs(req)
+    if (verbs.length > 0) {
+      return scopes.some((s) => {
+        const held = manageVerbs(s)
+        return verbs.every((v) => held.includes(v))
+      })
+    }
+    return scopes.some((s) => {
+      const set = s.startsWith('include:') ? s.slice('include:'.length) : ''
+      return (SET_GRANTS[set] ?? []).includes(action)
+    })
+  })
+}
+
+/** Action bindings and assignable roles from the group's role records. */
+export function permissionsFromRoles(roles: RoleRecord[]): {
   bindings: ActionBinding[]
   assignable: AssignableBinding[]
 } {
-  const list = grants(value)
   const bindings: ActionBinding[] = []
-  for (const [action, required] of Object.entries(ACTION_SCOPES)) {
-    const roles = list
-      .filter(
-        (g) =>
-          typeof g.role === 'string' &&
-          required.every((r) => holds(strings(g.scopes), r)),
+  for (const action of Object.keys(ACTION_SCOPES)) {
+    const holders = roles
+      .filter((r) =>
+        holdsAction(
+          strings((r.value as { permissions?: unknown } | undefined)?.permissions),
+          action,
+        ),
       )
-      .map((g) => g.role as string)
-    if (roles.length > 0) bindings.push({ action, roles })
+      .map((r) => r.rkey)
+    if (holders.length > 0) bindings.push({ action, roles: holders })
   }
   const assignable: AssignableBinding[] = []
-  for (const grant of list) {
-    const roles = strings(grant.assignable)
-    if (typeof grant.role === 'string' && roles.length > 0) {
-      assignable.push({ role: grant.role, roles })
-    }
+  for (const role of roles) {
+    const assign = strings((role.value as { canAssign?: unknown } | undefined)?.canAssign)
+    const expanded = assign.includes(ASSIGN_ALL)
+      ? roles.map((r) => r.rkey)
+      : assign
+    if (expanded.length > 0) assignable.push({ role: role.rkey, roles: expanded })
   }
   return { bindings, assignable }
+}
+
+/** Roles granted read in an org.atgrp.policy value. */
+export function policyReadRoles(value: unknown): string[] {
+  const grants = (value as { grants?: unknown } | undefined)?.grants
+  if (!Array.isArray(grants)) return []
+  return grants
+    .filter((g) => g?.read === true && typeof g.role === 'string')
+    .map((g) => g.role as string)
+}
+
+/** Builds policy grants giving each role read and write. */
+export function readWriteGrants(roles: string[]) {
+  return roles.map((role) => ({ role, read: true, write: true }))
 }
