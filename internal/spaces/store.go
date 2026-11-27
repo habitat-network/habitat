@@ -1631,7 +1631,8 @@ func (s *store) DeleteRecord(
 		}
 		var rows []spaceRecord
 		if err := tx.
-			Scopes(habitat_syntax.InSpace(uri)).Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
+			Scopes(habitat_syntax.InSpace(uri)).
+			Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 			Find(&rows).Error; err != nil {
 			return err
 		}
@@ -1640,7 +1641,8 @@ func (s *store) DeleteRecord(
 		}
 		rev = s.clock.Next()
 		if err := tx.Model(&spaceRecord{}).
-			Scopes(habitat_syntax.InSpace(uri)).Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
+			Scopes(habitat_syntax.InSpace(uri)).
+			Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 			Updates(map[string]any{
 				"deleted_at": time.Now(),
 				"rev":        rev,
@@ -1704,7 +1706,8 @@ func setBlobRefs(
 	blobs []atdata.Blob,
 ) error {
 	if err := tx.
-		Scopes(habitat_syntax.InSpace(space)).Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
+		Scopes(habitat_syntax.InSpace(space)).
+		Where("repo = ? AND collection = ? AND rkey = ?", repo, collection, rkey).
 		Delete(&blobRef{}).Error; err != nil {
 		return fmt.Errorf("failed to clear blob refs: %w", err)
 	}
@@ -1881,7 +1884,8 @@ func (s *store) ApplyWrites(
 					return fmt.Errorf("%s: %w", uri, ErrRecordNotFound)
 				}
 				if err := tx.Model(&spaceRecord{}).
-					Scopes(habitat_syntax.InSpace(spaceURI)).Where("repo = ? AND collection = ? AND rkey = ?", repo, w.Collection, rkey).
+					Scopes(habitat_syntax.InSpace(spaceURI)).
+					Where("repo = ? AND collection = ? AND rkey = ?", repo, w.Collection, rkey).
 					Updates(map[string]any{
 						"deleted_at": time.Now(),
 						"rev":        rev,

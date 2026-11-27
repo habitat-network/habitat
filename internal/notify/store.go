@@ -413,7 +413,9 @@ func (s *store) ListWebhooks(
 	space habitat_syntax.SpaceURI,
 ) ([]Webhook, error) {
 	var rows []webhook
-	if err := s.db.WithContext(ctx).Scopes(habitat_syntax.InSpace(space)).Find(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).
+		Scopes(habitat_syntax.InSpace(space)).
+		Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list webhooks: %w", err)
 	}
 	out := make([]Webhook, len(rows))

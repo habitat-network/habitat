@@ -282,7 +282,8 @@ func deleteUntouched(
 			continue
 		}
 		if err := tx.Unscoped().Model(&spaceRemoteRecord{}).
-			Scopes(habitat_syntax.InSpace(space)).Where("repo = ? AND collection = ? AND rkey = ?", repo, r.Collection, r.Rkey).
+			Scopes(habitat_syntax.InSpace(space)).
+			Where("repo = ? AND collection = ? AND rkey = ?", repo, r.Collection, r.Rkey).
 			Updates(map[string]any{"deleted_at": time.Now(), "rev": rev, "seq": 0}).
 			Error; err != nil {
 			return fmt.Errorf("delete remote record: %w", err)

@@ -191,7 +191,11 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 		for _, r := range records {
 			head++
 			if err := tx.Unscoped().Model(&spaceRecord{}).
-				Scopes(habitat_syntax.InSpace(r.Space)).Where("repo = ? AND collection = ? AND rkey = ? AND rev = ?", r.Repo, r.Collection, r.Rkey, r.Rev).
+				Scopes(habitat_syntax.InSpace(r.Space)).
+				Where(
+					"repo = ? AND collection = ? AND rkey = ? AND rev = ?",
+					r.Repo, r.Collection, r.Rkey, r.Rev,
+				).
 				Update("seq", head).Error; err != nil {
 				return fmt.Errorf("sequence record: %w", err)
 			}
@@ -212,7 +216,11 @@ func sequenceBatch(db *gorm.DB) (int, error) {
 			// Matching the rev leaves a row a later fetch has rewritten since,
 			// pending again, for the next batch.
 			if err := tx.Unscoped().Model(&spaceRemoteRecord{}).
-				Scopes(habitat_syntax.InSpace(r.Space)).Where("repo = ? AND collection = ? AND rkey = ? AND rev = ?", r.Repo, r.Collection, r.Rkey, r.Rev).
+				Scopes(habitat_syntax.InSpace(r.Space)).
+				Where(
+					"repo = ? AND collection = ? AND rkey = ? AND rev = ?",
+					r.Repo, r.Collection, r.Rkey, r.Rev,
+				).
 				Update("seq", head).Error; err != nil {
 				return fmt.Errorf("sequence remote record: %w", err)
 			}
