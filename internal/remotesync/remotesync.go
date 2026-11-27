@@ -381,7 +381,10 @@ func (r *repoReader) fetch(
 				return spaces.RemoteSync{}, err
 			}
 			if op.Rev <= since || op.Rev < result.Rev {
-				return spaces.RemoteSync{}, fmt.Errorf("%w: oplog revisions out of order", ErrInvalidOps)
+				return spaces.RemoteSync{}, fmt.Errorf(
+					"%w: oplog revisions out of order",
+					ErrInvalidOps,
+				)
 			}
 			if op.Prev != "" {
 				result.State.Remove(spacecommit.RecordElement(op.Collection, op.Rkey, op.Prev))
