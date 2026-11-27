@@ -55,7 +55,7 @@ func (p *PearServer) StartAuthorization(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
 		return
 	} else if errors.Is(err, mcpgateway.ErrManualServer) || mcpgateway.IsConfigError(err) {
-		httpx.WriteInvalidRequest(ctx, w, "start mcp authorization", err)
+		httpx.WriteInvalidRequest(ctx, w, err.Error(), err)
 		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, err)

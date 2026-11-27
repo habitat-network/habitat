@@ -40,7 +40,7 @@ func TestServer_ListSpaces(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, code)
 	require.Len(t, output.Spaces, 1)
-	require.Equal(t, uri.String(), output.Spaces[0].Uri)
+	require.Equal(t, uri.AtSpace().String(), output.Spaces[0].Uri)
 
 	// com.atproto.space.listSpaces filters by spaceDid and names each space
 	// `space`.
@@ -57,6 +57,6 @@ func TestServer_ListSpaces(t *testing.T) {
 	}
 	atproto := listAtproto(org.String())
 	require.Len(t, atproto.Spaces, 1)
-	require.Equal(t, uri.String(), atproto.Spaces[0].Space)
+	require.Equal(t, uri.AtSpace().String(), atproto.Spaces[0].Space)
 	require.Empty(t, listAtproto("did:plc:someoneelse").Spaces)
 }

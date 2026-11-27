@@ -339,7 +339,10 @@ func (e *Engine) getRecord(
 			if err != nil {
 				return err
 			}
-			if output.Uri != uri {
+			// The host may name the record in either space URI form; its MAC
+			// covers the URI as it was sent.
+			got, err := habitat_syntax.ParseSpaceRecordURI(output.Uri)
+			if err != nil || got.String() != uri {
 				return fmt.Errorf("%w: record is %s, not %s",
 					spacecommit.ErrInvalidCommit, output.Uri, uri)
 			}
@@ -351,7 +354,7 @@ func (e *Engine) getRecord(
 			if err != nil {
 				return fmt.Errorf("%w: parse cid: %w", spacecommit.ErrInvalidCommit, err)
 			}
-			return x.verifyRecord(h, uri, c)
+			return x.verifyRecord(h, output.Uri, c)
 		})
 	if err != nil {
 		return output, fmt.Errorf("get record %s/%s: %w", collection, rkey, err)

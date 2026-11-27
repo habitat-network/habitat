@@ -257,7 +257,7 @@ export class FakeNetwork {
 
   /** What getDelegationToken on `user`'s PDS would return. */
   delegationToken(user: FakeAccount, space: string): Promise<string> {
-    const authority = space.split("/")[2];
+    const authority = SpaceRef.parse(space).spaceDid;
     return createDelegationToken({
       iss: user.did as DidString,
       sub: space as SpaceRefString,

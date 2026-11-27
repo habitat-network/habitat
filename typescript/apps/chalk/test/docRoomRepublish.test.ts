@@ -10,7 +10,7 @@ import type { DocRoom } from "../src/server/rooms/docRoom";
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 import { getDb, docByUri, upsertDoc } from "../src/db";
 
-const URI = "at://did:web:alice.example/space/network.habitat.docs/pub";
+const URI = "at:space/did:web:alice.example/network.habitat.docs/pub";
 
 const fetchMock = vi.fn();
 beforeEach(async () => {

@@ -20,11 +20,13 @@ import {
 } from "internal/components/ui";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { PageBody, PageHeader } from "@/components/shell/PageHeader";
 import {
   AUTH_LABELS,
   MCP_CONNECTORS,
   type McpConnector,
+  serverUrlError,
 } from "@/lib/mcpConnectors";
 import { groupQuery } from "@/lib/queries/groups";
 import { addMcpServer } from "@/server/fns/mcp";
@@ -69,22 +71,49 @@ function NewServerPage() {
   );
 }
 
+type AuthType = "oauth" | "token" | "manual";
+type AddServerValues = {
+  name: string;
+  description: string;
+  url: string;
+  authType: AuthType;
+  clientId: string;
+  clientSecret: string;
+};
+const EMPTY: AddServerValues = {
+  name: "",
+  description: "",
+  url: "",
+  authType: "oauth",
+  clientId: "",
+  clientSecret: "",
+};
+
 // AddServer adds a known connector by name, or a custom server by URL.
 function AddServer() {
   const { org } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [preset, setPreset] = useState<McpConnector | "custom" | null>(null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [url, setUrl] = useState("");
-  const [authType, setAuthType] = useState<"oauth" | "token" | "manual">(
-    "oauth",
-  );
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors, isValid },
+  } = useForm<AddServerValues>({ mode: "onChange", defaultValues: EMPTY });
+  const authType = watch("authType");
+  const url = watch("url");
   const add = useMutation({
-    mutationFn: () =>
+    mutationFn: ({
+      name,
+      description,
+      url,
+      authType,
+      clientId,
+      clientSecret,
+    }: AddServerValues) =>
       addMcpServer({
         data:
           preset && preset !== "custom"
@@ -98,7 +127,7 @@ function AddServer() {
                 org,
                 name,
                 description: description || undefined,
-                url,
+                url: url.trim(),
                 authType,
                 clientId: clientId || undefined,
                 clientSecret: clientSecret || undefined,
@@ -131,8 +160,11 @@ function AddServer() {
               className="flex flex-col gap-1 rounded-xl border p-4 text-left hover:bg-muted/50"
               onClick={() => {
                 setPreset(c);
-                setName(c.defaultName);
-                setDescription(c.description);
+                reset({
+                  ...EMPTY,
+                  name: c.defaultName,
+                  description: c.description,
+                });
               }}
             >
               <span className="flex items-center gap-2 font-medium">
@@ -159,14 +191,11 @@ function AddServer() {
     );
   }
 
-  const nameOk = SERVER_NAME_PATTERN.test(name);
+  const urlError = url ? serverUrlError(url) : null;
   return (
     <form
       className="flex max-w-xl flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        add.mutate();
-      }}
+      onSubmit={handleSubmit((v) => add.mutate(v))}
     >
       <div className="flex items-center gap-2">
         <h2 className="flex-1 text-xl font-semibold">
@@ -189,9 +218,10 @@ function AddServer() {
         <FieldLabel htmlFor="mcp-name">Name</FieldLabel>
         <Input
           id="mcp-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          aria-invalid={!!name && !nameOk}
+          aria-invalid={!!errors.name}
+          {...register("name", {
+            validate: (v) => SERVER_NAME_PATTERN.test(v),
+          })}
         />
         <FieldDescription>
           Letters, digits, dashes and underscores. It's also the server's tool
@@ -200,11 +230,7 @@ function AddServer() {
       </Field>
       <Field>
         <FieldLabel htmlFor="mcp-description">Description</FieldLabel>
-        <Textarea
-          id="mcp-description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
+        <Textarea id="mcp-description" {...register("description")} />
       </Field>
       {preset === "custom" && (
         <>
@@ -213,27 +239,38 @@ function AddServer() {
             <Input
               id="mcp-url"
               placeholder="https://example.com/mcp"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              {...register("url", { required: preset === "custom" })}
+              aria-invalid={!!urlError}
             />
+            {urlError && (
+              <FieldDescription className="text-destructive">
+                {urlError}
+              </FieldDescription>
+            )}
           </Field>
           <Field>
             <FieldLabel>Sign-in</FieldLabel>
-            <Select
-              value={authType}
-              onValueChange={(v) => setAuthType(v as typeof authType)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="oauth">
-                  {AUTH_LABELS.oauth} (OAuth)
-                </SelectItem>
-                <SelectItem value="token">{AUTH_LABELS.token}</SelectItem>
-                <SelectItem value="manual">{AUTH_LABELS.manual}</SelectItem>
-              </SelectContent>
-            </Select>
+            <Controller
+              control={control}
+              name="authType"
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  onValueChange={(v) => field.onChange(v as AuthType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="oauth">
+                      {AUTH_LABELS.oauth} (OAuth)
+                    </SelectItem>
+                    <SelectItem value="token">{AUTH_LABELS.token}</SelectItem>
+                    <SelectItem value="manual">{AUTH_LABELS.manual}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </Field>
           {authType === "oauth" && (
             <>
@@ -241,11 +278,7 @@ function AddServer() {
                 <FieldLabel htmlFor="mcp-client-id">
                   OAuth client id (optional)
                 </FieldLabel>
-                <Input
-                  id="mcp-client-id"
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                />
+                <Input id="mcp-client-id" {...register("clientId")} />
                 <FieldDescription>
                   Leave empty if the server supports dynamic client
                   registration.
@@ -258,8 +291,7 @@ function AddServer() {
                 <Input
                   id="mcp-client-secret"
                   type="password"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
+                  {...register("clientSecret")}
                 />
               </Field>
             </>
@@ -272,7 +304,9 @@ function AddServer() {
         </Button>
         <Button
           type="submit"
-          disabled={!nameOk || (preset === "custom" && !url) || add.isPending}
+          disabled={
+            !isValid || (preset === "custom" && !!urlError) || add.isPending
+          }
         >
           Add server
         </Button>

@@ -317,8 +317,10 @@ func (s *Store) CreateSpace(
 		); err != nil {
 			return fmt.Errorf("put access record: %w", err)
 		}
+		// New records name the space in the at:space/ form clients now write;
+		// older ones keep the at:// form until the URI migration.
 		recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialSpace{
-			Uri: spaceURI.String(),
+			Uri: spaceURI.AtSpace().String(),
 		})
 		if err != nil {
 			return fmt.Errorf("marshal space record: %w", err)
@@ -518,6 +520,13 @@ func (s *Store) CheckPermission(
 	membershipRoles, err := s.GetUserRoles(ctx, space.SpaceOwner(), user)
 	if err != nil {
 		return false, fmt.Errorf("get user roles: %w", err)
+	}
+	// Every member can reach the members space whatever their roles, since
+	// they write their own acceptance and profile records there. Its access
+	// record only lists the built-in roles, so a member holding only a custom
+	// role would otherwise be refused (a 401) when accepting an invite.
+	if space.SpaceType() == MembersSpaceType {
+		return len(membershipRoles) > 0, nil
 	}
 	intersection := xmaps.Intersection(
 		xmaps.SetFromSlice(access.Roles),

@@ -1,6 +1,8 @@
 package pearserver_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -31,6 +33,25 @@ func mcpOAuthCallback(
 	)
 	ts.Server.McpOAuthCallback(rec, req)
 	return rec
+}
+
+// A rejected add tells the admin why, so the app can show it.
+func TestServer_AddServerRejectionSaysWhy(t *testing.T) {
+	client := httpx_testutil.NewTestXRPCClient(t)
+	ts := newOpenSocialServer(t, admin)
+	orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+	require.NoError(t, err)
+	body, err := json.Marshal(habitat.NetworkHabitatMcpAddServerInput{
+		Org: orgDID, Name: "docs", Url: "not-a-url", AuthType: "manual",
+	})
+	require.NoError(t, err)
+	res := client.Do(
+		ts.Server.AddServer, httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body)),
+	)
+	require.Equal(t, http.StatusBadRequest, res.Code)
+	var out struct{ Message string }
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
+	require.Contains(t, out.Message, "url must be an absolute http or https URL")
 }
 
 func TestServer_AddServer(t *testing.T) {

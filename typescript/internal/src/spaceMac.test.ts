@@ -70,7 +70,7 @@ describe("MAC requests", () => {
 describe("commit MACs", () => {
   const commit: Commit = {
     ver: 1,
-    space: "at://did:plc:owner/space/com.example.type/key",
+    space: "at:space/did:plc:owner/com.example.type/key",
     repo: "did:plc:alice",
     rev: "3mwcj3b6uak2f",
     data: new Uint8Array(32).fill(7),

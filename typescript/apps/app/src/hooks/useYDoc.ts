@@ -2,9 +2,25 @@ import { useEffect, useMemo } from "react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { Awareness } from "y-protocols/awareness";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { computeTitle } from "@/lib/render";
 import type { DocSummary } from "@/db";
+
+// setDocTitle puts a doc's current title in the cached doc list and in the
+// doc page's own summary (its header), so neither shows the old one.
+export function setDocTitle(
+  queryClient: QueryClient,
+  docId: string,
+  title: string,
+) {
+  queryClient.setQueriesData<DocSummary[]>({ queryKey: ["docs"] }, (old) =>
+    old?.map((doc) => (doc.docId === docId ? { ...doc, title } : doc)),
+  );
+  queryClient.setQueriesData<DocSummary | null>(
+    { queryKey: ["docSummary"], predicate: (q) => q.queryKey[2] === docId },
+    (old) => (old ? { ...old, title } : old),
+  );
+}
 
 // useYDoc owns a doc's Y.Doc for the lifetime of a docId: it creates a fresh
 // one per docId and hands it to a WebsocketProvider connected to DocRoom
@@ -64,10 +80,7 @@ export function useYDoc(
     // remote) pause, not on every one.
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const flushTitle = () => {
-      const title = computeTitle(ydoc);
-      queryClient.setQueriesData<DocSummary[]>({ queryKey: ["docs"] }, (old) =>
-        old?.map((doc) => (doc.docId === docId ? { ...doc, title } : doc)),
-      );
+      setDocTitle(queryClient, docId, computeTitle(ydoc));
     };
     const onUpdate = () => {
       clearTimeout(timeout);

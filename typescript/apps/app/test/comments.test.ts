@@ -11,8 +11,8 @@ import {
   upsertCommentReply,
 } from "../src/db";
 
-const DOC = "at://did:web:alice.example/space/network.habitat.docs/abc";
-const OTHER_DOC = "at://did:web:alice.example/space/network.habitat.docs/xyz";
+const DOC = "at:space/did:web:alice.example/network.habitat.docs/abc";
+const OTHER_DOC = "at:space/did:web:alice.example/network.habitat.docs/xyz";
 const ALICE = "did:web:alice.example";
 const BOB = "did:web:bob.example";
 

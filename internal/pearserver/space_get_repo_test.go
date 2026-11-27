@@ -58,7 +58,7 @@ func TestServer_GetRepo(t *testing.T) {
 		require.Equal(t, spaces.RepoStarType, commit["$type"])
 		require.Equal(t, int64(spacecommit.Version), commit["ver"])
 		require.Equal(t, owner.String(), commit["repo"])
-		require.Equal(t, uri.String(), commit["space"])
+		require.Equal(t, uri.AtSpace().String(), commit["space"])
 
 		path, _, err := reader.Next()
 		require.NoError(t, err)

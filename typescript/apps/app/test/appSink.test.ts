@@ -14,7 +14,7 @@ import {
 } from "./events";
 
 const ORG = "did:web:org.example" as DidString;
-const SPACE = `at://${ORG}/space/network.habitat.apps/3kapp` as SpaceRefString;
+const SPACE = `at:space/${ORG}/network.habitat.apps/3kapp` as SpaceRefString;
 const URI = `${SPACE}/${ORG}/${APP_COLLECTION}/self`;
 const BLOB_CID = "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku";
 

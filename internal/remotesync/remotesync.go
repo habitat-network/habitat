@@ -412,7 +412,8 @@ func (r *repoReader) listRepoOps(
 	}
 	wantMAC := spacecommit.FormatMACRequest(spacecommit.CommitMACType, keyShare)
 	q := url.Values{
-		"space": {r.space.String()},
+		// Alpha PDSes require the at:space/ form.
+		"space": {r.space.AtSpace().String()},
 		"repo":  {r.repo.String()},
 		"limit": {strconv.Itoa(pageSize)},
 	}

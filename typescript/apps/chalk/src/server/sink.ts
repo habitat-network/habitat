@@ -31,6 +31,11 @@ import {
 } from "./comments.server";
 import { HabitatClient } from "./habitatClient";
 
+// Records written before the spaces alpha moved space URIs to the at:space/
+// form still embed the older at://{did}/space/... form, which only lenient
+// validation accepts. Goes with the migration to the new form.
+const LENIENT = { strict: false };
+
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
 const MARKDOWN_COLLECTION = "network.habitat.docs.markdown";
 const USER_RELATION_COLLECTION = "network.habitat.relationship.userRelation";
@@ -344,7 +349,7 @@ async function handleComment(
   if (!resolved) return;
   const { docSpaceUri } = resolved;
 
-  const validated = network.habitat.docs.comment.$safeValidate(value);
+  const validated = network.habitat.docs.comment.$safeValidate(value, LENIENT);
   if (!validated.success) return;
   const record = validated.value;
 
@@ -386,7 +391,10 @@ async function handleCommentReply(
   if (!resolved) return;
   const { docSpaceUri } = resolved;
 
-  const validated = network.habitat.docs.commentReply.$safeValidate(value);
+  const validated = network.habitat.docs.commentReply.$safeValidate(
+    value,
+    LENIENT,
+  );
   if (!validated.success) return;
   const record = validated.value;
 

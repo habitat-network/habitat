@@ -11,9 +11,9 @@ const frame = (seq: number, rkey: string) =>
     payload: {
       $type: `${NSID}#commit`,
       seq,
-      space: "at://did:web:o/space/t/k",
+      space: "at:space/did:web:o/t/k",
       did: "did:web:o",
-      uri: `at://did:web:o/space/t/k/did:web:o/c.x/${rkey}`,
+      uri: `at:space/did:web:o/t/k/did:web:o/c.x/${rkey}`,
       time: "2026-11-20T00:00:00.000000Z",
       rev: "r",
       operation: "create",

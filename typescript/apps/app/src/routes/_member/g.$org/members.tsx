@@ -4,6 +4,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { UserAvatar } from "internal";
 import {
@@ -28,6 +29,7 @@ import {
   DropdownMenuTrigger,
   Field,
   FieldDescription,
+  FieldError,
   FieldLabel,
   Input,
   Table,
@@ -398,28 +400,53 @@ function RevokeButton({ org, id }: { org: string; id: string }) {
   );
 }
 
+type InviteFormValues = { invitee: string; roles: string[] };
+
 function InviteDialog({ org, roles }: { org: string; roles: RoleView[] }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [invitee, setInvitee] = useState("");
-  const [picked, setPicked] = useState<string[]>(["member"]);
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    setError,
+    clearErrors,
+    formState: { errors, isSubmitting, isValid },
+  } = useForm<InviteFormValues>({
+    mode: "onChange",
+    defaultValues: { invitee: "", roles: ["member"] },
+  });
   const invite = useMutation({
-    mutationFn: () => inviteMember({ data: { org, invitee, roles: picked } }),
-    onSuccess: async () => {
+    mutationFn: (v: InviteFormValues) =>
+      inviteMember({
+        data: { org, invitee: v.invitee.trim(), roles: v.roles },
+      }),
+    onSuccess: async (_, v) => {
       await queryClient.invalidateQueries({ queryKey: ["groupInvites", org] });
-      toast.add({ type: "success", title: `Invited ${invitee}` });
-      setInvitee("");
+      toast.add({ type: "success", title: `Invited ${v.invitee.trim()}` });
       setOpen(false);
     },
-    onError: (e) =>
+    onError: (e) => {
+      setError("invitee", { type: "server", message: e.message });
       toast.add({
         type: "error",
         title: "Couldn't send invite",
         description: e.message,
-      }),
+      });
+    },
+  });
+  const inviteeField = register("invitee", {
+    validate: (v) => v.trim().length > 0,
   });
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+    >
       <DialogTrigger render={<Button />}>
         <MailPlus data-icon="inline-start" />
         Invite
@@ -427,10 +454,7 @@ function InviteDialog({ org, roles }: { org: string; roles: RoleView[] }) {
       <DialogContent>
         <form
           className="flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (invitee.trim()) invite.mutate();
-          }}
+          onSubmit={handleSubmit((v) => invite.mutateAsync(v).catch(() => {}))}
         >
           <DialogHeader>
             <DialogTitle>Invite someone</DialogTitle>
@@ -444,35 +468,50 @@ function InviteDialog({ org, roles }: { org: string; roles: RoleView[] }) {
               id="invitee"
               autoFocus
               placeholder="alice.example.com"
-              value={invitee}
-              onChange={(e) => setInvitee(e.target.value)}
+              aria-invalid={!!errors.invitee || undefined}
+              {...inviteeField}
+              onChange={(e) => {
+                if (errors.invitee?.type === "server") clearErrors("invitee");
+                return inviteeField.onChange(e);
+              }}
             />
+            {errors.invitee?.message && (
+              <FieldError>{errors.invitee.message}</FieldError>
+            )}
           </Field>
           <Field>
             <FieldLabel>Roles</FieldLabel>
-            <div className="flex flex-wrap gap-2">
-              {(roles.length > 0
-                ? roles
-                : [{ id: "member", name: "Member", description: null }]
-              ).map((r) => {
-                const on = picked.includes(r.id);
-                return (
-                  <Button
-                    key={r.id}
-                    type="button"
-                    size="sm"
-                    variant={on ? "default" : "outline"}
-                    onClick={() =>
-                      setPicked((p) =>
-                        on ? p.filter((x) => x !== r.id) : [...p, r.id],
-                      )
-                    }
-                  >
-                    {r.name}
-                  </Button>
-                );
-              })}
-            </div>
+            <Controller
+              control={control}
+              name="roles"
+              render={({ field }) => (
+                <div className="flex flex-wrap gap-2">
+                  {(roles.length > 0
+                    ? roles
+                    : [{ id: "member", name: "Member", description: null }]
+                  ).map((r) => {
+                    const on = field.value.includes(r.id);
+                    return (
+                      <Button
+                        key={r.id}
+                        type="button"
+                        size="sm"
+                        variant={on ? "default" : "outline"}
+                        onClick={() =>
+                          field.onChange(
+                            on
+                              ? field.value.filter((x) => x !== r.id)
+                              : [...field.value, r.id],
+                          )
+                        }
+                      >
+                        {r.name}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            />
             <FieldDescription>
               With no roles picked, they join as a member.
             </FieldDescription>
@@ -481,10 +520,7 @@ function InviteDialog({ org, roles }: { org: string; roles: RoleView[] }) {
             <DialogClose render={<Button type="button" variant="outline" />}>
               Cancel
             </DialogClose>
-            <Button
-              type="submit"
-              disabled={!invitee.trim() || invite.isPending}
-            >
+            <Button type="submit" disabled={!isValid || isSubmitting}>
               Send invite
             </Button>
           </DialogFooter>

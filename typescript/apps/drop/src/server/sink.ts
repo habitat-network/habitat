@@ -12,6 +12,11 @@ import type { PromiseRepoBatch, PromiseSyncSink } from "internal/spaceSync";
 import type { Db } from "@/db";
 import { files } from "@/db/schema";
 
+// Records written before the spaces alpha moved space URIs to the at:space/
+// form still embed the older at://{did}/space/... form, which only lenient
+// validation accepts. Goes with the migration to the new form.
+const LENIENT = { strict: false };
+
 export const FILE_COLLECTION = "network.habitat.drop.file";
 
 type FileRow = typeof files.$inferInsert;
@@ -30,7 +35,7 @@ export function toFileRow(
   cid: string,
   value: LexMap,
 ): FileRow | undefined {
-  const parsed = network.habitat.drop.file.$safeParse(value);
+  const parsed = network.habitat.drop.file.$safeParse(value, LENIENT);
   if (!parsed.success) return undefined;
   const record = parsed.value;
   const at = new AtUri(uri);

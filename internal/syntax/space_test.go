@@ -63,6 +63,19 @@ func TestParseSpaceURI(t *testing.T) {
 		require.Equal(t, SpaceKey("my-space_1"), uri.Skey())
 	})
 
+	// A URI in the at:space/ form the spaces alpha PDS now uses parses, and is
+	// normalized to the at:// form pear stores.
+	t.Run("at:space form", func(t *testing.T) {
+		uri, err := ParseSpaceURI("at:space/did:plc:abc123/network.habitat.space/my-space_1")
+		require.NoError(t, err)
+		require.Equal(
+			t,
+			SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space_1"),
+			uri,
+		)
+		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
+	})
+
 	t.Run("missing space segment", func(t *testing.T) {
 		_, err := ParseSpaceURI("at://did:plc:abc123/network.habitat.space/my-space")
 		require.Error(t, err)
@@ -97,11 +110,13 @@ func TestSpaceURIAccessorsReturnEmptyForInvalidURI(t *testing.T) {
 func TestSpaceURICanonicalAndLegacy(t *testing.T) {
 	current := SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space")
 	legacy := SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
+	atSpace := SpaceURI("at:space/did:plc:abc123/network.habitat.space/my-space")
 
-	// Both formats convert to either format, and converting is idempotent.
-	for _, uri := range []SpaceURI{current, legacy} {
+	// Every format converts to every format, and converting is idempotent.
+	for _, uri := range []SpaceURI{current, legacy, atSpace} {
 		require.Equal(t, current, uri.Canonical())
 		require.Equal(t, legacy, uri.Legacy())
+		require.Equal(t, atSpace, uri.AtSpace())
 	}
 
 	// Unparseable URIs pass through untouched rather than collapsing to a
@@ -109,6 +124,7 @@ func TestSpaceURICanonicalAndLegacy(t *testing.T) {
 	garbage := SpaceURI("not-a-space-uri")
 	require.Equal(t, garbage, garbage.Canonical())
 	require.Equal(t, garbage, garbage.Legacy())
+	require.Equal(t, garbage, garbage.AtSpace())
 }
 
 func TestConstructSpaceRecordURI(t *testing.T) {
@@ -177,6 +193,27 @@ func TestParseSpaceRecordURI(t *testing.T) {
 				"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
 			),
 			uri,
+		)
+	})
+
+	t.Run("at:space form", func(t *testing.T) {
+		uri, err := ParseSpaceRecordURI(
+			"at:space/did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.NoError(t, err)
+		require.Equal(
+			t,
+			SpaceRecordURI(
+				"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+			),
+			uri,
+		)
+		require.Equal(
+			t,
+			SpaceRecordURI(
+				"at:space/did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+			),
+			uri.AtSpace(),
 		)
 	})
 

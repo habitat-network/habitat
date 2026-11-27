@@ -81,13 +81,13 @@ describe("HabitatClient", () => {
     );
     const client = new HabitatClient(testEnv, "did:plc:member1");
     await client.call("network.habitat.space.listRecords", "GET", {
-      space: "at://did:plc:owner/space/network.habitat.docs/abc",
+      space: "at:space/did:plc:owner/network.habitat.docs/abc",
       cursor: undefined,
     });
     expect(request?.headers.get("X-Test-Did")).toBe("did:plc:member1");
     expect(new URL(request!.url).searchParams.toString()).toBe(
       new URLSearchParams({
-        space: "at://did:plc:owner/space/network.habitat.docs/abc",
+        space: "at:space/did:plc:owner/network.habitat.docs/abc",
       }).toString(),
     );
   });
@@ -196,7 +196,7 @@ describe("HabitatClient", () => {
     const client = new HabitatClient(testEnv, "did:plc:member1");
     await expect(
       client.call("network.habitat.relationship.deleteRelation", "POST", {
-        uri: "at://did:plc:owner/space/network.habitat.docs/abc/rel/xyz",
+        uri: "at:space/did:plc:owner/network.habitat.docs/abc/rel/xyz",
       }),
     ).resolves.toBeUndefined();
   });
