@@ -17,7 +17,7 @@ RUN npm install -g pnpm@11.5.1
 # cached when unrelated files change. --frozen-lockfile only validates the
 # projects the filter selects, so this needs the workspace root plus pear-pages
 # and its workspace deps (internal -> api, habitat), not all 12 members.
-COPY --parents pnpm-lock.yaml pnpm-workspace.yaml package.json \
+COPY --parents pnpm-lock.yaml pnpm-workspace.yaml package.json patches \
 	typescript/apps/pear-pages/package.json \
 	typescript/internal/package.json \
 	typescript/api/package.json \
