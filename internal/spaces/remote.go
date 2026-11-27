@@ -30,9 +30,9 @@ var ErrRepoNotRemote = errors.New("repo is not a remote writer of the space")
 // Like spaceRecord, a row holds the record's latest version and is
 // soft-deleted by a delete, so the log keeps the delete.
 type spaceRemoteRecord struct {
-	Space habitat_syntax.SpaceURI
-	// SpaceRef holds the parts of Space and is the key. Space is the legacy
-	// URI column, still written until it is dropped.
+	Space habitat_syntax.SpaceURI `gorm:"-"`
+	// SpaceRef holds the parts of Space and is the key. Space is not a column:
+	// it is derived from SpaceRef on load, and SpaceRef from Space on save.
 	SpaceRef   habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
@@ -56,9 +56,9 @@ type spaceRemoteRecord struct {
 // the rev of the last op fetched, and the LtHash folded from every op so far,
 // which is checked against the repo's commit.
 type spaceRemoteSync struct {
-	Space habitat_syntax.SpaceURI
-	// SpaceRef holds the parts of Space and is the key. Space is the legacy
-	// URI column, still written until it is dropped.
+	Space habitat_syntax.SpaceURI `gorm:"-"`
+	// SpaceRef holds the parts of Space and is the key. Space is not a column:
+	// it is derived from SpaceRef on load, and SpaceRef from Space on save.
 	SpaceRef  habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo      syntax.DID              `gorm:"primaryKey"`
 	Rev       syntax.TID
