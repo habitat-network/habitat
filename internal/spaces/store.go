@@ -58,7 +58,9 @@ type deletedSpace struct {
 }
 
 type spaceRecord struct {
-	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	SpaceRef   habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
@@ -84,8 +86,10 @@ type spaceRecord struct {
 // PutRecord keeps it in sync by clearing a record's prior refs and
 // re-inserting the ones extracted from its new value on every write.
 type blobRef struct {
-	Cid        string                  `gorm:"primaryKey"`
-	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Cid   string                  `gorm:"primaryKey"`
+	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	SpaceRef   habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
@@ -106,9 +110,11 @@ type blobRef struct {
 // digest, reads Hash directly for such a row.
 type spaceRepo struct {
 	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	Repo  syntax.DID              `gorm:"primaryKey"`
-	Hash  []byte
-	Rev   syntax.TID
+	// SpaceRef holds the parts of Space; see the space_parts migrations.
+	SpaceRef habitat_syntax.SpaceRef `gorm:"embedded;embeddedPrefix:space_"`
+	Repo     syntax.DID              `gorm:"primaryKey"`
+	Hash     []byte
+	Rev      syntax.TID
 	// SpaceRev is the space revision at this repo's latest write, so listRepos
 	// can return only the repos that changed since a given space revision.
 	SpaceRev syntax.TID
