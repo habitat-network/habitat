@@ -844,6 +844,9 @@ func (o *OAuthServer) ValidateRaw(
 		ExpiresAt: session.GetExpiresAt(fosite.AccessToken),
 		Scopes:    []string(ar.GetGrantedScopes()),
 	}
+	if authorizer, ok := session.JWTClaims.Extra[AuthorizerClaim].(string); ok && authorizer != "" {
+		credInfo.Authorizer = syntax.DID(authorizer)
+	}
 
 	return credInfo, true, nil
 }
@@ -951,6 +954,12 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 	redirectURL, state, providerStateKey, err := o.loginRouter.Pds.Authorize(ctx, memberID.String())
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get authorize url: %w", err))
+		return
+	}
+	// Remember who approved: the session acts as the group, but only as far as
+	// this member's roles reach, now and later.
+	if err := o.storage.UpdatePARSessionAuthorizer(ctx, requestKey, memberID); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to record authorizer: %w", err))
 		return
 	}
 	saveLoginHop(session, requestKey, state, providerStateKey)

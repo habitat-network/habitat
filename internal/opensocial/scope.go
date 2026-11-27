@@ -130,6 +130,29 @@ type ScopeSet struct {
 	// all is true for the group DID itself, which holds every scope.
 	all    bool
 	scopes []string
+	// limit, when set, also has to cover a scope for the set to grant it.
+	limit *ScopeSet
+}
+
+// Within returns the set narrowed by limit: it grants a scope only when both
+// the set and limit do.
+func (s ScopeSet) Within(limit ScopeSet) ScopeSet {
+	if s.limit != nil {
+		limit = s.limit.Within(limit)
+	}
+	s.limit = &limit
+	return s
+}
+
+// RestrictsSession reports whether granted, the scopes of an OAuth token,
+// ask for anything beyond the base scopes: permission sets, group methods,
+// Habitat grants or space access. A token that asks only for base scopes
+// such as "atproto" is not narrowed by them.
+func RestrictsSession(granted []string) bool {
+	return slices.ContainsFunc(granted, func(scope string) bool {
+		return strings.HasPrefix(scope, includePrefix) || strings.HasPrefix(scope, rpcPrefix) ||
+			strings.HasPrefix(scope, spacePrefix) || strings.HasPrefix(scope, "habitat:")
+	})
 }
 
 // AllScopes is the scope set of the group DID, which holds every scope.
@@ -142,6 +165,9 @@ func NewScopeSet(scopes ...[]string) ScopeSet {
 
 // Covers reports whether the set grants scope.
 func (s ScopeSet) Covers(scope string) bool {
+	if s.limit != nil && !s.limit.Covers(scope) {
+		return false
+	}
 	if s.all {
 		return true
 	}

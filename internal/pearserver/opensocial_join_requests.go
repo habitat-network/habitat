@@ -1,6 +1,7 @@
 package pearserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,37 +20,74 @@ const (
 	maxJoinRequestLimit     = 100
 )
 
+// groupCaller is who acts on a group and what they may do right now.
+type groupCaller struct {
+	Group syntax.DID
+	// Actor is the member the call is made as: the caller themselves, or for a
+	// session acting as the group, the member who authorized it.
+	Actor  syntax.DID
+	Scopes opensocial.ScopeSet
+}
+
+// callerFor resolves who credInfo acts as in group, and with which scopes.
+func (p *PearServer) callerFor(
+	ctx context.Context,
+	w http.ResponseWriter,
+	credInfo *authn.CredentialInfo,
+	group syntax.DID,
+) (groupCaller, bool) {
+	actor, scopes, err := p.opensocialStore.SessionScopes(
+		ctx, group, credInfo.Subject, credInfo.Authorizer, credInfo.Scopes,
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("session scopes: %w", err))
+		return groupCaller{}, false
+	}
+	return groupCaller{Group: group, Actor: actor, Scopes: scopes}, true
+}
+
 // authenticateGroup validates a method that only the group itself may call,
-// through its own OAuth credential, and returns the group DID.
+// through an OAuth session acting as the group, and checks the session may
+// call lxm right now.
 func (p *PearServer) authenticateGroup(
 	w http.ResponseWriter,
 	r *http.Request,
-) (syntax.DID, bool) {
+	lxm string,
+) (groupCaller, bool) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
-		return "", false
+		return groupCaller{}, false
 	}
 	group, ok := p.isGroup(ctx, w, credInfo.Subject)
 	if !ok {
-		return "", false
+		return groupCaller{}, false
 	}
 	if !group {
 		httpx.WriteUnauthorized(ctx, w, "only a group may call this method", nil)
-		return "", false
+		return groupCaller{}, false
 	}
-	return credInfo.Subject, true
+	caller, ok := p.callerFor(ctx, w, credInfo, credInfo.Subject)
+	if !ok {
+		return groupCaller{}, false
+	}
+	if !caller.Scopes.Covers("rpc:" + lxm) {
+		httpx.WriteUnauthorized(ctx, w, "the session may not call "+lxm, nil)
+		return groupCaller{}, false
+	}
+	return caller, true
 }
 
 // GroupListJoinRequests implements org.atgrp.listJoinRequests.
 func (p *PearServer) GroupListJoinRequests(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	group, ok := p.authenticateGroup(w, r)
+	caller, ok := p.authenticateGroup(w, r, "org.atgrp.listJoinRequests")
 	if !ok {
 		return
 	}
+	group := caller.Group
 	var params opensocial_api.OrgAtgrpListJoinRequestsParams
 	if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode query", err)
@@ -85,10 +123,11 @@ func (p *PearServer) GroupListJoinRequests(w http.ResponseWriter, r *http.Reques
 // GroupDenyJoinRequest implements org.atgrp.denyJoinRequest.
 func (p *PearServer) GroupDenyJoinRequest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	group, ok := p.authenticateGroup(w, r)
+	caller, ok := p.authenticateGroup(w, r, "org.atgrp.denyJoinRequest")
 	if !ok {
 		return
 	}
+	group := caller.Group
 	var input opensocial_api.OrgAtgrpDenyJoinRequestInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)

@@ -57,12 +57,18 @@ func writeGroupSpaceError(ctx context.Context, w http.ResponseWriter, err error)
 func (p *PearServer) createGroupSpace(
 	ctx context.Context,
 	w http.ResponseWriter,
-	group syntax.DID,
+	caller groupCaller,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
 	policy spaces.Policy,
 ) {
-	uri, err := p.opensocialStore.CreateGroupSpace(ctx, group, group, spaceType, skey, policy)
+	if !caller.Scopes.Covers("space:*?manage=create") {
+		httpx.WriteUnauthorized(ctx, w, "the session may not create spaces", nil)
+		return
+	}
+	uri, err := p.opensocialStore.CreateGroupSpace(
+		ctx, caller.Group, caller.Actor, spaceType, skey, policy,
+	)
 	if !writeGroupSpaceError(ctx, w, err) {
 		return
 	}

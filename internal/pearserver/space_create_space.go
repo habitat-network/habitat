@@ -73,7 +73,11 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case group && policy.Type == spaces.PolicyGroupSpace:
-		p.createGroupSpace(ctx, w, credInfo.Subject, spaceType, skey, policy)
+		caller, ok := p.callerFor(ctx, w, credInfo, credInfo.Subject)
+		if !ok {
+			return
+		}
+		p.createGroupSpace(ctx, w, caller, spaceType, skey, policy)
 		return
 	case group || policy.Type == spaces.PolicyGroupSpace:
 		// Group spaces use the group policy, and only groups may use it.

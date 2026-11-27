@@ -42,7 +42,10 @@ type requestRecord struct {
 	ClientID string `json:"client_id"`
 	// Subject is the resolved DID this flow authenticates. Empty until the login
 	// hint is resolved (at PAR time) or the handle is resolved (at authorize time).
-	Subject             string `json:"subject"`
+	Subject string `json:"subject"`
+	// Authorizer is the member who approved a flow acting as a group; empty
+	// until they have, and for every other flow.
+	Authorizer          string `json:"authorizer,omitempty"`
 	Scopes              string `json:"scopes"` // space-separated
 	CodeChallenge       string `json:"code_challenge"`
 	CodeChallengeMethod string `json:"code_challenge_method"`
@@ -71,9 +74,10 @@ func (r *requestRecord) toAuthorizeRequest(client fosite.Client) *fosite.Authori
 		Request: fosite.Request{
 			Client: client,
 			Session: &session{
-				Subject:  r.Subject,
-				ClientID: r.ClientID,
-				Scopes:   scopes,
+				Subject:    r.Subject,
+				Authorizer: r.Authorizer,
+				ClientID:   r.ClientID,
+				Scopes:     scopes,
 			},
 			RequestedScope: scopes,
 			GrantedScope:   scopes,
@@ -101,7 +105,17 @@ func requestRecordFrom(requester fosite.Requester) requestRecord {
 		ResponseMode:        form.Get("response_mode"),
 		Prompt:              form.Get("prompt"),
 		Subject:             requester.GetSession().GetSubject(),
+		Authorizer:          sessionAuthorizer(requester.GetSession()),
 	}
+}
+
+// sessionAuthorizer returns the member who authorized sess, or "" when it has
+// no authorizer.
+func sessionAuthorizer(sess fosite.Session) string {
+	if withAuthorizer, ok := sess.(interface{ GetAuthorizer() string }); ok {
+		return withAuthorizer.GetAuthorizer()
+	}
+	return ""
 }
 
 // pkceForm reconstructs the code_challenge/code_challenge_method form values
@@ -121,10 +135,11 @@ func (r *requestRecord) pkceForm() url.Values {
 // rebuild the session the token endpoint reads back. The entry expires with the
 // token, so ExpiresAt is only echoed back to fosite.
 type refreshRecord struct {
-	ClientID  string    `json:"client_id"`
-	Subject   string    `json:"subject"`
-	Scopes    string    `json:"scopes"` // space-separated
-	ExpiresAt time.Time `json:"expires_at"`
+	ClientID   string    `json:"client_id"`
+	Subject    string    `json:"subject"`
+	Authorizer string    `json:"authorizer,omitempty"`
+	Scopes     string    `json:"scopes"` // space-separated
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 // refreshKey namespaces refresh token signatures among the other entries in the
@@ -234,6 +249,24 @@ func (s *store) UpdatePARSessionSubject(
 		return err
 	}
 	r.Subject = subject.String()
+	return s.kv.Put(ctx, requestURI, r, parSessionTTL)
+}
+
+// UpdatePARSessionAuthorizer records the member who approved a flow acting as
+// a group. Like UpdatePARSessionSubject, a missing session is a no-op.
+func (s *store) UpdatePARSessionAuthorizer(
+	ctx context.Context,
+	requestURI string,
+	authorizer syntax.DID,
+) error {
+	var r requestRecord
+	if err := s.kv.Get(ctx, requestURI, &r); err != nil {
+		if errors.Is(err, keyval.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	r.Authorizer = authorizer.String()
 	return s.kv.Put(ctx, requestURI, r, parSessionTTL)
 }
 
@@ -518,10 +551,11 @@ func (s *store) CreateRefreshTokenSession(
 
 	sess := request.GetSession().(*session)
 	oauthSession := refreshRecord{
-		ClientID:  request.GetClient().GetID(),
-		Subject:   sess.Subject,
-		Scopes:    strings.Join(sess.Scopes, " "),
-		ExpiresAt: sess.GetExpiresAt(fosite.RefreshToken),
+		ClientID:   request.GetClient().GetID(),
+		Subject:    sess.Subject,
+		Authorizer: sess.Authorizer,
+		Scopes:     strings.Join(sess.Scopes, " "),
+		ExpiresAt:  sess.GetExpiresAt(fosite.RefreshToken),
 	}
 
 	err := s.kv.Put(
@@ -580,6 +614,7 @@ func (s *store) GetRefreshTokenSession(
 		Client: client,
 		Session: &session{
 			Subject:               oauthSession.Subject,
+			Authorizer:            oauthSession.Authorizer,
 			ClientID:              oauthSession.ClientID,
 			Scopes:                scopes,
 			RefreshTokenExpiresAt: oauthSession.ExpiresAt,

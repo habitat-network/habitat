@@ -85,8 +85,16 @@ func (p *PearServer) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
+		caller, ok := p.callerFor(ctx, w, credInfo, spaceURI.SpaceOwner())
+		if !ok {
+			return
+		}
+		if !caller.Scopes.Covers("space:*?manage=update") {
+			httpx.WriteUnauthorized(ctx, w, "the session may not update spaces", nil)
+			return
+		}
 		writeGroupSpaceError(
-			ctx, w, p.opensocialStore.UpdatePolicy(ctx, spaceURI, credInfo.Subject, policy),
+			ctx, w, p.opensocialStore.UpdatePolicy(ctx, spaceURI, caller.Actor, policy),
 		)
 		return
 	}

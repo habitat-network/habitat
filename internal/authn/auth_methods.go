@@ -30,6 +30,10 @@ type CredentialInfo struct {
 	// Scopes are the OAuth scopes granted to the token, for OAuth
 	// credentials; nil for every other method.
 	Scopes []string
+	// Authorizer is the member who approved an OAuth session acting as a
+	// group; empty for every other credential. A group's access through such
+	// a session is narrowed by the authorizer's current roles.
+	Authorizer syntax.DID
 }
 
 type Validator interface {

@@ -235,10 +235,11 @@ func (p *PearServer) ModSubmitAppeal(w http.ResponseWriter, r *http.Request) {
 // ModUpdateSubject implements org.atgrp.mod.updateSubject.
 func (p *PearServer) ModUpdateSubject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	group, ok := p.authenticateGroup(w, r)
+	caller, ok := p.authenticateGroup(w, r, "org.atgrp.mod.updateSubject")
 	if !ok {
 		return
 	}
+	group := caller.Group
 	var input opensocial_api.OrgAtgrpModUpdateSubjectInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
@@ -253,7 +254,7 @@ func (p *PearServer) ModUpdateSubject(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "status must be open or resolved", nil)
 		return
 	}
-	_, err := p.opensocialStore.UpdateSubject(ctx, group, group, subject, opensocial.SubjectUpdate{
+	_, err := p.opensocialStore.UpdateSubject(ctx, group, caller.Actor, subject, opensocial.SubjectUpdate{
 		Status: status, Note: input.Note, AddTags: input.AddTags, RemoveTags: input.RemoveTags,
 	})
 	if writeSubjectError(ctx, w, err) {
@@ -269,10 +270,11 @@ func (p *PearServer) ModUpdateSubject(w http.ResponseWriter, r *http.Request) {
 // ModQuerySubjects implements org.atgrp.mod.querySubjects.
 func (p *PearServer) ModQuerySubjects(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	group, ok := p.authenticateGroup(w, r)
+	caller, ok := p.authenticateGroup(w, r, "org.atgrp.mod.querySubjects")
 	if !ok {
 		return
 	}
+	group := caller.Group
 	var params opensocial_api.OrgAtgrpModQuerySubjectsParams
 	if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode query", err)
@@ -360,10 +362,11 @@ func decodeSubjectCursor(raw string) (opensocial.SubjectCursor, error) {
 // ModQuerySubjectHistory implements org.atgrp.mod.querySubjectHistory.
 func (p *PearServer) ModQuerySubjectHistory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	group, ok := p.authenticateGroup(w, r)
+	caller, ok := p.authenticateGroup(w, r, "org.atgrp.mod.querySubjectHistory")
 	if !ok {
 		return
 	}
+	group := caller.Group
 	var params opensocial_api.OrgAtgrpModQuerySubjectHistoryParams
 	if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode query", err)

@@ -18,13 +18,22 @@ import (
 // which is why SetSubject (used by the JWT bearer handler) is all that's needed
 // to get the subject into the issued token.
 type session struct {
-	Subject               string
+	Subject string
+	// Authorizer is the member who approved a session acting as a group. It
+	// is empty for every other session. A group's access is narrowed by the
+	// authorizer's current roles on every request, so it ends with their
+	// membership.
+	Authorizer            string
 	ClientID              string
 	Scopes                []string
 	AuthCodeExpiresAt     time.Time
 	AccessTokenExpiresAt  time.Time
 	RefreshTokenExpiresAt time.Time
 }
+
+// AuthorizerClaim is the access token claim naming the member who authorized a
+// session that acts as a group.
+const AuthorizerClaim = "authorizer"
 
 var (
 	_ fosite.Session             = (*session)(nil)
@@ -44,11 +53,15 @@ func newSession() *session {
 // audience, and expiry. We only need to surface the subject here so that a
 // subject set via SetSubject lands in the token's "sub" claim.
 func (s *session) GetJWTClaims() jwt.JWTClaimsContainer {
-	return &jwt.JWTClaims{
+	claims := &jwt.JWTClaims{
 		Subject:   s.Subject,
 		ExpiresAt: s.AccessTokenExpiresAt,
 		Audience:  []string{s.ClientID},
 	}
+	if s.Authorizer != "" {
+		claims.Extra = map[string]any{AuthorizerClaim: s.Authorizer}
+	}
+	return claims
 }
 
 // GetJWTHeader implements oauth2.JWTSessionContainer.
@@ -90,6 +103,11 @@ func (s *session) SetExpiresAt(key fosite.TokenType, exp time.Time) {
 	case fosite.AuthorizeCode:
 		s.AuthCodeExpiresAt = exp
 	}
+}
+
+// GetAuthorizer returns the member who approved this session, if any.
+func (s *session) GetAuthorizer() string {
+	return s.Authorizer
 }
 
 // GetSubject implements [fosite.Session].

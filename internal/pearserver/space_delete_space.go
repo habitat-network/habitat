@@ -37,8 +37,16 @@ func (p *PearServer) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if group {
+		caller, ok := p.callerFor(ctx, w, credInfo, spaceURI.SpaceOwner())
+		if !ok {
+			return
+		}
+		if !caller.Scopes.Covers("space:*?manage=delete") {
+			httpx.WriteUnauthorized(ctx, w, "the session may not delete spaces", nil)
+			return
+		}
 		writeGroupSpaceError(ctx, w, p.opensocialStore.DeleteGroupSpace(
-			ctx, spaceURI.SpaceOwner(), credInfo.Subject, spaceURI,
+			ctx, caller.Group, caller.Actor, spaceURI,
 		))
 		return
 	}
