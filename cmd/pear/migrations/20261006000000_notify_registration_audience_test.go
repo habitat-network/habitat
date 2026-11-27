@@ -66,11 +66,13 @@ func TestSchemaMigrationsProduceAudienceKey(t *testing.T) {
 	space := habitat_syntax.SpaceURI(audienceSpace)
 	now := time.Now().Add(time.Hour)
 	require.NoError(t, db.Table("registrations").Create(map[string]any{
-		"space_owner": space.SpaceOwner(), "space_type": space.SpaceType(), "space_skey": space.Skey(),
-		"repo":       "",
-		"audience":   syncerRef,
-		"endpoint":   legacyURL,
-		"expires_at": now,
+		"space_owner": space.SpaceOwner(),
+		"space_type":  space.SpaceType(),
+		"space_skey":  space.Skey(),
+		"repo":        "",
+		"audience":    syncerRef,
+		"endpoint":    legacyURL,
+		"expires_at":  now,
 	}).Error)
 
 	require.Equal(t, []string{syncerRef}, schemaColumn(t, db, "registrations", "audience"))
