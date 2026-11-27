@@ -193,6 +193,7 @@ type Store interface {
 	// SetSpacePolicy replaces the space's policy wholesale, or returns
 	// ErrSpaceNotFound.
 	SetSpacePolicy(ctx context.Context, uri habitat_syntax.SpaceURI, policy Policy) error
+	setGroupSpacePolicy(ctx context.Context, uri habitat_syntax.SpaceURI, policy Policy) error
 	// IsSpaceDeleted reports whether the space was deleted and hasn't been
 	// recreated since. A space that never existed is not deleted.
 	IsSpaceDeleted(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
@@ -564,6 +565,10 @@ func NewStore(
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
 func (s *store) WithTx(tx *gorm.DB) Store {
+	return s.withTx(tx)
+}
+
+func (s *store) withTx(tx *gorm.DB) *store {
 	return &store{
 		db:       tx,
 		clock:    s.clock,
@@ -1407,6 +1412,9 @@ func (s *store) RepoSnapshot(
 }
 
 func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (err error) {
+	if habitat_syntax.IsAtgrpConfigurationSpaceType(uri.SpaceType()) {
+		return ErrReservedSpace
+	}
 	ctx, span := tracer.Start(ctx, "spaces.DeleteSpace", trace.WithAttributes(
 		telemetry.Space(uri),
 	))
@@ -1450,7 +1458,12 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 
 		// Drop the space itself
 		deleteSpace := tx.
-			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
+			Where(
+				"owner = ? AND type = ? AND skey = ?",
+				uri.SpaceOwner(),
+				uri.SpaceType(),
+				uri.Skey(),
+			).
 			Delete(&space{})
 		if deleteSpace.Error != nil {
 			return deleteSpace.Error

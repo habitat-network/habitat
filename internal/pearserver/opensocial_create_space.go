@@ -11,6 +11,7 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 
 	"github.com/habitat-network/habitat/internal/spaces"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 // CreateOpensocialSpace implements community.opensocial.createSpace: creates
@@ -43,6 +44,10 @@ func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if habitat_syntax.IsAtgrpConfigurationSpaceType(spaceType) {
+		httpx.WriteInvalidRequest(ctx, w, spaces.ErrReservedSpace.Error(), nil)
+		return
+	}
 	skey, ok := parseSkeyInput(w, r, input.Skey)
 	if !ok {
 		return
@@ -58,6 +63,10 @@ func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 		if !writePolicyError(ctx, w, err) {
 			return
 		}
+	}
+	if policy.Type == spaces.PolicyAtgrp {
+		writePolicyError(ctx, w, spaces.ErrUnsupportedPolicy)
+		return
 	}
 	uri, err := p.opensocialStore.CreateSpace(ctx, org, input.Roles, spaceType, skey, policy)
 	if errors.Is(err, spaces.ErrSpaceAlreadyExists) {

@@ -62,6 +62,14 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if habitat_syntax.IsAtgrpConfigurationSpaceType(spaceType) {
+		httpx.WriteInvalidRequest(ctx, w, spaces.ErrReservedSpace.Error(), nil)
+		return
+	}
+	if policy.Type == spaces.PolicyAtgrp {
+		writePolicyError(ctx, w, spaces.ErrUnsupportedPolicy)
+		return
+	}
 	skey, ok := parseSkeyInput(w, r, input.Skey)
 	if !ok {
 		return

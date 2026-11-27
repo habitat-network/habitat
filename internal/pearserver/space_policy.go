@@ -75,6 +75,9 @@ func (p *PearServer) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
+	} else if errors.Is(err, spaces.ErrUnsupportedPolicy) {
+		writePolicyError(ctx, w, err)
+		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("update space: %w", err))
 		return
