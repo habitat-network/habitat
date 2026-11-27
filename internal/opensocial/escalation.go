@@ -86,10 +86,16 @@ func spaceChanges(
 ) []grantChange {
 	var oldG, newG []opensocial_api.GroupOpensocialDefsGroupGrant
 	for _, g := range old {
-		oldG = append(oldG, opensocial_api.GroupOpensocialDefsGroupGrant{Role: g.Role, Scopes: g.Scopes})
+		oldG = append(
+			oldG,
+			opensocial_api.GroupOpensocialDefsGroupGrant{Role: g.Role, Scopes: g.Scopes},
+		)
 	}
 	for _, g := range updated {
-		newG = append(newG, opensocial_api.GroupOpensocialDefsGroupGrant{Role: g.Role, Scopes: g.Scopes})
+		newG = append(
+			newG,
+			opensocial_api.GroupOpensocialDefsGroupGrant{Role: g.Role, Scopes: g.Scopes},
+		)
 	}
 	return groupChanges(oldG, newG)
 }

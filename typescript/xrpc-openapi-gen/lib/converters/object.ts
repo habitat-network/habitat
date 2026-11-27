@@ -122,6 +122,16 @@ export function convertProperty(
                 format: "cid-link",
             };
         case "ref":
+            // Their known values are tokens from lexicons this spec doesn't
+            // load, so these render as plain strings.
+            if (
+                [
+                    "com.atproto.moderation.defs.reasonType",
+                    "com.atproto.moderation.defs.subjectType",
+                ].includes(getRefLabel(id, property.ref))
+            ) {
+                return { type: "string" };
+            }
             return {
                 $ref: `#/components/schemas/${getRefLabel(id, property.ref)}`,
             };
@@ -157,6 +167,11 @@ function getRefLabel(id: string, ref: string) {
     // A local to file reference
     if (ref.startsWith("#")) {
         return `${id}${ref.replace("#", ".")}`;
+    }
+
+    // A reference to another lexicon's main def names the lexicon itself.
+    if (ref.endsWith("#main")) {
+        return ref.slice(0, -"#main".length);
     }
 
     // Reference already includes the lexicon name

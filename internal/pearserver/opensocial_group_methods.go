@@ -248,7 +248,13 @@ func (p *PearServer) GroupRequestJoin(w http.ResponseWriter, r *http.Request) {
 			Status: "pending", Request: &view,
 		})
 	default:
-		httpx.WriteError(ctx, w, "JoinClosed", opensocial.ErrJoinClosed.Error(), http.StatusForbidden)
+		httpx.WriteError(
+			ctx,
+			w,
+			"JoinClosed",
+			opensocial.ErrJoinClosed.Error(),
+			http.StatusForbidden,
+		)
 	}
 }
 
