@@ -838,11 +838,24 @@ func (o *OAuthServer) ValidateRaw(
 		return nil, false, fmt.Errorf("DID not found in JWT")
 	}
 
+	var authorizer syntax.DID
+	if claim, present := session.JWTClaims.Extra[authorizerClaim]; present {
+		raw, ok := claim.(string)
+		if !ok {
+			return nil, false, errors.New("invalid authorizer claim")
+		}
+		authorizer, err = syntax.ParseDID(raw)
+		if err != nil {
+			return nil, false, errors.New("invalid authorizer DID in JWT")
+		}
+	}
+
 	credInfo := &authn.CredentialInfo{
-		Subject:   syntax.DID(did),
-		Method:    authn.ValidatorMethodOAuth,
-		ExpiresAt: session.GetExpiresAt(fosite.AccessToken),
-		Scopes:    []string(ar.GetGrantedScopes()),
+		Subject:    syntax.DID(did),
+		Authorizer: authorizer,
+		Method:     authn.ValidatorMethodOAuth,
+		ExpiresAt:  session.GetExpiresAt(fosite.AccessToken),
+		Scopes:     []string(ar.GetGrantedScopes()),
 	}
 
 	return credInfo, true, nil

@@ -42,6 +42,15 @@ type App struct {
 
 // NewApp returns the OAuth client app, resolving identities through dir.
 func NewApp(cfg Config, store oauth.ClientAuthStore, dir identity.Directory) (*App, error) {
+	return newApp(cfg, store, dir, Scopes)
+}
+
+func newApp(
+	cfg Config,
+	store oauth.ClientAuthStore,
+	dir identity.Directory,
+	scopes []string,
+) (*App, error) {
 	secretBytes, err := encrypt.ParseKey(cfg.Secret)
 	if err != nil {
 		return nil, fmt.Errorf("parse client secret: %w", err)
@@ -59,7 +68,7 @@ func NewApp(cfg Config, store oauth.ClientAuthStore, dir identity.Directory) (*A
 	if err != nil {
 		return nil, fmt.Errorf("load client key: %w", err)
 	}
-	config := oauth.NewPublicConfig(cfg.ClientID, cfg.CallbackURL, Scopes)
+	config := oauth.NewPublicConfig(cfg.ClientID, cfg.CallbackURL, scopes)
 	if err := config.SetClientSecret(priv, clientKeyID); err != nil {
 		return nil, fmt.Errorf("set client secret: %w", err)
 	}

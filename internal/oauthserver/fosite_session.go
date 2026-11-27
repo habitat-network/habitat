@@ -3,11 +3,14 @@ package oauthserver
 import (
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/rfc7523"
 	"github.com/ory/fosite/token/jwt"
 )
+
+const authorizerClaim = "authorizer"
 
 // session is the single fosite.Session implementation used by every grant type
 // Habitat's OAuth server supports: authorization code, refresh token, and
@@ -19,6 +22,7 @@ import (
 // to get the subject into the issued token.
 type session struct {
 	Subject               string
+	Authorizer            syntax.DID
 	ClientID              string
 	Scopes                []string
 	AuthCodeExpiresAt     time.Time
@@ -41,14 +45,17 @@ func newSession() *session {
 
 // GetJWTClaims implements oauth2.JWTSessionContainer. DefaultJWTStrategy calls
 // this to seed the access token's claims, then layers on the granted scopes,
-// audience, and expiry. We only need to surface the subject here so that a
-// subject set via SetSubject lands in the token's "sub" claim.
+// audience, and expiry.
 func (s *session) GetJWTClaims() jwt.JWTClaimsContainer {
-	return &jwt.JWTClaims{
+	claims := &jwt.JWTClaims{
 		Subject:   s.Subject,
 		ExpiresAt: s.AccessTokenExpiresAt,
 		Audience:  []string{s.ClientID},
 	}
+	if s.Authorizer != "" {
+		claims.Extra = map[string]any{authorizerClaim: s.Authorizer.String()}
+	}
+	return claims
 }
 
 // GetJWTHeader implements oauth2.JWTSessionContainer.

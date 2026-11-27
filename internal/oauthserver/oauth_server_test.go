@@ -914,6 +914,11 @@ func TestValidateWithScopeChecking(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
+		require.Empty(t, credInfo.Authorizer)
+		claims := jwt.MapClaims{}
+		_, _, err = jwt.NewParser().ParseUnverified(token, claims)
+		require.NoError(t, err)
+		require.NotContains(t, claims, authorizerClaim, "existing issuance keeps the claim absent")
 	})
 }
 
