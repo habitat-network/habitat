@@ -8,6 +8,7 @@ RUN npm install -g pnpm@11.5.1
 
 # Install deps with frozen lockfile for reproducibility
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.options.json ./
+COPY patches/ ./patches/
 COPY typescript/ ./typescript/
 RUN pnpm install --frozen-lockfile
 

@@ -1,0 +1,39 @@
+diff --git a/dist/schema/space.d.ts b/dist/schema/space.d.ts
+index bac12a7b31bb950c21da075a15fd9d22d612310e..4b8c088bdce110e81f4284f139f0c024260c6aa6 100644
+--- a/dist/schema/space.d.ts
++++ b/dist/schema/space.d.ts
+@@ -20,12 +20,13 @@ import type { TypedRefSchema } from './typed-ref.js';
+  * const forum = new Space('any', 'com.atmoboards.forum', [thread, reply])
+  * ```
+  */
++type CollectionSchema<T> = T extends TypedRefSchema<infer TRecord> ? TRecord : T extends RecordSchema ? T : never;
+ export declare class Space<const TKey extends LexiconRecordKey = LexiconRecordKey, const TSpaceType extends NsidString = NsidString, const TRecord extends RecordSchema = RecordSchema> {
+     #private;
+     readonly type: 'space';
+     readonly key: TKey;
+     readonly spaceType: TSpaceType;
+-    constructor(key: TKey, spaceType: TSpaceType, collections: readonly (TRecord | TypedRefSchema<TRecord>)[]);
++    constructor(key: TKey, spaceType: TSpaceType, collections: readonly (RecordSchema | TypedRefSchema<RecordSchema>)[]);
+     /**
+      * The record schemas of the recommended collections.
+      *
+@@ -69,9 +70,8 @@ export declare class Space<const TKey extends LexiconRecordKey = LexiconRecordKe
+  * @param key - Recommended space key type
+  * @param spaceType - The NSID identifying this space type
+  * @param collections - The record schemas (or references to them) of the
+- *   collections recommended for clients of this space type. The schema types
+- *   are not inferred from a list mixing schemas and references: use either
+- *   form for all of them.
++ *   collections recommended for clients of this space type. The list may mix
++ *   schemas and references, and may reference records of different types.
+  * @returns A new {@link Space} instance
+  *
+  * @example
+@@ -80,5 +80,5 @@ export declare class Space<const TKey extends LexiconRecordKey = LexiconRecordKe
+  * const forum = l.space('any', 'com.atmoboards.forum', [thread, reply])
+  * ```
+  */
+-export declare function space<const TKey extends LexiconRecordKey, const TSpaceType extends NsidString, const TRecord extends RecordSchema = never>(key: TKey, spaceType: TSpaceType, collections: readonly (TRecord | TypedRefSchema<TRecord>)[]): Space<TKey, TSpaceType, TRecord>;
++export declare function space<const TKey extends LexiconRecordKey, const TSpaceType extends NsidString, const TCollections extends readonly (RecordSchema | TypedRefSchema<RecordSchema>)[]>(key: TKey, spaceType: TSpaceType, collections: TCollections): Space<TKey, TSpaceType, CollectionSchema<TCollections[number]>>;
+ //# sourceMappingURL=space.d.ts.map
+\ No newline at end of file

@@ -6890,6 +6890,194 @@
         }
       }
     },
+    "/network.habitat.space.getSnapshot": {
+      "get": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.getSnapshot",
+        "description": "Page through the event log up to a pinned tip as plain HTTP, for catching up on a large backlog before following network.habitat.space.subscribe live. It is the counterpart of Jetstream's planSnapshot replay archive: afterSeq/beforeSeq bound the range, and plannedThroughSeq/tipSeq drive pagination the same way. Jetstream's archive is sealed segment files, so its plan lists files to download; this host's log is one compacted table, so the events themselves are returned inline, as the same #commit and #spaceDeleted objects subscribe frames carry. Read the first page without beforeSeq, then pass the tipSeq it returns as beforeSeq on every later page so the snapshot does not move while it is being read. When plannedThroughSeq reaches tipSeq the snapshot is complete: open subscribe with cursor tipSeq + 1 to follow live without a gap. Events are authorized exactly as on subscribe, and the log is compacted the same way, so a snapshot converges on current state but skips intermediate versions. Callable with OAuth, service auth or a space credential.",
+        "operationId": "network.habitat.space.getSnapshot",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "afterSeq",
+            "in": "query",
+            "description": "Start after this seq: events at or below it are not included. Omitted or 0: from the start of the log.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "beforeSeq",
+            "in": "query",
+            "description": "Stop at this seq: events above it are not included. Omitted: the log's current head, returned as tipSeq.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of events to return in one page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "spaces",
+            "in": "query",
+            "description": "As in subscribe.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "at-uri"
+              },
+              "maxItems": 100
+            }
+          },
+          {
+            "name": "dids",
+            "in": "query",
+            "description": "As in subscribe.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "did"
+              },
+              "maxItems": 10000
+            }
+          },
+          {
+            "name": "collections",
+            "in": "query",
+            "description": "As in subscribe.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "events",
+                    "plannedThroughSeq",
+                    "tipSeq"
+                  ],
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "$ref": "#/components/schemas/network.habitat.space.subscribe.commit"
+                          },
+                          {
+                            "$ref": "#/components/schemas/network.habitat.space.subscribe.spaceDeleted"
+                          }
+                        ]
+                      }
+                    },
+                    "plannedThroughSeq": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "tipSeq": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.getSpaceCredential": {
       "post": {
         "tags": [

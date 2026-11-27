@@ -13,6 +13,7 @@ WORKDIR /app
 
 # Copy workspace manifests first for better layer caching
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY patches/ ./patches/
 COPY frontend/package.json ./frontend/
 COPY typescript/internal/package.json ./typescript/internal/
 COPY typescript/api/package.json ./typescript/api/

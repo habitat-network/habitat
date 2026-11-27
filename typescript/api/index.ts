@@ -8,3 +8,4 @@
 export * as com from "./src/generated/com.js"
 export * as community from "./src/generated/community.js"
 export * as network from "./src/generated/network.js"
+export * as org from "./src/generated/org.js"
