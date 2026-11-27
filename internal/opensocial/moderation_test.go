@@ -18,7 +18,13 @@ func TestModeration_ReportResolveHistory(t *testing.T) {
 
 	_, err = s.CreateReport(t.Context(), group, bob, subject, opensocial.Report{ReasonType: "spam"})
 	require.NoError(t, err)
-	_, err = s.CreateReport(t.Context(), group, bob, subject, opensocial.Report{ReasonType: "other"})
+	_, err = s.CreateReport(
+		t.Context(),
+		group,
+		bob,
+		subject,
+		opensocial.Report{ReasonType: "other"},
+	)
 	require.NoError(t, err)
 
 	open, err := s.ListSubjects(t.Context(), group, opensocial.StatusOpen, 10, nil)
@@ -59,13 +65,21 @@ func TestModeration_InvalidAndUnknownSubjects(t *testing.T) {
 	group := syntax.DID(org)
 
 	_, err = s.CreateReport(
-		t.Context(), group, alice, opensocial.Subject{DID: bob}, opensocial.Report{ReasonType: "spam"},
+		t.Context(),
+		group,
+		alice,
+		opensocial.Subject{DID: bob},
+		opensocial.Report{ReasonType: "spam"},
 	)
 	require.ErrorIs(t, err, opensocial.ErrInvalidSubject)
 
 	_, err = s.CreateReport(
-		t.Context(), group, alice,
-		opensocial.Subject{URI: "at://did:plc:elsewhere/space/group.opensocial.meta/self/did:plc:x/a.b/1"},
+		t.Context(),
+		group,
+		alice,
+		opensocial.Subject{
+			URI: "at://did:plc:elsewhere/space/group.opensocial.meta/self/did:plc:x/a.b/1",
+		},
 		opensocial.Report{ReasonType: "spam"},
 	)
 	require.ErrorIs(t, err, opensocial.ErrInvalidSubject)

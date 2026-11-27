@@ -174,7 +174,13 @@ func (p *PearServer) GroupCreateReport(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "reasonType is required", nil)
 		return
 	}
-	if _, err := p.opensocialStore.JoinPolicy(ctx, group); errors.Is(err, opensocial.ErrGroupNotFound) {
+	if _, err := p.opensocialStore.JoinPolicy(
+		ctx,
+		group,
+	); errors.Is(
+		err,
+		opensocial.ErrGroupNotFound,
+	) {
 		httpx.WriteError(ctx, w, "GroupNotFound", "", http.StatusNotFound)
 		return
 	} else if err != nil {

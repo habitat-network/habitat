@@ -1,6 +1,6 @@
 import { type Agent, type LexValue, xrpc } from "@atproto/lex";
 import { type DidString, SpaceRef, type SpaceRefString } from "@atproto/syntax";
-import { com, group, network } from "api";
+import { com, network } from "api";
 import { FILE_COLLECTION } from "./sink";
 
 // Calls Drop makes against the Habitat instance, each as a specific OAuth
@@ -35,11 +35,7 @@ export async function fetchOrgName(
   try {
     const { body } = await xrpc(agent, network.habitat.space.getRecord.main, {
       params: {
-        space: new SpaceRef(
-          orgDid,
-          "group.opensocial.meta",
-          "self",
-        ).toString(),
+        space: new SpaceRef(orgDid, "group.opensocial.meta", "self").toString(),
         repo: orgDid,
         collection: "group.opensocial.profile",
         rkey: "self",
@@ -73,9 +69,13 @@ export async function createFileSpace(
   orgAgent: Agent,
   orgDid: DidString,
 ): Promise<SpaceRefString> {
-  const { body } = await xrpc(orgAgent, network.habitat.opensocial.createSpace.main, {
-    body: { org: orgDid, type: FILE_SPACE_TYPE, roles: [MEMBER_ROLE] },
-  });
+  const { body } = await xrpc(
+    orgAgent,
+    network.habitat.opensocial.createSpace.main,
+    {
+      body: { org: orgDid, type: FILE_SPACE_TYPE, roles: [MEMBER_ROLE] },
+    },
+  );
   return body.uri as SpaceRefString;
 }
 
