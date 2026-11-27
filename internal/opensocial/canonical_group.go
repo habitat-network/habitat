@@ -16,7 +16,7 @@ import (
 )
 
 type canonicalGroupRow struct {
-	DID syntax.DID `gorm:"column:did;primaryKey"`
+	DID syntax.DID `gorm:"column:did;primaryKey;not null"`
 }
 
 // IsCanonicalGroup reports whether this host finished provisioning the DID as
