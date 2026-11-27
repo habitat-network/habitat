@@ -30,10 +30,11 @@
                         "joinPolicy": {
                             "type": "string",
                             "knownValues": [
-                                "org.atgrp.profile#open",
-                                "org.atgrp.profile#invite",
-                                "org.atgrp.profile#request"
-                            ]
+                                "open",
+                                "approval",
+                                "invite"
+                            ],
+                            "description": "How people join: open admits anyone who asks, approval queues requests for an admin, invite admits only invitees."
                         }
                     }
                 }

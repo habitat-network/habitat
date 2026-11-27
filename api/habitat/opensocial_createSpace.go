@@ -4,11 +4,10 @@ package habitat
 
 // NetworkHabitatOpensocialCreateSpaceInput represents the input for network.habitat.opensocial.createSpace
 type NetworkHabitatOpensocialCreateSpaceInput struct {
-	Org    string      `json:"org"`
-	Policy interface{} `json:"policy,omitempty"`
-	Roles  []string    `json:"roles,omitempty"`
-	Skey   string      `json:"skey,omitempty"`
-	Type   string      `json:"type"`
+	Org   string   `json:"org"`
+	Roles []string `json:"roles,omitempty"`
+	Skey  string   `json:"skey,omitempty"`
+	Type  string   `json:"type"`
 }
 
 // NetworkHabitatOpensocialCreateSpaceOutput represents the output for network.habitat.opensocial.createSpace

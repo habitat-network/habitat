@@ -21,13 +21,7 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
     /*#__PURE__*/ l.string({ maxLength: 2048 }),
   ),
   joinPolicy: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.string<{
-      knownValues: [
-        'org.atgrp.profile#open',
-        'org.atgrp.profile#invite',
-        'org.atgrp.profile#request',
-      ]
-    }>(),
+    /*#__PURE__*/ l.string<{ knownValues: ['open', 'approval', 'invite'] }>(),
   ),
 })
 

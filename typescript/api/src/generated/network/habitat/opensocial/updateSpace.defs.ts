@@ -30,7 +30,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Replace the roles that may read a space, written into its org.atgrp.access record. Requires service-auth. Requires the `space.configure` action. */
+/** Replace the roles granted read and write in a space, written into its org.atgrp.policy. Requires service-auth. Requires the `space.configure` action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'InvalidSpace',
 ])

@@ -4,5 +4,5 @@
 
 export * as com from './com.js'
 export * as community from './community.js'
-export * as group from './group.js'
 export * as network from './network.js'
+export * as org from './org.js'
