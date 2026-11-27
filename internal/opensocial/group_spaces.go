@@ -153,7 +153,13 @@ func (s *Store) DeleteGroupSpace(
 // group the member already left.
 func (s *Store) LeaveGroup(ctx context.Context, orgDID, member syntax.DID) error {
 	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")
-	if _, err := s.spacesStore.GetSpacePolicy(ctx, membersSpace); errors.Is(err, spaces.ErrSpaceNotFound) {
+	if _, err := s.spacesStore.GetSpacePolicy(
+		ctx,
+		membersSpace,
+	); errors.Is(
+		err,
+		spaces.ErrSpaceNotFound,
+	) {
 		return ErrGroupNotFound
 	} else if err != nil {
 		return err

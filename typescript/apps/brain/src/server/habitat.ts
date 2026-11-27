@@ -26,11 +26,7 @@ export async function fetchOrgName(
   try {
     const { body } = await xrpc(agent, network.habitat.space.getRecord.main, {
       params: {
-        space: new SpaceRef(
-          orgDid,
-          "group.opensocial.meta",
-          "self",
-        ).toString(),
+        space: new SpaceRef(orgDid, "group.opensocial.meta", "self").toString(),
         repo: orgDid,
         collection: "group.opensocial.profile",
         rkey: "self",

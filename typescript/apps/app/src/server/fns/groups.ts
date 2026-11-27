@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { DidString, NsidString, SpaceRefString } from "@atproto/syntax";
-import { com, group, network } from "api";
+import { com, network } from "api";
 import { Effect, Schema } from "effect";
 import { isConnectedOrg } from "@/db";
 import { BadRequest } from "@/server/effect/errors";
@@ -335,7 +335,8 @@ export const putMyGroupProfile = createServerFn({ method: "POST" })
           body: {
             space: membersSpace(org) as SpaceRefString,
             repo: did,
-            collection: "network.habitat.opensocial.memberProfile" as NsidString,
+            collection:
+              "network.habitat.opensocial.memberProfile" as NsidString,
             rkey: did,
             record: {
               $type: "network.habitat.opensocial.memberProfile",
