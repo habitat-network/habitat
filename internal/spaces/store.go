@@ -1467,7 +1467,12 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (e
 
 		// Drop the space itself
 		deleteSpace := tx.
-			Where("owner = ? AND type = ? AND skey = ?", uri.SpaceOwner(), uri.SpaceType(), uri.Skey()).
+			Where(
+				"owner = ? AND type = ? AND skey = ?",
+				uri.SpaceOwner(),
+				uri.SpaceType(),
+				uri.Skey(),
+			).
 			Delete(&space{})
 		if deleteSpace.Error != nil {
 			return deleteSpace.Error
