@@ -197,7 +197,7 @@ func TestInviteIsARecordInTheInviteesInvitesSpace(t *testing.T) {
 	collection := syntax.NSID(opensocial.InviteCollection)
 	records, err := s.SpaceStore.ListRecords(
 		t.Context(),
-		habitat_syntax.ConstructSpaceURI(bob, opensocial.InvitesSpaceType, "self"),
+		habitat_syntax.ConstructSpaceURI(bob, opensocial.InboxSpaceType, "self"),
 		group, &collection,
 	)
 	require.NoError(t, err)

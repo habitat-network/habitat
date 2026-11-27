@@ -193,6 +193,13 @@ func (s *Store) CheckPermission(
 	if err != nil {
 		return false, fmt.Errorf("get user roles: %w", err)
 	}
+	// Every member can reach the members space whatever their roles, since they
+	// write their own confirmation there. Its policy only names the built-in
+	// roles, so a member holding only a custom role would otherwise be refused
+	// when confirming their membership.
+	if space.SpaceType() == MembersSpaceType && len(roles) > 0 {
+		return true, nil
+	}
 	return HoldsRead(policy, roles), nil
 }
 
@@ -221,6 +228,9 @@ func (s *Store) CheckWrite(
 	roles, err := s.GetUserRoles(ctx, space.SpaceOwner(), user)
 	if err != nil {
 		return false, fmt.Errorf("get user roles: %w", err)
+	}
+	if space.SpaceType() == MembersSpaceType && len(roles) > 0 {
+		return true, nil
 	}
 	return HoldsWrite(policy, roles), nil
 }

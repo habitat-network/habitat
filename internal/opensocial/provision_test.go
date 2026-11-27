@@ -39,10 +39,10 @@ func TestStoreProvisionMember(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
 
-	// ...with an acceptance record authored under their own repo, so the org
+	// ...with an confirmation record authored under their own repo, so the org
 	// shows up in their member spaces.
 	_, err = s.SpaceStore.GetRecord(
-		t.Context(), membersSpace, first, opensocial.AcceptanceCollection, "self",
+		t.Context(), membersSpace, first, opensocial.ConfirmationCollection, "self",
 	)
 	require.NoError(t, err)
 	memberSpaces, err := s.ListMemberSpaces(t.Context(), first)
@@ -123,7 +123,7 @@ func TestStoreProvisionMemberConcurrentFirstSignIns(t *testing.T) {
 }
 
 // failAcceptanceStore is a spaces.Store that fails every write to the
-// acceptance collection, to exercise ProvisionMember's rollback.
+// confirmation collection, to exercise ProvisionMember's rollback.
 type failAcceptanceStore struct {
 	spaces.Store
 }
@@ -140,8 +140,8 @@ func (f failAcceptanceStore) PutRecord(
 	rkey syntax.RecordKey,
 	value spaces.MarshaledRecord,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
-	if collection == opensocial.AcceptanceCollection {
-		return "", nil, errors.New("acceptance write failed")
+	if collection == opensocial.ConfirmationCollection {
+		return "", nil, errors.New("confirmation write failed")
 	}
 	return f.Store.PutRecord(ctx, space, owner, collection, rkey, value)
 }
@@ -159,7 +159,7 @@ func TestStoreProvisionMemberRollsBack(t *testing.T) {
 
 	require.Error(t, failing.ProvisionMember(t.Context(), org, member))
 
-	// The membership write was rolled back along with the failed acceptance.
+	// The membership write was rolled back along with the failed confirmation.
 	roles, err := base.GetUserRoles(t.Context(), org, member)
 	require.NoError(t, err)
 	require.Empty(t, roles)

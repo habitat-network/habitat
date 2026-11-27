@@ -9,13 +9,13 @@ import (
 )
 
 func TestScopeSetCovers(t *testing.T) {
-	configure := opensocial.NewScopeSet([]string{"include:org.atgrp.configure"})
+	configure := opensocial.NewScopeSet([]string{"include:org.atgrp.authManageBasic"})
 
 	t.Run("a permission set covers the scopes it expands to", func(t *testing.T) {
-		require.True(t, configure.Covers("include:org.atgrp.configure"))
+		require.True(t, configure.Covers("include:org.atgrp.authManageBasic"))
 		require.True(t, configure.Covers(
 			"space:org.atgrp.members?authority=self&skey=self"+
-				"&collection=org.atgrp.role&action=update",
+				"&collection=org.atgrp.rule&action=update",
 		))
 	})
 
@@ -24,7 +24,7 @@ func TestScopeSetCovers(t *testing.T) {
 			"space:org.atgrp.members?authority=self&skey=self"+
 				"&collection=org.atgrp.membership&action=update",
 		))
-		require.False(t, configure.Covers("include:org.atgrp.moderate"))
+		require.False(t, configure.Covers("include:org.atgrp.authModerate"))
 	})
 
 	t.Run("a wildcard space scope covers a narrower one", func(t *testing.T) {
@@ -50,7 +50,7 @@ func TestScopeSetCanPerform(t *testing.T) {
 	require.True(t, inviter.CanPerform(opensocial.ActionInvite))
 	require.False(t, inviter.CanPerform(opensocial.ActionEject))
 
-	manageMembers := opensocial.NewScopeSet([]string{"include:org.atgrp.manageMembers"})
+	manageMembers := opensocial.NewScopeSet([]string{"include:org.atgrp.authManageMembers"})
 	require.True(t, manageMembers.CanPerform(opensocial.ActionInvite))
 	require.True(t, manageMembers.CanPerform(opensocial.ActionEject))
 	require.True(t, manageMembers.CanPerform(opensocial.ActionRoleAssign))

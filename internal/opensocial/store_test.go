@@ -38,7 +38,7 @@ func TestStore(t *testing.T) {
 	_, err = s.SpaceStore.GetRecord(
 		t.Context(),
 		habitat_syntax.ConstructSpaceURI(org, "org.atgrp.meta", "self"),
-		org, "org.atgrp.profile", "self",
+		org, "org.atgrp.about", "self",
 	)
 	require.NoError(t, err)
 
@@ -65,7 +65,7 @@ func TestStore(t *testing.T) {
 		require.NoError(t, s.UpdateProfile(t.Context(), org, "Acme Corp", "We make widgets", ""))
 
 		record, err := s.SpaceStore.GetRecord(
-			t.Context(), metaSpace, org, "org.atgrp.profile", "self",
+			t.Context(), metaSpace, org, "org.atgrp.about", "self",
 		)
 		require.NoError(t, err)
 		require.Equal(t, "Acme Corp", record.Value["displayName"])
@@ -75,7 +75,7 @@ func TestStore(t *testing.T) {
 		// empty string.
 		require.NoError(t, s.UpdateProfile(t.Context(), org, "Acme Corp", "", ""))
 		record, err = s.SpaceStore.GetRecord(
-			t.Context(), metaSpace, org, "org.atgrp.profile", "self",
+			t.Context(), metaSpace, org, "org.atgrp.about", "self",
 		)
 		require.NoError(t, err)
 		require.NotContains(t, record.Value, "description")
@@ -88,7 +88,6 @@ func TestStore(t *testing.T) {
 			[]string{opensocial.MemberRoleRkey},
 			syntax.NSID("org.atgrp.channel"),
 			"general",
-			spaces.Policy{Type: spaces.PolicyRelationSpace},
 		)
 		require.NoError(t, err)
 		require.NotEmpty(t, spaceURI)
@@ -97,12 +96,15 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, exists)
 
-		// The space carries an access record with the requested roles.
-		record, err := s.SpaceStore.GetRecord(
-			t.Context(), spaceURI, org, "org.atgrp.access", "self",
+		// The space has a group policy giving the requested roles access, and
+		// the host publishes it in the space.
+		policy, err := s.GetPolicy(t.Context(), spaceURI)
+		require.NoError(t, err)
+		require.Equal(t, []string{opensocial.MemberRoleRkey}, policy.ReadRoles())
+		_, err = s.SpaceStore.GetRecord(
+			t.Context(), spaceURI, org, opensocial.SpacePolicyCollection, "self",
 		)
 		require.NoError(t, err)
-		require.Equal(t, []string{opensocial.MemberRoleRkey}, grantedReadRoles(t, record.Value))
 
 		// The space record indexing the new space lives in the members space.
 		membersSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
@@ -130,18 +132,17 @@ func TestStore(t *testing.T) {
 			[]string{opensocial.MemberRoleRkey},
 			syntax.NSID("org.atgrp.channel"),
 			"announcements",
-			spaces.Policy{Type: spaces.PolicyRelationSpace},
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, s.UpdateSpace(t.Context(), spaceURI, []string{opensocial.AdminRoleRkey}))
+		require.NoError(t, s.UpdateSpaceAccess(
+			t.Context(), spaceURI, org, []string{opensocial.AdminRoleRkey},
+		))
 
-		// The access record now grants only the admin role.
-		record, err := s.SpaceStore.GetRecord(
-			t.Context(), spaceURI, org, "org.atgrp.access", "self",
-		)
+		// The policy now grants only the admin role.
+		policy, err := s.GetPolicy(t.Context(), spaceURI)
 		require.NoError(t, err)
-		require.Equal(t, []string{opensocial.AdminRoleRkey}, grantedReadRoles(t, record.Value))
+		require.Equal(t, []string{opensocial.AdminRoleRkey}, policy.ReadRoles())
 
 		// A member who previously held the member role can no longer read.
 		ok, err := s.CheckPermission(t.Context(), member, spaceURI)
@@ -171,12 +172,12 @@ func TestStore(t *testing.T) {
 		// rest of the record (here the name set by UpdateProfile above).
 		metaSpace := habitat_syntax.ConstructSpaceURI(org, "org.atgrp.meta", "self")
 		record, err := s.SpaceStore.GetRecord(
-			t.Context(), metaSpace, org, "org.atgrp.profile", "self",
+			t.Context(), metaSpace, org, "org.atgrp.about", "self",
 		)
 		require.NoError(t, err)
 		require.Contains(t, record.Value, "avatar")
 
-		var profile opensocial_api.OrgAtgrpProfile
+		var profile opensocial_api.OrgAtgrpAbout
 		raw, err := json.Marshal(record.Value)
 		require.NoError(t, err)
 		require.NoError(t, json.Unmarshal(raw, &profile))
@@ -227,7 +228,7 @@ func TestStore(t *testing.T) {
 		require.False(t, ok)
 
 		// A member holding only a custom role (not member or admin) is still a
-		// member: they must be able to write their own acceptance record, or
+		// member: they must be able to write their own confirmation record, or
 		// joining with a custom-role invite fails.
 		custom := syntax.DID("did:plc:custom")
 		require.NoError(t, s.AssignRoles(t.Context(), org, custom, []string{"mo-qa-role"}))
@@ -252,12 +253,12 @@ func TestStore(t *testing.T) {
 		// the members space (e.g. accepting the invite) — AssignRoles alone
 		// writes under the org's own repo, not the member's.
 		membersSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
-		recordBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpAcceptance{
+		recordBytes, err := spaces.MarshalRecord(opensocial_api.OrgAtgrpConfirmation{
 			CreatedAt: "2024-01-01T00:00:00Z",
 		})
 		require.NoError(t, err)
 		_, _, err = s.SpaceStore.PutRecord(
-			t.Context(), membersSpace, member, "org.atgrp.acceptance", "self",
+			t.Context(), membersSpace, member, "org.atgrp.confirmation", "self",
 			recordBytes,
 		)
 		require.NoError(t, err)
@@ -361,7 +362,7 @@ func TestStoreNewOrgWithoutCreator(t *testing.T) {
 		t.Context(),
 		metaSpace,
 		org,
-		opensocial.ProfileCollection,
+		opensocial.AboutCollection,
 		"self",
 	)
 	require.NoError(t, err)
@@ -376,14 +377,9 @@ func TestStoreNewOrgWithoutCreator(t *testing.T) {
 		)
 		require.NoError(t, err)
 	}
-	_, err = s.SpaceStore.GetRecord(
-		t.Context(),
-		membersSpace,
-		org,
-		opensocial.PermissionsCollection,
-		"self",
-	)
+	policy, err := s.GetPolicy(t.Context(), membersSpace)
 	require.NoError(t, err)
+	require.Equal(t, spaces.PolicyGroupSpace, policy.Type)
 
 	// ...but nobody is a member yet.
 	membershipNSID := syntax.NSID(opensocial.MembershipCollection)
@@ -446,14 +442,4 @@ func TestStoreWithTxRollsBack(t *testing.T) {
 	isOrg, err := s.IsOrg(t.Context(), syntax.DID(orgDIDStr))
 	require.NoError(t, err)
 	require.False(t, isOrg)
-}
-
-// grantedReadRoles returns the roles an access record value grants read to.
-func grantedReadRoles(t *testing.T, value map[string]any) []string {
-	t.Helper()
-	raw, err := json.Marshal(value)
-	require.NoError(t, err)
-	var access opensocial_api.OrgAtgrpAccess
-	require.NoError(t, json.Unmarshal(raw, &access))
-	return opensocial.ReadRoles(access.Grants)
 }
