@@ -542,7 +542,12 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isOpensocialOrg != (hop.GroupAuthorizer != "") {
-		httpx.WriteInvalidRequest(ctx, w, "login type no longer matches the authorization request", nil)
+		httpx.WriteInvalidRequest(
+			ctx,
+			w,
+			"login type no longer matches the authorization request",
+			nil,
+		)
 		return
 	}
 	if isOpensocialOrg {
@@ -723,7 +728,8 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 	requestKey, _ := session.Values[requestKeyCookie].(string)
 	raw, _ := session.Values[loginProofCookie].(string)
 	var proof loginProof
-	if json.Unmarshal([]byte(raw), &proof) != nil || proof.RequestKey != requestKey || proof.Subject == "" {
+	if json.Unmarshal([]byte(raw), &proof) != nil || proof.RequestKey != requestKey ||
+		proof.Subject == "" {
 		httpx.WriteUnauthorized(ctx, w, "complete sign-in before approving access", nil)
 		return
 	}
@@ -732,7 +738,8 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "login no longer matches the authorization request", nil)
 		return
 	}
-	if proof.Authorizer != "" && !o.requireGroupAuthorizer(ctx, w, proof.Subject, proof.Authorizer) {
+	if proof.Authorizer != "" &&
+		!o.requireGroupAuthorizer(ctx, w, proof.Subject, proof.Authorizer) {
 		return
 	}
 	if r.Method == http.MethodGet {
@@ -993,7 +1000,10 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := saveLoginHop(session, state, loginHop{
-		RequestKey: requestKey, Subject: orgDID, GroupAuthorizer: memberID, ProviderStateKey: providerStateKey,
+		RequestKey:       requestKey,
+		Subject:          orgDID,
+		GroupAuthorizer:  memberID,
+		ProviderStateKey: providerStateKey,
 	}); err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return
@@ -1007,7 +1017,11 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
-func (o *OAuthServer) requireGroupAuthorizer(ctx context.Context, w http.ResponseWriter, group, authorizer syntax.DID) bool {
+func (o *OAuthServer) requireGroupAuthorizer(
+	ctx context.Context,
+	w http.ResponseWriter,
+	group, authorizer syntax.DID,
+) bool {
 	if authorizer == "" {
 		httpx.WriteUnauthorized(ctx, w, "sign in with an admin account", nil)
 		return false
