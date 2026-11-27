@@ -119,18 +119,18 @@ func (p *PearServer) moderationTarget(
 		}
 		named = &parsed
 	}
-	actor, ok = p.groupActor(w, r, named)
+	cred, ok := p.groupCaller(w, r, named)
 	if !ok {
 		return "", "", false
 	}
-	group = actor
+	group = cred.Subject
 	if named != nil {
 		group = *named
 	}
-	if !p.requireGroupRPC(w, r, group, actor, lxm) {
+	if !p.requireGroupRPC(w, r, group, cred, lxm) {
 		return "", "", false
 	}
-	return group, actor, true
+	return group, cred.Subject, true
 }
 
 func pageLimit(w http.ResponseWriter, r *http.Request) (int, bool) {

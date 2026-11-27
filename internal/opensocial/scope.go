@@ -131,6 +131,17 @@ func NewScopeSet(scopes ...[]string) ScopeSet {
 	return ScopeSet{scopes: slices.Concat(scopes...)}
 }
 
+// IsPermissionScope reports whether scope is one the group permission model
+// governs, as opposed to a base OAuth scope such as "atproto".
+func IsPermissionScope(scope string) bool {
+	for _, prefix := range []string{includePrefix, spacePrefix, rpcPrefix, "habitat:"} {
+		if strings.HasPrefix(scope, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // Covers reports whether the set grants scope.
 func (s ScopeSet) Covers(scope string) bool {
 	if s.all {

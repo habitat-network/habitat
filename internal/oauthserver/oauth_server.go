@@ -948,6 +948,21 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteUnauthorized(ctx, w, "not an admin of this org", nil)
 		return
 	}
+	// The session acts as the group, so it may be granted no more than the
+	// admin approving it holds.
+	held, err := o.opensocialStore.UserScopes(ctx, orgDID, memberID)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get user scopes: %w", err))
+		return
+	}
+	for _, scope := range requester.GetRequestedScopes() {
+		if opensocial.IsPermissionScope(scope) && !held.Covers(scope) {
+			httpx.WriteUnauthorized(
+				ctx, w, fmt.Sprintf("the requested scope %q exceeds your own", scope), nil,
+			)
+			return
+		}
+	}
 	redirectURL, state, providerStateKey, err := o.loginRouter.Pds.Authorize(ctx, memberID.String())
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get authorize url: %w", err))

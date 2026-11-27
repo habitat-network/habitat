@@ -56,3 +56,9 @@ func TestScopeSetCanPerform(t *testing.T) {
 	require.True(t, manageMembers.CanPerform(opensocial.ActionRoleAssign))
 	require.False(t, manageMembers.CanPerform(opensocial.ActionCommunityConfigure))
 }
+
+func TestIsPermissionScope(t *testing.T) {
+	require.True(t, opensocial.IsPermissionScope("rpc:group.opensocial.listSubjects"))
+	require.True(t, opensocial.IsPermissionScope("include:group.opensocial.moderate"))
+	require.False(t, opensocial.IsPermissionScope("atproto"))
+}

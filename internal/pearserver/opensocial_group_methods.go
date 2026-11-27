@@ -32,19 +32,33 @@ func (p *PearServer) groupActor(
 	r *http.Request,
 	group *syntax.DID,
 ) (syntax.DID, bool) {
+	cred, ok := p.groupCaller(w, r, group)
+	if !ok {
+		return "", false
+	}
+	return cred.Subject, true
+}
+
+// groupCaller is groupActor returning the whole credential, so a handler can
+// also bound what a group's own OAuth session may do by the scopes it holds.
+func (p *PearServer) groupCaller(
+	w http.ResponseWriter,
+	r *http.Request,
+	group *syntax.DID,
+) (*authn.CredentialInfo, bool) {
 	credInfo, ok := p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 	).Validate(w, r)
 	if !ok {
-		return "", false
+		return nil, false
 	}
 	if credInfo.Method == authn.ValidatorMethodOAuth && group != nil && credInfo.Subject != *group {
 		httpx.WriteUnauthorized(
 			r.Context(), w, "only the group's own OAuth credential may do this", nil,
 		)
-		return "", false
+		return nil, false
 	}
-	return credInfo.Subject, true
+	return credInfo, true
 }
 
 // GroupCreateSpace implements group.opensocial.createSpace.
@@ -255,14 +269,26 @@ func (p *PearServer) GroupRequestJoin(w http.ResponseWriter, r *http.Request) {
 // rpcScope is the scope that grants a group method call.
 func rpcScope(lxm string) string { return "rpc:" + lxm }
 
-// requireGroupRPC checks that actor holds the rpc scope for lxm in group.
+// requireGroupRPC checks that cred's subject holds the rpc scope for lxm in
+// group. The group DID itself holds every scope, but its OAuth session holds
+// only the scopes the token was granted, so those bound it.
 func (p *PearServer) requireGroupRPC(
 	w http.ResponseWriter,
 	r *http.Request,
-	group, actor syntax.DID,
+	group syntax.DID,
+	cred *authn.CredentialInfo,
 	lxm string,
 ) bool {
-	scopes, err := p.opensocialStore.UserScopes(r.Context(), group, actor)
+	if cred.Method == authn.ValidatorMethodOAuth && cred.Subject == group {
+		if !opensocial.NewScopeSet(cred.Scopes).Covers(rpcScope(lxm)) {
+			httpx.WriteUnauthorized(
+				r.Context(), w, fmt.Sprintf("the session was not granted the %s scope", lxm), nil,
+			)
+			return false
+		}
+		return true
+	}
+	scopes, err := p.opensocialStore.UserScopes(r.Context(), group, cred.Subject)
 	if err != nil {
 		httpx.WriteServerError(r.Context(), w, fmt.Errorf("user scopes: %w", err))
 		return false
@@ -295,15 +321,15 @@ func (p *PearServer) GroupListJoinRequests(w http.ResponseWriter, r *http.Reques
 		}
 		group = &parsed
 	}
-	actor, ok := p.groupActor(w, r, group)
+	cred, ok := p.groupCaller(w, r, group)
 	if !ok {
 		return
 	}
-	target := actor
+	target := cred.Subject
 	if group != nil {
 		target = *group
 	}
-	if !p.requireGroupRPC(w, r, target, actor, "group.opensocial.listJoinRequests") {
+	if !p.requireGroupRPC(w, r, target, cred, "group.opensocial.listJoinRequests") {
 		return
 	}
 	limit := 50
@@ -387,15 +413,15 @@ func (p *PearServer) GroupDenyJoinRequest(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	actor, ok := p.groupActor(w, r, named)
+	cred, ok := p.groupCaller(w, r, named)
 	if !ok {
 		return
 	}
-	group := actor
+	group := cred.Subject
 	if named != nil {
 		group = *named
 	}
-	if !p.requireGroupRPC(w, r, group, actor, "group.opensocial.denyJoinRequest") {
+	if !p.requireGroupRPC(w, r, group, cred, "group.opensocial.denyJoinRequest") {
 		return
 	}
 	err := p.opensocialStore.DeleteJoinRequest(ctx, group, member)
