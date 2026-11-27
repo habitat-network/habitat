@@ -1,8 +1,8 @@
 module github.com/habitat-network/habitat/cmd/keygen
 
-go 1.26.3
+go 1.27
 
-require github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
+require github.com/bluesky-social/indigo v0.0.0-20261126035822-0cd86484540e
 
 require (
 	github.com/mr-tron/base58 v1.3.0 // indirect

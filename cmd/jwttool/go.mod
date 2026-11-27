@@ -1,8 +1,8 @@
 module github.com/habitat-network/habitat/cmd/jwttool
 
-go 1.26.3
+go 1.27
 
-require github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
+require github.com/bluesky-social/indigo v0.0.0-20261126035822-0cd86484540e
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -21,6 +21,6 @@ require (
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
