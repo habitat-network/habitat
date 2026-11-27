@@ -10,7 +10,6 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -25,7 +24,6 @@ func TestServer_UpdateOpensocialSpace(t *testing.T) {
 		spaceURI, err := adminTS.OpenSocialStore.CreateSpace(
 			t.Context(), syntax.DID(orgDID), []string{"admin", "member"},
 			"network.habitat.docs", "shared",
-			spaces.Policy{Type: spaces.PolicyRelationSpace},
 		)
 		require.NoError(t, err)
 
@@ -50,7 +48,6 @@ func TestServer_UpdateOpensocialSpace(t *testing.T) {
 		spaceURI, err := adminTS.OpenSocialStore.CreateSpace(
 			t.Context(), org, []string{"admin", "member"},
 			"network.habitat.docs", "shared",
-			spaces.Policy{Type: spaces.PolicyRelationSpace},
 		)
 		require.NoError(t, err)
 

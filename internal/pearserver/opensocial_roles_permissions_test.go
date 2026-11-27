@@ -78,8 +78,7 @@ func TestServer_DeleteRole(t *testing.T) {
 				t.Context(),
 				syntax.DID(orgDID),
 				"moderator",
-				"Moderator",
-				"",
+				opensocial.Role{DisplayName: "Moderator"},
 			),
 		)
 
@@ -156,8 +155,8 @@ func TestServer_UpdatePermissionsEscalationAndBadInput(t *testing.T) {
 			t.Context(), org, alice, []string{opensocial.MemberRoleRkey},
 		))
 		// alice may reconfigure the group but holds no other action's scopes.
-		require.NoError(t, ts.OpenSocialStore.PutPermissions(
-			t.Context(), org,
+		require.NoError(t, ts.OpenSocialStore.UpdatePermissions(
+			t.Context(), org, org,
 			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 				{
 					Action: string(opensocial.ActionCommunityConfigure),
@@ -224,8 +223,8 @@ func TestServer_AssignRoles(t *testing.T) {
 			),
 		)
 		// Narrow the admin's assignable set to exclude the admin role itself.
-		require.NoError(t, ts.OpenSocialStore.PutPermissions(
-			t.Context(), syntax.DID(orgDID),
+		require.NoError(t, ts.OpenSocialStore.UpdatePermissions(
+			t.Context(), syntax.DID(orgDID), syntax.DID(orgDID),
 			[]habitat.NetworkHabitatOpensocialDefsActionBinding{
 				{
 					Action: string(opensocial.ActionRoleAssign),

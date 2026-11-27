@@ -30,6 +30,12 @@ type OpenSocialStore interface {
 		did syntax.DID,
 		space habitat_syntax.SpaceURI,
 	) (bool, error)
+	// CheckWrite reports whether did may write its own records to space.
+	CheckWrite(
+		ctx context.Context,
+		did syntax.DID,
+		space habitat_syntax.SpaceURI,
+	) (bool, error)
 	// ListMemberSpaces returns the org.atgrp.members spaces did
 	// belongs to (every org it holds a permissioned repo in).
 	ListMemberSpaces(
@@ -439,7 +445,13 @@ func (s *store) CheckUserHasSpaceRole(
 ) (bool, error) {
 	contextualTuples := []fgastore.Tuple{fgastore.OwnerContextualTuple(space)}
 	if role == habitat_syntax.SpaceRoleReader || role == habitat_syntax.SpaceRoleWriter {
-		allowed, err := s.opensocial.CheckPermission(ctx, did, space)
+		var allowed bool
+		var err error
+		if role == habitat_syntax.SpaceRoleWriter {
+			allowed, err = s.opensocial.CheckWrite(ctx, did, space)
+		} else {
+			allowed, err = s.opensocial.CheckPermission(ctx, did, space)
+		}
 		if err != nil {
 			return false, fmt.Errorf("check opensocial permission: %w", err)
 		}

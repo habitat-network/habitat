@@ -10,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -134,40 +135,31 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, code)
 	})
 
-	t.Run("stores the requested policy, defaulting to relationspace", func(t *testing.T) {
+	t.Run("stores a group policy granting the requested roles", func(t *testing.T) {
 		ts := newOpenSocialServer(t, admin)
 		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
 		require.NoError(t, err)
 		client := httpx_testutil.NewTestXRPCClient(t)
 
-		create := func(policy any) (int, habitat_syntax.SpaceURI) {
-			var out habitat.NetworkHabitatOpensocialCreateSpaceOutput
-			code := client.Procedure(
-				ts.Server.CreateOpensocialSpace,
-				habitat.NetworkHabitatOpensocialCreateSpaceInput{
-					Org: orgDID, Type: "network.habitat.docs", Policy: policy,
-				},
-				&out,
-			)
-			return code, habitat_syntax.SpaceURI(out.Uri).Canonical()
-		}
-
-		code, uri := create(nil)
+		var out habitat.NetworkHabitatOpensocialCreateSpaceOutput
+		code := client.Procedure(
+			ts.Server.CreateOpensocialSpace,
+			habitat.NetworkHabitatOpensocialCreateSpaceInput{
+				Org: orgDID, Type: "network.habitat.docs", Roles: []string{opensocial.AdminRoleRkey},
+			},
+			&out,
+		)
 		require.Equal(t, http.StatusOK, code)
-		got, err := ts.SpaceStore.GetSpacePolicy(t.Context(), uri)
+		got, err := ts.SpaceStore.GetSpacePolicy(
+			t.Context(), habitat_syntax.SpaceURI(out.Uri).Canonical(),
+		)
 		require.NoError(t, err)
-		require.Equal(t, spaces.Policy{Type: spaces.PolicyRelationSpace}, got)
-
-		code, uri = create(map[string]any{"$type": spaces.PolicyPersonalSpace})
-		require.Equal(t, http.StatusOK, code)
-		got, err = ts.SpaceStore.GetSpacePolicy(t.Context(), uri)
-		require.NoError(t, err)
-		require.Equal(t, spaces.Policy{Type: spaces.PolicyPersonalSpace}, got)
-
-		code, _ = create(map[string]any{"$type": "com.atproto.managedspace.policy"})
-		require.Equal(t, http.StatusBadRequest, code)
-		code, _ = create(map[string]any{"publicRead": true})
-		require.Equal(t, http.StatusBadRequest, code)
+		require.Equal(t, spaces.Policy{
+			Type: spaces.PolicyGroupSpace,
+			Grants: []spaces.GroupGrant{
+				{Role: opensocial.AdminRoleRkey, Read: true, Write: true},
+			},
+		}, got)
 	})
 
 	t.Run("rejects an invalid skey", func(t *testing.T) {

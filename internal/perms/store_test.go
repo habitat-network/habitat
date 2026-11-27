@@ -195,90 +195,40 @@ func TestStoreCheckUserHasSpaceRoleImplicitAccess(t *testing.T) {
 	})
 }
 
-// TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant covers opensocial
-// spaces, which are never given FGA tuples — access is governed entirely by
-// their own org.atgrp.access/membership records, so reader and
-// writer checks both have to fall back to those.
-func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
-	s := newTestStore(t)
+// TestStoreCheckUserHasSpaceRoleGroupPolicy checks that opensocial spaces are
+// never given FGA tuples: their access is governed by the group policy and
+// membership records, so reader and writer checks fall back to those.
+func TestStoreCheckUserHasSpaceRoleGroupPolicy(t *testing.T) {
+	s, os := newTestStoreWithOpensocial(t)
 	ctx := t.Context()
 
-	metaSpace := newSpace(t, s.spaces, "org.atgrp.meta", "self")
-	membersSpace, err := s.spaces.CreateSpace(ctx, org, "org.atgrp.members", "self")
+	orgDIDStr, err := os.NewOrg(ctx, "acme", syntax.DID("did:plc:creator"))
 	require.NoError(t, err)
+	orgDID := syntax.DID(orgDIDStr)
+	require.NoError(t, os.AssignRoles(ctx, orgDID, alice, []string{opensocial.MemberRoleRkey}))
+	metaSpace := habitat_syntax.ConstructSpaceURI(orgDID, opensocial.MetaSpaceType, "self")
+	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, opensocial.MembersSpaceType, "self")
 
-	// alice holds the "member" role, granted via org.atgrp.membership;
-	// the about space's access record makes that role a reader.
-	_, _, err = s.spaces.PutRecord(
-		ctx, membersSpace, org, "org.atgrp.membership", syntax.RecordKey(alice),
-		spaces_testutil.MustMarshalRecord(t, map[string]any{"roles": []string{"member"}}),
-	)
-	require.NoError(t, err)
-	_, _, err = s.spaces.PutRecord(
-		ctx, metaSpace, org, "org.atgrp.access", "self",
-		spaces_testutil.MustMarshalRecord(t, map[string]any{
-			"publicRead": true,
-			"grants":     []map[string]any{{"role": "member", "scopes": []string{"read"}}},
-		}),
-	)
-	require.NoError(t, err)
-	_, _, err = s.spaces.PutRecord(
-		ctx,
-		membersSpace,
-		org,
-		"org.atgrp.access",
-		"self",
-		spaces_testutil.MustMarshalRecord(
-			t,
-			map[string]any{
-				"grants": []map[string]any{{"role": "member", "scopes": []string{"read"}}},
-			},
-		),
-	)
-	require.NoError(t, err)
-
-	t.Run("member with a matching access grant reads without an FGA tuple", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, metaSpace, habitat_syntax.SpaceRoleReader)
+	check := func(t *testing.T, did syntax.DID, space habitat_syntax.SpaceURI, role habitat_syntax.SpaceRole) bool {
+		t.Helper()
+		ok, err := s.CheckUserHasSpaceRole(ctx, did, space, role)
 		require.NoError(t, err)
-		require.True(t, ok)
+		return ok
+	}
+
+	t.Run("a member reads and writes the members space without an FGA tuple", func(t *testing.T) {
+		require.True(t, check(t, alice, membersSpace, habitat_syntax.SpaceRoleReader))
+		require.True(t, check(t, alice, membersSpace, habitat_syntax.SpaceRoleWriter))
 	})
 
-	t.Run("non-member is still granted read access to the profile space", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, bob, metaSpace, habitat_syntax.SpaceRoleReader)
-		require.NoError(t, err)
-		require.True(t, ok)
+	t.Run("a non-member is not granted the members space", func(t *testing.T) {
+		require.False(t, check(t, bob, membersSpace, habitat_syntax.SpaceRoleReader))
+		require.False(t, check(t, bob, membersSpace, habitat_syntax.SpaceRoleWriter))
 	})
 
-	t.Run("member with a matching access grant writes without an FGA tuple", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, metaSpace, habitat_syntax.SpaceRoleWriter)
-		require.NoError(t, err)
-		require.True(t, ok)
-	})
-
-	t.Run("non-member is still granted write access to the profile space", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, bob, metaSpace, habitat_syntax.SpaceRoleWriter)
-		require.NoError(t, err)
-		require.True(t, ok)
-	})
-
-	t.Run(
-		"member with a matching access grant reads the members space without an FGA tuple",
-		func(t *testing.T) {
-			ok, err := s.CheckUserHasSpaceRole(
-				ctx,
-				alice,
-				membersSpace,
-				habitat_syntax.SpaceRoleReader,
-			)
-			require.NoError(t, err)
-			require.True(t, ok)
-		},
-	)
-
-	t.Run("non-member is not granted read access to the members space", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, bob, membersSpace, habitat_syntax.SpaceRoleReader)
-		require.NoError(t, err)
-		require.False(t, ok)
+	t.Run("a non-member reads the public meta space but cannot write it", func(t *testing.T) {
+		require.True(t, check(t, bob, metaSpace, habitat_syntax.SpaceRoleReader))
+		require.False(t, check(t, bob, metaSpace, habitat_syntax.SpaceRoleWriter))
 	})
 }
 
@@ -304,7 +254,7 @@ func TestStoreCheckUserHasSpaceRoleGrantsAccessViaOpensocialMembersSpaceRelation
 	// her own record into the members space, e.g. accepting an invite —
 	// AssignRoles alone writes under the org's own repo, not hers.
 	_, _, err = s.spaces.PutRecord(
-		ctx, membersSpace, alice, "org.atgrp.acceptance", "self",
+		ctx, membersSpace, alice, "org.atgrp.confirmation", "self",
 		spaces_testutil.MustMarshalRecord(t, map[string]any{"updatedAt": "2024-01-01T00:00:00Z"}),
 	)
 	require.NoError(t, err)

@@ -1,9 +1,11 @@
 package opensocial
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -244,7 +246,18 @@ func (s *Store) UpdatePermissions(
 	if err != nil {
 		return err
 	}
-	for id, role := range roles {
+	// Rewrite the actor's own roles last: narrowing them first would shrink
+	// what the actor may change in the rest.
+	held, err := s.GetUserRoles(ctx, orgDID, actor)
+	if err != nil {
+		return err
+	}
+	ids := slices.Sorted(maps.Keys(roles))
+	slices.SortStableFunc(ids, func(a, b string) int {
+		return cmp.Compare(boolInt(slices.Contains(held, a)), boolInt(slices.Contains(held, b)))
+	})
+	for _, id := range ids {
+		role := roles[id]
 		var permissions []string
 		for _, permission := range role.Permissions {
 			if !strings.HasPrefix(permission, HabitatActionScopePrefix) {
@@ -288,4 +301,11 @@ func (s *Store) SetRoleProfile(
 	role := roles[string(rkey)]
 	role.DisplayName, role.Description = name, description
 	return s.UpdateRole(ctx, orgDID, actor, rkey, role)
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

@@ -373,9 +373,12 @@ func TestIndexerIndexesAccess(t *testing.T) {
 		_, _, err := it.store.PutRecord(ctx, space, testOrg, accessCollection, "self",
 			spaces_testutil.MustMarshalRecord(t, map[string]any{
 				"$type": accessCollection.String(),
-				"grants": []any{
-					map[string]any{"role": "staff", "scopes": []any{"read"}},
-					map[string]any{"role": "board", "scopes": []any{"read"}},
+				"policy": map[string]any{
+					"$type": spaces.PolicyGroupSpace,
+					"grants": []any{
+						map[string]any{"role": "staff", "read": true},
+						map[string]any{"role": "board", "read": true},
+					},
 				},
 			}))
 		require.NoError(t, err)
@@ -390,9 +393,10 @@ func TestIndexerIndexesAccess(t *testing.T) {
 		require.NoError(t, err)
 		_, _, err = it.store.PutRecord(ctx, about, testOrg, accessCollection, "self",
 			spaces_testutil.MustMarshalRecord(t, map[string]any{
-				"$type":      accessCollection.String(),
-				"publicRead": true,
-				"grants":     []any{},
+				"$type": accessCollection.String(),
+				"policy": map[string]any{
+					"$type": spaces.PolicyGroupSpace, "publicRead": true,
+				},
 			}))
 		require.NoError(t, err)
 		put(t, it.store, about, "k1", "hello")

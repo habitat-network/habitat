@@ -7,9 +7,12 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/internal/authn"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -18,41 +21,36 @@ func TestServer_GroupSpaceMethods(t *testing.T) {
 	org, err := adminTS.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
 	require.NoError(t, err)
 	client := httpx_testutil.NewTestXRPCClient(t)
+	// Until group OAuth sessions carry the authorizing user, a session for the
+	// group DID is the group acting as itself.
+	groupTS := newOpenSocialServerAs(
+		t, adminTS, syntax.DID(org), authn.ValidatorMethodServiceAuth,
+	)
 
-	// alice is a plain member: she can participate but not create spaces.
 	require.NoError(t, adminTS.OpenSocialStore.AssignRoles(
 		t.Context(), syntax.DID(org), alice, []string{opensocial.MemberRoleRkey},
 	))
 
-	var created opensocial_api.OrgAtgrpCreateSpaceOutput
-	access := opensocial_api.OrgAtgrpDefsAccessConfig{
-		Grants: []opensocial_api.OrgAtgrpDefsSpaceGrant{
-			{Role: opensocial.MemberRoleRkey, Scopes: []string{"read"}},
-		},
+	var created comatproto.ComAtprotoSpaceCreateSpaceOutput
+	policy := func(grants ...map[string]any) map[string]any {
+		return map[string]any{"$type": spaces.PolicyGroupSpace, "grants": grants}
 	}
-	body := func(in opensocial_api.OrgAtgrpCreateSpaceInput) map[string]any {
-		return map[string]any{
-			"group": org, "spaceType": in.SpaceType, "access": in.Access, "skey": in.Skey,
+	memberRead := map[string]any{"role": opensocial.MemberRoleRkey, "read": true}
+	create := func(skey string, p map[string]any) comatproto.ComAtprotoSpaceCreateSpaceInput {
+		return comatproto.ComAtprotoSpaceCreateSpaceInput{
+			SpaceType: "network.habitat.docs", Skey: skey, Policy: p,
 		}
 	}
 
-	t.Run("a member without manage=create cannot create a space", func(t *testing.T) {
-		code := client.Procedure(aliceTS.Server.GroupCreateSpace, body(
-			opensocial_api.OrgAtgrpCreateSpaceInput{
-				SpaceType: "network.habitat.docs", Access: access,
-			}), &created)
-		require.Equal(t, http.StatusUnauthorized, code)
+	t.Run("a user cannot use the group policy", func(t *testing.T) {
+		code := client.Procedure(aliceTS.Server.CreateSpace, create("u", policy(memberRead)), &created)
+		require.Equal(t, http.StatusBadRequest, code)
 	})
 
-	t.Run("an admin creates a space with its access record and an index entry", func(t *testing.T) {
-		code := client.Procedure(adminTS.Server.GroupCreateSpace, body(
-			opensocial_api.OrgAtgrpCreateSpaceInput{
-				SpaceType: "network.habitat.docs", Access: access,
-			}), &created)
+	t.Run("a group creates a space whose policy grants a role read", func(t *testing.T) {
+		code := client.Procedure(groupTS.Server.CreateSpace, create("", policy(memberRead)), &created)
 		require.Equal(t, http.StatusOK, code)
 		require.NotEmpty(t, created.Space)
-		require.NotEmpty(t, created.Access.Uri)
-		require.NotNil(t, created.Index)
 		spaceURI, err := habitat_syntax.ParseSpaceURI(created.Space)
 		require.NoError(t, err)
 		ok, err := adminTS.OpenSocialStore.CheckPermission(t.Context(), alice, spaceURI)
@@ -60,33 +58,27 @@ func TestServer_GroupSpaceMethods(t *testing.T) {
 		require.True(t, ok, "the member role was granted read")
 	})
 
-	t.Run("reserved spaces, unknown roles and bad scopes are refused", func(t *testing.T) {
-		for name, in := range map[string]opensocial_api.OrgAtgrpCreateSpaceInput{
-			"reserved": {SpaceType: opensocial.MetaSpaceType, Access: access},
-			"unknown role": {SpaceType: "network.habitat.docs", Skey: "u", Access: opensocial_api.OrgAtgrpDefsAccessConfig{
-				Grants: []opensocial_api.OrgAtgrpDefsSpaceGrant{{Role: "ghost", Scopes: []string{"read"}}},
-			}},
-			"bad scope": {SpaceType: "network.habitat.docs", Skey: "b", Access: opensocial_api.OrgAtgrpDefsAccessConfig{
-				Grants: []opensocial_api.OrgAtgrpDefsSpaceGrant{{Role: "member", Scopes: []string{"nonsense"}}},
-			}},
+	t.Run("reserved spaces, unknown roles and bad permissions are refused", func(t *testing.T) {
+		for name, in := range map[string]comatproto.ComAtprotoSpaceCreateSpaceInput{
+			"reserved":     {SpaceType: opensocial.MetaSpaceType, Policy: policy(memberRead)},
+			"unknown role": create("u1", policy(map[string]any{"role": "ghost", "read": true})),
+			"bad permission": create("u2", policy(map[string]any{
+				"role": opensocial.MemberRoleRkey, "permissions": []string{"nonsense"},
+			})),
 		} {
-			code := client.Procedure(adminTS.Server.GroupCreateSpace, body(in), &created)
+			code := client.Procedure(groupTS.Server.CreateSpace, in, &created)
 			require.Equalf(t, http.StatusBadRequest, code, name)
 		}
 	})
 
 	t.Run("deleteSpace removes the space but never meta or members", func(t *testing.T) {
-		var first opensocial_api.OrgAtgrpCreateSpaceOutput
-		require.Equal(t, http.StatusOK, client.Procedure(adminTS.Server.GroupCreateSpace, body(
-			opensocial_api.OrgAtgrpCreateSpaceInput{
-				SpaceType: "network.habitat.docs", Skey: "gone", Access: access,
-			}), &first))
-		require.Equal(t, http.StatusUnauthorized, client.Procedure(aliceTS.Server.GroupDeleteSpace,
-			opensocial_api.OrgAtgrpDeleteSpaceInput{Space: first.Space}, &struct{}{}))
-		require.Equal(t, http.StatusOK, client.Procedure(adminTS.Server.GroupDeleteSpace,
-			opensocial_api.OrgAtgrpDeleteSpaceInput{Space: first.Space}, &struct{}{}))
-		require.Equal(t, http.StatusBadRequest, client.Procedure(adminTS.Server.GroupDeleteSpace,
-			opensocial_api.OrgAtgrpDeleteSpaceInput{
+		var first comatproto.ComAtprotoSpaceCreateSpaceOutput
+		require.Equal(t, http.StatusOK, client.Procedure(
+			groupTS.Server.CreateSpace, create("gone", policy(memberRead)), &first))
+		require.Equal(t, http.StatusOK, client.Procedure(groupTS.Server.DeleteSpace,
+			comatproto.ComAtprotoSpaceDeleteSpaceInput{Space: first.Space}, &struct{}{}))
+		require.Equal(t, http.StatusBadRequest, client.Procedure(groupTS.Server.DeleteSpace,
+			comatproto.ComAtprotoSpaceDeleteSpaceInput{
 				Space: habitat_syntax.ConstructSpaceURI(
 					syntax.DID(org), opensocial.MetaSpaceType, "self",
 				).AtSpace().String(),
