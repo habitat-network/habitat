@@ -66,6 +66,8 @@ func newOAuthApp(t *testing.T, base *url.URL, did syntax.DID, sessionID string) 
 		[]string{"atproto"},
 	)
 	app := oauth.NewClientApp(&cfg, oauth.NewMemStore())
+	// indigo's default client refuses non-public IPs; tests run on loopback.
+	app.Client = &http.Client{}
 	require.NoError(t, app.Store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:              did,
 		SessionID:               sessionID,

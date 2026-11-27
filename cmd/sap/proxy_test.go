@@ -58,6 +58,9 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 		[]string{"atproto"},
 	)
 	oauthApp := oauth.NewClientApp(&cfg, store)
+	// indigo's default client refuses non-public IPs, and the test pear is on
+	// loopback.
+	oauthApp.Client = &http.Client{}
 
 	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp})
 	require.NoError(t, err)

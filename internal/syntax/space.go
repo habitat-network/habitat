@@ -3,34 +3,29 @@ package syntax
 import (
 	"errors"
 	"fmt"
-	"regexp"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
 )
 
-type SpaceKey string
+// SpaceKey is a space's key, a record key as indigo defines it.
+type SpaceKey = syntax.RecordKey
 
 func NewSkey(tid syntax.TID) SpaceKey {
 	return SpaceKey(tid)
 }
 
-func (s SpaceKey) String() string {
-	return string(s)
-}
-
 func ParseSkey(s string) (SpaceKey, error) {
-	_, err := syntax.ParseRecordKey(s)
-	if err != nil {
-		return "", err
-	}
-	return SpaceKey(s), nil
+	return syntax.ParseRecordKey(s)
 }
 
 // SpaceURI identifies a space, in the proposal 0016 format pear stores:
 // "at://spaceDID/space/spaceType/skey".
 //
-// Two other formats are accepted when parsing and normalized to it:
+// Validation and splitting are done by indigo's [syntax.SpaceRef] and
+// [syntax.SpaceURI], which only know the "at:space/..." form. This type adds
+// the other formats pear accepts, converting them to that form first:
 //   - "at:space/spaceDID/spaceType/skey", the form the spaces alpha moved to
 //     (bluesky-social/atproto permissioned-data-alpha, 2026-11-24). Alpha PDSes
 //     now send and require it; produce it with [SpaceURI.AtSpace] when calling
@@ -38,25 +33,35 @@ func ParseSkey(s string) (SpaceKey, error) {
 //   - the pre-0016 format "ats://spaceDID/spaceType/skey", so URIs held by
 //     older clients and stored data keep resolving; produced only by
 //     [SpaceURI.Legacy].
+//
+// Parsing normalizes every accepted format to the current "at://" one.
 type SpaceURI string
 
-var spaceURIRegex = regexp.MustCompile(
-	`^at:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/space\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})$`,
-)
-
-var atSpaceURIRegex = regexp.MustCompile(
-	`^at:space\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})$`,
-)
-
-// spaceURIRegexes lists every accepted space URI format, current first.
-var spaceURIRegexes = []*regexp.Regexp{spaceURIRegex, atSpaceURIRegex, legacySpaceURIRegex}
-
-var legacySpaceURIRegex = regexp.MustCompile(
-	`^ats:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})$`,
-)
+// toAtSpace rewrites a space (or space record) URI in any accepted format to
+// the "at:space/..." form indigo parses. ok is false for a string that isn't
+// shaped like any accepted format; it isn't validated further.
+func toAtSpace(raw string) (atSpace string, ok bool) {
+	switch {
+	case strings.HasPrefix(raw, "at:space/"):
+		return raw, true
+	case strings.HasPrefix(raw, "ats://"):
+		return "at:space/" + strings.TrimPrefix(raw, "ats://"), true
+	case strings.HasPrefix(raw, "at://"):
+		did, rest, _ := strings.Cut(strings.TrimPrefix(raw, "at://"), "/")
+		if after, found := strings.CutPrefix(rest, "space/"); found {
+			return "at:space/" + did + "/" + after, true
+		}
+	}
+	return "", false
+}
 
 func ConstructSpaceURI(spaceDID syntax.DID, spaceType syntax.NSID, skey SpaceKey) SpaceURI {
 	return SpaceURI(fmt.Sprintf("at://%s/space/%s/%s", spaceDID, spaceType, skey))
+}
+
+// spaceURIFromRef is the current-format URI for an indigo space ref.
+func spaceURIFromRef(ref syntax.SpaceRef) SpaceURI {
+	return ConstructSpaceURI(ref.SpaceAuthority(), ref.SpaceType(), ref.SpaceKey())
 }
 
 // ParseSpaceURI validates raw as a space URI in any accepted format (see
@@ -67,62 +72,42 @@ func ParseSpaceURI(raw string) (SpaceURI, error) {
 	if len(raw) > 8192 {
 		return "", errors.New("SpaceURI is too long (8192 chars max)")
 	}
-	var parts []string
-	for _, re := range spaceURIRegexes {
-		if parts = re.FindStringSubmatch(raw); parts != nil {
-			break
-		}
-	}
-	if parts == nil {
+	atSpace, ok := toAtSpace(raw)
+	if !ok {
 		return "", errors.New("invalid space URI format")
 	}
-	_, err := syntax.ParseDID(parts[1])
+	ref, err := syntax.ParseSpaceRef(atSpace)
 	if err != nil {
-		return "", fmt.Errorf("space URI DID is not valid: %s", parts[1])
+		return "", fmt.Errorf("invalid space URI: %w", err)
 	}
-	_, err = syntax.ParseNSID(parts[2])
-	if err != nil {
-		return "", fmt.Errorf("space URI type is not a valid NSID: %s", parts[2])
-	}
-	return SpaceURI(raw).Canonical(), nil
+	return spaceURIFromRef(ref), nil
 }
 
-func (s SpaceURI) parse() (did, nsid, skey string) {
-	for _, re := range spaceURIRegexes {
-		if parts := re.FindStringSubmatch(string(s)); parts != nil {
-			return parts[1], parts[2], parts[3]
-		}
+// ref views the URI as an indigo space ref without validating it: indigo's
+// accessors parse each part on its own, so an invalid part empties only that
+// accessor. ok is false if the URI isn't shaped like a space URI.
+func (s SpaceURI) ref() (ref syntax.SpaceRef, ok bool) {
+	atSpace, ok := toAtSpace(string(s))
+	if !ok || strings.Count(atSpace, "/") != 3 {
+		return "", false
 	}
-	return "", "", ""
+	return syntax.SpaceRef(atSpace), true
 }
 
+// SpaceOwner returns the space authority's DID, or "" if the URI is invalid.
 func (s SpaceURI) SpaceOwner() syntax.DID {
-	didStr, _, _ := s.parse()
-	if didStr == "" {
-		return ""
-	}
-	did, err := syntax.ParseDID(didStr)
-	if err != nil {
-		return ""
-	}
-	return did
+	ref, _ := s.ref()
+	return ref.SpaceAuthority()
 }
 
 func (s SpaceURI) SpaceType() syntax.NSID {
-	_, nsidStr, _ := s.parse()
-	if nsidStr == "" {
-		return ""
-	}
-	nsid, err := syntax.ParseNSID(nsidStr)
-	if err != nil {
-		return ""
-	}
-	return nsid
+	ref, _ := s.ref()
+	return ref.SpaceType()
 }
 
 func (s SpaceURI) Skey() SpaceKey {
-	_, _, skeyStr := s.parse()
-	return SpaceKey(skeyStr)
+	ref, _ := s.ref()
+	return ref.SpaceKey()
 }
 
 func (s SpaceURI) String() string {
@@ -134,67 +119,49 @@ func (s SpaceURI) URI() syntax.URI {
 }
 
 // Canonical returns the URI in the current proposal 0016 format
-// ("at://<did>/space/<type>/<skey>"), converting a legacy URI. URIs that match
-// neither format are returned unchanged.
+// ("at://<did>/space/<type>/<skey>"), converting another format. URIs that
+// aren't valid space URIs are returned unchanged.
 func (s SpaceURI) Canonical() SpaceURI {
-	did, nsid, skey := s.parse()
-	if did == "" {
+	ref, ok := s.ref()
+	if !ok {
 		return s
 	}
-	return SpaceURI(fmt.Sprintf("at://%s/space/%s/%s", did, nsid, skey))
+	return spaceURIFromRef(ref)
 }
 
 // AtSpace returns the URI in the "at:space/<did>/<type>/<skey>" form that
-// spaces alpha PDSes require (see [SpaceURI]). Use it for space URIs sent to
-// a PDS. URIs that match no format are returned unchanged.
+// spaces alpha PDSes require (see [SpaceURI]), which is indigo's
+// [syntax.SpaceRef]. Use it for space URIs sent to a PDS. URIs that aren't
+// valid space URIs are returned unchanged.
 func (s SpaceURI) AtSpace() SpaceURI {
-	did, nsid, skey := s.parse()
-	if did == "" {
+	ref, ok := s.ref()
+	if !ok {
 		return s
 	}
-	return SpaceURI(fmt.Sprintf("at:space/%s/%s/%s", did, nsid, skey))
+	return SpaceURI(ref)
 }
 
 // Legacy returns the URI in the pre-0016 format ("ats://<did>/<type>/<skey>").
 // It is used where an encoding must stay byte-compatible with data written
 // before the 0016 migration — notably FGA object keys, whose stored tuples are
-// keyed on the URI string (see fgastore.SpaceObjectKey). URIs that match
-// neither format are returned unchanged.
+// keyed on the URI string (see fgastore.SpaceObjectKey). URIs that aren't
+// valid space URIs are returned unchanged.
 func (s SpaceURI) Legacy() SpaceURI {
-	did, nsid, skey := s.parse()
-	if did == "" {
+	ref, ok := s.ref()
+	if !ok {
 		return s
 	}
-	return SpaceURI(fmt.Sprintf("ats://%s/%s/%s", did, nsid, skey))
+	return SpaceURI(fmt.Sprintf(
+		"ats://%s/%s/%s", ref.SpaceAuthority(), ref.SpaceType(), ref.SpaceKey(),
+	))
 }
 
+// SpaceRecordURI identifies a record in a space: the space URI followed by
+// "/{repo}/{collection}/{rkey}", in the current format
+// "at://{did}/space/{type}/{skey}/{repo}/{collection}/{rkey}". As with
+// [SpaceURI], the "at:space/..." and "ats://..." forms are accepted and parsed
+// with indigo's [syntax.SpaceURI].
 type SpaceRecordURI string
-
-// spaceRecordURIRegex matches: at://{did}/space/{type}/{skey}/{repo}/{collection}/{rkey}
-var spaceRecordURIRegex = regexp.MustCompile(
-	`^at:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/space\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})` +
-		`\/(?P<repo>[a-zA-Z0-9._:%-]+)\/(?P<collection>[a-zA-Z0-9-.]+)\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512})$`,
-)
-
-// atSpaceRecordURIRegex matches the spaces alpha form:
-// at:space/{did}/{type}/{skey}/{repo}/{collection}/{rkey}
-var atSpaceRecordURIRegex = regexp.MustCompile(
-	`^at:space\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})` +
-		`\/(?P<repo>[a-zA-Z0-9._:%-]+)\/(?P<collection>[a-zA-Z0-9-.]+)\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512})$`,
-)
-
-// spaceRecordURIRegexes lists every accepted space record URI format, current
-// first.
-var spaceRecordURIRegexes = []*regexp.Regexp{
-	spaceRecordURIRegex, atSpaceRecordURIRegex, legacySpaceRecordURIRegex,
-}
-
-// legacySpaceRecordURIRegex matches the pre-0016 form:
-// ats://{did}/{type}/{skey}/{repo}/{collection}/{rkey}
-var legacySpaceRecordURIRegex = regexp.MustCompile(
-	`^ats:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})` +
-		`\/(?P<repo>[a-zA-Z0-9._:%-]+)\/(?P<collection>[a-zA-Z0-9-.]+)\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512})$`,
-)
 
 func ConstructSpaceRecordURI(
 	spaceUri SpaceURI,
@@ -205,159 +172,107 @@ func ConstructSpaceRecordURI(
 	return SpaceRecordURI(fmt.Sprintf("%s/%s/%s/%s", spaceUri, repo, collection, rkey))
 }
 
+// parseRecordURI parses a record URI in any accepted format with indigo,
+// requiring the repo, collection and record key indigo leaves optional.
+func parseRecordURI(raw string) (syntax.SpaceURI, error) {
+	atSpace, ok := toAtSpace(raw)
+	if !ok {
+		return "", errors.New("invalid space record URI format")
+	}
+	uri, err := syntax.ParseSpaceURI(atSpace)
+	if err != nil {
+		return "", err
+	}
+	if uri.Repo() == "" || uri.Collection() == "" || uri.RecordKey() == "" {
+		return "", errors.New("missing repo, collection or record key")
+	}
+	return uri, nil
+}
+
 // ParseSpaceRecordURI validates raw as a space record URI in any accepted
 // format (see [SpaceURI]), and returns it in the current format, so parsed
 // URIs compare equal to constructed ones.
 func ParseSpaceRecordURI(raw string) (SpaceRecordURI, error) {
-	if len(raw) > 8192 {
-		return "", errors.New("SpaceRecordURI is too long (8192 chars max)")
-	}
-	var parts []string
-	for _, re := range spaceRecordURIRegexes {
-		if parts = re.FindStringSubmatch(raw); parts != nil {
-			break
-		}
-	}
-	if parts == nil {
-		return "", errors.New("invalid space record URI format")
-	}
-	did, err := syntax.ParseDID(parts[1])
+	uri, err := parseRecordURI(raw)
 	if err != nil {
-		return "", fmt.Errorf("space record URI DID is not valid: %s", parts[1])
+		return "", fmt.Errorf("invalid space record URI: %w", err)
 	}
-	nsid, err := syntax.ParseNSID(parts[2])
-	if err != nil {
-		return "", fmt.Errorf("space record URI type is not a valid NSID: %s", parts[2])
-	}
-	skey, err := ParseSkey(parts[3])
-	if err != nil {
-		return "", fmt.Errorf("space record URI skey is not valid: %s", parts[3])
-	}
-	repo, err := syntax.ParseDID(parts[4])
-	if err != nil {
-		return "", fmt.Errorf("space record URI repo is not a valid DID: %s", parts[4])
-	}
-	collection, err := syntax.ParseNSID(parts[5])
-	if err != nil {
-		return "", fmt.Errorf("space record URI collection is not a valid NSID: %s", parts[5])
-	}
-	rkey, err := syntax.ParseRecordKey(parts[6])
-	if err != nil {
-		return "", fmt.Errorf("space record URI rkey is not valid: %s", parts[6])
-	}
-	return ConstructSpaceRecordURI(ConstructSpaceURI(did, nsid, skey), repo, collection, rkey), nil
+	return recordURIFromIndigo(uri), nil
+}
+
+func recordURIFromIndigo(uri syntax.SpaceURI) SpaceRecordURI {
+	return ConstructSpaceRecordURI(
+		spaceURIFromRef(uri.SpaceRef()), uri.Repo(), uri.Collection(), uri.RecordKey(),
+	)
 }
 
 func (s SpaceRecordURI) String() string {
 	return string(s)
 }
 
-// spaceRecordURIParts holds the raw, unvalidated components of a
-// SpaceRecordURI. All fields are "" when the URI matches neither format.
-type spaceRecordURIParts struct {
-	did        string
-	nsid       string
-	skey       string
-	repo       string
-	collection string
-	rkey       string
-}
-
-func (s SpaceRecordURI) parse() spaceRecordURIParts {
-	for _, re := range spaceRecordURIRegexes {
-		parts := re.FindStringSubmatch(string(s))
-		if parts == nil {
-			continue
-		}
-		return spaceRecordURIParts{
-			did:        parts[1],
-			nsid:       parts[2],
-			skey:       parts[3],
-			repo:       parts[4],
-			collection: parts[5],
-			rkey:       parts[6],
-		}
+// indigo views the URI as an indigo space URI without validating its parts
+// (see [SpaceURI.ref]). ok is false if it isn't shaped like a space record URI.
+func (s SpaceRecordURI) indigo() (syntax.SpaceURI, bool) {
+	atSpace, ok := toAtSpace(string(s))
+	if !ok || strings.Count(atSpace, "/") != 6 {
+		return "", false
 	}
-	return spaceRecordURIParts{}
+	return syntax.SpaceURI(atSpace), true
 }
 
 // AtSpace returns the URI in the "at:space/..." form that spaces alpha PDSes
-// require (see [SpaceURI.AtSpace]). URIs that match no format are returned
+// require (see [SpaceURI.AtSpace]). URIs that aren't valid are returned
 // unchanged.
 func (s SpaceRecordURI) AtSpace() SpaceRecordURI {
-	p := s.parse()
-	if p.did == "" {
+	uri, ok := s.indigo()
+	if !ok {
 		return s
 	}
-	return SpaceRecordURI(fmt.Sprintf(
-		"at:space/%s/%s/%s/%s/%s/%s", p.did, p.nsid, p.skey, p.repo, p.collection, p.rkey,
-	))
+	return SpaceRecordURI(uri)
 }
 
 // Collection extracts the NSID of the record's collection from the URI.
-// Returns "" if the URI doesn't match the expected format.
+// Returns "" if the URI isn't valid.
 func (s SpaceRecordURI) Collection() syntax.NSID {
-	parts := s.parse()
-	if parts.collection == "" {
-		return ""
-	}
-	nsid, err := syntax.ParseNSID(parts.collection)
-	if err != nil {
-		return ""
-	}
-	return nsid
+	uri, _ := s.indigo()
+	return uri.Collection()
 }
 
 // SpaceURI extracts the SpaceURI prefix of a SpaceRecordURI, always in the
 // current at:// format: a legacy record URI yields a current-format space URI.
-// Returns "" if the URI doesn't match either format.
+// Returns "" if the URI isn't valid.
 func (s SpaceRecordURI) SpaceURI() SpaceURI {
-	parts := s.parse()
-	if parts.did == "" {
+	uri, ok := s.indigo()
+	if !ok {
 		return ""
 	}
-	spaceURI, err := ParseSpaceURI(
-		fmt.Sprintf("at://%s/space/%s/%s", parts.did, parts.nsid, parts.skey),
-	)
+	ref, err := syntax.ParseSpaceRef(string(uri.SpaceRef()))
 	if err != nil {
 		return ""
 	}
-	return spaceURI
+	return spaceURIFromRef(ref)
 }
 
 // SpaceOwner extracts the DID of the owning space's owner from a
 // SpaceRecordURI, equivalent to s.SpaceURI().SpaceOwner(). Returns "" if the
-// URI doesn't match the expected format.
+// URI isn't valid.
 func (s SpaceRecordURI) SpaceOwner() syntax.DID {
-	return s.SpaceURI().SpaceOwner()
+	uri, _ := s.indigo()
+	return uri.SpaceAuthority()
 }
 
 // Repo extracts the DID of the repo that owns the record from the URI.
-// Returns "" if the URI doesn't match the expected format.
+// Returns "" if the URI isn't valid.
 func (s SpaceRecordURI) Repo() syntax.DID {
-	parts := s.parse()
-	if parts.repo == "" {
-		return ""
-	}
-	did, err := syntax.ParseDID(parts.repo)
-	if err != nil {
-		return ""
-	}
-	return did
+	uri, _ := s.indigo()
+	return uri.Repo()
 }
 
 // Rkey extracts the record key from the URI.
-// Returns "" if the URI doesn't match the expected format.
+// Returns "" if the URI isn't valid.
 func (s SpaceRecordURI) Rkey() syntax.RecordKey {
-	parts := s.parse()
-	if parts.rkey == "" {
-		return ""
-	}
-	rkey, err := syntax.ParseRecordKey(parts.rkey)
-	if err != nil {
-		return ""
-	}
-	return rkey
+	uri, _ := s.indigo()
+	return uri.RecordKey()
 }
 
 // SpaceRef is a space URI split into its parts, for storing in a table's

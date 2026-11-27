@@ -77,7 +77,10 @@ func newOAuthApp(t *testing.T, db *gorm.DB) *oauth.ClientApp {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	return oauth.NewClientApp(&cfg, store)
+	app := oauth.NewClientApp(&cfg, store)
+	// indigo's default client refuses non-public IPs; tests run on loopback.
+	app.Client = &http.Client{}
+	return app
 }
 
 func TestStoreSessionsAndSpaceAccess(t *testing.T) {

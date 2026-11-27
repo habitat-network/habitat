@@ -11,10 +11,10 @@ package spacescope
 
 import (
 	"fmt"
-	"net/url"
 	"slices"
 	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -54,48 +54,31 @@ type Grant struct {
 }
 
 // Parse parses scope as a space: grant made by self. ok is false, with no
-// error, for a scope that isn't a space: scope at all.
+// error, for a scope that isn't a space: scope at all. Syntax is checked by
+// indigo's [auth.ParsePermissionString].
 func Parse(scope string, self syntax.DID) (grant Grant, ok bool, err error) {
-	rest, isSpace := strings.CutPrefix(scope, "space:")
-	if !isSpace {
+	if !strings.HasPrefix(scope, "space:") {
 		return Grant{}, false, nil
 	}
-	positional, rawQuery, _ := strings.Cut(rest, "?")
-	if positional != wildcard {
-		if _, err := syntax.ParseNSID(positional); err != nil {
-			return Grant{}, false, fmt.Errorf("space scope %q: space type: %w", scope, err)
-		}
-	}
-	query, err := url.ParseQuery(rawQuery)
+	perm, err := auth.ParsePermissionString(scope)
 	if err != nil {
 		return Grant{}, false, fmt.Errorf("space scope %q: %w", scope, err)
 	}
 	grant = Grant{
-		SpaceType:   positional,
+		SpaceType:   perm.SpaceType,
 		Authority:   self.String(),
 		Skey:        wildcard,
-		Collections: query["collection"],
-		Manage:      query["manage"],
+		Collections: perm.Collection,
+		Manage:      perm.Manage,
 	}
-	if authority := query.Get("authority"); authority != "" && authority != "self" {
-		if authority != wildcard {
-			if _, err := syntax.ParseDID(authority); err != nil {
-				return Grant{}, false, fmt.Errorf("space scope %q: authority: %w", scope, err)
-			}
-		}
-		grant.Authority = authority
+	if perm.Authority != "" && perm.Authority != "self" {
+		grant.Authority = perm.Authority
 	}
-	if skey := query.Get("skey"); skey != "" {
-		grant.Skey = skey
+	if perm.SpaceKey != "" {
+		grant.Skey = perm.SpaceKey
 	}
-	for _, raw := range query["action"] {
-		action := Action(raw)
-		switch action {
-		case ActionReadSelf, ActionRead, ActionCreate, ActionUpdate, ActionDelete:
-			grant.Actions = append(grant.Actions, action)
-		default:
-			return Grant{}, false, fmt.Errorf("space scope %q: unknown action %q", scope, raw)
-		}
+	for _, raw := range perm.Action {
+		grant.Actions = append(grant.Actions, Action(raw))
 	}
 	if len(grant.Actions) == 0 {
 		grant.Actions = allActions
