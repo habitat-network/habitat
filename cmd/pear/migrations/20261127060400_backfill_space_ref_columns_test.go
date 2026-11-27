@@ -23,8 +23,12 @@ func TestBackfillSpaceRefColumnsSqlite(t *testing.T) {
 	)
 	for _, table := range spaceRefTables {
 		for i, space := range []string{current, current, atSpace, legacy} {
-			_, err := sqlDB.ExecContext(ctx,
-				"INSERT INTO "+table+" (space, repo) VALUES (?, ?)", space, "did:plc:r"+string(rune('a'+i)))
+			_, err := sqlDB.ExecContext(
+				ctx,
+				"INSERT INTO "+table+" (space, repo) VALUES (?, ?)",
+				space,
+				"did:plc:r"+string(rune('a'+i)),
+			)
 			require.NoError(t, err)
 		}
 		// A row that already has its parts keeps them.
@@ -52,11 +56,36 @@ func TestBackfillSpaceRefColumnsSqlite(t *testing.T) {
 		require.NoError(t, rows.Err())
 		require.NoError(t, rows.Close())
 
-		require.Equal(t, [3]string{"did:plc:o", "network.habitat.group", "k1"}, got["did:plc:ra"], table)
-		require.Equal(t, [3]string{"did:plc:o", "network.habitat.group", "k1"}, got["did:plc:rb"], table)
-		require.Equal(t, [3]string{"did:plc:o", "network.habitat.group", "k2"}, got["did:plc:rc"], table)
-		require.Equal(t, [3]string{"did:plc:o", "network.habitat.group", "k3"}, got["did:plc:rd"], table)
-		require.Equal(t, [3]string{"did:plc:kept", "network.habitat.kept", "kept"}, got["did:plc:keep"], table)
+		require.Equal(
+			t,
+			[3]string{"did:plc:o", "network.habitat.group", "k1"},
+			got["did:plc:ra"],
+			table,
+		)
+		require.Equal(
+			t,
+			[3]string{"did:plc:o", "network.habitat.group", "k1"},
+			got["did:plc:rb"],
+			table,
+		)
+		require.Equal(
+			t,
+			[3]string{"did:plc:o", "network.habitat.group", "k2"},
+			got["did:plc:rc"],
+			table,
+		)
+		require.Equal(
+			t,
+			[3]string{"did:plc:o", "network.habitat.group", "k3"},
+			got["did:plc:rd"],
+			table,
+		)
+		require.Equal(
+			t,
+			[3]string{"did:plc:kept", "network.habitat.kept", "kept"},
+			got["did:plc:keep"],
+			table,
+		)
 	}
 }
 
