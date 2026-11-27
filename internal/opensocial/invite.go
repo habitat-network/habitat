@@ -2,7 +2,6 @@ package opensocial
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -33,27 +32,14 @@ type Invite struct {
 	ExpiresAt time.Time
 }
 
-// inviteRow is the gorm model backing the invites table.
+// inviteRow is the gorm model backing the legacy invites table. Invites are
+// records now; the table stays so the data migration can convert its rows.
 type inviteRow struct {
 	ID        string     `gorm:"primaryKey"`
 	OrgID     syntax.DID `gorm:"not null;uniqueIndex:idx_invite_org_invitee,priority:1"`
 	Invitee   syntax.DID `gorm:"not null;uniqueIndex:idx_invite_org_invitee,priority:2"`
 	Roles     string     `gorm:"not null"` // JSON-encoded []string
 	CreatedAt time.Time  `gorm:"not null"`
-}
-
-func (r inviteRow) toInvite() (Invite, error) {
-	var roles []string
-	if err := json.Unmarshal([]byte(r.Roles), &roles); err != nil {
-		return Invite{}, fmt.Errorf("unmarshal roles: %w", err)
-	}
-	return Invite{
-		ID:        r.ID,
-		Org:       r.OrgID,
-		Invitee:   r.Invitee,
-		Roles:     roles,
-		CreatedAt: r.CreatedAt,
-	}, nil
 }
 
 // InviteCollection is the collection invites are written to.
@@ -126,7 +112,12 @@ func (s *Store) CreateInvite(
 		return Invite{}, fmt.Errorf("check invites space: %w", err)
 	}
 	if !exists {
-		if _, err := s.spacesStore.CreateSpace(ctx, invitee, InvitesSpaceType, "self"); err != nil &&
+		if _, err := s.spacesStore.CreateSpace(
+			ctx,
+			invitee,
+			InvitesSpaceType,
+			"self",
+		); err != nil &&
 			!errors.Is(err, spaces.ErrSpaceAlreadyExists) {
 			return Invite{}, fmt.Errorf("create invites space: %w", err)
 		}
