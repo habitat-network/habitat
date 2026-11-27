@@ -40,6 +40,9 @@ func (p *PearServer) GetSnapshot(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, spacestream.ErrCredentialMismatch) {
 		httpx.WriteInvalidRequest(ctx, w, "invalid spaces filter", err)
 		return
+	} else if errors.Is(err, spacestream.ErrLegacyCredentialDisabled) {
+		httpx.WriteUnauthorized(ctx, w, "space credential is not accepted", nil)
+		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return

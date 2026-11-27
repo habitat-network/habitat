@@ -74,6 +74,15 @@ func (p *PearServer) issueCredential(
 		httpx.WriteError(ctx, w, "SpaceDeleted", "space was deleted", http.StatusBadRequest)
 		return "", false
 	}
+	allowed, err := p.opensocialStore.AllowsLegacySpaceCredential(ctx, spaceURI)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, err)
+		return "", false
+	}
+	if !allowed {
+		httpx.WriteSpaceNotFound(ctx, w, nil)
+		return "", false
+	}
 	// The credential is bound to the credential key: every request presenting
 	// it must be signed by that key.
 	if !httpsig.IsP256DIDKey(req.credentialKey) {

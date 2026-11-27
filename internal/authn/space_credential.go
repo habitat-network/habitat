@@ -81,17 +81,34 @@ func (c *CredentialRevocations) IsRevoked(
 type SpaceCredentialAuthMethod struct {
 	dir         identity.Directory
 	revocations *CredentialRevocations
+	modelGate   func(context.Context, habitat_syntax.SpaceURI) (bool, error)
 }
 
 var _ Method = (*SpaceCredentialAuthMethod)(nil)
+
+// SpaceCredentialOption configures a space credential verifier.
+type SpaceCredentialOption func(*SpaceCredentialAuthMethod)
+
+// WithSpaceCredentialModelGate adds a denial check for the verified space.
+// A positive result does not grant access or skip any credential check.
+func WithSpaceCredentialModelGate(
+	check func(context.Context, habitat_syntax.SpaceURI) (bool, error),
+) SpaceCredentialOption {
+	return func(s *SpaceCredentialAuthMethod) { s.modelGate = check }
+}
 
 // NewSpaceCredentialAuthMethod verifies space credentials against their
 // authority's DID document, refusing any revoked in revocations.
 func NewSpaceCredentialAuthMethod(
 	directory identity.Directory,
 	revocations *CredentialRevocations,
+	opts ...SpaceCredentialOption,
 ) *SpaceCredentialAuthMethod {
-	return &SpaceCredentialAuthMethod{dir: directory, revocations: revocations}
+	s := &SpaceCredentialAuthMethod{dir: directory, revocations: revocations}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // CanHandle implements [Method].
@@ -176,6 +193,17 @@ func (s *SpaceCredentialAuthMethod) Validate(
 			http.StatusUnauthorized,
 		)
 		return nil, false
+	}
+	if s.modelGate != nil {
+		allowed, err := s.modelGate(ctx, space)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("check space credential model: %w", err))
+			return nil, false
+		}
+		if !allowed {
+			httpx.WriteUnauthorized(ctx, w, "space credential is not accepted", nil)
+			return nil, false
+		}
 	}
 
 	// exp is required by the parse above.

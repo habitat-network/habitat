@@ -54,6 +54,7 @@ type TestServer struct {
 	// CredentialRevocations is where notifyCredentialRevoked stores jtis.
 	CredentialRevocations *authn.CredentialRevocations
 	SpaceStore            spaces.Store
+	BlobStore             spaces.BlobStore
 	OpenSocialStore       *opensocial.Store
 	SimpleStore           *simplespace.Store
 	NotifyStore           notify.Store
@@ -82,13 +83,20 @@ type TestServer struct {
 	SearchConfig *searchconfig.Store
 	// SpaceEvents wakes subscribe streams. The default SpaceStore notifies it;
 	// one given with WithSpaceStore doesn't, so its streams only poll.
-	SpaceEvents *spacestream.Broadcaster
+	SpaceEvents            *spacestream.Broadcaster
+	verifySpaceCredentials bool
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.Validator = validator
 	}
+}
+
+// WithVerifiedSpaceCredentials uses the real key-bound credential method.
+// Other authentication methods are disabled in this test mode.
+func WithVerifiedSpaceCredentials() utils.Opt[TestServer] {
+	return func(o *TestServer) { o.verifySpaceCredentials = true }
 }
 
 func WithHostKey(key atcrypto.PrivateKeyExportable) utils.Opt[TestServer] {
@@ -208,6 +216,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ts.NotifyStore = notifyStore
 	}
 	blobStore := spaces_testutil.NewTestBlobStore(t)
+	ts.BlobStore = blobStore
 
 	os, err := opensocial.NewStore(ts.DB, ts.SpaceStore, blobStore, ts.Hive)
 	require.NoError(t, err)
@@ -281,6 +290,15 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	ts.CredentialRevocations = authn.NewCredentialRevocations(
 		kv.Namespace("space_credential_revoked"),
 	)
+	hiveDir := habitat_identity.NewWrappedDirectory(ts.Hive, ts.Directory)
+	if ts.verifySpaceCredentials {
+		credentials := authn.NewSpaceCredentialAuthMethod(
+			hiveDir, ts.CredentialRevocations,
+			authn.WithSpaceCredentialModelGate(os.AllowsLegacySpaceCredential),
+		)
+		disabled := authntest.NewCantHandleMethod()
+		ts.Validator = authn.NewValidator(disabled, disabled, credentials, ps)
+	}
 	// Only the fields PearServer reads; the rest of pear's App isn't needed here.
 	ts.Server = pearserver.New(&pearapp.App{
 		Domain:                "pear.example.com",
@@ -289,7 +307,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		DelegationTokensSpent: kv.Namespace("space_delegation_spent"),
 		DefaultDir:            ts.Directory,
 		// Like pear's own, resolving managed identities through the hive first.
-		HiveDir:          habitat_identity.NewWrappedDirectory(ts.Hive, ts.Directory),
+		HiveDir:          hiveDir,
 		Hive:             ts.Hive,
 		HostKey:          ts.HostKey,
 		HostKEMKey:       ts.HostKEMKey,

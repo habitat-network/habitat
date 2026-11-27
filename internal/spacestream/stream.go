@@ -113,6 +113,10 @@ type Subscription struct {
 // could never carry anything.
 var ErrCredentialMismatch = errors.New("spaces filter excludes the credential's space")
 
+// ErrLegacyCredentialDisabled ends a credential stream when its space
+// no longer accepts legacy credentials.
+var ErrLegacyCredentialDisabled = errors.New("legacy space credential disabled")
+
 // errExpired is the cause of a stream's context ending at ExpiresAt.
 var errExpired = errors.New("credential expired")
 
@@ -131,6 +135,7 @@ type Server struct {
 	broadcaster  *Broadcaster
 	pageSize     int
 	pollInterval time.Duration
+	modelGate    func(context.Context, habitat_syntax.SpaceURI) (bool, error)
 }
 
 // Option configures a [Server].
@@ -145,6 +150,14 @@ func WithPageSize(n int) Option {
 // without a wake.
 func WithPollInterval(d time.Duration) Option {
 	return func(s *Server) { s.pollInterval = d }
+}
+
+// WithSpaceCredentialModelGate checks if the subscription's authenticated
+// credential can still be used. It does not affect personal subscriptions.
+func WithSpaceCredentialModelGate(
+	check func(context.Context, habitat_syntax.SpaceURI) (bool, error),
+) Option {
+	return func(s *Server) { s.modelGate = check }
 }
 
 // NewServer returns a Server reading source, authorizing users against roles,
@@ -207,6 +220,9 @@ func (s *Server) Run(ctx context.Context, conn Conn, sub Subscription) error {
 }
 
 func (s *Server) run(ctx context.Context, conn Conn, sub Subscription) error {
+	if err := s.checkCredentialModel(ctx, sub.Reader); err != nil {
+		return err
+	}
 	head, err := s.source.SequenceEvents(ctx)
 	if err != nil {
 		return fmt.Errorf("sequence events: %w", err)
@@ -264,6 +280,21 @@ func (s *Server) run(ctx context.Context, conn Conn, sub Subscription) error {
 	}
 }
 
+func (s *Server) checkCredentialModel(ctx context.Context, reader Reader) error {
+	cred, ok := reader.(SpaceCredentialReader)
+	if !ok || s.modelGate == nil {
+		return nil
+	}
+	allowed, err := s.modelGate(ctx, cred.Space)
+	if err != nil {
+		return fmt.Errorf("check stream credential model: %w", err)
+	}
+	if !allowed {
+		return ErrLegacyCredentialDisabled
+	}
+	return nil
+}
+
 // scanRange bounds a [Server.scan].
 type scanRange struct {
 	// From is the first seq to read.
@@ -296,6 +327,11 @@ func (s *Server) scan(
 		events, err := s.source.ListEvents(ctx, sub.Query.Filter, next, s.pageSize)
 		if err != nil {
 			return next, false, fmt.Errorf("list events: %w", err)
+		}
+		// Check after loading the page so events written after cutover
+		// cannot be emitted under an earlier model decision.
+		if err := s.checkCredentialModel(ctx, sub.Reader); err != nil {
+			return next, false, err
 		}
 		// A fresh cache per page, so a revoked reader stops receiving
 		// events within a page.
