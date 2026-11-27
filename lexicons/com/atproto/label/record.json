@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.label.record",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A label written as a record into a space. Local stand-in for the upstream definition, which the org.atgrp meta and members spaces name as a collection.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["uri", "val", "cts"],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "uri",
+            "description": "AT URI of the record, repository (account), or other resource that this label applies to."
+          },
+          "cid": {
+            "type": "string",
+            "format": "cid",
+            "description": "Optionally, CID specifying the specific version of 'uri' resource this label applies to."
+          },
+          "val": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "The short string name of the value or type of this label."
+          },
+          "neg": {
+            "type": "boolean",
+            "description": "If true, this is a negation label, overwriting a previous label."
+          },
+          "cts": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp when this label was created."
+          },
+          "exp": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp at which this label expires (no longer applies)."
+          }
+        }
+      }
+    }
+  }
+}
