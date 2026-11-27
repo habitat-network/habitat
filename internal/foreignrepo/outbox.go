@@ -103,11 +103,14 @@ type Notification struct {
 // Delivery is one leased notification. Keep it until Complete returns.
 // Reading a lease or completing it does not make any network request.
 type Delivery struct {
-	Notification
+	notice     Notification
 	attempt    int
 	leaseUntil int64
 	expiresAt  int64
 }
+
+// Notification returns a copy of the data bound to this lease.
+func (d Delivery) Notification() Notification { return d.notice }
 
 // ClaimDue leases at most 20 notifications. The attempt is charged before
 // delivery so a repeatedly crashing worker cannot retry indefinitely.
@@ -155,7 +158,7 @@ func (s *Store) ClaimDue(ctx context.Context, now time.Time, limit int) ([]Deliv
 			}
 			if res.RowsAffected == 1 {
 				items = append(items, Delivery{
-					Notification: Notification{
+					notice: Notification{
 						Space: inbox.AtSpace(), Author: row.Key.Author,
 						Rev: row.Rev, Digest: [sha256.Size]byte(row.Digest),
 					},
@@ -186,7 +189,7 @@ const (
 func (s *Store) Complete(
 	ctx context.Context, item Delivery, now time.Time, outcome Outcome,
 ) (bool, error) {
-	k, err := parseScope(item.Space, item.Author)
+	k, err := parseScope(item.notice.Space, item.notice.Author)
 	if err != nil {
 		return false, err
 	}
@@ -196,7 +199,7 @@ func (s *Store) Complete(
 	at := now.UnixMilli()
 	q := k.match(s.db.WithContext(ctx).Model(&inviteDelivery{})).
 		Where("rev = ? AND attempts = ? AND lease_until = ? AND lease_until > ? AND expires_at > ?",
-			item.Rev, item.attempt, item.leaseUntil, at, at)
+			item.notice.Rev, item.attempt, item.leaseUntil, at, at)
 	var result *gorm.DB
 	switch outcome {
 	case Delivered, PermanentFailure:

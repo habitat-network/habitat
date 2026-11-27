@@ -32,10 +32,11 @@ func noDue(t *testing.T, s *Store, now time.Time) {
 
 func checkDelivery(t *testing.T, item Delivery, commit spacecommit.Commit) {
 	t.Helper()
-	require.Equal(t, commit.Space, item.Space)
-	require.Equal(t, commit.Repo, item.Author)
-	require.Equal(t, commit.Rev, item.Rev.String())
-	require.Equal(t, commit.Data, item.Digest[:])
+	n := item.Notification()
+	require.Equal(t, commit.Space, n.Space)
+	require.Equal(t, commit.Repo, n.Author)
+	require.Equal(t, commit.Rev, n.Rev.String())
+	require.Equal(t, commit.Data, n.Digest[:])
 }
 
 func TestOutboxCoalescesAndRejectsStaleAcknowledgement(t *testing.T) {
@@ -188,7 +189,8 @@ func TestOutboxConcurrentClaims(t *testing.T) {
 	for _, commit := range []spacecommit.Commit{a, b, c} {
 		var matches []Delivery
 		for _, item := range all {
-			if item.Space == commit.Space && item.Author == commit.Repo {
+			n := item.Notification()
+			if n.Space == commit.Space && n.Author == commit.Repo {
 				matches = append(matches, item)
 			}
 		}
@@ -251,7 +253,10 @@ func TestOutboxSaturationRollsBackRecordAndHead(t *testing.T) {
 			author: f.first,
 		}
 		seeds = append(seeds, inviteDelivery{
-			Key: k.key(), Rev: old.Rev, Digest: before.Data, ReadyAt: now.UnixMilli(),
+			Key:       k.key(),
+			Rev:       old.Notification().Rev,
+			Digest:    before.Data,
+			ReadyAt:   now.UnixMilli(),
 			ExpiresAt: now.Add(deliveryAge).UnixMilli(),
 		})
 	}
