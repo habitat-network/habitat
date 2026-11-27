@@ -33,13 +33,49 @@ func TestParseBoundInvite(t *testing.T) {
 		ok   bool
 	}{
 		{"spec wire URI", expected.AtSpace().String(), true},
-		{"repo and recipient reversed", construct(atgrp.InboxSpace(inviteGroup), invitee, inviteNSID, inviteKey).AtSpace().String(), false},
-		{"other recipient", construct(atgrp.InboxSpace("did:plc:bob"), inviteGroup, inviteNSID, inviteKey).String(), false},
+		{
+			"repo and recipient reversed",
+			construct(
+				atgrp.InboxSpace(inviteGroup),
+				invitee,
+				inviteNSID,
+				inviteKey,
+			).AtSpace().
+				String(),
+			false,
+		},
+		{
+			"other recipient",
+			construct(atgrp.InboxSpace("did:plc:bob"), inviteGroup, inviteNSID, inviteKey).String(),
+			false,
+		},
 		{"other group", construct(inbox, "did:plc:other", inviteNSID, inviteKey).String(), false},
-		{"wrong collection", construct(inbox, inviteGroup, "org.atgrp.membership", inviteKey).String(), false},
+		{
+			"wrong collection",
+			construct(inbox, inviteGroup, "org.atgrp.membership", inviteKey).String(),
+			false,
+		},
 		{"wrong key", construct(inbox, inviteGroup, inviteNSID, "not-a-tid").String(), false},
-		{"wrong space type", construct(habitat_syntax.ConstructSpaceURI(invitee, "org.atgrp.members", "self"), inviteGroup, inviteNSID, inviteKey).String(), false},
-		{"wrong space key", construct(habitat_syntax.ConstructSpaceURI(invitee, atgrp.InboxSpaceType, "other"), inviteGroup, inviteNSID, inviteKey).String(), false},
+		{
+			"wrong space type",
+			construct(
+				habitat_syntax.ConstructSpaceURI(invitee, "org.atgrp.members", "self"),
+				inviteGroup,
+				inviteNSID,
+				inviteKey,
+			).String(),
+			false,
+		},
+		{
+			"wrong space key",
+			construct(
+				habitat_syntax.ConstructSpaceURI(invitee, atgrp.InboxSpaceType, "other"),
+				inviteGroup,
+				inviteNSID,
+				inviteKey,
+			).String(),
+			false,
+		},
 		{"regular AT URI", "at://did:plc:group/org.atgrp.invite/3jzfcijpj2z2a", false},
 		{"garbage", "garbage", false},
 	}

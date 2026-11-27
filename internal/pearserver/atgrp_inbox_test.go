@@ -56,12 +56,26 @@ func TestAtgrpInboxCRUD(t *testing.T) {
 	require.True(t, atgrp.IsInboxPolicy(actualPolicy))
 
 	// FGA grants do not let a group read its recipient's inbox.
-	_, err = recipient.PermStore.SetUserRelation(t.Context(), org, inbox, habitat_syntax.SpaceRoleReader)
+	_, err = recipient.PermStore.SetUserRelation(
+		t.Context(),
+		org,
+		inbox,
+		habitat_syntax.SpaceRoleReader,
+	)
 	require.NoError(t, err)
-	canRead, err := group.PermStore.CheckUserHasSpaceRole(t.Context(), org, inbox, habitat_syntax.SpaceRoleReader)
+	canRead, err := group.PermStore.CheckUserHasSpaceRole(
+		t.Context(),
+		org,
+		inbox,
+		habitat_syntax.SpaceRoleReader,
+	)
 	require.NoError(t, err)
 	require.False(t, canRead)
-	readers, err := group.PermStore.ListUserSubjects(t.Context(), inbox, habitat_syntax.SpaceRoleReader)
+	readers, err := group.PermStore.ListUserSubjects(
+		t.Context(),
+		inbox,
+		habitat_syntax.SpaceRoleReader,
+	)
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{alice}, readers)
 
@@ -95,7 +109,11 @@ func TestAtgrpInboxCRUD(t *testing.T) {
 		if collection != "" {
 			params.Set("collection", collection)
 		}
-		req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.space.listRecords?"+params.Encode(), nil)
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/xrpc/com.atproto.space.listRecords?"+params.Encode(),
+			http.NoBody,
+		)
 		w := httptest.NewRecorder()
 		if asGroup {
 			group.Server.ServeHTTP(w, req)
@@ -106,12 +124,23 @@ func TestAtgrpInboxCRUD(t *testing.T) {
 	}
 	require.Equal(t, http.StatusOK, list(org.String(), atgrp.InviteCollection, true).Code)
 	require.Equal(t, http.StatusBadRequest, list(alice.String(), atgrp.InviteCollection, true).Code)
-	require.Contains(t, list(org.String(), atgrp.InviteCollection, false).Body.String(), invite.Rkey)
+	require.Contains(
+		t,
+		list(org.String(), atgrp.InviteCollection, false).Body.String(),
+		invite.Rkey,
+	)
 
 	revoke := habitat.NetworkHabitatSpaceDeleteRecordInput{
-		Space: created.Space, Repo: org.String(), Collection: atgrp.InviteCollection, Rkey: invite.Rkey,
+		Space:      created.Space,
+		Repo:       org.String(),
+		Collection: atgrp.InviteCollection,
+		Rkey:       invite.Rkey,
 	}
 	check(http.StatusBadRequest, recipient.Server.DeleteRecord, revoke)
 	check(http.StatusOK, group.Server.DeleteRecord, revoke)
-	require.NotContains(t, list(org.String(), atgrp.InviteCollection, false).Body.String(), invite.Rkey)
+	require.NotContains(
+		t,
+		list(org.String(), atgrp.InviteCollection, false).Body.String(),
+		invite.Rkey,
+	)
 }

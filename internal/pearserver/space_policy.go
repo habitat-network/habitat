@@ -73,7 +73,12 @@ func (p *PearServer) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if spaceURI.SpaceType() == atgrp.InboxSpaceType && !atgrp.IsInboxPolicy(policy) {
-		httpx.WriteInvalidRequest(ctx, w, "inbox requires a private public-write memberspace policy", nil)
+		httpx.WriteInvalidRequest(
+			ctx,
+			w,
+			"inbox requires a private public-write memberspace policy",
+			nil,
+		)
 		return
 	}
 	err = p.spacesStore.SetSpacePolicy(ctx, spaceURI, policy)

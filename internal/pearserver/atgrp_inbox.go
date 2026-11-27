@@ -77,7 +77,11 @@ func (p *PearServer) validateInboxWriter(
 // This host must not claim to host a remote account's inbox or repo. Such
 // accounts can authenticate with service auth, but that does not move data
 // custody from their PDS to this one.
-func (p *PearServer) requireLocalInboxAccount(w http.ResponseWriter, r *http.Request, did syntax.DID) bool {
+func (p *PearServer) requireLocalInboxAccount(
+	w http.ResponseWriter,
+	r *http.Request,
+	did syntax.DID,
+) bool {
 	ctx := r.Context()
 	_, err := p.hive.LookupDID(ctx, did)
 	if errors.Is(err, identity.ErrDIDNotFound) {
@@ -110,7 +114,11 @@ func validateInboxRecordKey(
 // validateRecordReader grants an invite author access to only their own
 // repo's invite collection. All other reads still require a read role.
 func (p *PearServer) validateRecordReader(
-	w http.ResponseWriter, r *http.Request, space habitat_syntax.SpaceURI, repo syntax.DID, collection syntax.NSID,
+	w http.ResponseWriter,
+	r *http.Request,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	collection syntax.NSID,
 ) (*authn.CredentialInfo, bool) {
 	if space.SpaceType() == atgrp.InboxSpaceType && space.Skey() == "self" &&
 		collection == atgrp.InviteCollection {

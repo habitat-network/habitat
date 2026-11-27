@@ -30,7 +30,10 @@ func IsInboxPolicy(policy spaces.Policy) bool {
 
 // ParseBoundInvite requires the exact invite URI, not just the existence of
 // some invite to the group. The recipient comes from the authenticated DID.
-func ParseBoundInvite(raw string, group, recipient syntax.DID) (habitat_syntax.SpaceRecordURI, error) {
+func ParseBoundInvite(
+	raw string,
+	group, recipient syntax.DID,
+) (habitat_syntax.SpaceRecordURI, error) {
 	uri, err := habitat_syntax.ParseSpaceRecordURI(raw)
 	if err != nil || uri.SpaceURI() != InboxSpace(recipient) ||
 		uri.Repo() != group || uri.Collection() != InviteCollection {
