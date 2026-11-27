@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -62,6 +63,10 @@ type fakePDS struct {
 	current map[syntax.RecordKey]string
 	// badMAC serves a commit MAC under the wrong secret.
 	badMAC bool
+	// noCommit omits the MAC and commit from every response.
+	noCommit bool
+	// interruptPage simulates the upstream PDS becoming temporarily unavailable.
+	interruptPage bool
 }
 
 func newFakePDS(t *testing.T, space habitat_syntax.SpaceURI, orgKey atcrypto.PublicKey) *fakePDS {
@@ -147,15 +152,26 @@ func (p *fakePDS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	since := syntax.TID(r.URL.Query().Get("since"))
+	start := 0
+	if cursor := r.URL.Query().Get("cursor"); cursor != "" {
+		if p.interruptPage {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		raw, ok := strings.CutPrefix(cursor, "index/")
+		require.True(t, ok)
+		start, err = strconv.Atoi(raw)
+		require.NoError(t, err)
+	}
 	var page []comatproto.ComAtprotoSpaceListRepoOpsOpEntry
-	rest := 0
-	for _, op := range p.ops {
-		if op.rev <= since {
+	nextPage := ""
+	for i, op := range p.ops {
+		if i < start || op.rev <= since {
 			continue
 		}
 		if len(page) == p.pageSize {
-			rest++
-			continue
+			nextPage = "index/" + strconv.Itoa(i)
+			break
 		}
 		entry := comatproto.ComAtprotoSpaceListRepoOpsOpEntry{
 			Rev:        op.rev.String(),
@@ -176,11 +192,9 @@ func (p *fakePDS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		page = append(page, entry)
 	}
-	out := comatproto.ComAtprotoSpaceListRepoOpsOutput{Ops: page}
-	if len(page) > 0 {
-		out.Cursor = page[len(page)-1].Rev
-	}
-	if rest == 0 && len(p.ops) > 0 {
+	out := comatproto.ComAtprotoSpaceListRepoOpsOutput{Ops: page, Cursor: nextPage}
+	// The alpha PDS includes an authenticated commit on all pages.
+	if !p.noCommit && len(p.ops) > 0 {
 		rev, data := p.head()
 		commit := spacecommit.New(p.space, member, rev.String(), data)
 		macSecret := secret
@@ -348,6 +362,28 @@ func TestSyncerFetchesExternalWriterRecords(t *testing.T) {
 		env.commits(t))
 }
 
+func TestSyncerSameRevisionBatchAndInterruptedPage(t *testing.T) {
+	env, teardown := setupSyncer(t)
+	defer teardown()
+	env.pds.pageSize = 1
+	rev := env.pds.put("a", "one")
+	env.pds.put("b", "two")
+	// Like the alpha PDS's applyWrites, both operations share one revision.
+	env.pds.ops[1].rev = rev
+	env.pds.interruptPage = true
+	env.notifyWrite(t)
+
+	ctx := t.Context()
+	require.ErrorContains(t, env.syncer.Sync(ctx, env.space, member), "HTTP 503")
+	require.Empty(t, env.commits(t))
+	require.Zero(t, env.notifier.writes)
+
+	env.pds.interruptPage = false
+	require.NoError(t, env.syncer.Sync(ctx, env.space, member))
+	require.ElementsMatch(t, []string{"a create one", "b create two"}, env.commits(t))
+	require.Equal(t, 1, env.notifier.writes)
+}
+
 func TestSyncerRebuildsWhenOpsDontAddUp(t *testing.T) {
 	env, teardown := setupSyncer(t)
 	defer teardown()
@@ -394,6 +430,10 @@ func TestSyncerRejectsUnverifiedOps(t *testing.T) {
 			name:   "commit with a bad mac",
 			tamper: func(p *fakePDS) { p.badMAC = true },
 		},
+		{
+			name:   "operations with no authenticated commit",
+			tamper: func(p *fakePDS) { p.noCommit = true },
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -409,6 +449,30 @@ func TestSyncerRejectsUnverifiedOps(t *testing.T) {
 			require.True(t, remote.Behind(), "the repo is left for the next sweep")
 		})
 	}
+}
+
+func TestSyncerResponseBudgetAndRedirect(t *testing.T) {
+	env, teardown := setupSyncer(t)
+	defer teardown()
+	env.pds.put("a", "one")
+	env.notifyWrite(t)
+	reader, err := env.syncer.reader(t.Context(), env.space, member)
+	require.NoError(t, err)
+	remaining := int64(16)
+	_, err = reader.fetch(t.Context(), "", spacecommit.LtHash{}, &remaining)
+	require.ErrorContains(t, err, "response byte budget")
+
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/xrpc/"+listRepoOps {
+			t.Error("signed request followed redirect")
+		}
+		http.Redirect(w, r, "/different-resource", http.StatusTemporaryRedirect)
+	}))
+	defer origin.Close()
+	reader.pds = origin.URL
+	remaining = maxSyncBytes
+	_, err = reader.fetch(t.Context(), "", spacecommit.LtHash{}, &remaining)
+	require.ErrorContains(t, err, "HTTP 307")
 }
 
 func TestSyncerIgnoresLocalWriters(t *testing.T) {
