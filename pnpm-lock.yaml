@@ -395,7 +395,7 @@ importers:
         version: link:../../jetstream
       '@posthog/react':
         specifier: ^1.7.0
-        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
+        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.455.2(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.5(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
@@ -470,13 +470,16 @@ importers:
         version: 1.34.0(react@19.2.8)
       posthog-js:
         specifier: ^1.358.1
-        version: 1.418.10
+        version: 1.455.2(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
       react-dom:
         specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
+      react-hook-form:
+        specifier: 'catalog:'
+        version: 7.91.0(@types/react@19.2.18)(react@19.2.8)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.5
@@ -564,7 +567,7 @@ importers:
         version: 2.4.0
       '@posthog/react':
         specifier: ^1.11.3
-        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
+        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.455.2(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
       '@tanstack/ai':
         specifier: ^1.0.0
         version: 1.8.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
@@ -576,7 +579,7 @@ importers:
         version: 1.1.1(@tanstack/ai@1.8.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(undici@8.12.4)(ws@8.21.3)(zod@4.6.7)
       '@tanstack/ai-react':
         specifier: ^1.0.0
-        version: 1.0.2(@opentelemetry/api@1.10.0)(@tanstack/ai@1.8.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)
+        version: 1.1.1(@opentelemetry/api@1.10.0)(@tanstack/ai@1.8.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)
       '@tanstack/markdown':
         specifier: ^1.2.0
         version: 1.2.1(react@19.2.8)
@@ -615,7 +618,7 @@ importers:
         version: 1.34.0(react@19.2.8)
       posthog-js:
         specifier: ^1.418.10
-        version: 1.418.10
+        version: 1.455.2(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -703,7 +706,7 @@ importers:
         version: link:../../habitat
       '@posthog/react':
         specifier: ^1.10.6
-        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
+        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.455.2(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.15(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -766,7 +769,7 @@ importers:
         version: 1.34.0(react@19.2.8)
       posthog-js:
         specifier: ^1.418.10
-        version: 1.418.10
+        version: 1.455.2(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -863,7 +866,7 @@ importers:
         version: link:../../habitat
       '@posthog/react':
         specifier: ^1.11.3
-        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
+        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.455.2(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -893,7 +896,7 @@ importers:
         version: 1.34.0(react@19.2.8)
       posthog-js:
         specifier: ^1.418.10
-        version: 1.418.10
+        version: 1.455.2(@types/react@19.2.18)(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -1015,7 +1018,7 @@ importers:
     devDependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.14
+        version: 0.4.15
       msw:
         specifier: ^2.15.0
         version: 2.15.0(@types/node@22.20.5)(typescript@7.0.2)
@@ -1030,7 +1033,7 @@ importers:
     dependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.14
+        version: 0.4.15
       '@atproto/api':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261124235736
@@ -1323,8 +1326,8 @@ packages:
     resolution: {integrity: sha512-aAzU/+8d2M0eAo/yp4JH29QhRwTz30zA2rbnMA37axEVjjd6Z+kZ1EaToATR4NXbUQj08qceXdolJ4iTU2VWkA==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/did-resolver@0.3.14':
-    resolution: {integrity: sha512-Yp9/87LEPguiVtx9SJYO8uZTJmTCT+FBJya8laxezAT+4ChRCRAxgWF9Es28UAigwoJ/SO08kHa2Ynj5D0BLww==}
+  '@atproto-labs/did-resolver@0.3.15':
+    resolution: {integrity: sha512-8Wajv3vsfHjyS2ZrJulhJw5cLFY5IYKKJOOCek+rDzrvLiMteayEiM/EpKleUx3mr6Ei31LRUE2iaOMv+bz+Ng==}
     engines: {node: '>=22'}
 
   '@atproto-labs/fetch-node@0.0.0-spaces-alpha-20261124235736':
@@ -1333,6 +1336,10 @@ packages:
 
   '@atproto-labs/fetch@0.4.3':
     resolution: {integrity: sha512-Da747rqMhHOSbwEBUfpyCpg3kKwhPZNGLNTFBVc/JQ+KTsDmUy64quRwFqXEy+pd8xoaQ0fodaLDHGbD/LNK7Q==}
+    engines: {node: '>=22'}
+
+  '@atproto-labs/fetch@0.5.0':
+    resolution: {integrity: sha512-/Fn+UdZlepm4fFzE0IYznkydxTuOMEJBQZtcHQBRwA3eB6u93RdShIvjC1CpK2UMt1R/H4W2aI9jOlRYmyuSyg==}
     engines: {node: '>=22'}
 
   '@atproto-labs/handle-resolver-node@0.0.0-spaces-alpha-20261124235736':
@@ -1351,8 +1358,8 @@ packages:
     resolution: {integrity: sha512-C2Eu/w5aDL3I4DRoiPdsEA9esRD00k+dN6RWIBSX1K5erI2LRbvwdTRqu4dTS886Cj0Zj8X/Xfsz/oYsKsmhaQ==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/identity-resolver@0.4.14':
-    resolution: {integrity: sha512-N/Ni291K6wCHTpVQ7+Mx4BcuCQpyfV4z4GEXcr3Px7CMZD5Vm8B4oD/m+gTBMR5Ni39tH4v8uIA0b/0t1FrzmA==}
+  '@atproto-labs/identity-resolver@0.4.15':
+    resolution: {integrity: sha512-LECsMaH1lYRHmrWP+Y7xUns2MXRmcfCc/2nJoZ4V3+dXHdmWf1TSN5a72JTTE+CEz52tolkho0cWsMd7qu1NFw==}
     engines: {node: '>=22'}
 
   '@atproto-labs/pipe@0.2.5':
@@ -4569,11 +4576,11 @@ packages:
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
 
-  '@posthog/browser-common@0.5.0':
-    resolution: {integrity: sha512-8DaxVZS1bQPbA514RePurLNbYjei3P4jhnC206DwVv5XThmZM3QdlsXenI2ujE3pLbgQ79hYn9o1Kda8I3WK/Q==}
+  '@posthog/browser-common@0.14.2':
+    resolution: {integrity: sha512-oqDCqFYG9R4ydOwA8qaC8yGERxXCW7Ar5U1WjGZ+wFbI6pHFVty67h0Jq7+3Svd3XfH8zGQh1Ib8eDcXSYo9mw==}
 
-  '@posthog/core@1.48.8':
-    resolution: {integrity: sha512-LAOBOjMQrQmgcbZxnubl74l2GQd5OWqxCJJ8mzcWdZRWbfO6Y/A6E3fqWjDtm68hY4LxC/bbopG60cxZW8cfWw==}
+  '@posthog/core@1.69.2':
+    resolution: {integrity: sha512-toMfPKklwLW+a4ZY3/EzM3GNMVXmk2ylGb8NPJXRH4igXMoI8wgNL2jqXOiglWAXqFBLZGYFN1oQx6LVmUTxTg==}
 
   '@posthog/react@1.11.3':
     resolution: {integrity: sha512-YqvZb2y9jh/yW0ojUtAns0l4yHWqpu+5UeIBxZlXpyGuWlh8M4siXRMtqhEh1BKfqp6Sq2usdsQCuoUzx1QFWQ==}
@@ -4585,8 +4592,8 @@ packages:
       '@types/react':
         optional: true
 
-  '@posthog/types@1.405.1':
-    resolution: {integrity: sha512-JvaR4ChUKUk7qSTG58vKN2Br6es9riFF5mvlu7YGcwbB476vfyTO0o/TBh+zE88QhsfxnE5Tr/jKxI+e1v3Q5A==}
+  '@posthog/types@1.427.2':
+    resolution: {integrity: sha512-86GJtdFt7zkk6tDpCFKfxyTtuXyLpiWPmTn5nlLDGlxGeky4s4l2fiWSRvYi6Lfn5MRrjiHE24RgKR4A75K+xA==}
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -5400,17 +5407,14 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
 
-  '@tanstack/ai-client@1.1.0':
-    resolution: {integrity: sha512-XMTdKzB9JG851Sztd/ywaL9D9Mw5DS87nV2i+5/Yq9dT+JKMcGoXCriztyO+djwxHu5ZGY32o9o29zbMMBo9VQ==}
+  '@tanstack/ai-client@1.2.1':
+    resolution: {integrity: sha512-m6EjS6pRdbOxMrIIgWm6QtOfCGBbAh2QnV7PJ6b64xfeq908bTYk5U2dJKQboFN2PuAIHFa02Udbvu6nU5tp8g==}
 
   '@tanstack/ai-devtools-core@1.0.1':
     resolution: {integrity: sha512-XLlzw6XqPfqtR1E0E14ToVRIlNrKiX5iPsWPWz7InXetP1pDa2CP2X+j3WzUiIBsYIC+RS2Gz8C55g9+BAtqpA==}
 
   '@tanstack/ai-event-client@1.0.0':
     resolution: {integrity: sha512-RXlk6XkIYU4n25QYoCmETKiFjPnEpwvQv5Ve62pdtHaEVP//VZUdwGSRGCf/PATgwYdib8FT49tPmqnKtXPDhw==}
-
-  '@tanstack/ai-event-client@1.0.1':
-    resolution: {integrity: sha512-IURnn4oRKJbtbAuC3GcXRcuKHi8DrPmwuACqaTq6ApSGlyJyHhq0NTksKEmzql2Z12+njFjsKSXG9c7UbSHTxg==}
 
   '@tanstack/ai-event-client@1.1.0':
     resolution: {integrity: sha512-g4ctAzbvC1CuAjjTnp8iH5hlnFzVPJybVhuRMItUb5ISC4bQsrhUyhrsZ4QHW1brEpaAhfdss+MpdWux+7glUw==}
@@ -5429,11 +5433,11 @@ packages:
     peerDependencies:
       '@tanstack/ai': ^1.2.0
 
-  '@tanstack/ai-react@1.0.2':
-    resolution: {integrity: sha512-c4khP6tKUVWUI0rehUuBSJTGJ2lH99qvdkxT6aBxmvhZVCps3icJYso0PCXJTCwEadML3k8j3+7o6159cu42/A==}
+  '@tanstack/ai-react@1.1.1':
+    resolution: {integrity: sha512-BAOSK+2w/g/r2l8NXbl0GgOR3hd+uqKalWwaFLPFEVSNzTwYIoHm27uX+1D+3Fo/DArwN6P2zLkhlDPK3+jaEg==}
     peerDependencies:
       '@mcp-ui/client': ^7
-      '@tanstack/ai': ^1.1.0
+      '@tanstack/ai': ^1.7.0
       '@types/react': '>=18.0.0'
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
@@ -5523,17 +5527,6 @@ packages:
   '@tanstack/history@1.162.5':
     resolution: {integrity: sha512-w1+YvwmTkwt5n8yUqEH3IWZ9DsmorCZW/EQ3KYHnqEgIkOZpH54NvW6/Epq3Dzb8H0ifIeYX8PExvrNLIH5FIA==}
     engines: {node: '>=20.19'}
-
-  '@tanstack/markdown@0.0.13':
-    resolution: {integrity: sha512-ZSQP2ulBvlPzdpZeRheBJnaELo7e4ET/D/XrfgweHyqhhLMN5vUJJAUl7ufSRd7GlfO/vwdzjKPh0E0JwqJkDA==}
-    peerDependencies:
-      octane: '>=0.1.12'
-      react: '>=18'
-    peerDependenciesMeta:
-      octane:
-        optional: true
-      react:
-        optional: true
 
   '@tanstack/markdown@1.2.1':
     resolution: {integrity: sha512-D/W8VHZe39mTGh74E5ZdmUPz9f/Gqso7ogKab3TRt3Mcto/IUGP94FTeI53hcNz1djwmo/s4hwU1og0rCPinOQ==}
@@ -7532,8 +7525,8 @@ packages:
     resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
     engines: {node: '>= 4'}
 
-  dompurify@3.4.14:
-    resolution: {integrity: sha512-dVoH9z+MY+C9IilgGCk3YfFqjLi3fChm2OiKJMzh6axrJ5qwxqWaZamgmHrpv22CN/KdbZJuGEGgfQoL00LTdg==}
+  dompurify@3.5.0:
+    resolution: {integrity: sha512-LYC0ZkE8P1V42JsRYTwMdme/2ET8SpOc5AA2eOFjP/IadvRd2fwiT4TVz5vkfy0XUx12aS2UaRkTnfVPNOv9vw==}
 
   domutils@2.8.0:
     resolution: {integrity: sha512-w96Cjofp72M5IIhpjgobBimYEfoPjx1Vx0BSX9P30WBdZW2WIKU0T1Bd0kz2eNZ9ikjKgHbEyKx8BB6H1L3h3A==}
@@ -10275,8 +10268,16 @@ packages:
     resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.418.10:
-    resolution: {integrity: sha512-XMvmmnuFoesSPjFo+wvzXkvuzYqIho8CVqxugG1Wt768offFARYNZDd1/xWfm9vk/pJTJ4RhUEHRzLpggmGx9Q==}
+  posthog-js@1.455.2:
+    resolution: {integrity: sha512-nsKTiEYYqG+ksVEg3h7cjqszY89l3S1TPTgemEzkRSWgExOpEBb0XAHu217S2/YslG78ieiOv1ZHE5KSOU88WA==}
+    peerDependencies:
+      '@types/react': '>=16.8.0'
+      react: '>=16.8.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      react:
+        optional: true
 
   postman-code-generators@2.1.1:
     resolution: {integrity: sha512-+egQK1Jf9a92QP23vRTKcDLOthIQmI7WI4czEsZq/wgguLMnVHJ26KlT8AVtpAdVw28hqUbHwicerYxRWCfjoA==}
@@ -11985,14 +11986,14 @@ packages:
   web-namespaces@2.0.1:
     resolution: {integrity: sha512-bKr1DkiNa2krS7qxNtdrtHAmzuYGFQLiQ13TsorsdT6ULTkPLKuu5+GsFpDlg6JFjUTwX2DyhMPG2be8uPrqsQ==}
 
-  web-vitals@5.3.0:
-    resolution: {integrity: sha512-q6LWsLatGYZp5VGBIOvbTj6JBV2nOmC8KvWztXBmwJcfFAzhwKwbOxhUH306XY3CcaZDUlSmSuNPBsCn0bFu+g==}
-
-  web-vitals@6.0.0:
-    resolution: {integrity: sha512-Guaibvy/+uNtL6Bsu4jmMJGzuSl91oeRH5iO9pPRbYftnFUr3yqT1TUNX/OE4o9HexuEMU3Kb/Wg7iKhlffZUA==}
-
   web-vitals@6.1.1:
     resolution: {integrity: sha512-r93gKnR6ZC2O8F3JrS0AAGIQ0v0OhXuyg4DAj2oG7K+GPkwXfUSc3ZcWeu50AsV5yIc6xxnTjERipJ6EvSw2vg==}
+
+  web-vitals@6.2.1:
+    resolution: {integrity: sha512-rLcLXA2sx6+9dE88NHFubwTtGxpK4yYBLj6qHPdFoCaLr0cXGb4efOqtKLlm4loGA4OEKHIQKMKzZkKyOh5ctw==}
+
+  web-vitals@6.2.3:
+    resolution: {integrity: sha512-Dmy+vdO1UPMqXiAtZSNayhl4f794Bxfd94W4HIj2HlYtczEQfEOon969memlcpcHrTuOKLa5baFjX7WbgmOq+A==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -12502,9 +12503,9 @@ snapshots:
       '@atproto/did': 0.0.0-spaces-alpha-20261124235736
       zod: 3.25.76
 
-  '@atproto-labs/did-resolver@0.3.14':
+  '@atproto-labs/did-resolver@0.3.15':
     dependencies:
-      '@atproto-labs/fetch': 0.4.3
+      '@atproto-labs/fetch': 0.5.0
       '@atproto-labs/pipe': 0.2.5
       '@atproto-labs/simple-store': 0.5.2
       '@atproto-labs/simple-store-memory': 0.2.7
@@ -12521,6 +12522,10 @@ snapshots:
       undici_v8: undici@8.12.4
 
   '@atproto-labs/fetch@0.4.3':
+    dependencies:
+      '@atproto-labs/pipe': 0.2.5
+
+  '@atproto-labs/fetch@0.5.0':
     dependencies:
       '@atproto-labs/pipe': 0.2.5
 
@@ -12549,9 +12554,9 @@ snapshots:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20261124235736
       '@atproto-labs/handle-resolver': 0.0.0-spaces-alpha-20261124235736
 
-  '@atproto-labs/identity-resolver@0.4.14':
+  '@atproto-labs/identity-resolver@0.4.15':
     dependencies:
-      '@atproto-labs/did-resolver': 0.3.14
+      '@atproto-labs/did-resolver': 0.3.15
       '@atproto-labs/handle-resolver': 0.4.11
 
   '@atproto-labs/pipe@0.2.5': {}
@@ -16415,23 +16420,27 @@ snapshots:
 
   '@poppinss/exception@1.2.3': {}
 
-  '@posthog/browser-common@0.5.0':
+  '@posthog/browser-common@0.14.2':
     dependencies:
-      '@posthog/core': 1.48.8
-      '@posthog/types': 1.405.1
+      '@posthog/core': 1.69.2
+      '@posthog/types': 1.427.2
+      dompurify: 3.5.0
+      preact: 10.29.8
+    transitivePeerDependencies:
+      - preact-render-to-string
 
-  '@posthog/core@1.48.8':
+  '@posthog/core@1.69.2':
     dependencies:
-      '@posthog/types': 1.405.1
+      '@posthog/types': 1.427.2
 
-  '@posthog/react@1.11.3(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)':
+  '@posthog/react@1.11.3(@types/react@19.2.18)(posthog-js@1.455.2(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      posthog-js: 1.418.10
+      posthog-js: 1.455.2(@types/react@19.2.18)(react@19.2.8)
       react: 19.2.8
     optionalDependencies:
       '@types/react': 19.2.18
 
-  '@posthog/types@1.405.1': {}
+  '@posthog/types@1.427.2': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -17052,10 +17061,10 @@ snapshots:
       tailwindcss: 4.3.5
       vite: 8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)
 
-  '@tanstack/ai-client@1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
+  '@tanstack/ai-client@1.2.1(@opentelemetry/api@1.10.0)(zod@4.6.7)':
     dependencies:
       '@tanstack/ai': 1.8.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-event-client': 1.0.1
+      '@tanstack/ai-event-client': 1.1.0
       '@tanstack/ai-utils': 1.1.0
       '@tanstack/store': 0.11.2
     transitivePeerDependencies:
@@ -17082,10 +17091,6 @@ snapshots:
       - zod
 
   '@tanstack/ai-event-client@1.0.0':
-    dependencies:
-      '@tanstack/devtools-event-client': 0.4.4
-
-  '@tanstack/ai-event-client@1.0.1':
     dependencies:
       '@tanstack/devtools-event-client': 0.4.4
 
@@ -17118,11 +17123,11 @@ snapshots:
       - ws
       - zod
 
-  '@tanstack/ai-react@1.0.2(@opentelemetry/api@1.10.0)(@tanstack/ai@1.8.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)':
+  '@tanstack/ai-react@1.1.1(@opentelemetry/api@1.10.0)(@tanstack/ai@1.8.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.7)':
     dependencies:
       '@tanstack/ai': 1.8.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-client': 1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/markdown': 0.0.13(react@19.2.8)
+      '@tanstack/ai-client': 1.2.1(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/markdown': 1.2.1(react@19.2.8)
       '@types/react': 19.2.18
       react: 19.2.8
     optionalDependencies:
@@ -17220,10 +17225,6 @@ snapshots:
       - utf-8-validate
 
   '@tanstack/history@1.162.5': {}
-
-  '@tanstack/markdown@0.0.13(react@19.2.8)':
-    optionalDependencies:
-      react: 19.2.8
 
   '@tanstack/markdown@1.2.1(react@19.2.8)':
     optionalDependencies:
@@ -19657,7 +19658,7 @@ snapshots:
     dependencies:
       domelementtype: 2.3.0
 
-  dompurify@3.4.14:
+  dompurify@3.5.0:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -23000,18 +23001,21 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.2
 
-  posthog-js@1.418.10:
+  posthog-js@1.455.2(@types/react@19.2.18)(react@19.2.8):
     dependencies:
-      '@posthog/browser-common': 0.5.0
-      '@posthog/core': 1.48.8
-      '@posthog/types': 1.405.1
+      '@posthog/browser-common': 0.14.2
+      '@posthog/core': 1.69.2
+      '@posthog/types': 1.427.2
       core-js: 3.50.0
-      dompurify: 3.4.14
+      dompurify: 3.5.0
       fflate: 0.4.9
       preact: 10.29.8
       query-selector-shadow-dom: 1.0.1
-      web-vitals: 5.3.0
-      web-vitals-soft-navs: web-vitals@6.0.0
+      web-vitals: 6.2.3
+      web-vitals-soft-navs: web-vitals@6.2.1
+    optionalDependencies:
+      '@types/react': 19.2.18
+      react: 19.2.8
     transitivePeerDependencies:
       - preact-render-to-string
 
@@ -25002,11 +25006,11 @@ snapshots:
 
   web-namespaces@2.0.1: {}
 
-  web-vitals@5.3.0: {}
-
-  web-vitals@6.0.0: {}
-
   web-vitals@6.1.1: {}
+
+  web-vitals@6.2.1: {}
+
+  web-vitals@6.2.3: {}
 
   webidl-conversions@3.0.1: {}
 
