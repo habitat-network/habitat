@@ -235,11 +235,7 @@ export function orgProfileQueryOptions(
   queryClient: QueryClient,
 ) {
   ensureValidDid(org);
-  const metaSpace = new SpaceRef(
-    org,
-    "org.atgrp.meta",
-    "self",
-  ).toString();
+  const metaSpace = new SpaceRef(org, "org.atgrp.meta", "self").toString();
   return queryOptions({
     queryKey: ["opensocial", "profile", org],
     queryFn: async (): Promise<OrgProfile | null> => {
