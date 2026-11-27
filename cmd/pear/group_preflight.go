@@ -30,28 +30,46 @@ const (
 
 func groupPreflightCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "group-preflight",
-		Usage: "Inventory legacy group migration blockers without changing data",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "sqlite-snapshot",
-				Usage: "Absolute path to a standalone SQLite backup (not a live DB or WAL copy)",
-			},
-			&cli.BoolFlag{
-				Name:  "postgres-snapshot",
-				Usage: "Inspect a restored PostgreSQL copy using PEAR_PREFLIGHT_POSTGRES_DSN",
-			},
-			&cli.StringFlag{
-				Name:     "member-domain",
-				Usage:    "Member domain configured on the source Pear instance",
-				Required: true,
-			},
-		},
+		Name:   "group-preflight",
+		Usage:  "Inventory legacy group migration blockers without changing data",
+		Flags:  groupSnapshotFlags(),
 		Action: runGroupPreflight,
 	}
 }
 
+func groupSnapshotFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{
+			Name:  "sqlite-snapshot",
+			Usage: "Absolute path to a standalone SQLite backup (not a live DB or WAL copy)",
+		},
+		&cli.BoolFlag{
+			Name:  "postgres-snapshot",
+			Usage: "Inspect a restored PostgreSQL copy using PEAR_PREFLIGHT_POSTGRES_DSN",
+		},
+		&cli.StringFlag{
+			Name:     "member-domain",
+			Usage:    "Member domain configured on the source Pear instance",
+			Required: true,
+		},
+	}
+}
+
 func runGroupPreflight(ctx context.Context, cmd *cli.Command) error {
+	return withGroupSnapshot(ctx, cmd, func(tx *sql.Tx, domain string, postgres bool) error {
+		report, err := inspectLegacyGroups(ctx, tx, domain, postgres)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(cmd.Root().Writer).Encode(report)
+	})
+}
+
+func withGroupSnapshot(
+	ctx context.Context,
+	cmd *cli.Command,
+	visit func(*sql.Tx, string, bool) error,
+) error {
 	domain := cmd.String("member-domain")
 	if _, err := syntax.ParseHandle(domain); err != nil || domain != strings.ToLower(domain) {
 		return errors.New("member-domain must be the source instance's lowercase DNS name")
@@ -93,11 +111,7 @@ func runGroupPreflight(ctx context.Context, cmd *cli.Command) error {
 		return errors.New("could not start read-only preflight transaction")
 	}
 	defer func() { _ = tx.Rollback() }()
-	report, err := inspectLegacyGroups(ctx, tx, domain, usePostgres)
-	if err != nil {
-		return err
-	}
-	return json.NewEncoder(cmd.Root().Writer).Encode(report)
+	return visit(tx, domain, usePostgres)
 }
 
 func sqlitePreflightDSN(path string) string {
@@ -245,25 +259,9 @@ func inspectLegacyGroups(
 }
 
 func (i *groupInventory) scanMarkers(postgres bool) error {
-	query := `SELECT COALESCE((SELECT type FROM main.sqlite_schema
-		WHERE name = 'canonical_group_rows' AND type IN ('table', 'view')), '')`
-	table := "main.canonical_group_rows"
-	wantKind := "table"
-	if postgres {
-		query = `SELECT COALESCE((SELECT relkind::text FROM pg_catalog.pg_class
-			WHERE oid = pg_catalog.to_regclass('canonical_group_rows')), '')`
-		table = "canonical_group_rows"
-		wantKind = "r"
-	}
-	var kind string
-	if err := i.tx.QueryRowContext(i.ctx, query).Scan(&kind); err != nil {
-		return errors.New("could not inspect completion marker schema")
-	}
-	if kind == "" {
-		return nil
-	}
-	if kind != wantKind {
-		return errors.New("completion marker schema is not a table")
+	table, err := groupMarkerTable(i.ctx, i.tx, postgres)
+	if err != nil || table == "" {
+		return err
 	}
 	i.markerAvailable = true
 	return i.scan("completion markers", "SELECT did FROM "+table, func(row *sql.Rows) error {
@@ -279,9 +277,33 @@ func (i *groupInventory) scanMarkers(postgres bool) error {
 	})
 }
 
+func groupMarkerTable(ctx context.Context, tx *sql.Tx, postgres bool) (string, error) {
+	query := `SELECT COALESCE((SELECT type FROM main.sqlite_schema
+		WHERE name = 'canonical_group_rows' AND type IN ('table', 'view')), '')`
+	table := "main.canonical_group_rows"
+	wantKind := "table"
+	if postgres {
+		query = `SELECT COALESCE((SELECT relkind::text FROM pg_catalog.pg_class
+			WHERE oid = pg_catalog.to_regclass('canonical_group_rows')), '')`
+		table = "canonical_group_rows"
+		wantKind = "r"
+	}
+	var kind string
+	if err := tx.QueryRowContext(ctx, query).Scan(&kind); err != nil {
+		return "", errors.New("could not inspect completion marker schema")
+	}
+	if kind == "" {
+		return "", nil
+	}
+	if kind != wantKind {
+		return "", errors.New("completion marker schema is not a table")
+	}
+	return table, nil
+}
+
 // Keep errors categorical: a driver error can include a DSN or raw data.
-func (i *groupInventory) scan(label, query string, visit func(*sql.Rows) error) error {
-	rows, err := i.tx.QueryContext(i.ctx, query)
+func (i *groupInventory) scan(label, query string, visit func(*sql.Rows) error, args ...any) error {
+	rows, err := i.tx.QueryContext(i.ctx, query, args...)
 	if err != nil {
 		return errors.New("could not query " + label + " on current Pear schema")
 	}
