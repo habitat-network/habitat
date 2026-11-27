@@ -95,6 +95,9 @@ func (s *Server) Snapshot(
 	sub Subscription,
 	query SnapshotQuery,
 ) (SnapshotPage, error) {
+	if err := s.checkCredentialModel(ctx, sub.Reader); err != nil {
+		return SnapshotPage{}, err
+	}
 	head, err := s.source.SequenceEvents(ctx)
 	if err != nil {
 		return SnapshotPage{}, fmt.Errorf("sequence events: %w", err)

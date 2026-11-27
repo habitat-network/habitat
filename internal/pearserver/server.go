@@ -141,7 +141,9 @@ func New(app *pearapp.App) *PearServer {
 	} else {
 		ps.webhookClient = httpx.NewPublicClient()
 	}
-	ps.spaceStream = spacestream.NewServer(app.SpacesStore, app.PermStore, spaceEvents)
+	ps.spaceStream = spacestream.NewServer(app.SpacesStore, app.PermStore, spaceEvents,
+		spacestream.WithSpaceCredentialModelGate(app.OpensocialStore.AllowsLegacySpaceCredential),
+	)
 	ps.registerRoutes()
 	return ps
 }
