@@ -1263,6 +1263,16 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 // handle, the flow completes via PDS login, and the client's app-access grant
 // is recorded once the token is issued.
 func TestHandleOpensocialSignInE2E(t *testing.T) {
+	t.Run("admin consents", func(t *testing.T) {
+		runOpensocialSignIn(t, false)
+	})
+	t.Run("admin removed before consent", func(t *testing.T) {
+		runOpensocialSignIn(t, true)
+	})
+}
+
+func runOpensocialSignIn(t *testing.T, removeAdmin bool) {
+	t.Helper()
 	db := dbtestutil.NewDB(t, Models())
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
@@ -1295,7 +1305,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	var opensocialGetVisited bool
+	var opensocialGetVisited, consentVisited bool
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/oauth/authorize":
@@ -1322,6 +1332,22 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 			postReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			postReq.AddCookie(r.Cookies()[0])
 			oauthServer.HandleOpensocial(w, postReq)
+		case consentPath:
+			getReq := httptest.NewRequest(http.MethodGet, "/oauth/consent", http.NoBody)
+			getReq.AddCookie(r.Cookies()[0])
+			getRec := httptest.NewRecorder()
+			oauthServer.HandleConsent(getRec, getReq)
+			require.Equal(t, http.StatusOK, getRec.Code)
+			consentVisited = true
+
+			if removeAdmin {
+				require.NoError(t, opensocialStore.AssignRoles(
+					r.Context(), orgDID, adminDID, []string{opensocial.MemberRoleRkey},
+				))
+			}
+			postReq := httptest.NewRequest(http.MethodPost, "/oauth/consent", http.NoBody)
+			postReq.AddCookie(r.Cookies()[0])
+			oauthServer.HandleConsent(w, postReq)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -1351,6 +1377,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
+				Scope:         "atproto",
 			}))
 		case "/oauth-callback":
 			ctx := context.WithValue(r.Context(), oauth2.HTTPClient, server.Client())
@@ -1373,6 +1400,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 
 	config.ClientID = clientApp.URL + "/client-metadata.json"
 	config.RedirectURL = clientApp.URL + "/oauth-callback"
+	config.Scopes = []string{"atproto"}
 
 	authReq, err := http.NewRequest(
 		http.MethodGet,
@@ -1387,6 +1415,12 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 	respBytes, err := io.ReadAll(result.Body)
 	require.NoError(t, err)
 	require.NoError(t, result.Body.Close())
+	require.True(t, consentVisited, "legacy group sign-in should reach consent")
+	if removeAdmin {
+		require.Equal(t, http.StatusUnauthorized, result.StatusCode, "%s", respBytes)
+		require.Empty(t, capturedToken)
+		return
+	}
 	require.Equal(t, http.StatusOK, result.StatusCode, "authorize request failed: %s", respBytes)
 
 	require.True(
@@ -1395,6 +1429,10 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 		"opensocial login page should have fetched the org profile",
 	)
 	require.NotEmpty(t, capturedToken, "OAuth flow should complete after opensocial admin sign-in")
+	credential, ok, err := oauthServer.ValidateRaw(t.Context(), capturedToken, "atproto")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, orgDID, credential.Subject)
 
 	hasAccess, err := opensocialStore.CheckAppAccess(
 		t.Context(),
@@ -1616,7 +1654,7 @@ func (p *statefulProvider) Exchange(
 // TestHandleOpensocialSurvivesNestedFlow verifies the opensocial org flow is
 // still resumed at its own callback when another sign-in (e.g. the member's
 // PDS login, which pear runs against itself) overwrites the cookie's
-// request_key and provider_state while the provider hop is in flight. The
+// request_key while the provider hop is in flight. The
 // callback must find the right request by the `state` it echoes back.
 func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 	db := dbtestutil.NewDB(t, Models())
@@ -1666,13 +1704,12 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 			postReq.AddCookie(r.Cookies()[0])
 			oauthServer.HandleOpensocial(w, postReq)
 		case "/provider":
-			// Stand in for a nested sign-in: it takes over both cookie slots
-			// the outer flow was relying on, then the outer provider hop
+			// Stand in for a nested sign-in: it takes over the current request
+			// slot, then the outer provider hop
 			// returns to the callback.
 			session, err := oauthServer.sessionStore.Get(r, sessionName)
 			require.NoError(t, err)
 			session.Values[requestKeyCookie] = "nested-request-key"
-			session.Values[providerStateCookie] = "nested-key"
 			require.NoError(t, session.Save(r, w))
 			http.Redirect(
 				w, r, pds.redirectURI+"?code=dummy&state=outer-state", http.StatusSeeOther,

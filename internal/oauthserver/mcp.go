@@ -288,7 +288,12 @@ func (o *OAuthServer) HandleMCPAuthorizeSubmit(w http.ResponseWriter, r *http.Re
 		)
 		return
 	}
-	saveLoginHop(session, requestKey, state, providerStateKey)
+	if err := saveLoginHop(session, state, loginHop{
+		RequestKey: requestKey, Subject: did, ProviderStateKey: providerStateKey,
+	}); err != nil {
+		httpx.WriteServerError(ctx, w, err)
+		return
+	}
 	if err := session.Save(r, w); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
 		return

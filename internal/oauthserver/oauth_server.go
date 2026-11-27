@@ -49,60 +49,62 @@ const (
 	// trusting the `state` the PDS echoes back — that state belongs to
 	// pdsoauth's own OAuth flow, not to ours.
 	requestKeyCookie = "request_key"
-	// providerStateCookie holds the key of the login-provider state, held server-side, for one redirect hop.
-	providerStateCookie = "provider_state"
 	// loginHopsCookie holds, keyed by the OAuth `state` each login-provider hop
 	// will echo back on its callback, the request key and provider state that
-	// hop belongs to. request_key and provider_state only describe the most
-	// recent hop, so without this a nested sign-in (e.g. the member's PDS login
+	// hop belongs to. request_key only describes the most recent request, so
+	// without this a nested sign-in (e.g. the member's PDS login
 	// that pear runs against itself inside an opensocial org login) would
 	// overwrite the outer flow and the callback would resume the wrong request.
 	loginHopsCookie = "login_hops"
+	// loginProofCookie is set only after a provider authenticated the account.
+	loginProofCookie = "login_proof"
 )
 
 // loginHop is the flow a provider redirect was started for.
 type loginHop struct {
-	RequestKey       string `json:"r"`
-	ProviderStateKey string `json:"p"`
+	RequestKey       string     `json:"r"`
+	ProviderStateKey string     `json:"p"`
+	Subject          syntax.DID `json:"s"`
+	GroupAuthorizer  syntax.DID `json:"a,omitempty"`
 }
 
-// saveLoginHop records the provider hop just started for requestKey, both as
-// the session's current provider state and, if the provider returned an OAuth
-// `state`, under that state so restoreLoginHop can find it later.
+// saveLoginHop binds the provider's state to the outer request, its subject,
+// and, for group login, the expected personal account.
 func saveLoginHop(
 	session *sessions.Session,
-	requestKey string,
 	state string,
-	providerStateKey string,
-) {
-	session.Values[providerStateCookie] = providerStateKey
+	hop loginHop,
+) error {
 	if state == "" {
-		return
+		return errors.New("login provider returned no state")
 	}
 	hops := loadLoginHops(session)
-	hops[state] = loginHop{RequestKey: requestKey, ProviderStateKey: providerStateKey}
-	if b, err := json.Marshal(hops); err == nil {
-		session.Values[loginHopsCookie] = string(b)
+	hops[state] = hop
+	b, err := json.Marshal(hops)
+	if err != nil {
+		return err
 	}
+	session.Values[loginHopsCookie] = string(b)
+	return nil
 }
 
-// restoreLoginHop points the session's request_key and provider_state back at
-// the hop whose callback echoed state, reporting whether one was found. Callers
-// fall back to the slots as they were when no hop matches, which is the case
-// for providers that carry no state.
-func restoreLoginHop(session *sessions.Session, state string) bool {
+func takeLoginHop(session *sessions.Session, state string) (loginHop, bool) {
 	hops := loadLoginHops(session)
 	hop, ok := hops[state]
-	if state == "" || !ok {
-		return false
+	if state == "" || !ok || hop.Subject == "" {
+		return loginHop{}, false
 	}
 	delete(hops, state)
 	if b, err := json.Marshal(hops); err == nil {
 		session.Values[loginHopsCookie] = string(b)
 	}
-	session.Values[requestKeyCookie] = hop.RequestKey
-	session.Values[providerStateCookie] = hop.ProviderStateKey
-	return true
+	return hop, true
+}
+
+type loginProof struct {
+	RequestKey string     `json:"r"`
+	Subject    syntax.DID `json:"s"`
+	Authorizer syntax.DID `json:"a,omitempty"`
 }
 
 func loadLoginHops(session *sessions.Session) map[string]loginHop {
@@ -349,7 +351,13 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to begin login: %w", err))
 		return
 	}
-	saveLoginHop(session, requestKey, state, providerStateKey)
+	if err := saveLoginHop(session, state, loginHop{
+		RequestKey: requestKey, Subject: did, ProviderStateKey: providerStateKey,
+	}); err != nil {
+		o.metrics.authorizeErr(ctx, err, "bind_login")
+		httpx.WriteServerError(ctx, w, err)
+		return
+	}
 	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_cookie")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
@@ -514,16 +522,18 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Resume the flow this callback's state belongs to, which may not be the
 	// one request_key currently points at if a nested sign-in ran in between.
-	restoreLoginHop(cookie, r.URL.Query().Get("state"))
-
-	requester, requestKey := o.retrieveAuthorizeRequest(w, r, cookie)
-	if requester == nil {
+	hop, ok := takeLoginHop(cookie, r.URL.Query().Get("state"))
+	if !ok {
+		httpx.WriteInvalidRequest(ctx, w, "unknown or expired login state", nil)
 		return
 	}
-
-	providerStateKey, _ := cookie.Values[providerStateCookie].(string)
-	cookie.Values[providerStateCookie] = nil
-	did := syntax.DID(requester.GetSession().GetSubject())
+	requester, err := o.storage.GetPARSession(ctx, hop.RequestKey)
+	if err != nil || requester.GetSession().GetSubject() != hop.Subject.String() {
+		httpx.WriteInvalidRequest(ctx, w, "login no longer matches the authorization request", nil)
+		return
+	}
+	did := hop.Subject
+	proof := loginProof{RequestKey: hop.RequestKey, Subject: did}
 
 	isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, did)
 	if err != nil {
@@ -531,21 +541,26 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
 		return
 	}
+	if isOpensocialOrg != (hop.GroupAuthorizer != "") {
+		httpx.WriteInvalidRequest(ctx, w, "login type no longer matches the authorization request", nil)
+		return
+	}
 	if isOpensocialOrg {
-		// The org DID isn't tracked by org.Store, so loginRouter.Exchange's
-		// org/member branching doesn't apply here — the admin's membership
-		// was already verified by HandleOpensocial before this PDS login
-		// began, and the subject stays the org DID throughout.
-		if _, _, err := o.loginRouter.Pds.Exchange(
-			ctx,
-			r.URL.Query(),
-			providerStateKey,
-		); err != nil {
+		loginID, _, err := o.loginRouter.Pds.Exchange(ctx, r.URL.Query(), hop.ProviderStateKey)
+		if err != nil {
 			o.metrics.callbackErr(ctx, err, "complete_login")
 			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
 			return
 		}
-	} else if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), providerStateKey); err != nil {
+		if loginID != hop.GroupAuthorizer.String() {
+			httpx.WriteUnauthorized(ctx, w, "PDS authenticated a different account", nil)
+			return
+		}
+		proof.Authorizer = hop.GroupAuthorizer
+		if !o.requireGroupAuthorizer(ctx, w, did, proof.Authorizer) {
+			return
+		}
+	} else if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), hop.ProviderStateKey); err != nil {
 		o.metrics.callbackErr(ctx, err, "complete_login")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
 		return
@@ -559,11 +574,24 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Nothing for the user to approve: finish the flow immediately instead of
 	// bouncing through the consent page.
 	if len(requester.GetRequestedScopes()) == 0 {
-		o.finishAuthorize(ctx, w, requestKey, requester, o.issuerFor(requester.GetClient()))
+		if err := cookie.Save(r, w); err != nil {
+			o.metrics.callbackErr(ctx, err, "save_cookie")
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
+			return
+		}
+		o.finishAuthorize(ctx, w, hop.RequestKey, requester, o.issuerFor(requester.GetClient()))
 		return
 	}
 
-	// Persist the restored request_key so the consent step finds this request.
+	// Consent must use this request and the account just authenticated, not an
+	// account provided in the consent URL or a later parallel sign-in.
+	raw, err := json.Marshal(proof)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, err)
+		return
+	}
+	cookie.Values[requestKeyCookie] = hop.RequestKey
+	cookie.Values[loginProofCookie] = string(raw)
 	if err := cookie.Save(r, w); err != nil {
 		o.metrics.callbackErr(ctx, err, "save_cookie")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
@@ -680,6 +708,11 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 //     user agent back to the client application with an authorization code.
 func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		w.Header().Set("Allow", "GET, POST")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 
 	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
@@ -687,8 +720,19 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to get cookie", err)
 		return
 	}
-	requester, requestKey := o.retrieveAuthorizeRequest(w, r, session)
-	if requester == nil {
+	requestKey, _ := session.Values[requestKeyCookie].(string)
+	raw, _ := session.Values[loginProofCookie].(string)
+	var proof loginProof
+	if json.Unmarshal([]byte(raw), &proof) != nil || proof.RequestKey != requestKey || proof.Subject == "" {
+		httpx.WriteUnauthorized(ctx, w, "complete sign-in before approving access", nil)
+		return
+	}
+	requester, err := o.storage.GetPARSession(ctx, requestKey)
+	if err != nil || requester.GetSession().GetSubject() != proof.Subject.String() {
+		httpx.WriteInvalidRequest(ctx, w, "login no longer matches the authorization request", nil)
+		return
+	}
+	if proof.Authorizer != "" && !o.requireGroupAuthorizer(ctx, w, proof.Subject, proof.Authorizer) {
 		return
 	}
 	if r.Method == http.MethodGet {
@@ -912,9 +956,10 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to get cookie", err)
 		return
 	}
-	requester, requestKey := o.retrieveAuthorizeRequest(w, r, session)
-	if requester == nil {
-		httpx.WriteInvalidRequest(ctx, w, "failed to get authorize request", nil)
+	requestKey, _ := session.Values[requestKeyCookie].(string)
+	requester, err := o.storage.GetPARSession(ctx, requestKey)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "unknown or expired authorization request", nil)
 		return
 	}
 	orgDID := syntax.DID(requester.GetSession().GetSubject())
@@ -939,13 +984,7 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to resolve handle", err)
 		return
 	}
-	roles, err := o.opensocialStore.GetUserRoles(ctx, orgDID, memberID)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get user roles: %w", err))
-		return
-	}
-	if !slices.Contains(roles, opensocial.AdminRoleRkey) {
-		httpx.WriteUnauthorized(ctx, w, "not an admin of this org", nil)
+	if !o.requireGroupAuthorizer(ctx, w, orgDID, memberID) {
 		return
 	}
 	redirectURL, state, providerStateKey, err := o.loginRouter.Pds.Authorize(ctx, memberID.String())
@@ -953,7 +992,12 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get authorize url: %w", err))
 		return
 	}
-	saveLoginHop(session, requestKey, state, providerStateKey)
+	if err := saveLoginHop(session, state, loginHop{
+		RequestKey: requestKey, Subject: orgDID, GroupAuthorizer: memberID, ProviderStateKey: providerStateKey,
+	}); err != nil {
+		httpx.WriteServerError(ctx, w, err)
+		return
+	}
 	if err := session.Save(r, w); err != nil {
 		o.metrics.callbackErr(ctx, err, "save_cookie")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
@@ -961,4 +1005,21 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
+
+func (o *OAuthServer) requireGroupAuthorizer(ctx context.Context, w http.ResponseWriter, group, authorizer syntax.DID) bool {
+	if authorizer == "" {
+		httpx.WriteUnauthorized(ctx, w, "sign in with an admin account", nil)
+		return false
+	}
+	roles, err := o.opensocialStore.GetUserRoles(ctx, group, authorizer)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get user roles: %w", err))
+		return false
+	}
+	if !slices.Contains(roles, opensocial.AdminRoleRkey) {
+		httpx.WriteUnauthorized(ctx, w, "not an admin of this org", nil)
+		return false
+	}
+	return true
 }

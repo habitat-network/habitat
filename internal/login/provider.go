@@ -19,7 +19,7 @@ type Profile struct {
 // its own credential storage.
 type Provider interface {
 	// Authorize starts the auth flow and returns the redirect URL, the OAuth
-	// `state` the callback will echo back (empty if the provider has none),
+	// `state` the callback will echo back,
 	// plus an opaque key into the provider's own store, under which it saved
 	// whatever state Exchange will need (empty if it saved none). The caller
 	// carries only the key, in the session flash. The echoed state lets

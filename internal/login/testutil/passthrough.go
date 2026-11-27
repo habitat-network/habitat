@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // PassthroughProvider implements [login.Provider] by starting an httptest server
@@ -32,7 +33,15 @@ func NewPassthroughProvider(t *testing.T) *PassthroughProvider {
 	t.Helper()
 	p := &PassthroughProvider{}
 	p.Server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, p.RedirectURI, http.StatusSeeOther)
+		u, err := url.Parse(p.RedirectURI)
+		if err != nil {
+			http.Error(w, "invalid redirect URI", http.StatusInternalServerError)
+			return
+		}
+		q := u.Query()
+		q.Set("state", r.URL.Query().Get("state"))
+		u.RawQuery = q.Encode()
+		http.Redirect(w, r, u.String(), http.StatusSeeOther)
 	}))
 	t.Cleanup(p.Server.Close)
 	return p
@@ -45,7 +54,8 @@ func (p *PassthroughProvider) Authorize(
 	if p.LoginID == "" {
 		p.LoginID = loginHint
 	}
-	return p.Server.URL + "/authorize", "", "", nil
+	state = utils.RandomNonce(32)
+	return p.Server.URL + "/authorize?state=" + url.QueryEscape(state), state, "", nil
 }
 
 func (p *PassthroughProvider) Exchange(
