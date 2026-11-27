@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@atproto/lex-json": "0.1.10",
-    "effect": "4.1.5"
+    "effect": "4.1.6"
   },
   "devDependencies": {
     "typescript": "catalog:",
