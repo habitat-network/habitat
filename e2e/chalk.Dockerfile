@@ -12,7 +12,7 @@ WORKDIR /app
 RUN npm install -g pnpm@11.5.1
 
 # Manifests first so the install layer stays cached when sources change.
-COPY --parents pnpm-lock.yaml pnpm-workspace.yaml package.json \
+COPY --parents pnpm-lock.yaml pnpm-workspace.yaml package.json patches \
 	typescript/apps/app/package.json \
 	typescript/internal/package.json \
 	typescript/api/package.json \
