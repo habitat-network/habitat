@@ -450,6 +450,8 @@ type Write struct {
 	Collection syntax.NSID
 	Rkey       syntax.RecordKey
 	Value      MarshaledRecord
+	// SwapCID, if set, requires the current record to have this CID.
+	SwapCID string
 }
 
 // WriteResult is the outcome of one [Write]. Cid is nil for WriteDelete.
@@ -530,6 +532,7 @@ var (
 	ErrSpaceAlreadyExists  = errors.New("space already exists")
 	ErrRecordNotFound      = errors.New("record not found")
 	ErrRecordAlreadyExists = errors.New("record already exists")
+	ErrRecordChanged       = errors.New("record does not match the expected CID")
 	ErrUserAlreadyMember   = errors.New("user is already a member of the space")
 	ErrNotAMember          = errors.New("user is not a member of the space")
 	ErrCannotRemoveOrg     = errors.New("cannot remove the org from the space")
@@ -1846,6 +1849,9 @@ func (s *store) ApplyWrites(
 				return fmt.Errorf("failed to get existing record: %w", err)
 			}
 			exists := err == nil
+			if w.SwapCID != "" && (!exists || existing.Cid != w.SwapCID) {
+				return fmt.Errorf("%s: %w", uri, ErrRecordChanged)
+			}
 
 			switch w.Action {
 			case WriteCreate, WriteUpdate:

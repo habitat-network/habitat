@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/comatproto"
+	"github.com/habitat-network/habitat/internal/atgrp"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -116,6 +117,10 @@ func (p *PearServer) authorizeMemberChange(
 	ctx := r.Context()
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, space, "space uri")
 	if !ok {
+		return "", false
+	}
+	if spaceURI.SpaceType() == atgrp.InboxSpaceType {
+		httpx.WriteInvalidRequest(ctx, w, "an inbox has no members", nil)
 		return "", false
 	}
 	if _, ok = p.validator.Request(

@@ -8,6 +8,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/atgrp"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -437,6 +438,11 @@ func (s *store) CheckUserHasSpaceRole(
 	space habitat_syntax.SpaceURI,
 	role habitat_syntax.SpaceRole,
 ) (bool, error) {
+	// No relation may allow another account to see the contents of an
+	// inbox. The repo author's narrow CRUD path does not grant a space role.
+	if space.SpaceType() == atgrp.InboxSpaceType {
+		return space.SpaceOwner() == did, nil
+	}
 	contextualTuples := []fgastore.Tuple{fgastore.OwnerContextualTuple(space)}
 	if role == habitat_syntax.SpaceRoleReader || role == habitat_syntax.SpaceRoleWriter {
 		allowed, err := s.opensocial.CheckPermission(ctx, did, space)
@@ -502,6 +508,9 @@ func (s *store) ListUserSubjects(
 	space habitat_syntax.SpaceURI,
 	role habitat_syntax.SpaceRole,
 ) ([]syntax.DID, error) {
+	if space.SpaceType() == atgrp.InboxSpaceType {
+		return []syntax.DID{space.SpaceOwner()}, nil
+	}
 	users, err := s.fga.ListUsers(
 		ctx,
 		fgastore.SpaceObjectKey(space),
@@ -546,6 +555,9 @@ func (s *store) ListObjects(
 		uri, err := fgastore.ParseSpaceObjectKey(key)
 		if err != nil {
 			return nil, fmt.Errorf("perms: list objects: %w", err)
+		}
+		if uri.SpaceType() == atgrp.InboxSpaceType && uri.SpaceOwner() != did {
+			continue
 		}
 		if filterType != nil && uri.SpaceType() != *filterType {
 			continue

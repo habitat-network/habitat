@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/habitat-network/habitat/api/comatproto"
+	"github.com/habitat-network/habitat/internal/atgrp"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -69,6 +70,15 @@ func (p *PearServer) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 	}
 	policy, err := spaces.ParsePolicy(rawPolicy)
 	if !writePolicyError(ctx, w, err) {
+		return
+	}
+	if spaceURI.SpaceType() == atgrp.InboxSpaceType && !atgrp.IsInboxPolicy(policy) {
+		httpx.WriteInvalidRequest(
+			ctx,
+			w,
+			"inbox requires a private public-write memberspace policy",
+			nil,
+		)
 		return
 	}
 	err = p.spacesStore.SetSpacePolicy(ctx, spaceURI, policy)

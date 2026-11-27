@@ -8,9 +8,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 func (p *PearServer) ListRecords(w http.ResponseWriter, r *http.Request) {
@@ -24,17 +22,6 @@ func (p *PearServer) ListRecords(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_, ok = p.validator.Request(
-		authn.WithMethods(
-			authn.ValidatorMethodOAuth,
-			authn.ValidatorMethodServiceAuth,
-			authn.ValidatorMethodSpaceCredential,
-		),
-		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
 	var filterCollection *syntax.NSID
 	if params.Collection != "" {
 		c, ok := httpx.ParseNSIDInput(ctx, w, params.Collection, "collection filter")
@@ -45,6 +32,13 @@ func (p *PearServer) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 	repo, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
 	if !ok {
+		return
+	}
+	var collection syntax.NSID
+	if filterCollection != nil {
+		collection = *filterCollection
+	}
+	if _, ok = p.validateRecordReader(w, r, spaceURI, repo, collection); !ok {
 		return
 	}
 	records, err := p.spacesStore.ListRecords(r.Context(), spaceURI, repo, filterCollection)

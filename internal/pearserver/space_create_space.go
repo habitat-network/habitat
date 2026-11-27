@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/habitat-network/habitat/api/comatproto"
+	"github.com/habitat-network/habitat/internal/atgrp"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -67,8 +68,28 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uri, err := p.simpleStore.CreateSpace(ctx, credInfo.Subject, spaceType, skey)
-	if errors.Is(err, simplespace.ErrSpaceAlreadyExists) {
+	var uri habitat_syntax.SpaceURI
+	if spaceType == atgrp.InboxSpaceType {
+		if skey != "self" || !atgrp.IsInboxPolicy(policy) {
+			httpx.WriteInvalidRequest(
+				ctx,
+				w,
+				"inbox requires key self and a private public-write memberspace policy",
+				nil,
+			)
+			return
+		}
+		if !p.requireLocalInboxAccount(w, r, credInfo.Subject) {
+			return
+		}
+		// Unlike a Habitat-managed space, an inbox belongs to the personal
+		// account itself. A group must not create an inbox for its invitee.
+		uri, err = p.spacesStore.CreateSpace(ctx, credInfo.Subject, spaceType, skey)
+	} else {
+		uri, err = p.simpleStore.CreateSpace(ctx, credInfo.Subject, spaceType, skey)
+	}
+	if errors.Is(err, simplespace.ErrSpaceAlreadyExists) ||
+		errors.Is(err, spaces.ErrSpaceAlreadyExists) {
 		httpx.WriteError(ctx, w, "SpaceAlreadyExists", "" /* msg */, http.StatusBadRequest)
 		return
 	} else if err != nil {
